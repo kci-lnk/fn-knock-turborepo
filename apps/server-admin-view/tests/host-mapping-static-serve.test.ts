@@ -45,15 +45,23 @@ describe("host mapping static target model", () => {
     });
     assert.deepEqual(
       normalizeHostMappingStaticServe("file", {
-        path: " /srv/manual.pdf ",
+        path: "/srv/manual.pdf ",
         index_files: ["index.html"],
         directory_listing: { enabled: true, render_readme: true },
       }),
       {
-        path: "/srv/manual.pdf",
+        path: "/srv/manual.pdf ",
         index_files: [],
         directory_listing: { enabled: false, render_readme: false },
       },
+    );
+    assert.equal(
+      normalizeHostMappingStaticServe("file", {
+        path: "   ",
+        index_files: [],
+        directory_listing: { enabled: false, render_readme: false },
+      })?.path,
+      "",
     );
     assert.equal(
       normalizeHostMappingStaticServe("directory", {
@@ -126,6 +134,24 @@ describe("host mapping static target model", () => {
         targetType: "directory",
       }),
       "path_has_parent_segment",
+    );
+    directory.path = "/srv/docs ";
+    assert.equal(
+      getStaticServeValidationIssue({
+        isWindows: false,
+        staticServe: directory,
+        targetType: "directory",
+      }),
+      null,
+    );
+    directory.path = "C:\\Sites\\docs ";
+    assert.equal(
+      getStaticServeValidationIssue({
+        isWindows: true,
+        staticServe: directory,
+        targetType: "directory",
+      }),
+      "path_unsafe",
     );
   });
 
@@ -258,6 +284,7 @@ describe("host mapping static target model", () => {
 
   it("canonicalizes static saves and preserves inbound policy settings", () => {
     const mapping = staticDirectoryMapping();
+    mapping.static_serve.path = "/srv/docs ";
     mapping.target_path_mode = "prefix";
     mapping.preserve_host = true;
     mapping.suppress_toolbar = false;

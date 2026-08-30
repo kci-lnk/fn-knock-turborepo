@@ -16,11 +16,34 @@ const STATIC_PATH_PROBE_ERROR_CODES: [&str; 7] = [
     "unsupported_type",
     "unavailable",
 ];
+const STATIC_PATH_BROWSE_ERROR_CODES: [&str; 9] = [
+    "invalid_path",
+    "invalid_cursor",
+    "protected_path",
+    "not_found",
+    "permission_denied",
+    "not_directory",
+    "directory_too_large",
+    "unsupported_type",
+    "unavailable",
+];
+const MAX_STATIC_PATH_BROWSE_PATH_BYTES: usize = 4096;
+const MAX_STATIC_PATH_BROWSE_CURSOR_BYTES: usize = 512;
+const MAX_STATIC_PATH_BROWSE_ENTRIES: usize = 100;
+const MAX_STATIC_PATH_BROWSE_BREADCRUMBS: usize = 256;
+const MAX_STATIC_PATH_BROWSE_NAME_BYTES: usize = 255;
 
 #[derive(Clone, Debug, Eq, Hash, PartialEq)]
 pub(super) struct StaticPathSpec {
     pub(super) target_type: String,
     pub(super) path: String,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub(super) struct StaticPathBrowseSpec {
+    pub(super) target_type: String,
+    pub(super) path: String,
+    pub(super) cursor: String,
 }
 
 pub(super) fn host_target_type(value: Option<&Value>) -> Result<&'static str, String> {
@@ -34,6 +57,148 @@ pub(super) fn host_target_type(value: Option<&Value>) -> Result<&'static str, St
         },
         Some(_) => Err("target type must be proxy, file or directory".to_string()),
     }
+}
+
+pub(super) fn static_path_browse_target_type(value: &str) -> Option<&'static str> {
+    match value {
+        HOST_TARGET_TYPE_FILE => Some(HOST_TARGET_TYPE_FILE),
+        HOST_TARGET_TYPE_DIRECTORY => Some(HOST_TARGET_TYPE_DIRECTORY),
+        _ => None,
+    }
+}
+
+pub(super) fn static_path_browse_spec(
+    target_type: &str,
+    path: Option<&str>,
+    cursor: Option<&str>,
+) -> Result<StaticPathBrowseSpec, &'static str> {
+    let path = normalize_static_path_browse_path(path.unwrap_or("")).ok_or("invalid_path")?;
+    let cursor = cursor.unwrap_or("");
+    if !is_valid_static_path_browse_cursor(cursor) {
+        return Err("invalid_cursor");
+    }
+    Ok(StaticPathBrowseSpec {
+        target_type: target_type.to_string(),
+        path,
+        cursor: cursor.to_string(),
+    })
+}
+
+pub(super) fn rejected_static_path_browse_result(target_type: &str, error_code: &str) -> Value {
+    json!({
+        "target_type": target_type,
+        "platform": static_path_browse_platform(),
+        "current_path": null,
+        "parent_path": null,
+        "current_selectable": false,
+        "selected_path": null,
+        "breadcrumbs": [],
+        "entries": [],
+        "previous_cursor": null,
+        "next_cursor": null,
+        "error_code": error_code,
+    })
+}
+
+pub(super) async fn browse_static_path_with_gateway(
+    state: &AppState,
+    spec: &StaticPathBrowseSpec,
+) -> Result<Value, &'static str> {
+    let result = state
+        .gateway
+        .client
+        .browse_static_path(&spec.target_type, &spec.path, &spec.cursor)
+        .await
+        .map_err(|_| "Static path browse request failed")?;
+    sanitize_static_path_browse_result(spec, &result)
+}
+
+fn static_path_browse_platform() -> &'static str {
+    if cfg!(windows) { "windows" } else { "posix" }
+}
+
+fn normalize_static_path_browse_path(path: &str) -> Option<String> {
+    if path.len() > MAX_STATIC_PATH_BROWSE_PATH_BYTES
+        || path.contains('\0')
+        || path.chars().any(is_unsafe_filesystem_char)
+    {
+        return None;
+    }
+    if path.is_empty() {
+        return Some(String::new());
+    }
+    if cfg!(windows) {
+        normalize_windows_static_path_browse_path(path)
+    } else {
+        normalize_posix_static_path_browse_path(path)
+    }
+}
+
+fn normalize_posix_static_path_browse_path(path: &str) -> Option<String> {
+    if !path.starts_with('/') || has_windows_unc_prefix(path) || path.contains('\\') {
+        return None;
+    }
+    let mut components = Vec::new();
+    for component in path.split('/').skip(1) {
+        if component.is_empty() {
+            continue;
+        }
+        if matches!(component, "." | "..") || !is_safe_browse_name(component, "posix") {
+            return None;
+        }
+        components.push(component);
+    }
+    if components.is_empty() {
+        Some("/".to_string())
+    } else {
+        Some(format!("/{}", components.join("/")))
+    }
+}
+
+fn normalize_windows_static_path_browse_path(path: &str) -> Option<String> {
+    if has_windows_unc_prefix(path) || path.len() < 3 {
+        return None;
+    }
+    let bytes = path.as_bytes();
+    if !bytes[0].is_ascii_alphabetic() || bytes[1] != b':' || !matches!(bytes[2], b'/' | b'\\') {
+        return None;
+    }
+    let drive = (bytes[0] as char).to_ascii_uppercase();
+    let mut components = Vec::new();
+    for component in path[3..].split(['/', '\\']) {
+        if component.is_empty() {
+            continue;
+        }
+        if matches!(component, "." | "..") || !is_safe_browse_name(component, "windows") {
+            return None;
+        }
+        components.push(component);
+    }
+    let mut normalized = format!("{drive}:\\");
+    normalized.push_str(&components.join("\\"));
+    Some(normalized)
+}
+
+fn is_valid_static_path_browse_cursor(cursor: &str) -> bool {
+    cursor.len() <= MAX_STATIC_PATH_BROWSE_CURSOR_BYTES
+        && cursor
+            .bytes()
+            .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'-' | b'_'))
+}
+
+fn is_safe_browse_name(value: &str, platform: &str) -> bool {
+    value.len() <= MAX_STATIC_PATH_BROWSE_NAME_BYTES
+        && value.chars().count() <= MAX_STATIC_PATH_BROWSE_NAME_BYTES
+        && !value.starts_with("__")
+        && !value.is_empty()
+        && value != "."
+        && value != ".."
+        && !value.starts_with('.')
+        && !value.contains('/')
+        && !value.contains('\\')
+        && !value.contains('\0')
+        && !value.chars().any(is_unsafe_filesystem_char)
+        && (platform != "windows" || is_safe_windows_visible_name(value))
 }
 
 pub(super) fn normalized_host_target_type(mapping: &Value) -> &'static str {
@@ -55,7 +220,6 @@ pub(super) fn normalize_static_serve_config(
     let path = object
         .get("path")
         .and_then(Value::as_str)
-        .map(str::trim)
         .ok_or_else(|| format!("Host mapping {host} static path is required"))?;
     let path = normalize_static_path(host, path)?;
 
@@ -84,7 +248,10 @@ pub(super) fn normalize_static_serve_config(
 }
 
 fn normalize_static_path(host: &str, path: &str) -> Result<String, String> {
-    if path.is_empty() {
+    // Filesystem path whitespace is significant on POSIX. Use trimming only
+    // to recognize an all-whitespace missing value; never feed the trimmed
+    // spelling into normalization, probing, or durable configuration.
+    if path.trim().is_empty() {
         return Err(format!("Host mapping {host} static path is required"));
     }
     if path.contains('\0') {
@@ -187,7 +354,6 @@ fn platform_visible_name_is_safe(value: &str) -> bool {
     is_safe_windows_visible_name(value)
 }
 
-#[cfg(any(windows, test))]
 fn is_safe_windows_visible_name(value: &str) -> bool {
     if value
         .chars()
@@ -380,6 +546,459 @@ pub(super) fn changed_static_path_specs(
         .collect()
 }
 
+fn sanitize_static_path_browse_result(
+    spec: &StaticPathBrowseSpec,
+    result: &Value,
+) -> Result<Value, &'static str> {
+    const INVALID: &str = "Static path browse returned an invalid response";
+    const FIELDS: [&str; 11] = [
+        "target_type",
+        "platform",
+        "current_path",
+        "parent_path",
+        "current_selectable",
+        "selected_path",
+        "breadcrumbs",
+        "entries",
+        "previous_cursor",
+        "next_cursor",
+        "error_code",
+    ];
+    let object = result.as_object().ok_or(INVALID)?;
+    if object.len() != FIELDS.len() || object.keys().any(|key| !FIELDS.contains(&key.as_str())) {
+        return Err(INVALID);
+    }
+    if required_string_field(object, "target_type")? != spec.target_type {
+        return Err(INVALID);
+    }
+    let platform = required_string_field(object, "platform")?;
+    if !matches!(platform, "posix" | "windows") || platform != static_path_browse_platform() {
+        return Err(INVALID);
+    }
+    let requested_path = if platform == "posix" && spec.path.is_empty() {
+        "/"
+    } else {
+        &spec.path
+    };
+    let current_path = nullable_non_empty_string_field(object, "current_path")?;
+    let parent_path = nullable_string_field(object, "parent_path")?;
+    let selected_path = nullable_non_empty_string_field(object, "selected_path")?;
+    let previous_cursor = nullable_non_empty_string_field(object, "previous_cursor")?;
+    let next_cursor = nullable_non_empty_string_field(object, "next_cursor")?;
+    let error_code = nullable_non_empty_string_field(object, "error_code")?;
+    let current_selectable = object
+        .get("current_selectable")
+        .and_then(Value::as_bool)
+        .ok_or(INVALID)?;
+    let breadcrumbs = object
+        .get("breadcrumbs")
+        .and_then(Value::as_array)
+        .ok_or(INVALID)?;
+    let entries = object
+        .get("entries")
+        .and_then(Value::as_array)
+        .ok_or(INVALID)?;
+
+    if let Some(error_code) = error_code {
+        if !STATIC_PATH_BROWSE_ERROR_CODES.contains(&error_code)
+            || current_path.is_some()
+            || parent_path.is_some()
+            || selected_path.is_some()
+            || previous_cursor.is_some()
+            || next_cursor.is_some()
+            || current_selectable
+            || !breadcrumbs.is_empty()
+            || !entries.is_empty()
+        {
+            return Err(INVALID);
+        }
+        return Ok(rejected_static_path_browse_result(
+            &spec.target_type,
+            error_code,
+        ));
+    }
+
+    if previous_cursor.is_some_and(|value| !is_valid_static_path_browse_cursor(value))
+        || next_cursor.is_some_and(|value| !is_valid_static_path_browse_cursor(value))
+        || previous_cursor.is_some() && previous_cursor == next_cursor
+    {
+        return Err(INVALID);
+    }
+
+    let virtual_windows_root = platform == "windows" && current_path.is_none();
+    if virtual_windows_root {
+        if !spec.path.is_empty()
+            || parent_path.is_some()
+            || selected_path.is_some()
+            || current_selectable
+            || !breadcrumbs.is_empty()
+            || previous_cursor.is_some()
+            || next_cursor.is_some()
+        {
+            return Err(INVALID);
+        }
+    } else {
+        let current_path = current_path.ok_or(INVALID)?;
+        if !is_canonical_static_path_browse_path(platform, current_path) {
+            return Err(INVALID);
+        }
+        let expected_parent = static_path_browse_parent(platform, current_path);
+        if !optional_paths_equal(platform, parent_path, expected_parent.as_deref()) {
+            return Err(INVALID);
+        }
+        if !breadcrumbs_match_current(platform, breadcrumbs, current_path) {
+            return Err(INVALID);
+        }
+        if spec.target_type == HOST_TARGET_TYPE_DIRECTORY {
+            if selected_path.is_some()
+                || !paths_equal(platform, current_path, requested_path)
+                || current_selectable && is_static_path_browse_root(platform, current_path)
+            {
+                return Err(INVALID);
+            }
+        } else if let Some(selected_path) = selected_path {
+            if !is_canonical_static_path_browse_path(platform, selected_path)
+                || !paths_equal(platform, selected_path, requested_path)
+                || !is_immediate_static_path_child(platform, current_path, selected_path)
+                || current_selectable
+            {
+                return Err(INVALID);
+            }
+        } else if !paths_equal(platform, current_path, requested_path) || current_selectable {
+            return Err(INVALID);
+        }
+    }
+
+    let sanitized_breadcrumbs = sanitize_static_path_breadcrumbs(platform, breadcrumbs)?;
+    let sanitized_entries = sanitize_static_path_browse_entries(
+        platform,
+        &spec.target_type,
+        current_path,
+        virtual_windows_root,
+        entries,
+    )?;
+
+    Ok(json!({
+        "target_type": spec.target_type,
+        "platform": platform,
+        "current_path": current_path,
+        "parent_path": parent_path,
+        "current_selectable": current_selectable,
+        "selected_path": selected_path,
+        "breadcrumbs": sanitized_breadcrumbs,
+        "entries": sanitized_entries,
+        "previous_cursor": previous_cursor,
+        "next_cursor": next_cursor,
+        "error_code": null,
+    }))
+}
+
+fn required_string_field<'a>(
+    object: &'a Map<String, Value>,
+    key: &str,
+) -> Result<&'a str, &'static str> {
+    object
+        .get(key)
+        .and_then(Value::as_str)
+        .ok_or("Static path browse returned an invalid response")
+}
+
+fn nullable_non_empty_string_field<'a>(
+    object: &'a Map<String, Value>,
+    key: &str,
+) -> Result<Option<&'a str>, &'static str> {
+    match object.get(key) {
+        Some(Value::Null) => Ok(None),
+        Some(Value::String(value)) if value.is_empty() => Ok(None),
+        Some(Value::String(value)) => Ok(Some(value)),
+        _ => Err("Static path browse returned an invalid response"),
+    }
+}
+
+fn nullable_string_field<'a>(
+    object: &'a Map<String, Value>,
+    key: &str,
+) -> Result<Option<&'a str>, &'static str> {
+    match object.get(key) {
+        Some(Value::Null) => Ok(None),
+        Some(Value::String(value)) => Ok(Some(value)),
+        _ => Err("Static path browse returned an invalid response"),
+    }
+}
+
+fn is_canonical_static_path_browse_path(platform: &str, path: &str) -> bool {
+    if path.is_empty() || path.len() > MAX_STATIC_PATH_BROWSE_PATH_BYTES {
+        return false;
+    }
+    let normalized = match platform {
+        "posix" => normalize_posix_static_path_browse_path(path),
+        "windows" => normalize_windows_static_path_browse_path(path),
+        _ => None,
+    };
+    normalized.is_some_and(|normalized| paths_equal(platform, &normalized, path))
+}
+
+fn paths_equal(platform: &str, left: &str, right: &str) -> bool {
+    if platform == "windows" {
+        left.eq_ignore_ascii_case(right)
+    } else {
+        left == right
+    }
+}
+
+fn optional_paths_equal(platform: &str, left: Option<&str>, right: Option<&str>) -> bool {
+    match (left, right) {
+        (Some(left), Some(right)) => paths_equal(platform, left, right),
+        (None, None) => true,
+        _ => false,
+    }
+}
+
+fn static_path_browse_parent(platform: &str, path: &str) -> Option<String> {
+    if platform == "posix" {
+        if path == "/" {
+            return None;
+        }
+        let separator = path.rfind('/')?;
+        return Some(if separator == 0 {
+            "/".to_string()
+        } else {
+            path[..separator].to_string()
+        });
+    }
+    if path.len() == 3 && path.as_bytes().get(1) == Some(&b':') && path.ends_with('\\') {
+        return Some(String::new());
+    }
+    let separator = path.rfind('\\')?;
+    Some(if separator == 2 {
+        path[..=separator].to_string()
+    } else {
+        path[..separator].to_string()
+    })
+}
+
+fn is_static_path_browse_root(platform: &str, path: &str) -> bool {
+    path == "/" || platform == "windows" && is_windows_drive_root(path)
+}
+
+fn is_immediate_static_path_child(platform: &str, parent: &str, child: &str) -> bool {
+    static_path_browse_parent(platform, child)
+        .as_deref()
+        .is_some_and(|candidate| paths_equal(platform, candidate, parent))
+}
+
+fn breadcrumbs_match_current(platform: &str, breadcrumbs: &[Value], current_path: &str) -> bool {
+    if breadcrumbs.is_empty() || breadcrumbs.len() > MAX_STATIC_PATH_BROWSE_BREADCRUMBS {
+        return false;
+    }
+    let expected = expected_static_path_breadcrumbs(platform, current_path);
+    if breadcrumbs.len() != expected.len() {
+        return false;
+    }
+    breadcrumbs
+        .iter()
+        .zip(expected)
+        .all(|(value, (expected_name, expected_path))| {
+            value.as_object().is_some_and(|object| {
+                object.len() == 2
+                    && object
+                        .get("name")
+                        .and_then(Value::as_str)
+                        .is_some_and(|name| name == expected_name)
+                    && object
+                        .get("path")
+                        .and_then(Value::as_str)
+                        .is_some_and(|path| paths_equal(platform, path, &expected_path))
+            })
+        })
+}
+
+fn expected_static_path_breadcrumbs(platform: &str, current_path: &str) -> Vec<(String, String)> {
+    if platform == "posix" {
+        let mut result = vec![("/".to_string(), "/".to_string())];
+        let mut path = String::new();
+        for name in current_path.split('/').filter(|value| !value.is_empty()) {
+            path.push('/');
+            path.push_str(name);
+            result.push((name.to_string(), path.clone()));
+        }
+        return result;
+    }
+    let drive_name = current_path[..2].to_string();
+    let drive_path = current_path[..3].to_string();
+    let mut result = vec![(drive_name, drive_path.clone())];
+    let mut path = drive_path;
+    for name in current_path[3..]
+        .split('\\')
+        .filter(|value| !value.is_empty())
+    {
+        if !path.ends_with('\\') {
+            path.push('\\');
+        }
+        path.push_str(name);
+        result.push((name.to_string(), path.clone()));
+    }
+    result
+}
+
+fn sanitize_static_path_breadcrumbs(
+    platform: &str,
+    breadcrumbs: &[Value],
+) -> Result<Vec<Value>, &'static str> {
+    breadcrumbs
+        .iter()
+        .map(|value| {
+            let object = value
+                .as_object()
+                .ok_or("Static path browse returned an invalid response")?;
+            if object.len() != 2 {
+                return Err("Static path browse returned an invalid response");
+            }
+            let name = required_string_field(object, "name")?;
+            let path = required_string_field(object, "path")?;
+            if name.len() > MAX_STATIC_PATH_BROWSE_NAME_BYTES
+                || name.chars().count() > MAX_STATIC_PATH_BROWSE_NAME_BYTES
+                || !is_canonical_static_path_browse_path(platform, path)
+            {
+                return Err("Static path browse returned an invalid response");
+            }
+            Ok(json!({ "name": name, "path": path }))
+        })
+        .collect()
+}
+
+fn sanitize_static_path_browse_entries(
+    platform: &str,
+    target_type: &str,
+    current_path: Option<&str>,
+    virtual_windows_root: bool,
+    entries: &[Value],
+) -> Result<Vec<Value>, &'static str> {
+    const INVALID: &str = "Static path browse returned an invalid response";
+    if entries.len() > MAX_STATIC_PATH_BROWSE_ENTRIES {
+        return Err(INVALID);
+    }
+    let mut seen_paths = HashSet::with_capacity(entries.len());
+    let mut saw_file = false;
+    let mut sanitized = Vec::with_capacity(entries.len());
+    for value in entries {
+        let object = value.as_object().ok_or(INVALID)?;
+        let allowed_fields = [
+            "name",
+            "path",
+            "entry_type",
+            "navigable",
+            "selectable",
+            "size_bytes",
+            "modified_at",
+        ];
+        if object.len() != allowed_fields.len()
+            || object
+                .keys()
+                .any(|key| !allowed_fields.contains(&key.as_str()))
+        {
+            return Err(INVALID);
+        }
+        let name = required_string_field(object, "name")?;
+        let path = required_string_field(object, "path")?;
+        let entry_type = required_string_field(object, "entry_type")?;
+        if !matches!(
+            entry_type,
+            HOST_TARGET_TYPE_FILE | HOST_TARGET_TYPE_DIRECTORY
+        ) {
+            return Err(INVALID);
+        }
+        let navigable = object
+            .get("navigable")
+            .and_then(Value::as_bool)
+            .ok_or(INVALID)?;
+        let selectable = object
+            .get("selectable")
+            .and_then(Value::as_bool)
+            .ok_or(INVALID)?;
+        let size_bytes = match object.get("size_bytes") {
+            Some(Value::Null) => None,
+            Some(value) => Some(value.as_u64().ok_or(INVALID)?),
+            None => return Err(INVALID),
+        };
+        let modified_at = nullable_non_empty_string_field(object, "modified_at")?;
+        if !is_valid_static_path_modified_at(modified_at)
+            || navigable != (entry_type == HOST_TARGET_TYPE_DIRECTORY)
+            || selectable && entry_type != target_type
+            || entry_type == HOST_TARGET_TYPE_DIRECTORY && size_bytes.is_some()
+        {
+            return Err(INVALID);
+        }
+
+        if virtual_windows_root {
+            if entry_type != HOST_TARGET_TYPE_DIRECTORY
+                || selectable
+                || size_bytes.is_some()
+                || modified_at.is_some()
+                || !is_windows_drive_root(path)
+                || name != &path[..2]
+            {
+                return Err(INVALID);
+            }
+        } else {
+            let current_path = current_path.ok_or(INVALID)?;
+            if !is_safe_browse_name(name, platform)
+                || !is_canonical_static_path_browse_path(platform, path)
+                || !is_immediate_static_path_child(platform, current_path, path)
+                || static_path_browse_leaf(platform, path)
+                    .is_none_or(|leaf| !paths_equal(platform, leaf, name))
+            {
+                return Err(INVALID);
+            }
+        }
+
+        let unique_path = if platform == "windows" {
+            path.to_lowercase()
+        } else {
+            path.to_string()
+        };
+        if !seen_paths.insert(unique_path) {
+            return Err(INVALID);
+        }
+        if entry_type == HOST_TARGET_TYPE_FILE {
+            saw_file = true;
+        } else if saw_file {
+            return Err(INVALID);
+        }
+        sanitized.push(json!({
+            "name": name,
+            "path": path,
+            "entry_type": entry_type,
+            "navigable": navigable,
+            "selectable": selectable,
+            "size_bytes": size_bytes,
+            "modified_at": modified_at,
+        }));
+    }
+    Ok(sanitized)
+}
+
+fn is_windows_drive_root(path: &str) -> bool {
+    path.len() == 3
+        && path.as_bytes()[0].is_ascii_alphabetic()
+        && path.as_bytes()[1] == b':'
+        && path.as_bytes()[2] == b'\\'
+}
+
+fn static_path_browse_leaf<'a>(platform: &str, path: &'a str) -> Option<&'a str> {
+    let separator = if platform == "windows" { '\\' } else { '/' };
+    path.rsplit(separator).find(|value| !value.is_empty())
+}
+
+fn is_valid_static_path_modified_at(value: Option<&str>) -> bool {
+    let Some(value) = value else {
+        return true;
+    };
+    value.len() <= 64
+        && time::OffsetDateTime::parse(value, &time::format_description::well_known::Rfc3339)
+            .is_ok_and(|timestamp| timestamp.offset().is_utc())
+}
+
 pub(super) fn static_path_probe_spec(
     target_type: &str,
     path: &str,
@@ -388,7 +1007,7 @@ pub(super) fn static_path_probe_spec(
     if target_type == HOST_TARGET_TYPE_PROXY {
         return Err("Static path target type must be file or directory".to_string());
     }
-    let path = normalize_static_path("probe", path.trim())?;
+    let path = normalize_static_path("probe", path)?;
     Ok(StaticPathSpec {
         target_type: target_type.to_string(),
         path,
@@ -451,9 +1070,7 @@ fn sanitize_static_path_probe_result(
         .get("normalized_path")
         .and_then(Value::as_str)
         .unwrap_or("");
-    let normalized_echo = normalize_static_path("probe response", echoed_path)
-        .map_err(|_| "Static path probe returned an invalid normalized path".to_string())?;
-    if normalized_echo != spec.path {
+    if echoed_path != spec.path {
         return Err("Static path probe returned an inconsistent normalized path".to_string());
     }
 
@@ -544,9 +1161,7 @@ pub(super) async fn probe_changed_static_paths(
         let normalized_path = result
             .get("normalized_path")
             .and_then(Value::as_str)
-            .map(str::trim)
             .unwrap_or("");
-        let normalized_path = normalize_static_path(&host, normalized_path)?;
         if normalized_path != spec.path {
             return Err(format!(
                 "Host mapping {host} static path probe returned an inconsistent path"
@@ -564,7 +1179,7 @@ pub(super) async fn probe_changed_static_paths(
                 .get_mut("static_serve")
                 .and_then(Value::as_object_mut)
             {
-                static_serve.insert("path".to_string(), Value::String(normalized_path.clone()));
+                static_serve.insert("path".to_string(), Value::String(spec.path.clone()));
             }
         }
     }
@@ -772,6 +1387,63 @@ mod tests {
         assert_eq!(value["path"], json!(expected));
     }
 
+    #[cfg(not(windows))]
+    #[test]
+    fn exact_static_path_preserves_posix_trailing_whitespace_across_specs() {
+        let spaced = "/srv/public/ ";
+        let adjacent = "/srv/public";
+
+        let browse =
+            static_path_browse_spec(HOST_TARGET_TYPE_DIRECTORY, Some(spaced), None).unwrap();
+        assert_eq!(browse.path, spaced);
+
+        let config = normalize_static_serve_config(
+            "docs.example.test",
+            HOST_TARGET_TYPE_DIRECTORY,
+            Some(&json!({ "path": spaced })),
+        )
+        .unwrap()
+        .unwrap();
+        assert_eq!(config["path"], json!(spaced));
+
+        let spaced_probe = static_path_probe_spec(HOST_TARGET_TYPE_DIRECTORY, spaced).unwrap();
+        let adjacent_probe = static_path_probe_spec(HOST_TARGET_TYPE_DIRECTORY, adjacent).unwrap();
+        assert_eq!(spaced_probe.path, spaced);
+        assert_eq!(adjacent_probe.path, adjacent);
+        assert_ne!(spaced_probe, adjacent_probe);
+
+        let previous = vec![json!({
+            "host": "docs.example.test",
+            "sync_id": "stable",
+            "target_type": "directory",
+            "static_serve": { "path": adjacent },
+        })];
+        let next = vec![json!({
+            "host": "docs.example.test",
+            "sync_id": "stable",
+            "target_type": "directory",
+            "static_serve": { "path": spaced },
+        })];
+        let changed = changed_static_path_specs(&previous, &next);
+        assert_eq!(changed.len(), 1);
+        assert_eq!(changed[0].1.path, spaced);
+    }
+
+    #[test]
+    fn exact_static_path_rejects_all_whitespace_inputs() {
+        for path in ["", " ", "   ", "\u{00a0}"] {
+            assert!(static_path_probe_spec(HOST_TARGET_TYPE_DIRECTORY, path).is_err());
+            assert!(
+                normalize_static_serve_config(
+                    "docs.example.test",
+                    HOST_TARGET_TYPE_DIRECTORY,
+                    Some(&json!({ "path": path })),
+                )
+                .is_err()
+            );
+        }
+    }
+
     #[test]
     fn rejects_hidden_or_format_control_index_files_and_trims_valid_names() {
         let path = absolute_test_path("fn-knock-docs");
@@ -910,6 +1582,32 @@ mod tests {
         assert!(sanitize_static_path_probe_result(&spec, &wrong_type).is_err());
     }
 
+    #[cfg(not(windows))]
+    #[test]
+    fn exact_static_path_probe_projection_rejects_adjacent_substitution() {
+        let spaced = "/srv/public/ ";
+        let spec = static_path_probe_spec(HOST_TARGET_TYPE_DIRECTORY, spaced).unwrap();
+        let exact = json!({
+            "target_type": "directory",
+            "normalized_path": spaced,
+            "exists": true,
+            "readable": true,
+            "actual_type": "directory",
+            "error_code": "",
+        });
+
+        let projected = sanitize_static_path_probe_result(&spec, &exact).unwrap();
+        assert_eq!(projected["normalized_path"], json!(spaced));
+
+        let mut adjacent = exact;
+        adjacent["normalized_path"] = json!("/srv/public");
+        assert!(sanitize_static_path_probe_result(&spec, &adjacent).is_err());
+
+        let mut rewritten = adjacent;
+        rewritten["normalized_path"] = json!("/srv//public/ ");
+        assert!(sanitize_static_path_probe_result(&spec, &rewritten).is_err());
+    }
+
     #[test]
     fn probe_projection_allowlists_stable_error_codes() {
         let spec = static_path_probe_spec(
@@ -975,5 +1673,190 @@ mod tests {
         valid["actual_type"] = json!("directory");
         valid["error_code"] = json!("");
         assert_eq!(static_probe_failure_code(&spec, &valid), None);
+    }
+
+    #[cfg(not(windows))]
+    fn valid_directory_browse_response() -> (StaticPathBrowseSpec, Value) {
+        let spec = static_path_browse_spec(HOST_TARGET_TYPE_DIRECTORY, Some("/srv/docs"), None)
+            .expect("browse spec");
+        let result = json!({
+            "target_type": "directory",
+            "platform": "posix",
+            "current_path": "/srv/docs",
+            "parent_path": "/srv",
+            "current_selectable": true,
+            "selected_path": null,
+            "breadcrumbs": [
+                { "name": "/", "path": "/" },
+                { "name": "srv", "path": "/srv" },
+                { "name": "docs", "path": "/srv/docs" },
+            ],
+            "entries": [
+                {
+                    "name": "assets",
+                    "path": "/srv/docs/assets",
+                    "entry_type": "directory",
+                    "navigable": true,
+                    "selectable": true,
+                    "size_bytes": null,
+                    "modified_at": "2026-08-31T01:02:03.123456789Z",
+                },
+                {
+                    "name": "readme.txt",
+                    "path": "/srv/docs/readme.txt",
+                    "entry_type": "file",
+                    "navigable": false,
+                    "selectable": false,
+                    "size_bytes": 42,
+                    "modified_at": "2026-08-31T01:02:03Z",
+                },
+            ],
+            "previous_cursor": null,
+            "next_cursor": "bmV4dA",
+            "error_code": null,
+        });
+        (spec, result)
+    }
+
+    #[cfg(not(windows))]
+    #[test]
+    fn browse_projection_accepts_a_bounded_canonical_directory_page() {
+        let (spec, raw) = valid_directory_browse_response();
+        let projected = sanitize_static_path_browse_result(&spec, &raw).unwrap();
+        assert_eq!(projected["current_path"], json!("/srv/docs"));
+        assert_eq!(projected["parent_path"], json!("/srv"));
+        assert_eq!(projected["entries"].as_array().unwrap().len(), 2);
+        assert_eq!(projected["next_cursor"], json!("bmV4dA"));
+        assert!(projected["error_code"].is_null());
+    }
+
+    #[cfg(not(windows))]
+    #[test]
+    fn browse_projection_keeps_file_selection_across_parent_pagination() {
+        let spec = static_path_browse_spec(
+            HOST_TARGET_TYPE_FILE,
+            Some("/srv/docs/readme.txt"),
+            Some("bmV4dA"),
+        )
+        .expect("browse spec");
+        let (_, mut raw) = valid_directory_browse_response();
+        raw["target_type"] = json!("file");
+        raw["current_selectable"] = json!(false);
+        raw["selected_path"] = json!("/srv/docs/readme.txt");
+        raw["entries"][0]["selectable"] = json!(false);
+        raw["entries"][1]["selectable"] = json!(true);
+
+        let projected = sanitize_static_path_browse_result(&spec, &raw).unwrap();
+        assert_eq!(projected["selected_path"], json!("/srv/docs/readme.txt"));
+        assert_eq!(projected["next_cursor"], json!("bmV4dA"));
+    }
+
+    #[cfg(not(windows))]
+    #[test]
+    fn browse_projection_rejects_unknown_fields_types_and_replaced_paths() {
+        let (spec, raw) = valid_directory_browse_response();
+
+        let mut diagnostic = raw.clone();
+        diagnostic["diagnostic"] = json!("resolved to /secret/real/root");
+        let error = sanitize_static_path_browse_result(&spec, &diagnostic).unwrap_err();
+        assert!(!error.contains("secret"));
+
+        let mut unknown_type = raw.clone();
+        unknown_type["entries"][0]["entry_type"] = json!("symlink");
+        assert!(sanitize_static_path_browse_result(&spec, &unknown_type).is_err());
+
+        let mut replacement = raw;
+        replacement["current_path"] = json!("/secret/real/root");
+        let error = sanitize_static_path_browse_result(&spec, &replacement).unwrap_err();
+        assert!(!error.contains("secret"));
+
+        let (_, mut wrong_parent) = valid_directory_browse_response();
+        wrong_parent["entries"][1]["path"] = json!("/srv/other/readme.txt");
+        assert!(sanitize_static_path_browse_result(&spec, &wrong_parent).is_err());
+
+        let (_, mut oversized_page) = valid_directory_browse_response();
+        let repeated_entry = oversized_page["entries"][0].clone();
+        oversized_page["entries"] = Value::Array(vec![repeated_entry; 101]);
+        assert!(sanitize_static_path_browse_result(&spec, &oversized_page).is_err());
+
+        let (_, mut oversized_cursor) = valid_directory_browse_response();
+        oversized_cursor["next_cursor"] = json!("a".repeat(513));
+        assert!(sanitize_static_path_browse_result(&spec, &oversized_cursor).is_err());
+    }
+
+    #[cfg(not(windows))]
+    #[test]
+    fn browse_projection_allows_only_empty_stable_failure_results() {
+        let spec = static_path_browse_spec(HOST_TARGET_TYPE_FILE, Some("/srv/manual.pdf"), None)
+            .expect("browse spec");
+        for error_code in STATIC_PATH_BROWSE_ERROR_CODES {
+            let raw = json!({
+                "target_type": "file",
+                "platform": "posix",
+                "current_path": null,
+                "parent_path": null,
+                "current_selectable": false,
+                "selected_path": null,
+                "breadcrumbs": [],
+                "entries": [],
+                "previous_cursor": null,
+                "next_cursor": null,
+                "error_code": error_code,
+            });
+            let projected = sanitize_static_path_browse_result(&spec, &raw).unwrap();
+            assert_eq!(projected["error_code"], json!(error_code));
+        }
+
+        let mut leaking = rejected_static_path_browse_result("file", "not_found");
+        leaking["current_path"] = json!("/secret/real/root");
+        assert!(sanitize_static_path_browse_result(&spec, &leaking).is_err());
+
+        let unknown = rejected_static_path_browse_result("file", "internal_failure");
+        assert!(sanitize_static_path_browse_result(&spec, &unknown).is_err());
+    }
+
+    #[test]
+    fn browse_request_limits_paths_and_base64url_cursors() {
+        assert!(is_valid_static_path_browse_cursor("Abc_123-xYz"));
+        assert!(!is_valid_static_path_browse_cursor("padded="));
+        assert!(!is_valid_static_path_browse_cursor("contains/slash"));
+        assert!(!is_valid_static_path_browse_cursor(&"a".repeat(513)));
+
+        assert!(normalize_posix_static_path_browse_path("/srv/docs/").is_some());
+        assert!(normalize_posix_static_path_browse_path("/srv/./docs").is_none());
+        assert!(normalize_posix_static_path_browse_path("/srv/../secret").is_none());
+        assert!(normalize_posix_static_path_browse_path("/srv/.secret").is_none());
+        assert!(normalize_posix_static_path_browse_path("/srv/__internal").is_none());
+        assert_eq!(
+            normalize_posix_static_path_browse_path("/srv/ docs ").as_deref(),
+            Some("/srv/ docs ")
+        );
+    }
+
+    #[test]
+    fn windows_browse_helpers_use_drive_roots_and_server_breadcrumbs() {
+        let path = normalize_windows_static_path_browse_path(r"c:/Users/Public/")
+            .expect("Windows browse path");
+        assert_eq!(path, r"C:\Users\Public");
+        assert_eq!(
+            static_path_browse_parent("windows", &path).as_deref(),
+            Some(r"C:\Users")
+        );
+        assert_eq!(
+            expected_static_path_breadcrumbs("windows", &path),
+            vec![
+                ("C:".to_string(), "C:\\".to_string()),
+                ("Users".to_string(), r"C:\Users".to_string()),
+                ("Public".to_string(), r"C:\Users\Public".to_string()),
+            ]
+        );
+        assert!(is_windows_drive_root(r"C:\"));
+        assert_eq!(
+            static_path_browse_parent("windows", r"C:\").as_deref(),
+            Some("")
+        );
+        assert!(normalize_windows_static_path_browse_path(r"\\server\share").is_none());
+        assert!(normalize_windows_static_path_browse_path(r"C:\Users\.\Public").is_none());
+        assert!(normalize_windows_static_path_browse_path(r"C:\Users\..\secret").is_none());
     }
 }

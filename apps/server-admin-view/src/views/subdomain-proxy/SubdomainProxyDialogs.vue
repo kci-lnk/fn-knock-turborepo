@@ -78,6 +78,7 @@ const {
   mappingResolvedTitle,
   mappingSubdomain,
   mappingUseAuth,
+  pathBrowserEditor,
   preserveHostModel,
   refreshMappingMetadata,
   saveAvailabilityDialog,
@@ -152,6 +153,7 @@ const {
       :mapping-subdomain="mappingSubdomain"
       :mapping-use-auth="mappingUseAuth"
       :open="isDialogOpen"
+      :path-browser-editor="pathBrowserEditor"
       :preserve-host="preserveHostModel"
       :refresh-mapping-metadata="refreshMappingMetadata"
       :saved-root-domain="savedRootDomain"

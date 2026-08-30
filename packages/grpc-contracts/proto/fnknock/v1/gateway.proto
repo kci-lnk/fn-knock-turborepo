@@ -10,7 +10,7 @@ import "google/protobuf/empty.proto";
 // Generated clients and packaging tools consume this stable enum member.
 enum ControlApiVersion {
   CONTROL_API_VERSION_UNSPECIFIED = 0;
-  CONTROL_API_VERSION_CURRENT = 22;
+  CONTROL_API_VERSION_CURRENT = 23;
 }
 
 message RpcStatus {
@@ -173,6 +173,41 @@ message StaticPathProbeResult {
   bool exists = 4;
   bool readable = 5;
   string error_code = 6;
+}
+
+message StaticPathBrowseRequest {
+  HostRuleTargetType target_type = 1;
+  string path = 2;
+  string cursor = 3;
+}
+
+message StaticPathBreadcrumb {
+  string name = 1;
+  string path = 2;
+}
+
+message StaticPathBrowseEntry {
+  string name = 1;
+  string path = 2;
+  HostRuleTargetType entry_type = 3;
+  bool navigable = 4;
+  bool selectable = 5;
+  optional uint64 size_bytes = 6;
+  optional string modified_at = 7;
+}
+
+message StaticPathBrowseResult {
+  HostRuleTargetType target_type = 1;
+  string platform = 2;
+  optional string current_path = 3;
+  optional string parent_path = 4;
+  bool current_selectable = 5;
+  optional string selected_path = 6;
+  repeated StaticPathBreadcrumb breadcrumbs = 7;
+  repeated StaticPathBrowseEntry entries = 8;
+  string previous_cursor = 9;
+  string next_cursor = 10;
+  string error_code = 11;
 }
 
 message StreamRule {
@@ -1283,6 +1318,7 @@ service GatewayControlService {
   rpc SetHostRules(HostRules) returns (HostRules);
   rpc FlushHostRules(google.protobuf.Empty) returns (RpcStatus);
   rpc ProbeStaticPath(StaticPathProbeRequest) returns (StaticPathProbeResult);
+  rpc BrowseStaticPath(StaticPathBrowseRequest) returns (StaticPathBrowseResult);
   rpc GetStreamRules(google.protobuf.Empty) returns (StreamRules);
   rpc SetStreamRules(StreamRules) returns (StreamRules);
   rpc FlushStreamRules(google.protobuf.Empty) returns (RpcStatus);

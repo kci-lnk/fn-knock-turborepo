@@ -51,6 +51,8 @@ export type {
   StreamServiceProfile,
 } from "./config-stream-api";
 export type {
+  StaticPathBrowseEntry,
+  StaticPathBrowseResult,
   StaticPathProbeErrorCode,
   StaticPathProbeResult,
   StaticPathProbeTargetType,

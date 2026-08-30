@@ -20465,6 +20465,202 @@
         ],
         "type": "string"
       },
+      "StaticPathBreadcrumbData": {
+        "properties": {
+          "name": {
+            "maxLength": 255,
+            "type": "string"
+          },
+          "path": {
+            "maxLength": 4096,
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "path"
+        ],
+        "type": "object"
+      },
+      "StaticPathBrowseBodyData": {
+        "additionalProperties": false,
+        "properties": {
+          "cursor": {
+            "maxLength": 512,
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "path": {
+            "maxLength": 4096,
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "target_type": {
+            "$ref": "#/components/schemas/StaticPathTargetTypeData"
+          }
+        },
+        "required": [
+          "target_type"
+        ],
+        "type": "object"
+      },
+      "StaticPathBrowseEntryData": {
+        "properties": {
+          "entry_type": {
+            "$ref": "#/components/schemas/StaticPathTargetTypeData"
+          },
+          "modified_at": {
+            "format": "date-time",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "name": {
+            "maxLength": 255,
+            "type": "string"
+          },
+          "navigable": {
+            "type": "boolean"
+          },
+          "path": {
+            "maxLength": 4096,
+            "type": "string"
+          },
+          "selectable": {
+            "type": "boolean"
+          },
+          "size_bytes": {
+            "format": "int64",
+            "minimum": 0,
+            "type": [
+              "integer",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "name",
+          "path",
+          "entry_type",
+          "navigable",
+          "selectable",
+          "size_bytes",
+          "modified_at"
+        ],
+        "type": "object"
+      },
+      "StaticPathBrowseErrorCodeData": {
+        "enum": [
+          "invalid_path",
+          "invalid_cursor",
+          "protected_path",
+          "not_found",
+          "permission_denied",
+          "not_directory",
+          "directory_too_large",
+          "unsupported_type",
+          "unavailable"
+        ],
+        "type": "string"
+      },
+      "StaticPathBrowsePlatformData": {
+        "enum": [
+          "posix",
+          "windows"
+        ],
+        "type": "string"
+      },
+      "StaticPathBrowseResultData": {
+        "properties": {
+          "breadcrumbs": {
+            "items": {
+              "$ref": "#/components/schemas/StaticPathBreadcrumbData"
+            },
+            "maxItems": 256,
+            "type": "array"
+          },
+          "current_path": {
+            "maxLength": 4096,
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "current_selectable": {
+            "type": "boolean"
+          },
+          "entries": {
+            "items": {
+              "$ref": "#/components/schemas/StaticPathBrowseEntryData"
+            },
+            "maxItems": 100,
+            "type": "array"
+          },
+          "error_code": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/StaticPathBrowseErrorCodeData"
+              }
+            ]
+          },
+          "next_cursor": {
+            "maxLength": 512,
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "parent_path": {
+            "maxLength": 4096,
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "platform": {
+            "$ref": "#/components/schemas/StaticPathBrowsePlatformData"
+          },
+          "previous_cursor": {
+            "maxLength": 512,
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "selected_path": {
+            "maxLength": 4096,
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "target_type": {
+            "$ref": "#/components/schemas/StaticPathTargetTypeData"
+          }
+        },
+        "required": [
+          "target_type",
+          "platform",
+          "current_path",
+          "parent_path",
+          "current_selectable",
+          "selected_path",
+          "breadcrumbs",
+          "entries",
+          "previous_cursor",
+          "next_cursor",
+          "error_code"
+        ],
+        "type": "object"
+      },
       "StaticPathProbeBodyData": {
         "properties": {
           "path": {
@@ -33625,6 +33821,69 @@
           }
         },
         "summary": "提交代理与映射配置标题刷新",
+        "tags": [
+          "configuration"
+        ],
+        "x-fn-knock-contract-source": "utoipa"
+      }
+    },
+    "/api/admin/config/host_mappings/static_path_browse": {
+      "post": {
+        "description": "管理主机映射、反向代理、流映射和子域模式。。`POST /api/admin/config/host_mappings/static_path_browse` 用于提交操作或创建、更新服务状态；执行结果以响应中的数据和消息为准。 请求体字段、必填项和可选值请以 Swagger 展开的 schema 为准。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。",
+        "operationId": "post_api_admin_config_host_mappings_static_path_browse",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/StaticPathBrowseBodyData"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "properties": {
+                    "data": {
+                      "$ref": "#/components/schemas/StaticPathBrowseResultData"
+                    },
+                    "message": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "success": {
+                      "const": true,
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "success",
+                    "data"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "「提交代理与映射配置静态路径浏览」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorEnvelope"
+                }
+              }
+            },
+            "description": "接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。"
+          }
+        },
+        "summary": "提交代理与映射配置静态路径浏览",
         "tags": [
           "configuration"
         ],

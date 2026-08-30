@@ -493,6 +493,10 @@ function validateContract(openapiPath) {
       "post /api/admin/config/host_mappings/static_path_probe",
       "StaticPathProbeBodyData",
     ],
+    [
+      "post /api/admin/config/host_mappings/static_path_browse",
+      "StaticPathBrowseBodyData",
+    ],
     ["get /api/admin/config/host_mappings/bookmarks/export", null],
     [
       "post /api/admin/config/host_mappings/metadata",
@@ -1893,6 +1897,67 @@ function validateContract(openapiPath) {
     document.components?.schemas?.HostMappingBasicAuthProbeData?.required ?? [];
   if (!basicAuthProbeRequired.includes("httpStatus")) {
     throw new Error("Basic Auth probe must always emit nullable httpStatus");
+  }
+  const staticPathBrowseOperation =
+    document.paths?.[
+      "/api/admin/config/host_mappings/static_path_browse"
+    ]?.post;
+  if (
+    staticPathBrowseOperation?.requestBody?.content?.["application/json"]
+      ?.schema?.$ref !== "#/components/schemas/StaticPathBrowseBodyData" ||
+    staticPathBrowseOperation?.responses?.["200"]?.content?.[
+      "application/json"
+    ]?.schema?.properties?.data?.$ref !==
+      "#/components/schemas/StaticPathBrowseResultData"
+  ) {
+    throw new Error("static path browser contract is not fully typed");
+  }
+  const staticPathBrowseResult =
+    document.components?.schemas?.StaticPathBrowseResultData;
+  const staticPathBrowseRequired = staticPathBrowseResult?.required ?? [];
+  for (const field of [
+    "target_type",
+    "platform",
+    "current_path",
+    "parent_path",
+    "current_selectable",
+    "selected_path",
+    "breadcrumbs",
+    "entries",
+    "previous_cursor",
+    "next_cursor",
+    "error_code",
+  ]) {
+    if (!staticPathBrowseRequired.includes(field)) {
+      throw new Error(`static path browser must always emit ${field}`);
+    }
+  }
+  if (
+    staticPathBrowseResult?.properties?.entries?.maxItems !== 100 ||
+    staticPathBrowseResult?.properties?.breadcrumbs?.maxItems !== 256 ||
+    document.components?.schemas?.StaticPathBrowseBodyData?.properties?.cursor
+      ?.maxLength !== 512
+  ) {
+    throw new Error("static path browser limits are out of sync");
+  }
+  if (
+    document.components?.schemas?.StaticPathBrowseBodyData
+      ?.additionalProperties !== false ||
+    document.components?.schemas?.StaticPathBrowseEntryData?.properties
+      ?.modified_at?.format !== "date-time"
+  ) {
+    throw new Error(
+      "static path browser object and timestamp schemas are out of sync",
+    );
+  }
+  const staticPathBrowsePlatforms =
+    document.components?.schemas?.StaticPathBrowsePlatformData?.enum ?? [];
+  if (
+    staticPathBrowsePlatforms.length !== 2 ||
+    !staticPathBrowsePlatforms.includes("posix") ||
+    !staticPathBrowsePlatforms.includes("windows")
+  ) {
+    throw new Error("static path browser platform enum is out of sync");
   }
   const advancedInput =
     document.components?.schemas?.AdvancedAuthConfigInputData?.properties ?? {};

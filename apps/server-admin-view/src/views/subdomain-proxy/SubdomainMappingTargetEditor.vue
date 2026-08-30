@@ -32,6 +32,12 @@ const props = defineProps<{
   open: boolean;
   updateMappingForm: (patch: Partial<HostMapping>) => void;
 }>();
+const emit = defineEmits<{
+  browseStaticPath: [
+    targetType: Exclude<HostMappingTargetType, "proxy">,
+    path: string,
+  ];
+}>();
 
 const { t } = useI18n();
 const confirmation = useConfirmationDialog();
@@ -223,6 +229,7 @@ watch(
       :model-value="mappingForm.static_serve"
       :target-type="mappingForm.target_type"
       :open="open"
+      @browse="(targetType, path) => emit('browseStaticPath', targetType, path)"
       @update:model-value="updateStaticServe"
     />
   </div>

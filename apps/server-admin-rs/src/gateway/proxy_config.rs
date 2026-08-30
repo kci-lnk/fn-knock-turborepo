@@ -9,7 +9,7 @@ use std::{
 
 use axum::{
     Json, Router,
-    extract::{Path, State},
+    extract::{Path, State, rejection::JsonRejection},
     http::{HeaderMap, HeaderValue, StatusCode, header},
     response::{IntoResponse, Response},
 };
@@ -983,6 +983,16 @@ pub(crate) struct StaticPathProbeBody {
 }
 
 #[derive(Deserialize, utoipa::ToSchema)]
+#[serde(deny_unknown_fields)]
+pub(crate) struct StaticPathBrowseBody {
+    target_type: String,
+    #[serde(default)]
+    path: Option<String>,
+    #[serde(default)]
+    cursor: Option<String>,
+}
+
+#[derive(Deserialize, utoipa::ToSchema)]
 pub(crate) struct HostMappingCatalogBody {
     mappings: Vec<Value>,
     #[serde(default)]
@@ -1061,6 +1071,7 @@ pub(crate) fn host_mapping_routes() -> OpenApiRouter<AppState> {
         .routes(routes!(update_host_mapping_catalog))
         .routes(routes!(basic_auth_probe))
         .routes(routes!(static_path_probe))
+        .routes(routes!(static_path_browse))
         .routes(routes!(get_advanced_auth))
         .routes(routes!(update_advanced_auth))
         .routes(routes!(host_mapping_metadata))
@@ -1371,6 +1382,60 @@ async fn static_path_probe(
             response::error(
                 StatusCode::BAD_GATEWAY,
                 "Static path probe is temporarily unavailable",
+            )
+        }
+    }
+}
+
+#[utoipa::path(
+    post,
+    path = "/api/admin/config/host_mappings/static_path_browse",
+    tag = "configuration",
+    operation_id = "post_api_admin_config_host_mappings_static_path_browse",
+    request_body = StaticPathBrowseBody,
+    responses(
+        (status = 200, description = "Static path browser result"),
+        (status = 400, description = "Invalid static path browser request"),
+        (status = 502, description = "Static path browser unavailable")
+    )
+)]
+async fn static_path_browse(
+    State(state): State<AppState>,
+    body: Result<Json<StaticPathBrowseBody>, JsonRejection>,
+) -> Response {
+    let Json(body) = match body {
+        Ok(body) => body,
+        Err(_) => {
+            return response::error(
+                StatusCode::BAD_REQUEST,
+                "Invalid static path browser request",
+            );
+        }
+    };
+    let Some(target_type) = static_path_browse_target_type(&body.target_type) else {
+        return response::error(
+            StatusCode::BAD_REQUEST,
+            "Invalid static path browser request",
+        );
+    };
+    let spec =
+        match static_path_browse_spec(target_type, body.path.as_deref(), body.cursor.as_deref()) {
+            Ok(spec) => spec,
+            Err(error_code) => {
+                return response::ok(rejected_static_path_browse_result(target_type, error_code))
+                    .into_response();
+            }
+        };
+    match browse_static_path_with_gateway(&state, &spec).await {
+        Ok(result) => response::ok(result).into_response(),
+        Err(_) => {
+            // Never expose tonic status text or a gateway-provided path. A
+            // malformed response is indistinguishable from an unavailable
+            // gateway at this trust boundary.
+            tracing::warn!("failed to browse static mapping path");
+            response::error(
+                StatusCode::BAD_GATEWAY,
+                "Static path browser is temporarily unavailable",
             )
         }
     }

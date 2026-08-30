@@ -2276,6 +2276,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/admin/config/host_mappings/static_path_browse": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * 提交代理与映射配置静态路径浏览
+         * @description 管理主机映射、反向代理、流映射和子域模式。。`POST /api/admin/config/host_mappings/static_path_browse` 用于提交操作或创建、更新服务状态；执行结果以响应中的数据和消息为准。 请求体字段、必填项和可选值请以 Swagger 展开的 schema 为准。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
+         */
+        post: operations["post_api_admin_config_host_mappings_static_path_browse"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/admin/config/host_mappings/static_path_probe": {
         parameters: {
             query?: never;
@@ -12147,6 +12167,43 @@ export interface components {
         };
         /** @enum {string} */
         StaticPathActualTypeData: "file" | "directory" | "other";
+        StaticPathBreadcrumbData: {
+            name: string;
+            path: string;
+        };
+        StaticPathBrowseBodyData: {
+            cursor?: string | null;
+            path?: string | null;
+            target_type: components["schemas"]["StaticPathTargetTypeData"];
+        };
+        StaticPathBrowseEntryData: {
+            entry_type: components["schemas"]["StaticPathTargetTypeData"];
+            /** Format: date-time */
+            modified_at: string | null;
+            name: string;
+            navigable: boolean;
+            path: string;
+            selectable: boolean;
+            /** Format: int64 */
+            size_bytes: number | null;
+        };
+        /** @enum {string} */
+        StaticPathBrowseErrorCodeData: "invalid_path" | "invalid_cursor" | "protected_path" | "not_found" | "permission_denied" | "not_directory" | "directory_too_large" | "unsupported_type" | "unavailable";
+        /** @enum {string} */
+        StaticPathBrowsePlatformData: "posix" | "windows";
+        StaticPathBrowseResultData: {
+            breadcrumbs: components["schemas"]["StaticPathBreadcrumbData"][];
+            current_path: string | null;
+            current_selectable: boolean;
+            entries: components["schemas"]["StaticPathBrowseEntryData"][];
+            error_code: null | components["schemas"]["StaticPathBrowseErrorCodeData"];
+            next_cursor: string | null;
+            parent_path: string | null;
+            platform: components["schemas"]["StaticPathBrowsePlatformData"];
+            previous_cursor: string | null;
+            selected_path: string | null;
+            target_type: components["schemas"]["StaticPathTargetTypeData"];
+        };
         StaticPathProbeBodyData: {
             path: string;
             target_type: components["schemas"]["StaticPathTargetTypeData"];
@@ -18622,6 +18679,46 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HostMappingRefreshSummaryData"];
+                };
+            };
+            /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorEnvelope"];
+                };
+            };
+        };
+    };
+    post_api_admin_config_host_mappings_static_path_browse: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["StaticPathBrowseBodyData"];
+            };
+        };
+        responses: {
+            /** @description 「提交代理与映射配置静态路径浏览」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        data: components["schemas"]["StaticPathBrowseResultData"];
+                        message?: string | null;
+                        /** @constant */
+                        success: true;
+                    } & {
+                        [key: string]: unknown;
+                    };
                 };
             };
             /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */

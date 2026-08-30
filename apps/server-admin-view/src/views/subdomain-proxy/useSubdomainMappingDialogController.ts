@@ -5,7 +5,7 @@ import {
   useAsyncAction,
 } from "@admin-shared/composables/useAsyncAction";
 import { toast } from "@admin-shared/utils/toast";
-import { ConfigAPI } from "@/lib/api/config";
+import { ConfigAPI, type StaticPathProbeTargetType } from "@/lib/api/config";
 import type { AppConfig, HostMapping } from "@/types";
 import {
   canRefreshHostMappingMetadata,
@@ -30,6 +30,7 @@ import {
   shouldReturnToVisibilityAfterSaveError,
   useMappingVisibility,
 } from "./useMappingVisibility";
+import { useStaticPathBrowser } from "./useStaticPathBrowser";
 import { useSubdomainMappingDraft } from "./useSubdomainMappingDraft";
 
 type AsyncActionRun = <T>(
@@ -215,6 +216,28 @@ export const useSubdomainMappingDialogController = ({
     translate,
   });
   const visibilityEditor = reactive(mappingVisibility);
+  const currentStaticTargetType = computed<StaticPathProbeTargetType | null>(
+    () => {
+      const targetType = normalizeHostMappingTargetType(
+        mappingForm.target_type,
+      );
+      return targetType === "proxy" ? null : targetType;
+    },
+  );
+  const staticPathBrowser = useStaticPathBrowser({
+    active: computed(
+      () => mappingVisibility.mappingDialogView.value === "path-browser",
+    ),
+    applyPath: (path) => {
+      if (mappingForm.static_serve) mappingForm.static_serve.path = path;
+    },
+    currentTargetType: currentStaticTargetType,
+    isDialogOpen,
+    openView: mappingVisibility.openPathBrowserView,
+    returnBasicView: mappingVisibility.returnBasicView,
+    translate,
+  });
+  const pathBrowserEditor = reactive(staticPathBrowser);
   const mappingIcon = useMappingIcon({
     canRefreshMetadata: canRefreshMappingMetadata,
     getMetadataBasicAuth: getMappingMetadataBasicAuth,
@@ -574,6 +597,7 @@ export const useSubdomainMappingDialogController = ({
     mappingUseAuth,
     openCreateDialog,
     openEditDialog,
+    pathBrowserEditor,
     preserveHostModel,
     refreshMappingMetadata,
     saveMapping,

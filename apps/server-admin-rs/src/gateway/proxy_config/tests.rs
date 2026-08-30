@@ -295,6 +295,117 @@ async fn static_path_probe_returns_stable_results_for_lexical_rejections() {
     }
 }
 
+#[tokio::test]
+async fn static_path_browse_rejects_protocol_input_without_reflecting_it() {
+    let (_directory, state) = proxy_config_test_state("127.0.0.1:1".to_string()).await;
+
+    for invalid_body in [
+        json!({
+            "target_type": "object-store\n/secret/type",
+            "path": null,
+            "cursor": null,
+        }),
+        json!({ "path": "/secret/missing-type", "cursor": null }),
+        json!({ "target_type": null, "path": "/secret/null-type", "cursor": null }),
+        json!({ "target_type": 42, "path": "/secret/number-type", "cursor": null }),
+        json!({
+            "target_type": "directory",
+            "path": null,
+            "cursor": null,
+            "diagnostic": "/secret/extra-field",
+        }),
+    ] {
+        let response = proxy_config_routes()
+            .with_state(state.clone())
+            .oneshot(
+                Request::post("/api/admin/config/host_mappings/static_path_browse")
+                    .header(header::CONTENT_TYPE, "application/json")
+                    .body(Body::from(invalid_body.to_string()))
+                    .unwrap(),
+            )
+            .await
+            .expect("browse route response");
+        assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+        let bytes = axum::body::to_bytes(response.into_body(), usize::MAX)
+            .await
+            .expect("read browse response");
+        let body = String::from_utf8_lossy(&bytes);
+        assert!(body.contains("Invalid static path browser request"));
+        assert!(!body.contains("secret"));
+        assert!(!body.contains("diagnostic"));
+    }
+
+    let platform_path = if cfg!(windows) { r"C:\Public" } else { "/srv" };
+    for (path, cursor, expected_code) in [
+        (Some("relative/secret/path"), None, "invalid_path"),
+        (
+            Some(platform_path),
+            Some("invalid=cursor"),
+            "invalid_cursor",
+        ),
+    ] {
+        let response = proxy_config_routes()
+            .with_state(state.clone())
+            .oneshot(
+                Request::post("/api/admin/config/host_mappings/static_path_browse")
+                    .header(header::CONTENT_TYPE, "application/json")
+                    .body(Body::from(
+                        json!({
+                            "target_type": "directory",
+                            "path": path,
+                            "cursor": cursor,
+                        })
+                        .to_string(),
+                    ))
+                    .unwrap(),
+            )
+            .await
+            .expect("browse route response");
+        assert_eq!(response.status(), StatusCode::OK);
+        let bytes = axum::body::to_bytes(response.into_body(), usize::MAX)
+            .await
+            .expect("read browse response");
+        let body: Value = serde_json::from_slice(&bytes).expect("parse browse response");
+        assert_eq!(body["success"], json!(true));
+        assert_eq!(body["data"]["target_type"], json!("directory"));
+        assert_eq!(body["data"]["error_code"], json!(expected_code));
+        assert!(body["data"]["current_path"].is_null());
+        assert_eq!(body["data"]["entries"], json!([]));
+        assert!(!String::from_utf8_lossy(&bytes).contains("secret"));
+    }
+}
+
+#[tokio::test]
+async fn static_path_browse_sanitizes_gateway_unavailability() {
+    let (_directory, state) = proxy_config_test_state("127.0.0.1:1".to_string()).await;
+    let path = if cfg!(windows) { r"C:\Public" } else { "/srv" };
+    let response = proxy_config_routes()
+        .with_state(state)
+        .oneshot(
+            Request::post("/api/admin/config/host_mappings/static_path_browse")
+                .header(header::CONTENT_TYPE, "application/json")
+                .body(Body::from(
+                    json!({
+                        "target_type": "directory",
+                        "path": path,
+                        "cursor": null,
+                    })
+                    .to_string(),
+                ))
+                .unwrap(),
+        )
+        .await
+        .expect("browse route response");
+    assert_eq!(response.status(), StatusCode::BAD_GATEWAY);
+    let bytes = axum::body::to_bytes(response.into_body(), usize::MAX)
+        .await
+        .expect("read browse response");
+    let body = String::from_utf8_lossy(&bytes);
+    assert!(body.contains("Static path browser is temporarily unavailable"));
+    assert!(!body.contains(path));
+    assert!(!body.contains("127.0.0.1"));
+}
+
 #[test]
 fn validates_host_location_auth_modes() {
     let mappings = normalize_host_mappings_for_route(

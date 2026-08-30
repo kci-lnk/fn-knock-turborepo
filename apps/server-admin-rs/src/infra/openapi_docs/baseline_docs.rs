@@ -530,6 +530,7 @@ fn segment_label(segment: &str) -> String {
         "backups" | "backup" => "备份".to_string(),
         "basic_auth_probe" => "基础认证探测".to_string(),
         "static_path_probe" => "静态路径探测".to_string(),
+        "static_path_browse" => "静态路径浏览".to_string(),
         "batch" => "批量查询".to_string(),
         "blacklist" => "黑名单".to_string(),
         "bindings" => "绑定".to_string(),

@@ -234,6 +234,83 @@ pub(super) struct StaticPathProbeResultData {
 }
 
 #[derive(Serialize, ToSchema)]
+#[serde(rename_all = "lowercase")]
+pub(super) enum StaticPathBrowsePlatformData {
+    Posix,
+    Windows,
+}
+
+#[derive(Serialize, ToSchema)]
+#[serde(rename_all = "snake_case")]
+pub(super) enum StaticPathBrowseErrorCodeData {
+    InvalidPath,
+    InvalidCursor,
+    ProtectedPath,
+    NotFound,
+    PermissionDenied,
+    NotDirectory,
+    DirectoryTooLarge,
+    UnsupportedType,
+    Unavailable,
+}
+
+#[derive(Serialize, ToSchema)]
+#[serde(deny_unknown_fields)]
+pub(super) struct StaticPathBrowseBodyData {
+    target_type: StaticPathTargetTypeData,
+    #[schema(max_length = 4096)]
+    path: Option<String>,
+    #[schema(max_length = 512)]
+    cursor: Option<String>,
+}
+
+#[derive(Serialize, ToSchema)]
+pub(super) struct StaticPathBreadcrumbData {
+    #[schema(max_length = 255)]
+    name: String,
+    #[schema(max_length = 4096)]
+    path: String,
+}
+
+#[derive(Serialize, ToSchema)]
+pub(super) struct StaticPathBrowseEntryData {
+    #[schema(max_length = 255)]
+    name: String,
+    #[schema(max_length = 4096)]
+    path: String,
+    entry_type: StaticPathTargetTypeData,
+    navigable: bool,
+    selectable: bool,
+    #[schema(required = true)]
+    size_bytes: Option<u64>,
+    #[schema(required = true, format = DateTime)]
+    modified_at: Option<String>,
+}
+
+#[derive(Serialize, ToSchema)]
+pub(super) struct StaticPathBrowseResultData {
+    target_type: StaticPathTargetTypeData,
+    platform: StaticPathBrowsePlatformData,
+    #[schema(required = true, max_length = 4096)]
+    current_path: Option<String>,
+    #[schema(required = true, max_length = 4096)]
+    parent_path: Option<String>,
+    current_selectable: bool,
+    #[schema(required = true, max_length = 4096)]
+    selected_path: Option<String>,
+    #[schema(max_items = 256)]
+    breadcrumbs: Vec<StaticPathBreadcrumbData>,
+    #[schema(max_items = 100)]
+    entries: Vec<StaticPathBrowseEntryData>,
+    #[schema(required = true, max_length = 512)]
+    previous_cursor: Option<String>,
+    #[schema(required = true, max_length = 512)]
+    next_cursor: Option<String>,
+    #[schema(required = true)]
+    error_code: Option<StaticPathBrowseErrorCodeData>,
+}
+
+#[derive(Serialize, ToSchema)]
 pub(super) struct HostMappingMetadataBodyData {
     target: String,
     basic_auth: Option<HostMappingBasicAuthInputData>,

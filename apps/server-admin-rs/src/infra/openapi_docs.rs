@@ -3502,6 +3502,15 @@ pub(crate) fn build_openapi_document() -> Value {
         None,
         Some("StaticPathProbeBodyData"),
     );
+    insert_typed_enveloped_operation(
+        &mut paths,
+        &typed_host_mappings,
+        "/api/admin/config/host_mappings/static_path_browse",
+        "post",
+        "StaticPathBrowseResultData",
+        None,
+        Some("StaticPathBrowseBodyData"),
+    );
     insert_typed_html_operation(
         &mut paths,
         &typed_host_mappings,
@@ -4851,7 +4860,7 @@ mod tests {
                 }
             }
         }
-        assert_eq!(operations, 446);
+        assert_eq!(operations, 447);
         assert_eq!(documented_tags, operation_tags);
         assert!(documented_tags.iter().all(|tag| {
             tags.iter().any(|item| {
@@ -5522,7 +5531,7 @@ mod tests {
             .filter_map(Value::as_object)
             .flat_map(|path| path.values())
             .collect::<Vec<_>>();
-        assert_eq!(operations.len(), 446);
+        assert_eq!(operations.len(), 447);
         assert!(
             operations
                 .iter()
@@ -6119,6 +6128,57 @@ mod tests {
             ),
             Some(&json!("#/components/schemas/StaticPathProbeResultData"))
         );
+        assert_eq!(
+            document.pointer(
+                "/paths/~1api~1admin~1config~1host_mappings~1static_path_browse/post/requestBody/content/application~1json/schema/$ref"
+            ),
+            Some(&json!("#/components/schemas/StaticPathBrowseBodyData"))
+        );
+        assert_eq!(
+            document.pointer(
+                "/paths/~1api~1admin~1config~1host_mappings~1static_path_browse/post/responses/200/content/application~1json/schema/properties/data/$ref"
+            ),
+            Some(&json!("#/components/schemas/StaticPathBrowseResultData"))
+        );
+        assert_eq!(
+            document.pointer(
+                "/components/schemas/StaticPathBrowseResultData/properties/entries/maxItems"
+            ),
+            Some(&json!(100))
+        );
+        assert_eq!(
+            document.pointer(
+                "/components/schemas/StaticPathBrowseBodyData/properties/cursor/maxLength"
+            ),
+            Some(&json!(512))
+        );
+        assert_eq!(
+            document.pointer("/components/schemas/StaticPathBrowseBodyData/additionalProperties"),
+            Some(&json!(false))
+        );
+        assert_eq!(
+            document.pointer(
+                "/components/schemas/StaticPathBrowseEntryData/properties/modified_at/format"
+            ),
+            Some(&json!("date-time"))
+        );
+        let browse_required = document
+            .pointer("/components/schemas/StaticPathBrowseResultData/required")
+            .and_then(Value::as_array)
+            .expect("static path browse required fields");
+        for field in [
+            "current_path",
+            "parent_path",
+            "selected_path",
+            "previous_cursor",
+            "next_cursor",
+            "error_code",
+        ] {
+            assert!(
+                browse_required.iter().any(|required| required == field),
+                "static path browse result must always include {field}"
+            );
+        }
         assert_eq!(
             document.pointer(
                 "/components/schemas/StaticServeConfigData/properties/index_files/maxItems"

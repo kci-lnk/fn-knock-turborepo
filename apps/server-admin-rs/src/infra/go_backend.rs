@@ -22,10 +22,11 @@ use crate::grpc_proto::{
     HostActiveIpStats, HostLocation, HostLocationResponse, HostRule, HostRuleAvailability,
     HostRuleVisibility, HostRules, LocaleConfig, LoggingConfig, OmitTargetsConfig,
     ReverseProxyThrottleConfig, ReverseProxyThrottleExemptIpsRuntime, Rule, Rules, SslConfig,
-    SslDeployedCertificate, SslLanDeployment, StaticDirectoryListingConfig, StaticPathProbeRequest,
-    StaticServeConfig, StreamAvailability, StreamBypassCondition, StreamBypassGroup,
-    StreamBypassPolicy, StreamProbeRequest, StreamRule, StreamRules, StreamServiceProfile,
-    StringValue, WafConfig, deep_monitor_service_client::DeepMonitorServiceClient,
+    SslDeployedCertificate, SslLanDeployment, StaticDirectoryListingConfig,
+    StaticPathBrowseRequest, StaticPathProbeRequest, StaticServeConfig, StreamAvailability,
+    StreamBypassCondition, StreamBypassGroup, StreamBypassPolicy, StreamProbeRequest, StreamRule,
+    StreamRules, StreamServiceProfile, StringValue, WafConfig,
+    deep_monitor_service_client::DeepMonitorServiceClient,
     firewall_service_client::FirewallServiceClient,
     gateway_control_service_client::GatewayControlServiceClient,
     gateway_logs_service_client::GatewayLogsServiceClient,
@@ -284,6 +285,7 @@ impl GoBackendClient {
             "stream_service_probe_v1",
             "stream_strict_validation_v1",
             "stream_bypass_policy_v1",
+            "static_path_browse_v1",
         ] {
             if !capabilities
                 .iter()
@@ -523,6 +525,58 @@ impl GoBackendClient {
             "readable": response.readable,
             "actual_type": actual_static_path_type_to_json(response.actual_type),
             "error_code": response.error_code,
+        }))
+    }
+
+    pub async fn browse_static_path(
+        &self,
+        target_type: &str,
+        path: &str,
+        cursor: &str,
+    ) -> anyhow::Result<Value> {
+        let mut client = self.control.clone();
+        let response = client
+            .browse_static_path(self.request(StaticPathBrowseRequest {
+                target_type: host_rule_target_type_to_proto(target_type),
+                path: path.to_string(),
+                cursor: cursor.to_string(),
+            }))
+            .await
+            .context("browse static path")?
+            .into_inner();
+        let current_path = response.current_path.filter(|value| !value.is_empty());
+        // The Go gateway intentionally uses Some("") as the parent of a
+        // Windows drive root so clients can navigate back to the virtual
+        // drive-list root. Preserve that sentinel across the projection.
+        let parent_path = response.parent_path;
+        let selected_path = response.selected_path.filter(|value| !value.is_empty());
+        let previous_cursor =
+            (!response.previous_cursor.is_empty()).then_some(response.previous_cursor);
+        let next_cursor = (!response.next_cursor.is_empty()).then_some(response.next_cursor);
+        let error_code = (!response.error_code.is_empty()).then_some(response.error_code);
+        Ok(json!({
+            "target_type": strict_static_path_type_to_json(response.target_type),
+            "platform": response.platform,
+            "current_path": current_path,
+            "parent_path": parent_path,
+            "current_selectable": response.current_selectable,
+            "selected_path": selected_path,
+            "breadcrumbs": response.breadcrumbs.into_iter().map(|item| json!({
+                "name": item.name,
+                "path": item.path,
+            })).collect::<Vec<_>>(),
+            "entries": response.entries.into_iter().map(|item| json!({
+                "name": item.name,
+                "path": item.path,
+                "entry_type": strict_static_path_type_to_json(item.entry_type),
+                "navigable": item.navigable,
+                "selectable": item.selectable,
+                "size_bytes": item.size_bytes,
+                "modified_at": item.modified_at.filter(|value| !value.is_empty()),
+            })).collect::<Vec<_>>(),
+            "previous_cursor": previous_cursor,
+            "next_cursor": next_cursor,
+            "error_code": error_code,
         }))
     }
 
@@ -1301,6 +1355,14 @@ fn actual_static_path_type_to_json(value: i32) -> &'static str {
         2 => "file",
         3 => "directory",
         _ => "other",
+    }
+}
+
+fn strict_static_path_type_to_json(value: i32) -> Option<&'static str> {
+    match value {
+        2 => Some("file"),
+        3 => Some("directory"),
+        _ => None,
     }
 }
 
@@ -2681,6 +2743,15 @@ mod tests {
             echoed["items"][0]["static_serve"],
             payload[0]["static_serve"]
         );
+    }
+
+    #[test]
+    fn static_path_browse_type_projection_rejects_unknown_wire_values() {
+        assert_eq!(strict_static_path_type_to_json(2), Some("file"));
+        assert_eq!(strict_static_path_type_to_json(3), Some("directory"));
+        assert_eq!(strict_static_path_type_to_json(0), None);
+        assert_eq!(strict_static_path_type_to_json(1), None);
+        assert_eq!(strict_static_path_type_to_json(i32::MAX), None);
     }
 
     #[test]

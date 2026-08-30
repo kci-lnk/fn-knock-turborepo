@@ -5,6 +5,7 @@ import {
   CheckCircle2,
   ChevronDown,
   ChevronUp,
+  FolderOpen,
   Loader2,
   Search,
   TriangleAlert,
@@ -35,6 +36,7 @@ const props = defineProps<{
   targetType: Exclude<HostMappingTargetType, "proxy">;
 }>();
 const emit = defineEmits<{
+  browse: [targetType: Exclude<HostMappingTargetType, "proxy">, path: string];
   "update:modelValue": [value: HostMappingStaticServe];
 }>();
 
@@ -133,7 +135,7 @@ const probeMessage = computed(() => {
   if (!probeResult.value) return "";
   if (probeSucceeded.value) {
     return t("admin.subdomainProxy.staticServe.probeSuccess", {
-      path: probeResult.value.normalized_path || pathModel.value.trim(),
+      path: probeResult.value.normalized_path || pathModel.value,
     });
   }
   const code =
@@ -165,7 +167,7 @@ const moveIndexFile = (index: number, offset: -1 | 1) => {
 const probePath = async () => {
   if (!canProbe.value) return;
   const requestId = ++probeRequestId;
-  const path = pathModel.value.trim();
+  const path = pathModel.value;
   isProbing.value = true;
   probeResult.value = null;
   probeError.value = "";
@@ -199,13 +201,23 @@ watch(
       <Label for="mapping-static-path">
         {{ t("admin.subdomainProxy.staticServe.pathLabel") }}
       </Label>
-      <div class="flex gap-2">
+      <div class="flex flex-wrap gap-2 sm:flex-nowrap">
         <Input
           id="mapping-static-path"
           v-model="pathModel"
           class="font-mono"
           :placeholder="pathPlaceholder"
         />
+        <Button
+          type="button"
+          variant="outline"
+          class="shrink-0"
+          data-testid="browse-static-path"
+          @click="emit('browse', targetType, pathModel)"
+        >
+          <FolderOpen class="mr-2 h-4 w-4" />
+          {{ t("admin.subdomainProxy.staticServe.browser.open") }}
+        </Button>
         <Button
           type="button"
           variant="outline"

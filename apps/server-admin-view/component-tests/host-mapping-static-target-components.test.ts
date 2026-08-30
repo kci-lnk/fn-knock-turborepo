@@ -60,6 +60,7 @@ const createTestI18n = () =>
               pathDockerHint: "Use a read-only container mount.",
               pathHint: "This path belongs to the gateway server.",
               pathLabel: "Server path",
+              browser: { open: "Browse" },
               probe: "Check path",
               probeErrors: {
                 probe_failed: "Probe failed",
@@ -487,6 +488,23 @@ describe("host mapping static target components", () => {
     await flushPromises();
     expect(wrapper.text()).not.toContain("Path available:");
     expect(probe).toHaveBeenLastCalledWith("file", "/srv/next");
+  });
+
+  it("preserves a trailing-space POSIX path when browsing and probing", async () => {
+    const path = "/srv/docs ";
+    const probe = vi
+      .spyOn(ConfigAPI, "probeHostMappingStaticPath")
+      .mockResolvedValue(successfulProbe("directory", path));
+    const wrapper = mountStaticTargetField(staticServeConfig(path));
+
+    await wrapper.get('[data-testid="browse-static-path"]').trigger("click");
+
+    expect(wrapper.emitted("browse")).toEqual([["directory", path]]);
+    expect(wrapper.emitted("update:modelValue")).toBeUndefined();
+
+    await findButton(wrapper, "Check path")!.trigger("click");
+    await flushPromises();
+    expect(probe).toHaveBeenCalledWith("directory", path);
   });
 
   it("turning directory listing off clears and disables README rendering", async () => {

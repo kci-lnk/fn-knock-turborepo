@@ -175,6 +175,7 @@ const mappingSubdomainModel = computed({
       :allow-target-path-mode="!dialog.isMappingAuthService"
       :open="dialog.open"
       :update-mapping-form="dialog.updateMappingForm"
+      @browse-static-path="dialog.pathBrowserEditor.openPathBrowser"
     />
     <SubdomainMappingGroupField
       v-if="dialog.groups.length > 0 && !dialog.isMappingAuthService"

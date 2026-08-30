@@ -7,6 +7,7 @@ import type { HostMapping, HostMappingGroup } from "@/types";
 import type { MappingInputMode } from "./model";
 import type { useMappingIcon } from "./useMappingIcon";
 import type { useMappingVisibility } from "./useMappingVisibility";
+import type { useStaticPathBrowser } from "./useStaticPathBrowser";
 
 export interface SubdomainMappingDialogProps {
   basicAuthInjection: boolean;
@@ -41,6 +42,7 @@ export interface SubdomainMappingDialogProps {
   mappingSubdomain: string;
   mappingUseAuth: boolean;
   open: boolean;
+  pathBrowserEditor: UnwrapNestedRefs<ReturnType<typeof useStaticPathBrowser>>;
   preserveHost: boolean;
   refreshMappingMetadata: () => void | Promise<unknown>;
   savedRootDomain: string;

@@ -1,10 +1,17 @@
 <script setup lang="ts">
+import { computed } from "vue";
 import { useI18n } from "vue-i18n";
 import { ChevronLeft } from "lucide-vue-next";
-import { Button } from "@/components/ui/button";
-import { Dialog, DialogContent, DialogFooter } from "@/components/ui/dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import SubdomainMappingBasicForm from "./SubdomainMappingBasicForm.vue";
+import SubdomainMappingDialogFooter from "./SubdomainMappingDialogFooter.vue";
 import SubdomainMappingIconPanel from "./SubdomainMappingIconPanel.vue";
+import SubdomainMappingStaticPathBrowser from "./SubdomainMappingStaticPathBrowser.vue";
 import SubdomainMappingVisibilityPanel from "./SubdomainMappingVisibilityPanel.vue";
 import type {
   SubdomainMappingDialogEmits,
@@ -14,15 +21,42 @@ import type {
 const props = defineProps<SubdomainMappingDialogProps>();
 const emit = defineEmits<SubdomainMappingDialogEmits>();
 const { t } = useI18n();
+
+const DIALOG_COPY_KEYS = {
+  basic: ["mappingDialogTitle", "mappingDialogDescription"],
+  icon: ["iconTitle", "iconPreviewDescription"],
+  "path-browser": ["staticServe.browser.title", "staticServe.browser.hint"],
+  visibility: ["visibilityTitle", "visibilityBehaviorDescription"],
+} as const;
+const dialogTitle = computed(() =>
+  t(
+    `admin.subdomainProxy.${DIALOG_COPY_KEYS[props.visibilityEditor.mappingDialogView][0]}`,
+  ),
+);
+const dialogDescription = computed(() =>
+  t(
+    `admin.subdomainProxy.${DIALOG_COPY_KEYS[props.visibilityEditor.mappingDialogView][1]}`,
+  ),
+);
 </script>
 
 <template>
   <Dialog :open="open" @update:open="emit('update:open', $event)">
     <DialogContent
-      class="flex max-h-[85vh] flex-col gap-0 overflow-hidden overscroll-contain p-0 sm:max-w-[520px] max-sm:!inset-x-0 max-sm:!bottom-[var(--mapping-dialog-keyboard-inset)] max-sm:!top-auto max-sm:!max-w-none max-sm:!translate-x-0 max-sm:!translate-y-0 max-sm:max-h-[var(--mapping-dialog-mobile-max-height)] max-sm:rounded-b-none max-sm:border-b-0"
+      class="flex max-h-[85vh] flex-col gap-0 overflow-hidden overscroll-contain p-0 max-sm:!inset-x-0 max-sm:!bottom-[var(--mapping-dialog-keyboard-inset)] max-sm:!top-auto max-sm:!max-w-none max-sm:!translate-x-0 max-sm:!translate-y-0 max-sm:max-h-[var(--mapping-dialog-mobile-max-height)] max-sm:rounded-b-none max-sm:border-b-0"
+      :class="
+        visibilityEditor.mappingDialogView === 'path-browser'
+          ? 'sm:!max-w-[760px]'
+          : 'sm:max-w-[520px]'
+      "
       :style="contentStyle"
       :show-close-button="false"
     >
+      <DialogTitle class="sr-only">{{ dialogTitle }}</DialogTitle>
+      <DialogDescription class="sr-only">
+        {{ dialogDescription }}
+      </DialogDescription>
+
       <div
         v-if="visibilityEditor.mappingDialogView !== 'basic'"
         class="shrink-0 border-b bg-background px-6 pb-3 pt-8"
@@ -31,15 +65,15 @@ const { t } = useI18n();
           type="button"
           class="-mx-2 inline-flex w-[calc(100%+1rem)] items-center gap-3 rounded-md px-2 py-1.5 text-left transition-colors hover:bg-accent hover:text-accent-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
           :aria-label="t('admin.subdomainProxy.backToBasicAria')"
-          @click="visibilityEditor.returnBasicView"
+          @click="
+            visibilityEditor.mappingDialogView === 'path-browser'
+              ? pathBrowserEditor.cancel()
+              : visibilityEditor.returnBasicView()
+          "
         >
           <ChevronLeft class="h-4 w-4 shrink-0" />
           <span class="text-sm font-semibold">
-            {{
-              visibilityEditor.mappingDialogView === "icon"
-                ? t("admin.subdomainProxy.iconTitle")
-                : t("admin.subdomainProxy.visibilityTitle")
-            }}
+            {{ dialogTitle }}
           </span>
         </button>
       </div>
@@ -70,33 +104,25 @@ const { t } = useI18n();
             :is-saving-mappings="isSavingMappings"
           />
           <SubdomainMappingVisibilityPanel
-            v-else
+            v-else-if="visibilityEditor.mappingDialogView === 'visibility'"
             key="mapping-visibility"
             :composed-preview-host="composedPreviewHost"
             :mapping-form="mappingForm"
             :visibility-editor="visibilityEditor"
           />
+          <SubdomainMappingStaticPathBrowser
+            v-else
+            key="mapping-path-browser"
+            :editor="pathBrowserEditor"
+          />
         </Transition>
       </div>
 
-      <DialogFooter
-        class="shrink-0 border-t bg-background px-6 py-4 max-sm:pb-[calc(env(safe-area-inset-bottom)+1rem)]"
-      >
-        <Button variant="outline" @click="emit('close')">
-          {{ t("admin.subdomainProxy.cancel") }}
-        </Button>
-        <Button
-          :disabled="
-            !isMappingValid ||
-            isSavingMappings ||
-            isGatewayAdvancedLoading ||
-            iconEditor.isIconBusy
-          "
-          @click="emit('save')"
-        >
-          {{ t("admin.subdomainProxy.saveMapping") }}
-        </Button>
-      </DialogFooter>
+      <SubdomainMappingDialogFooter
+        :dialog="props"
+        @close="emit('close')"
+        @save="emit('save')"
+      />
     </DialogContent>
   </Dialog>
 </template>

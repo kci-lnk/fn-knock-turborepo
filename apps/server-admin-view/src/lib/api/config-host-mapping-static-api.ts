@@ -11,7 +11,29 @@ export type StaticPathProbeErrorCode = Exclude<
   null
 >;
 
+type StaticPathBrowseBody =
+  ApiContractComponents["schemas"]["StaticPathBrowseBodyData"];
+export type StaticPathBrowseResult =
+  ApiContractComponents["schemas"]["StaticPathBrowseResultData"];
+export type StaticPathBrowseEntry = StaticPathBrowseResult["entries"][number];
+
 export const configHostMappingStaticApi = {
+  async browseHostMappingStaticPath(
+    targetType: StaticPathProbeTargetType,
+    path: string | null = null,
+    cursor: string | null = null,
+  ): Promise<StaticPathBrowseResult> {
+    const body = {
+      target_type: targetType,
+      path,
+      cursor,
+    } satisfies StaticPathBrowseBody;
+    const res = await apiClient.post(
+      "/config/host_mappings/static_path_browse",
+      body,
+    );
+    return res.data.data;
+  },
   async probeHostMappingStaticPath(
     targetType: StaticPathProbeTargetType,
     path: string,

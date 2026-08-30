@@ -85,10 +85,11 @@ export const normalizeHostMappingStaticServe = (
   if (targetType === "proxy") return null;
   const defaults = createDefaultStaticServe(targetType);
   const directoryListing = value?.directory_listing;
+  const path = typeof value?.path === "string" ? value.path : "";
   const listingEnabled =
     targetType === "directory" && directoryListing?.enabled === true;
   return {
-    path: typeof value?.path === "string" ? value.path.trim() : "",
+    path: path.trim() ? path : "",
     index_files:
       targetType === "directory"
         ? Array.isArray(value?.index_files)
@@ -106,7 +107,7 @@ export const isAbsoluteServerPath = (
   value: string,
   isWindows?: boolean,
 ): boolean => {
-  const path = value.trim();
+  const path = value;
   const posixAbsolute = path.startsWith("/");
   const windowsPath = path.replace(/\//gu, "\\");
   const windowsAbsolute =
@@ -166,8 +167,8 @@ export const getStaticServeValidationIssue = ({
   targetType: HostMappingTargetType;
 }): StaticServeValidationIssue | null => {
   if (targetType === "proxy") return null;
-  const path = staticServe?.path?.trim() ?? "";
-  if (!path) return "path_required";
+  const path = staticServe?.path ?? "";
+  if (!path.trim()) return "path_required";
   if (!isAbsoluteServerPath(path, isWindows)) return "path_not_absolute";
   if (path.split(/[\\/]+/u).includes("..") || path.includes("\0")) {
     return "path_has_parent_segment";
@@ -203,7 +204,7 @@ export const getHostMappingTargetText = (
 ): string =>
   isProxyHostMapping(mapping)
     ? mapping.target.trim()
-    : (mapping.static_serve?.path?.trim() ?? "");
+    : (mapping.static_serve?.path ?? "");
 
 export const getLocationRulesCount = (mapping: HostMapping): number =>
   isProxyHostMapping(mapping) ? (mapping.locations?.length ?? 0) : 0;

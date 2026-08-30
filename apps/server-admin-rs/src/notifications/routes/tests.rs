@@ -1320,12 +1320,12 @@ fn terminal_audit_notifications_are_localized_and_descriptive() {
         message
             .get("summary")
             .and_then(Value::as_str)
-            .is_some_and(|value| value.contains("SSH 会话创建失败"))
+            .is_some_and(|value| value.contains("终端会话创建失败"))
     );
     let facts = message.get("facts").and_then(Value::as_array).unwrap();
     assert!(facts.iter().any(|fact| {
         fact.get("label") == Some(&json!("终端操作"))
-            && fact.get("value") == Some(&json!("SSH 会话创建失败"))
+            && fact.get("value") == Some(&json!("终端会话创建失败"))
     }));
     assert!(facts.iter().any(|fact| {
         fact.get("label") == Some(&json!("SSH 会话"))

@@ -6034,7 +6034,7 @@ export interface paths {
             cookie?: never;
         };
         /**
-         * 查看Web 终端local
+         * 查看本机终端设置
          * @description 管理 Web 终端运行时能力和交互会话。。`GET /api/admin/terminal/local` 用于读取当前状态、配置或导出内容，不会主动修改服务配置。 该操作不要求 JSON 请求体。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
          */
         get: operations["get_local_terminal"];
@@ -6044,7 +6044,7 @@ export interface paths {
         options?: never;
         head?: never;
         /**
-         * 修改Web 终端local
+         * 修改本机终端设置
          * @description 管理 Web 终端运行时能力和交互会话。。`PATCH /api/admin/terminal/local` 用于对已有资源进行局部更新；仅提交需要变更的字段。 请求体字段、必填项和可选值请以 Swagger 展开的 schema 为准。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
          */
         patch: operations["update_local_terminal"];
@@ -6060,7 +6060,7 @@ export interface paths {
         get?: never;
         put?: never;
         /**
-         * 提交Web 终端会话
+         * 提交本机终端会话
          * @description 管理 Web 终端运行时能力和交互会话。。`POST /api/admin/terminal/local/sessions` 用于提交操作或创建、更新服务状态；执行结果以响应中的数据和消息为准。 请求体字段、必填项和可选值请以 Swagger 展开的 schema 为准。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
          */
         post: operations["create_local_session"];
@@ -28087,7 +28087,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description 「查看Web 终端local」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
+            /** @description 「查看本机终端设置」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -28130,7 +28130,7 @@ export interface operations {
             };
         };
         responses: {
-            /** @description 「修改Web 终端local」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
+            /** @description 「修改本机终端设置」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -28170,7 +28170,7 @@ export interface operations {
             };
         };
         responses: {
-            /** @description 「提交Web 终端会话」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
+            /** @description 「提交本机终端会话」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
             200: {
                 headers: {
                     [name: string]: unknown;

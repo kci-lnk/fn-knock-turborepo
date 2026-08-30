@@ -438,6 +438,12 @@ fn operation_subject(
         .strip_prefix("/api/admin/")
         .or_else(|| path.strip_prefix("/api/internal/"))
         .unwrap_or(path);
+    if path == "terminal/local" {
+        return ("本机终端设置".to_string(), None);
+    }
+    if path == "terminal/local/sessions" {
+        return ("本机终端会话".to_string(), None);
+    }
     let mut segments = path
         .split('/')
         .skip(1)

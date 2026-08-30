@@ -4890,7 +4890,7 @@ mod tests {
                 }
             }
         }
-        assert_eq!(operations, 447);
+        assert_eq!(operations, 450);
         assert_eq!(documented_tags, operation_tags);
         assert!(documented_tags.iter().all(|tag| {
             tags.iter().any(|item| {
@@ -5561,7 +5561,7 @@ mod tests {
             .filter_map(Value::as_object)
             .flat_map(|path| path.values())
             .collect::<Vec<_>>();
-        assert_eq!(operations.len(), 447);
+        assert_eq!(operations.len(), 450);
         assert!(
             operations
                 .iter()

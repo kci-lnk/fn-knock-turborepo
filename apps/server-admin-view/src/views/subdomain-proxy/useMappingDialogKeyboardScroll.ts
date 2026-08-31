@@ -9,21 +9,37 @@ export const useMappingDialogKeyboardScroll = ({
 }) => {
   const mappingDialogScrollRef = ref<HTMLElement | null>(null);
   const mappingDialogKeyboardInset = ref(0);
+  const mappingDialogInputFocused = ref(false);
+  const mappingDialogKeyboardSessionActive = ref(false);
+  const mappingDialogViewportTop = ref("0px");
+  const mappingDialogViewportHeight = ref("100dvh");
   let mappingDialogKeyboardScrollTimer: number | null = null;
+  let mappingDialogInputSettleTimer: number | null = null;
+  let mappingDialogFocusOutTimer: number | null = null;
+
+  const isMappingDialogKeyboardActive = computed(
+    () =>
+      mappingDialogKeyboardSessionActive.value &&
+      (mappingDialogInputFocused.value ||
+        mappingDialogKeyboardInset.value > 0),
+  );
+  const isMappingDialogSoftKeyboardVisible = computed(
+    () =>
+      mappingDialogKeyboardSessionActive.value &&
+      mappingDialogKeyboardInset.value > 0,
+  );
 
   const mappingDialogContentStyle = computed(() => {
-    const keyboardInset = `${mappingDialogKeyboardInset.value}px`;
-    const mobileMaxHeight = `calc(${MAPPING_DIALOG_MOBILE_MAX_HEIGHT_DVH}dvh - ${keyboardInset})`;
-
     return {
-      "--mapping-dialog-keyboard-inset": keyboardInset,
-      "--mapping-dialog-mobile-max-height": mobileMaxHeight,
+      "--mapping-dialog-mobile-max-height": `${MAPPING_DIALOG_MOBILE_MAX_HEIGHT_DVH}dvh`,
+      "--mapping-dialog-viewport-height": mappingDialogViewportHeight.value,
+      "--mapping-dialog-viewport-top": mappingDialogViewportTop.value,
     };
   });
 
   const mappingDialogScrollStyle = computed(() => ({
     scrollPaddingTop: "96px",
-    scrollPaddingBottom: `${Math.max(mappingDialogKeyboardInset.value, 96)}px`,
+    scrollPaddingBottom: "96px",
   }));
 
   const setMappingDialogScrollElement = (
@@ -33,10 +49,26 @@ export const useMappingDialogKeyboardScroll = ({
       element instanceof HTMLElement ? element : null;
   };
 
+  const clearMappingDialogInputScrollTimer = () => {
+    if (mappingDialogKeyboardScrollTimer !== null) {
+      window.clearTimeout(mappingDialogKeyboardScrollTimer);
+      mappingDialogKeyboardScrollTimer = null;
+    }
+    if (mappingDialogInputSettleTimer !== null) {
+      window.clearTimeout(mappingDialogInputSettleTimer);
+      mappingDialogInputSettleTimer = null;
+    }
+  };
+
+  const clearMappingDialogFocusOutTimer = () => {
+    if (mappingDialogFocusOutTimer === null) return;
+    window.clearTimeout(mappingDialogFocusOutTimer);
+    mappingDialogFocusOutTimer = null;
+  };
+
   const clearMappingDialogKeyboardScrollTimer = () => {
-    if (mappingDialogKeyboardScrollTimer === null) return;
-    window.clearTimeout(mappingDialogKeyboardScrollTimer);
-    mappingDialogKeyboardScrollTimer = null;
+    clearMappingDialogInputScrollTimer();
+    clearMappingDialogFocusOutTimer();
   };
 
   const resolveMappingDialogKeyboardInset = (): number => {
@@ -46,10 +78,23 @@ export const useMappingDialogKeyboardScroll = ({
     return inset > 80 ? Math.ceil(inset) : 0;
   };
 
-  const updateMappingDialogKeyboardInset = () => {
+  const updateMappingDialogViewport = () => {
+    const viewport = window.visualViewport;
+    mappingDialogViewportTop.value = viewport
+      ? `${Math.max(0, viewport.offsetTop)}px`
+      : "0px";
+    mappingDialogViewportHeight.value = viewport
+      ? `${Math.max(0, viewport.height)}px`
+      : "100dvh";
     mappingDialogKeyboardInset.value = isDialogOpen.value
       ? resolveMappingDialogKeyboardInset()
       : 0;
+    if (
+      !mappingDialogInputFocused.value &&
+      mappingDialogKeyboardInset.value === 0
+    ) {
+      mappingDialogKeyboardSessionActive.value = false;
+    }
   };
 
   const isMappingDialogKeyboardInput = (
@@ -65,7 +110,7 @@ export const useMappingDialogKeyboardScroll = ({
     target: HTMLElement,
     behavior: ScrollBehavior = "smooth",
   ) => {
-    updateMappingDialogKeyboardInset();
+    updateMappingDialogViewport();
 
     const container = mappingDialogScrollRef.value;
     if (!container) {
@@ -105,7 +150,12 @@ export const useMappingDialogKeyboardScroll = ({
       behavior,
     });
 
-    window.setTimeout(() => {
+    if (mappingDialogInputSettleTimer !== null) {
+      window.clearTimeout(mappingDialogInputSettleTimer);
+    }
+    mappingDialogInputSettleTimer = window.setTimeout(() => {
+      mappingDialogInputSettleTimer = null;
+      if (!isDialogOpen.value || !target.isConnected) return;
       target.scrollIntoView({
         block: "center",
         inline: "nearest",
@@ -115,7 +165,7 @@ export const useMappingDialogKeyboardScroll = ({
   };
 
   const scheduleMappingDialogInputScrollIntoView = (target: HTMLElement) => {
-    clearMappingDialogKeyboardScrollTimer();
+    clearMappingDialogInputScrollTimer();
 
     let attempts = 0;
     const run = () => {
@@ -140,27 +190,56 @@ export const useMappingDialogKeyboardScroll = ({
   const handleMappingDialogFocusIn = (event: FocusEvent) => {
     const target = event.target as Element | null;
     if (!isMappingDialogKeyboardInput(target)) return;
+    clearMappingDialogFocusOutTimer();
+    mappingDialogInputFocused.value = true;
+    mappingDialogKeyboardSessionActive.value = true;
+    updateMappingDialogViewport();
     scheduleMappingDialogInputScrollIntoView(target);
   };
 
-  const handleMappingDialogViewportResize = () => {
-    updateMappingDialogKeyboardInset();
-    if (!isDialogOpen.value) return;
-    const activeElement = document.activeElement;
-    if (!isMappingDialogKeyboardInput(activeElement)) return;
+  const handleMappingDialogFocusOut = (event: FocusEvent) => {
+    const target = event.target as Element | null;
+    if (!isMappingDialogKeyboardInput(target)) return;
 
+    clearMappingDialogInputScrollTimer();
+    clearMappingDialogFocusOutTimer();
+    mappingDialogFocusOutTimer = window.setTimeout(() => {
+      mappingDialogFocusOutTimer = null;
+      mappingDialogInputFocused.value = isMappingDialogKeyboardInput(
+        document.activeElement,
+      );
+      updateMappingDialogViewport();
+    }, 0);
+  };
+
+  const handleMappingDialogViewportResize = () => {
+    const activeElement = document.activeElement;
+    const hasFocusedInput =
+      isDialogOpen.value && isMappingDialogKeyboardInput(activeElement);
+    mappingDialogInputFocused.value = hasFocusedInput;
+    updateMappingDialogViewport();
+    if (!hasFocusedInput) return;
+
+    mappingDialogKeyboardSessionActive.value = true;
     scheduleMappingDialogInputScrollIntoView(activeElement);
   };
 
   const resetMappingDialogKeyboardScroll = () => {
     clearMappingDialogKeyboardScrollTimer();
     mappingDialogKeyboardInset.value = 0;
+    mappingDialogInputFocused.value = false;
+    mappingDialogKeyboardSessionActive.value = false;
+    mappingDialogViewportTop.value = "0px";
+    mappingDialogViewportHeight.value = "100dvh";
   };
 
   return {
     clearMappingDialogKeyboardScrollTimer,
     handleMappingDialogFocusIn,
+    handleMappingDialogFocusOut,
     handleMappingDialogViewportResize,
+    isMappingDialogKeyboardActive,
+    isMappingDialogSoftKeyboardVisible,
     mappingDialogContentStyle,
     mappingDialogScrollStyle,
     resetMappingDialogKeyboardScroll,

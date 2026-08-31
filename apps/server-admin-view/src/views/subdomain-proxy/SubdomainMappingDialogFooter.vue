@@ -12,15 +12,24 @@ const { t } = useI18n();
 
 <template>
   <DialogFooter
-    class="shrink-0 border-t bg-background px-6 py-4 max-sm:pb-[calc(env(safe-area-inset-bottom)+1rem)]"
+    :class="[
+      'grid shrink-0 grid-cols-2 border-t bg-background px-6 py-4 sm:flex sm:justify-end',
+      !dialog.isMappingDialogSoftKeyboardVisible &&
+        'max-sm:pb-[calc(env(safe-area-inset-bottom)+1rem)]',
+    ]"
   >
     <template
       v-if="dialog.visibilityEditor.mappingDialogView === 'path-browser'"
     >
-      <Button variant="outline" @click="dialog.pathBrowserEditor.cancel">
+      <Button
+        class="w-full sm:w-auto"
+        variant="outline"
+        @click="dialog.pathBrowserEditor.cancel"
+      >
         {{ t("admin.subdomainProxy.staticServe.browser.cancel") }}
       </Button>
       <Button
+        class="w-full sm:w-auto"
         :disabled="!dialog.pathBrowserEditor.canConfirm"
         @click="dialog.pathBrowserEditor.confirmSelection"
       >
@@ -38,10 +47,15 @@ const { t } = useI18n();
       </Button>
     </template>
     <template v-else>
-      <Button variant="outline" @click="emit('close')">
+      <Button
+        class="w-full sm:w-auto"
+        variant="outline"
+        @click="emit('close')"
+      >
         {{ t("admin.subdomainProxy.cancel") }}
       </Button>
       <Button
+        class="w-full sm:w-auto"
         :disabled="
           !dialog.isMappingValid ||
           dialog.isSavingMappings ||

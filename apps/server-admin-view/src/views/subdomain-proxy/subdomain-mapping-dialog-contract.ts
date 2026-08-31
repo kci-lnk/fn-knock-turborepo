@@ -23,12 +23,15 @@ export interface SubdomainMappingDialogProps {
   globalWafEnabled: boolean;
   groups: HostMappingGroup[];
   handleFocusIn: (event: FocusEvent) => void;
+  handleFocusOut: (event: FocusEvent) => void;
   handleInputModeChange: (mode: MappingInputMode) => void;
   handlePortalDisabledTooltipOpenChange: (open: boolean) => void;
   handlePortalDisabledTooltipTriggerClick: () => void;
   isGatewayAdvancedLoading: boolean;
   iconEditor: UnwrapNestedRefs<ReturnType<typeof useMappingIcon>>;
   isMappingAuthService: boolean;
+  isMappingDialogKeyboardActive: boolean;
+  isMappingDialogSoftKeyboardVisible: boolean;
   isMappingValid: boolean;
   isMappingWebSocketTarget: boolean;
   isPortalDisabledTooltipOpen: boolean;

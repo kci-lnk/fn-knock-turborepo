@@ -45,6 +45,7 @@ const {
   handleDialogOpenChange,
   handleDiscoverDialogOpenChange,
   handleMappingDialogFocusIn,
+  handleMappingDialogFocusOut,
   handleMappingInputModeChange,
   handlePortalDisabledTooltipOpenChange,
   handlePortalDisabledTooltipTriggerClick,
@@ -63,6 +64,8 @@ const {
   isDiscovering,
   isGatewayAdvancedLoading,
   isMappingAuthService,
+  isMappingDialogKeyboardActive,
+  isMappingDialogSoftKeyboardVisible,
   isMappingValid,
   isMappingWebSocketTarget,
   isPortalDisabledTooltipOpen,
@@ -130,6 +133,7 @@ const {
       :global-waf-enabled="globalWafEnabled"
       :groups="hostMappingGroups"
       :handle-focus-in="handleMappingDialogFocusIn"
+      :handle-focus-out="handleMappingDialogFocusOut"
       :handle-input-mode-change="handleMappingInputModeChange"
       :handle-portal-disabled-tooltip-open-change="
         handlePortalDisabledTooltipOpenChange
@@ -140,6 +144,8 @@ const {
       :is-gateway-advanced-loading="isGatewayAdvancedLoading"
       :icon-editor="iconEditor"
       :is-mapping-auth-service="isMappingAuthService"
+      :is-mapping-dialog-keyboard-active="isMappingDialogKeyboardActive"
+      :is-mapping-dialog-soft-keyboard-visible="isMappingDialogSoftKeyboardVisible"
       :is-mapping-valid="isMappingValid"
       :is-mapping-web-socket-target="isMappingWebSocketTarget"
       :is-portal-disabled-tooltip-open="isPortalDisabledTooltipOpen"

@@ -43,19 +43,20 @@ const dialogDescription = computed(() =>
 <template>
   <Dialog :open="open" @update:open="emit('update:open', $event)">
     <DialogContent
-      class="flex max-h-[85vh] flex-col gap-0 overflow-hidden overscroll-contain p-0 max-sm:!inset-x-0 max-sm:!bottom-[var(--mapping-dialog-keyboard-inset)] max-sm:!top-auto max-sm:!max-w-none max-sm:!translate-x-0 max-sm:!translate-y-0 max-sm:max-h-[var(--mapping-dialog-mobile-max-height)] max-sm:rounded-b-none max-sm:border-b-0"
-      :class="
+      class="flex max-h-[85vh] flex-col gap-0 overflow-hidden overscroll-contain p-0 max-sm:!inset-x-0 max-sm:!max-w-none max-sm:!translate-x-0 max-sm:!translate-y-0"
+      :class="[
         visibilityEditor.mappingDialogView === 'path-browser'
           ? 'sm:!max-w-[760px]'
-          : 'sm:max-w-[520px]'
-      "
+          : 'sm:max-w-[520px]',
+        isMappingDialogKeyboardActive
+          ? 'max-sm:!bottom-auto max-sm:!top-[var(--mapping-dialog-viewport-top)] max-sm:!h-[var(--mapping-dialog-viewport-height)] max-sm:!max-h-[var(--mapping-dialog-viewport-height)] max-sm:rounded-none max-sm:border-0'
+          : 'max-sm:!bottom-0 max-sm:!top-auto max-sm:!h-auto max-sm:!max-h-[var(--mapping-dialog-mobile-max-height)] max-sm:rounded-b-none max-sm:border-b-0',
+      ]"
       :style="contentStyle"
       :show-close-button="false"
     >
       <DialogTitle class="sr-only">{{ dialogTitle }}</DialogTitle>
-      <DialogDescription class="sr-only">
-        {{ dialogDescription }}
-      </DialogDescription>
+      <DialogDescription class="sr-only">{{ dialogDescription }}</DialogDescription>
 
       <div
         v-if="visibilityEditor.mappingDialogView !== 'basic'"
@@ -83,6 +84,7 @@ const dialogDescription = computed(() =>
         class="relative min-h-0 flex-1 overflow-x-hidden overflow-y-auto overscroll-contain px-6 [overflow-anchor:none]"
         :style="scrollStyle"
         @focusin="handleFocusIn"
+        @focusout="handleFocusOut"
       >
         <Transition
           enter-active-class="motion-safe:transition-[opacity,transform] motion-safe:duration-200 motion-safe:ease-out motion-safe:will-change-transform motion-reduce:transition-none"

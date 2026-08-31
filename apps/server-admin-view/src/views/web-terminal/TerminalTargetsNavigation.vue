@@ -14,7 +14,6 @@ import type { WebTerminalPageController } from "./useWebTerminalPage";
 
 const props = defineProps<{ controller: WebTerminalPageController }>();
 const {
-  deleteTarget,
   handleSessionTabChange,
   openTargetCreate,
   openTargetEdit,
@@ -41,11 +40,6 @@ const editTarget = (target: Parameters<typeof openTargetEdit>[0]) => {
   openTargetEdit(target);
 };
 
-const removeTarget = async (target: Parameters<typeof deleteTarget>[0]) => {
-  targetDrawerOpen.value = false;
-  await deleteTarget(target);
-};
-
 const selectSession = async (sessionId: string) => {
   targetDrawerOpen.value = false;
   await handleSessionTabChange(sessionId);
@@ -68,7 +62,6 @@ const selectSession = async (sessionId: string) => {
       :targets="targets"
       @add="addTarget"
       @configure-local="openLocalSettings"
-      @delete="removeTarget"
       @edit="editTarget"
       @select="selectTarget"
       @select-session="selectSession"
@@ -114,7 +107,6 @@ const selectSession = async (sessionId: string) => {
         :targets="targets"
         @add="addTarget"
         @configure-local="openLocalSettings"
-        @delete="removeTarget"
         @edit="editTarget"
         @select="selectTarget"
         @select-session="selectSession"

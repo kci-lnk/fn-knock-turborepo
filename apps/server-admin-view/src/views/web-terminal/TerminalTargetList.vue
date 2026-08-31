@@ -1,7 +1,6 @@
 <script setup lang="ts">
-import { computed } from "vue";
+import { computed, ref } from "vue";
 import { useI18n } from "vue-i18n";
-import ConfirmDangerPopover from "@admin-shared/components/common/ConfirmDangerPopover.vue";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -14,7 +13,6 @@ import {
   Settings2,
   ShieldAlert,
   SquareTerminal,
-  Trash2,
 } from "lucide-vue-next";
 import type {
   TerminalDestination,
@@ -34,7 +32,6 @@ const props = defineProps<{
 
 const emit = defineEmits<{
   add: [];
-  delete: [target: TerminalTargetRecord];
   edit: [target: TerminalTargetRecord];
   configureLocal: [];
   selectSession: [sessionId: string];
@@ -42,6 +39,37 @@ const emit = defineEmits<{
 }>();
 
 const { t } = useI18n();
+const revealedTargetId = ref("");
+let suppressNextTargetSelectionId = "";
+
+const handleTargetPointerEnter = (event: PointerEvent) => {
+  if (event.pointerType === "mouse") revealedTargetId.value = "";
+};
+
+const handleTargetPointerDown = (event: PointerEvent, targetId: string) => {
+  if (event.pointerType === "mouse") {
+    suppressNextTargetSelectionId = "";
+    return;
+  }
+  suppressNextTargetSelectionId =
+    revealedTargetId.value === targetId ? "" : targetId;
+  revealedTargetId.value = targetId;
+};
+
+const selectTarget = (targetId: string) => {
+  if (suppressNextTargetSelectionId === targetId) {
+    suppressNextTargetSelectionId = "";
+    return;
+  }
+  emit("select", targetId);
+};
+
+const editTarget = (target: TerminalTargetRecord) => {
+  revealedTargetId.value = "";
+  suppressNextTargetSelectionId = "";
+  emit("edit", target);
+};
+
 const activePhases = new Set([
   "creating",
   "openingPty",
@@ -157,18 +185,21 @@ const sessionStatus = (session: TerminalSessionRecord) => {
       <div
         v-for="target in targets"
         :key="target.id"
+        data-terminal-target-row
         :class="[
           'group relative rounded-xl border transition-colors',
           selectedTargetId === target.id
             ? 'border-primary/35 bg-primary/7'
             : 'border-transparent hover:border-border/70 hover:bg-muted/40',
         ]"
+        @pointerenter="handleTargetPointerEnter"
+        @pointerdown="handleTargetPointerDown($event, target.id)"
       >
         <button
           type="button"
           :class="[
             'flex w-full items-center text-left outline-none focus-visible:ring-2 focus-visible:ring-ring',
-            collapsed ? 'justify-center p-2.5' : 'gap-2.5 px-3 py-2.5 pr-20',
+            collapsed ? 'justify-center p-2.5' : 'gap-2.5 px-3 py-2.5 pr-11',
           ]"
           :aria-label="
             target.kind === 'local'
@@ -182,7 +213,7 @@ const sessionStatus = (session: TerminalSessionRecord) => {
                 : `${target.name} — ${target.username}@${target.host}`
               : undefined
           "
-          @click="emit('select', target.id)"
+          @click="selectTarget(target.id)"
         >
           <span class="relative shrink-0">
             <Laptop v-if="target.kind === 'local'" class="h-4 w-4" />
@@ -231,7 +262,15 @@ const sessionStatus = (session: TerminalSessionRecord) => {
 
         <div
           v-if="!collapsed"
-          class="absolute right-1.5 top-1.5 flex opacity-70 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100"
+          :data-action-state="
+            revealedTargetId === target.id ? 'revealed' : 'concealed'
+          "
+          :class="[
+            'absolute right-1.5 top-1.5 flex transition-opacity group-hover:visible group-hover:pointer-events-auto group-hover:opacity-100 group-focus-within:visible group-focus-within:pointer-events-auto group-focus-within:opacity-100',
+            revealedTargetId === target.id
+              ? 'visible pointer-events-auto opacity-100'
+              : 'invisible pointer-events-none opacity-0',
+          ]"
         >
           <Button
             v-if="target.kind === 'local'"
@@ -251,40 +290,10 @@ const sessionStatus = (session: TerminalSessionRecord) => {
             variant="ghost"
             :aria-label="t('common.edit')"
             :title="t('common.edit')"
-            @click.stop="emit('edit', target)"
+            @click.stop="editTarget(target)"
           >
             <Pencil class="h-3.5 w-3.5" />
           </Button>
-          <ConfirmDangerPopover
-            v-if="target.kind === 'ssh'"
-            :title="
-              t('admin.webTerminal.deleteTargetTitle', 'Delete SSH target?')
-            "
-            :description="
-              activeCount(target.id)
-                ? t('admin.webTerminal.deleteTargetActiveDescription', {
-                    count: activeCount(target.id),
-                  })
-                : t(
-                    'admin.webTerminal.deleteTargetDescription',
-                    'The saved target and its encrypted credential will be removed.',
-                  )
-            "
-            :confirm-text="t('common.delete')"
-            :on-confirm="() => emit('delete', target)"
-          >
-            <template #trigger>
-              <Button
-                size="icon-sm"
-                variant="ghost"
-                class="text-destructive hover:text-destructive"
-                :aria-label="t('common.delete')"
-                :title="t('common.delete')"
-              >
-                <Trash2 class="h-3.5 w-3.5" />
-              </Button>
-            </template>
-          </ConfirmDangerPopover>
         </div>
 
         <div

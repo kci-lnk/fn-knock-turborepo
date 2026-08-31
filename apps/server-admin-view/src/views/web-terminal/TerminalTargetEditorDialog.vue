@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, ref, watch } from "vue";
 import { useI18n } from "vue-i18n";
+import ConfirmDangerPopover from "@admin-shared/components/common/ConfirmDangerPopover.vue";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -28,14 +29,19 @@ import {
   LoaderCircle,
   PlugZap,
   ShieldCheck,
+  Trash2,
   TriangleAlert,
 } from "lucide-vue-next";
-import type { TerminalAuthMethod } from "@/lib/api/terminal";
+import type {
+  TerminalAuthMethod,
+  TerminalTargetRecord,
+} from "@/lib/api/terminal";
 import type { useTerminalTargetEditor } from "./useTerminalTargetEditor";
 
 const props = defineProps<{
   activeSessionCount: number;
   editor: ReturnType<typeof useTerminalTargetEditor>;
+  onDelete: (target: TerminalTargetRecord) => void | Promise<void>;
 }>();
 
 const { t } = useI18n();
@@ -68,6 +74,13 @@ const updateAuthMethod = (value: unknown) => {
   if (value === "password" || value === "privateKey") {
     props.editor.setAuthMethod(value satisfies TerminalAuthMethod);
   }
+};
+
+const deleteEditingTarget = async () => {
+  const target = props.editor.editingTarget.value;
+  if (!target) return;
+  props.editor.close();
+  await props.onDelete(target);
 };
 </script>
 
@@ -386,28 +399,63 @@ const updateAuthMethod = (value: unknown) => {
         </label>
 
         <DialogFooter class="gap-2 sm:justify-between">
-          <Button
-            type="button"
-            variant="outline"
-            :disabled="
-              editor.draft.clearCredential ||
-              !editor.testable.value ||
-              editor.testing.value ||
-              editor.saving.value
-            "
-            @click="editor.testConnection"
-          >
-            <LoaderCircle
-              v-if="editor.testing.value"
-              class="mr-1.5 h-4 w-4 animate-spin"
-            />
-            <PlugZap v-else class="mr-1.5 h-4 w-4" />
-            {{
-              editor.tested.value
-                ? t("admin.webTerminal.connectionTested", "Connection tested")
-                : t("admin.wol.ssh.testConnection")
-            }}
-          </Button>
+          <div class="flex gap-2">
+            <ConfirmDangerPopover
+              v-if="editor.editingTarget.value"
+              :title="
+                t('admin.webTerminal.deleteTargetTitle', 'Delete SSH target?')
+              "
+              :description="
+                activeSessionCount
+                  ? t('admin.webTerminal.deleteTargetActiveDescription', {
+                      count: activeSessionCount,
+                    })
+                  : t(
+                      'admin.webTerminal.deleteTargetDescription',
+                      'The saved target and its encrypted credential will be removed.',
+                    )
+              "
+              :confirm-text="t('common.delete')"
+              :disabled="editor.saving.value || editor.testing.value"
+              :on-confirm="deleteEditingTarget"
+            >
+              <template #trigger>
+                <Button
+                  type="button"
+                  variant="destructive-outline"
+                  :disabled="editor.saving.value || editor.testing.value"
+                >
+                  <Trash2 class="mr-1.5 h-4 w-4" />
+                  {{ t("common.delete") }}
+                </Button>
+              </template>
+            </ConfirmDangerPopover>
+            <Button
+              type="button"
+              variant="outline"
+              :disabled="
+                editor.draft.clearCredential ||
+                !editor.testable.value ||
+                editor.testing.value ||
+                editor.saving.value
+              "
+              @click="editor.testConnection"
+            >
+              <LoaderCircle
+                v-if="editor.testing.value"
+                class="mr-1.5 h-4 w-4 animate-spin"
+              />
+              <PlugZap v-else class="mr-1.5 h-4 w-4" />
+              {{
+                editor.tested.value
+                  ? t(
+                      "admin.webTerminal.connectionTested",
+                      "Connection tested",
+                    )
+                  : t("admin.wol.ssh.testConnection")
+              }}
+            </Button>
+          </div>
           <div class="flex gap-2">
             <Button
               type="button"

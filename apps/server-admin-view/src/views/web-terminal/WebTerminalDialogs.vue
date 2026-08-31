@@ -13,6 +13,7 @@ const {
   confirmForceDeleteTarget,
   closeForceDeleteTarget,
   forceDeletingTarget,
+  deleteTarget,
   pendingForceDeleteActiveCount,
   pendingForceDeleteMessage,
   pendingForceDeleteTarget,
@@ -52,6 +53,7 @@ const {
   <TerminalTargetEditorDialog
     :active-session-count="selectedTargetActiveSessionCount"
     :editor="targetEditor"
+    :on-delete="deleteTarget"
   />
 
   <TerminalTargetForceDeleteDialog

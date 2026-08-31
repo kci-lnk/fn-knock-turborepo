@@ -10,6 +10,36 @@ export interface DragScrollOptions {
   dragThreshold?: number;
 }
 
+type NavigatorWithClientHints = Navigator & {
+  userAgentData?: {
+    mobile?: boolean;
+    platform?: string;
+  };
+};
+
+const MOBILE_USER_AGENT_PATTERN =
+  /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini|Mobile/iu;
+
+/**
+ * Identifies mobile runtimes before enabling the mouse-only drag path.
+ *
+ * `maxTouchPoints` alone cannot make this decision: touch-screen Windows PCs
+ * report a positive value too, and their real mouse input should keep working.
+ * The MacIntel fallback covers iPadOS browsers that request a desktop user
+ * agent while still exposing the iPad touch signature.
+ */
+const isMobileRuntime = () => {
+  const navigatorWithHints = window.navigator as NavigatorWithClientHints;
+  if (navigatorWithHints.userAgentData?.mobile === true) return true;
+  if (navigatorWithHints.userAgentData?.platform?.toLowerCase() === "android")
+    return true;
+  if (MOBILE_USER_AGENT_PATTERN.test(navigatorWithHints.userAgent)) return true;
+  return (
+    navigatorWithHints.platform === "MacIntel" &&
+    navigatorWithHints.maxTouchPoints > 1
+  );
+};
+
 /**
  * Enables horizontal drag-to-scroll for a scrollable element using a mouse
  * ("grab" hand cursor). Touch devices keep their native `overflow-x-auto`
@@ -100,24 +130,21 @@ export const useDragScroll = (
   };
 
   const onPointerDown = (event: PointerEvent) => {
-    const el = elementRef.value;
-    if (!el || event.button !== 0 || event.pointerType !== "mouse") return;
+    if (event.button !== 0 || event.pointerType !== "mouse") return;
 
     // Some Android/Huawei WebViews have reported touch-originated pointer
-    // events as `mouse`, and a few builds also incorrectly match the fine
-    // pointer media query. A non-zero maxTouchPoints is the most stable signal
-    // available there, so prefer native touch panning whenever it is present.
-    // Losing optional mouse drag on a hybrid device is safer than swallowing
-    // the first activation tap.
-    if (window.navigator.maxTouchPoints > 0) return;
+    // events as `mouse`, and a few builds also incorrectly match fine-pointer
+    // media queries. Keep every mobile runtime out of this mouse drag path.
+    if (isMobileRuntime()) return;
 
-    // Only enable mouse drag scrolling when the environment also exposes a
-    // fine, hover-capable primary pointer, and reject events that still carry
-    // touch source/contact information.
+    // A desktop may use touch as its primary pointer while a mouse is also
+    // connected, so query all available pointers rather than the primary one.
     const pointerQuery = window.matchMedia?.(
-      "(hover: hover) and (pointer: fine)",
+      "(any-hover: hover) and (any-pointer: fine)",
     );
     if (pointerQuery && !pointerQuery.matches) return;
+
+    // Reject individual events that still carry touch source/contact details.
     const sourceCapabilities = (
       event as PointerEvent & {
         sourceCapabilities?: { firesTouchEvents?: boolean } | null;
@@ -125,6 +152,9 @@ export const useDragScroll = (
     ).sourceCapabilities;
     if (sourceCapabilities?.firesTouchEvents === true) return;
     if ((event.width ?? 1) > 1 || (event.height ?? 1) > 1) return;
+
+    const el = elementRef.value;
+    if (!el) return;
 
     // Nothing to drag when the content already fits within the viewport.
     if (el.scrollWidth <= el.clientWidth) return;

@@ -252,8 +252,42 @@ describe("useDragScroll", () => {
     expect(windowListeners["pointermove"]).toBeUndefined();
   });
 
-  it("ignores misclassified mouse events when the WebView reports touch support", () => {
+  it("allows real mouse drag on a touch-capable desktop PC", () => {
     vi.spyOn(window.navigator, "maxTouchPoints", "get").mockReturnValue(5);
+    vi.spyOn(window.navigator, "platform", "get").mockReturnValue("Win32");
+    vi.spyOn(window.navigator, "userAgent", "get").mockReturnValue(
+      "Mozilla/5.0 (Windows NT 10.0; Win64; x64)",
+    );
+    const el = createElement();
+    const elRef = ref<HTMLElement | null>(el);
+    const { onPointerDown } = useDragScroll(elRef);
+
+    onPointerDown(downEvent(100));
+
+    expect(windowListeners["pointermove"]).toHaveLength(1);
+  });
+
+  it("ignores misclassified mouse events in an Android WebView", () => {
+    vi.spyOn(window.navigator, "maxTouchPoints", "get").mockReturnValue(5);
+    vi.spyOn(window.navigator, "platform", "get").mockReturnValue("Linux armv8l");
+    vi.spyOn(window.navigator, "userAgent", "get").mockReturnValue(
+      "Mozilla/5.0 (Linux; Android 12; HUAWEI) AppleWebKit/537.36 Mobile",
+    );
+    const el = createElement();
+    const elRef = ref<HTMLElement | null>(el);
+    const { onPointerDown } = useDragScroll(elRef);
+
+    onPointerDown(downEvent(100));
+
+    expect(windowListeners["pointermove"]).toBeUndefined();
+  });
+
+  it("ignores misclassified mouse events from iPadOS desktop mode", () => {
+    vi.spyOn(window.navigator, "maxTouchPoints", "get").mockReturnValue(5);
+    vi.spyOn(window.navigator, "platform", "get").mockReturnValue("MacIntel");
+    vi.spyOn(window.navigator, "userAgent", "get").mockReturnValue(
+      "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15) AppleWebKit/605.1.15",
+    );
     const el = createElement();
     const elRef = ref<HTMLElement | null>(el);
     const { onPointerDown } = useDragScroll(elRef);

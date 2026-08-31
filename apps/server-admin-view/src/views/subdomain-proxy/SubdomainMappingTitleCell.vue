@@ -10,18 +10,29 @@ import { TableCell } from "@/components/ui/table";
 import type { HostMapping } from "@/types";
 import { getMappingDisplayTitle } from "./model";
 
-defineProps<{
-  deepMonitorActive: boolean;
-  formatHost: (host: string) => string;
-  getMappingTitleForDisplay: (mapping: HostMapping) => string;
-  handleProtocolHeadersWarningOpenChange: (host: string, open: boolean) => void;
-  isProtocolHeadersWarningOpen: (host: string) => boolean;
-  mapping: HostMapping;
-  openProtocolHeadersWarning: (host: string) => void;
-  scheduleCloseProtocolHeadersWarning: (host: string) => void;
-  shouldShowProtocolHeadersWarning: (mapping: HostMapping) => boolean;
-  toggleProtocolHeadersWarning: (host: string) => void;
-}>();
+withDefaults(
+  defineProps<{
+    asCell?: boolean;
+    compact?: boolean;
+    deepMonitorActive: boolean;
+    formatHost: (host: string) => string;
+    getMappingTitleForDisplay: (mapping: HostMapping) => string;
+    handleProtocolHeadersWarningOpenChange: (
+      host: string,
+      open: boolean,
+    ) => void;
+    isProtocolHeadersWarningOpen: (host: string) => boolean;
+    mapping: HostMapping;
+    openProtocolHeadersWarning: (host: string) => void;
+    scheduleCloseProtocolHeadersWarning: (host: string) => void;
+    shouldShowProtocolHeadersWarning: (mapping: HostMapping) => boolean;
+    toggleProtocolHeadersWarning: (host: string) => void;
+  }>(),
+  {
+    asCell: true,
+    compact: false,
+  },
+);
 
 const emit = defineEmits<{
   edit: [mapping: HostMapping];
@@ -31,8 +42,12 @@ const { t } = useI18n();
 </script>
 
 <template>
-  <TableCell
-    class="mapping-sticky-cell mapping-title-cell text-sm"
+  <component
+    :is="asCell ? TableCell : 'div'"
+    :class="[
+      'min-w-0 text-sm',
+      asCell ? 'mapping-sticky-cell mapping-title-cell' : '',
+    ]"
     :title="getMappingTitleForDisplay(mapping)"
   >
     <div class="flex min-w-0 items-center gap-2">
@@ -83,9 +98,7 @@ const { t } = useI18n();
                 </p>
               </div>
               <p class="text-xs leading-5 text-muted-foreground">
-                {{
-                  t("admin.subdomainProxy.homeAssistantWarningDescription")
-                }}
+                {{ t("admin.subdomainProxy.homeAssistantWarningDescription") }}
               </p>
             </div>
             <a
@@ -99,7 +112,8 @@ const { t } = useI18n();
       </Popover>
       <span
         v-if="deepMonitorActive"
-        class="inline-flex shrink-0 items-center gap-1.5 rounded-full bg-primary/10 px-2 py-0.5 text-[11px] font-medium text-primary"
+        class="inline-flex shrink-0 items-center rounded-full bg-primary/10 text-[11px] font-medium text-primary"
+        :class="compact ? 'h-5 w-5 justify-center' : 'gap-1.5 px-2 py-0.5'"
         :title="t('admin.subdomainProxy.deepMonitorActive')"
       >
         <span class="relative flex h-1.5 w-1.5">
@@ -110,7 +124,9 @@ const { t } = useI18n();
             class="relative inline-flex h-1.5 w-1.5 rounded-full bg-primary"
           />
         </span>
-        {{ t("admin.subdomainProxy.deepMonitorActive") }}
+        <span :class="{ 'sr-only': compact }">
+          {{ t("admin.subdomainProxy.deepMonitorActive") }}
+        </span>
       </span>
       <button
         type="button"
@@ -133,5 +149,5 @@ const { t } = useI18n();
         />
       </button>
     </div>
-  </TableCell>
+  </component>
 </template>

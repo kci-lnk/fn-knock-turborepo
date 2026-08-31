@@ -482,6 +482,10 @@ describe("host mapping static target components", () => {
     });
     expect(wrapper.text()).toContain("/srv/manual.pdf");
     expect(wrapper.text()).toContain("Single file");
+
+    await wrapper.setProps({ asCell: false, compact: true });
+    expect(wrapper.element.tagName).toBe("DIV");
+    expect(wrapper.get("span[title]").classes()).toContain("truncate");
   });
 
   it("hides proxy-only row actions for static mappings and keeps shared actions", async () => {
@@ -536,5 +540,17 @@ describe("host mapping static target components", () => {
     expect(wrapper.emitted("move")).toEqual([[mapping, "ops"]]);
     expect(wrapper.emitted("open-availability")).toEqual([[mapping]]);
     expect(wrapper.emitted("open-gateway-locations")).toBeUndefined();
+
+    await wrapper.setProps({
+      asCell: false,
+      compact: true,
+      triggerAriaLabel: "More actions: docs.example.test",
+    });
+    expect(wrapper.element.tagName).toBe("DIV");
+    expect(
+      wrapper.get('button[aria-label="More actions: docs.example.test"]'),
+    ).toBeDefined();
+    await findButton(wrapper, "Edit")?.trigger("click");
+    expect(wrapper.emitted("edit")).toEqual([[mapping]]);
   });
 });

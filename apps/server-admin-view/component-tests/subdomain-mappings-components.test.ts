@@ -142,5 +142,9 @@ describe("subdomain mapping presentation components", () => {
     });
     await titleCell.get('[data-affordance="edit"]').trigger("click");
     expect(titleCell.emitted("edit")).toEqual([[mapping]]);
+
+    await titleCell.setProps({ asCell: false });
+    expect(titleCell.element.tagName).toBe("DIV");
+    expect(titleCell.get('[data-affordance="edit"]').text()).toContain("Demo");
   });
 });

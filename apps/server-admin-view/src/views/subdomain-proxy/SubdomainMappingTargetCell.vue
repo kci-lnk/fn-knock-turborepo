@@ -9,15 +9,26 @@ import {
   normalizeHostMappingTargetType,
 } from "./model";
 
-defineProps<{
-  mapping: HostMapping;
-  unavailable: boolean;
-}>();
+withDefaults(
+  defineProps<{
+    asCell?: boolean;
+    compact?: boolean;
+    mapping: HostMapping;
+    unavailable: boolean;
+  }>(),
+  {
+    asCell: true,
+    compact: false,
+  },
+);
 const { t } = useI18n();
 </script>
 
 <template>
-  <TableCell :class="{ 'text-muted-foreground': unavailable }">
+  <component
+    :is="asCell ? TableCell : 'div'"
+    :class="{ 'text-muted-foreground': unavailable }"
+  >
     <div class="flex min-w-0 items-center gap-2">
       <Network
         v-if="normalizeHostMappingTargetType(mapping.target_type) === 'proxy'"
@@ -28,7 +39,13 @@ const { t } = useI18n();
         class="h-3.5 w-3.5 shrink-0 text-muted-foreground"
       />
       <Folder v-else class="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
-      <span class="min-w-0 break-all font-mono text-xs">
+      <span
+        :class="[
+          'min-w-0 font-mono text-xs',
+          compact ? 'truncate text-muted-foreground' : 'break-all',
+        ]"
+        :title="getHostMappingTargetText(mapping)"
+      >
         {{ getHostMappingTargetText(mapping) }}
       </span>
       <Badge
@@ -43,5 +60,5 @@ const { t } = useI18n();
         }}
       </Badge>
     </div>
-  </TableCell>
+  </component>
 </template>

@@ -156,6 +156,10 @@ const pageBudgets = [
   ["../src/views/subdomain-proxy/SubdomainMappingSecurityIndicators.vue", 180],
   ["../src/views/subdomain-proxy/SubdomainMappingsCard.vue", 150],
   ["../src/views/subdomain-proxy/SubdomainMappingsTable.vue", 220],
+  ["../src/views/subdomain-proxy/SubdomainMappingsDesktopTable.vue", 200],
+  ["../src/views/subdomain-proxy/SubdomainMappingsMobileList.vue", 190],
+  ["../src/views/subdomain-proxy/SubdomainMappingMobileRow.vue", 240],
+  ["../src/views/subdomain-proxy/SubdomainMappingMobileGroupHeader.vue", 130],
   ["../src/views/subdomain-proxy/SubdomainMappingTableRow.vue", 220],
   ["../src/views/subdomain-proxy/SubdomainMappingGroupHeaderRow.vue", 130],
   ["../src/views/subdomain-proxy/AdvancedAuthRuleGroups.vue", 120],
@@ -835,6 +839,9 @@ describe("large Vue architecture", () => {
     const tableSource = readSource(
       "../src/views/subdomain-proxy/SubdomainMappingsTable.vue",
     );
+    const desktopTableSource = readSource(
+      "../src/views/subdomain-proxy/SubdomainMappingsDesktopTable.vue",
+    );
     const optimizationSource = readSource(
       "../src/views/tunnel/cloudflare/CloudflareOptimizationCard.vue",
     );
@@ -844,8 +851,11 @@ describe("large Vue architecture", () => {
 
     assert.match(cardSource, /SubdomainMappingsTable/u);
     assert.doesNotMatch(cardSource, /SubdomainMappingGroupRows|TableRow/u);
-    assert.match(tableSource, /SubdomainMappingGroupHeaderRow/u);
-    assert.match(tableSource, /SubdomainMappingTableRow/u);
+    assert.match(tableSource, /SubdomainMappingsDesktopTable/u);
+    assert.match(tableSource, /SubdomainMappingsMobileList/u);
+    assert.doesNotMatch(tableSource, /SubdomainMappingGroupHeaderRow/u);
+    assert.match(desktopTableSource, /SubdomainMappingGroupHeaderRow/u);
+    assert.match(desktopTableSource, /SubdomainMappingTableRow/u);
     assert.doesNotMatch(tableSource, /HostTrafficActivity|GripVertical/u);
     assert.match(optimizationSource, /CloudflareOptimizationOverview/u);
     assert.match(optimizationSource, /CloudflareOptimizationDomains/u);

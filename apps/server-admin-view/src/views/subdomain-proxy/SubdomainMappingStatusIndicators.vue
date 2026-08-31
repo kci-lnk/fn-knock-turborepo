@@ -33,7 +33,7 @@ const shouldShowToolbarIndicator = computed(
 
 <template>
   <div
-    class="flex min-w-max flex-nowrap items-center gap-2 text-xs text-muted-foreground"
+    class="flex min-w-0 flex-wrap items-center gap-2 text-xs text-muted-foreground md:min-w-max md:flex-nowrap"
   >
     <SubdomainMappingAvailabilityIndicators :model="props" />
     <template v-if="availabilityState !== 'disabled'">

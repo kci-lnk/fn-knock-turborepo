@@ -239,6 +239,22 @@ const budgets = [
     maxLines: 220,
   },
   {
+    path: "apps/server-admin-view/src/views/subdomain-proxy/SubdomainMappingsDesktopTable.vue",
+    maxLines: 200,
+  },
+  {
+    path: "apps/server-admin-view/src/views/subdomain-proxy/SubdomainMappingsMobileList.vue",
+    maxLines: 190,
+  },
+  {
+    path: "apps/server-admin-view/src/views/subdomain-proxy/SubdomainMappingMobileRow.vue",
+    maxLines: 240,
+  },
+  {
+    path: "apps/server-admin-view/src/views/subdomain-proxy/SubdomainMappingMobileGroupHeader.vue",
+    maxLines: 130,
+  },
+  {
     path: "apps/server-admin-view/src/views/subdomain-proxy/SubdomainMappingTableRow.vue",
     maxLines: 220,
   },

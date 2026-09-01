@@ -22,7 +22,6 @@ import {
   type TranslationParams,
 } from "./model";
 import { useBasicAuthProbe } from "./useBasicAuthProbe";
-import { useMappingDialogKeyboardScroll } from "./useMappingDialogKeyboardScroll";
 import { useMappingGatewayAdvanced } from "./useMappingGatewayAdvanced";
 import { useMappingIcon } from "./useMappingIcon";
 import {
@@ -86,21 +85,6 @@ export const useSubdomainMappingDialogController = ({
   const titleRefreshDirty = ref(false);
   const mappingForm = reactive<HostMapping>(createDefaultMapping());
   let metadataRefreshRequestId = 0;
-
-  const {
-    clearMappingDialogKeyboardScrollTimer,
-    handleMappingDialogFocusIn,
-    handleMappingDialogFocusOut,
-    handleMappingDialogViewportResize,
-    isMappingDialogKeyboardActive,
-    isMappingDialogSoftKeyboardVisible,
-    mappingDialogContentStyle,
-    mappingDialogScrollStyle,
-    resetMappingDialogKeyboardScroll,
-    setMappingDialogScrollElement,
-  } = useMappingDialogKeyboardScroll({
-    isDialogOpen,
-  });
 
   const {
     composedPreviewHost,
@@ -398,7 +382,6 @@ export const useSubdomainMappingDialogController = ({
   }
 
   function closeDialog() {
-    resetMappingDialogKeyboardScroll();
     isDialogOpen.value = false;
     editingHost.value = null;
     resetMappingDraftInput();
@@ -571,29 +554,21 @@ export const useSubdomainMappingDialogController = ({
     basicAuthValidationMessage,
     canRefreshMappingMetadata,
     canShowBasicAuthInjection,
-    clearMappingDialogKeyboardScrollTimer,
     closeDialog,
     composedPreviewHost,
     fullHostInputHint,
     gatewayHostResponseBlockedReason,
     gatewayProxyHeadersBlockedReason,
     handleDialogOpenChange,
-    handleMappingDialogFocusIn,
-    handleMappingDialogFocusOut,
-    handleMappingDialogViewportResize,
     handleMappingInputModeChange,
     isGatewayAdvancedLoading,
     iconEditor,
     isDialogOpen,
     isMappingAuthService,
-    isMappingDialogKeyboardActive,
-    isMappingDialogSoftKeyboardVisible,
     isMappingProxy,
     isMappingValid,
     isMappingWebSocketTarget,
     isRefreshingMappingMetadata,
-    mappingDialogContentStyle,
-    mappingDialogScrollStyle,
     mappingForm,
     mappingInputLabel,
     mappingInputMode,
@@ -609,7 +584,6 @@ export const useSubdomainMappingDialogController = ({
     saveMapping,
     sendProxyHeadersModel,
     setBasicAuthInjection,
-    setMappingDialogScrollElement,
     setMappingSubdomain,
     setMappingUseAuth,
     setPreserveHost,

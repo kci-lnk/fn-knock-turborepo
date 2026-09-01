@@ -1,8 +1,4 @@
-import type {
-  ComponentPublicInstance,
-  StyleValue,
-  UnwrapNestedRefs,
-} from "vue";
+import type { UnwrapNestedRefs } from "vue";
 import type { HostMapping, HostMappingGroup } from "@/types";
 import type { MappingInputMode } from "./model";
 import type { useMappingIcon } from "./useMappingIcon";
@@ -16,22 +12,17 @@ export interface SubdomainMappingDialogProps {
   canShowBasicAuthInjection: boolean;
   canUseRootDomainSuffix: boolean;
   composedPreviewHost: string;
-  contentStyle: StyleValue;
   fullHostInputHint: string;
   gatewayHostResponseBlockedReason: string;
   gatewayProxyHeadersBlockedReason: string;
   globalWafEnabled: boolean;
   groups: HostMappingGroup[];
-  handleFocusIn: (event: FocusEvent) => void;
-  handleFocusOut: (event: FocusEvent) => void;
   handleInputModeChange: (mode: MappingInputMode) => void;
   handlePortalDisabledTooltipOpenChange: (open: boolean) => void;
   handlePortalDisabledTooltipTriggerClick: () => void;
   isGatewayAdvancedLoading: boolean;
   iconEditor: UnwrapNestedRefs<ReturnType<typeof useMappingIcon>>;
   isMappingAuthService: boolean;
-  isMappingDialogKeyboardActive: boolean;
-  isMappingDialogSoftKeyboardVisible: boolean;
   isMappingValid: boolean;
   isMappingWebSocketTarget: boolean;
   isPortalDisabledTooltipOpen: boolean;
@@ -49,13 +40,11 @@ export interface SubdomainMappingDialogProps {
   preserveHost: boolean;
   refreshMappingMetadata: () => void | Promise<unknown>;
   savedRootDomain: string;
-  scrollStyle: StyleValue;
   sendProxyHeaders: boolean;
   setBasicAuthInjection: (value: boolean) => void;
   setMappingSubdomain: (value: string) => void;
   setMappingUseAuth: (value: boolean) => void;
   setPreserveHost: (value: boolean) => void;
-  setScrollElement: (element: Element | ComponentPublicInstance | null) => void;
   setSendProxyHeaders: (value: boolean) => void;
   setShowToolbar: (value: boolean) => void;
   shouldShowPortalDisabledTooltip: boolean;

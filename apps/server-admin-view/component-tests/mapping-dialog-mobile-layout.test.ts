@@ -1,20 +1,32 @@
-import { effectScope, ref } from "vue";
+import { defineComponent, effectScope, h, nextTick, ref } from "vue";
 import { mount } from "@vue/test-utils";
 import { createI18n } from "vue-i18n";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogTitle,
+  useMobileDialogInputFullscreen,
+} from "@/components/ui/dialog";
 
 import SubdomainMappingDialogFooter from "../src/views/subdomain-proxy/SubdomainMappingDialogFooter.vue";
 import type { SubdomainMappingDialogProps } from "../src/views/subdomain-proxy/subdomain-mapping-dialog-contract";
-import { useMappingDialogKeyboardScroll } from "../src/views/subdomain-proxy/useMappingDialogKeyboardScroll";
 
 type MutableVisualViewport = {
   height: number;
   offsetTop: number;
+  addEventListener: ReturnType<typeof vi.fn>;
+  removeEventListener: ReturnType<typeof vi.fn>;
 };
 
 const originalInnerHeightDescriptor = Object.getOwnPropertyDescriptor(
   window,
   "innerHeight",
+);
+const originalInnerWidthDescriptor = Object.getOwnPropertyDescriptor(
+  window,
+  "innerWidth",
 );
 const originalVisualViewportDescriptor = Object.getOwnPropertyDescriptor(
   window,
@@ -47,11 +59,21 @@ const createTestI18n = () =>
 const installViewport = (
   height = 900,
   offsetTop = 0,
+  width = 390,
 ): MutableVisualViewport => {
-  const viewport = { height, offsetTop };
+  const viewport = {
+    height,
+    offsetTop,
+    addEventListener: vi.fn(),
+    removeEventListener: vi.fn(),
+  };
   Object.defineProperty(window, "innerHeight", {
     configurable: true,
     value: 900,
+  });
+  Object.defineProperty(window, "innerWidth", {
+    configurable: true,
+    value: width,
   });
   Object.defineProperty(window, "visualViewport", {
     configurable: true,
@@ -64,7 +86,7 @@ const createKeyboardHarness = () => {
   const scope = effectScope();
   const isDialogOpen = ref(true);
   const keyboard = scope.run(() =>
-    useMappingDialogKeyboardScroll({ isDialogOpen }),
+    useMobileDialogInputFullscreen({ isDialogOpen }),
   );
   if (!keyboard) throw new Error("keyboard layout harness failed");
 
@@ -74,9 +96,24 @@ const createKeyboardHarness = () => {
   Object.defineProperty(input, "scrollIntoView", { value: vi.fn() });
   container.append(input);
   document.body.append(container);
-  keyboard.setMappingDialogScrollElement(container);
 
   return { container, input, isDialogOpen, keyboard, scope };
+};
+
+const focusInput = (harness: ReturnType<typeof createKeyboardHarness>) => {
+  harness.input.focus();
+  harness.keyboard.handleFocusIn({
+    currentTarget: harness.container,
+    target: harness.input,
+  } as unknown as FocusEvent);
+};
+
+const blurInput = (harness: ReturnType<typeof createKeyboardHarness>) => {
+  harness.input.blur();
+  harness.keyboard.handleFocusOut({
+    currentTarget: harness.container,
+    target: harness.input,
+  } as unknown as FocusEvent);
 };
 
 const createFooterDialog = (
@@ -86,8 +123,6 @@ const createFooterDialog = (
   ({
     iconEditor: { isIconBusy: false },
     isGatewayAdvancedLoading: false,
-    isMappingDialogKeyboardActive: true,
-    isMappingDialogSoftKeyboardVisible: true,
     isMappingValid: true,
     isSavingMappings: false,
     pathBrowserEditor: {
@@ -116,6 +151,13 @@ afterEach(() => {
       originalInnerHeightDescriptor,
     );
   }
+  if (originalInnerWidthDescriptor) {
+    Object.defineProperty(
+      window,
+      "innerWidth",
+      originalInnerWidthDescriptor,
+    );
+  }
   if (originalVisualViewportDescriptor) {
     Object.defineProperty(
       window,
@@ -127,69 +169,140 @@ afterEach(() => {
   }
 });
 
-describe("subdomain mapping dialog mobile keyboard layout", () => {
+describe("shared dialog mobile input fullscreen layout", () => {
+  it("enables the behavior by default for every shared DialogContent", async () => {
+    const viewport = installViewport();
+    const isOpen = ref(true);
+    const DialogHarness = defineComponent({
+      setup: () => () =>
+        h(
+          Dialog,
+          { open: isOpen.value, unmountOnHide: false },
+          () =>
+            h(DialogContent, null, {
+              default: () => [
+                h(DialogTitle, null, () => "Edit"),
+                h(DialogDescription, null, () => "Edit this record"),
+                h("input", { "data-testid": "dialog-input" }),
+              ],
+            }),
+        ),
+    });
+    const wrapper = mount(DialogHarness, { attachTo: document.body });
+    await nextTick();
+    const content = document.querySelector<HTMLElement>(
+      '[data-slot="dialog-content"]',
+    );
+    const input = document.querySelector<HTMLInputElement>(
+      '[data-testid="dialog-input"]',
+    );
+    if (!content || !input) throw new Error("shared dialog harness failed");
+    Object.defineProperty(input, "scrollIntoView", { value: vi.fn() });
+
+    input.focus();
+    await nextTick();
+
+    expect(content.dataset.inputFullscreen).toBe("true");
+    expect(content.style.getPropertyValue("--dialog-input-viewport-height")).toBe(
+      "900px",
+    );
+    expect(content.classList).toContain(
+      "max-sm:!h-[var(--dialog-input-viewport-height)]",
+    );
+
+    isOpen.value = false;
+    await nextTick();
+    expect(content.dataset.inputFullscreen).toBe("false");
+    expect(viewport.removeEventListener).toHaveBeenCalledWith(
+      "resize",
+      expect.any(Function),
+    );
+    expect(viewport.removeEventListener).toHaveBeenCalledWith(
+      "scroll",
+      expect.any(Function),
+    );
+    wrapper.unmount();
+  });
+
   it("fills the visual viewport on focus and tracks keyboard geometry", () => {
     const viewport = installViewport();
     const harness = createKeyboardHarness();
-    harness.input.focus();
+    focusInput(harness);
 
-    harness.keyboard.handleMappingDialogFocusIn({
-      target: harness.input,
-    } as unknown as FocusEvent);
-
-    expect(harness.keyboard.isMappingDialogKeyboardActive.value).toBe(true);
-    expect(harness.keyboard.isMappingDialogSoftKeyboardVisible.value).toBe(
-      false,
-    );
-    expect(harness.keyboard.mappingDialogContentStyle.value).toMatchObject({
-      "--mapping-dialog-viewport-height": "900px",
-      "--mapping-dialog-viewport-top": "0px",
+    expect(harness.keyboard.isInputFullscreen.value).toBe(true);
+    expect(harness.keyboard.isSoftKeyboardVisible.value).toBe(false);
+    expect(harness.keyboard.contentStyle.value).toMatchObject({
+      "--dialog-input-viewport-height": "900px",
+      "--dialog-input-viewport-top": "0px",
     });
 
     viewport.height = 510;
     viewport.offsetTop = 18;
-    harness.keyboard.handleMappingDialogViewportResize();
-    expect(harness.keyboard.isMappingDialogSoftKeyboardVisible.value).toBe(
-      true,
-    );
-    expect(harness.keyboard.mappingDialogContentStyle.value).toMatchObject({
-      "--mapping-dialog-viewport-height": "510px",
-      "--mapping-dialog-viewport-top": "18px",
+    harness.keyboard.handleViewportChange();
+    expect(harness.keyboard.isSoftKeyboardVisible.value).toBe(true);
+    expect(harness.keyboard.contentStyle.value).toMatchObject({
+      "--dialog-input-viewport-height": "510px",
+      "--dialog-input-viewport-top": "18px",
     });
 
-    harness.input.blur();
-    harness.keyboard.handleMappingDialogFocusOut({
-      target: harness.input,
-    } as unknown as FocusEvent);
+    blurInput(harness);
     vi.advanceTimersByTime(0);
-    expect(harness.keyboard.isMappingDialogKeyboardActive.value).toBe(true);
+    expect(harness.keyboard.isInputFullscreen.value).toBe(true);
 
     viewport.height = 900;
     viewport.offsetTop = 0;
-    harness.keyboard.handleMappingDialogViewportResize();
-    expect(harness.keyboard.isMappingDialogKeyboardActive.value).toBe(false);
-    expect(harness.keyboard.isMappingDialogSoftKeyboardVisible.value).toBe(
-      false,
+    harness.keyboard.handleViewportChange();
+    expect(harness.keyboard.isInputFullscreen.value).toBe(false);
+    expect(harness.keyboard.isSoftKeyboardVisible.value).toBe(false);
+    expect(viewport.removeEventListener).toHaveBeenCalledWith(
+      "resize",
+      expect.any(Function),
+    );
+    expect(viewport.removeEventListener).toHaveBeenCalledWith(
+      "scroll",
+      expect.any(Function),
     );
 
-    harness.keyboard.resetMappingDialogKeyboardScroll();
-    expect(harness.keyboard.mappingDialogContentStyle.value).toMatchObject({
-      "--mapping-dialog-viewport-height": "100dvh",
-      "--mapping-dialog-viewport-top": "0px",
+    harness.keyboard.reset();
+    expect(harness.keyboard.contentStyle.value).toMatchObject({
+      "--dialog-input-viewport-height": "100dvh",
+      "--dialog-input-viewport-top": "0px",
     });
     harness.scope.stop();
   });
 
-  it("ignores viewport shrinkage until a mapping input starts the keyboard session", () => {
+  it("does not change scrolling or layout when a desktop input receives focus", () => {
+    const viewport = installViewport(900, 0, 1024);
+    const harness = createKeyboardHarness();
+
+    focusInput(harness);
+
+    expect(harness.keyboard.isInputFullscreen.value).toBe(false);
+    expect(harness.input.scrollIntoView).not.toHaveBeenCalled();
+    expect(viewport.addEventListener).not.toHaveBeenCalled();
+    harness.scope.stop();
+  });
+
+  it("ignores viewport shrinkage until a dialog input starts the keyboard session", () => {
     installViewport(510, 18);
     const harness = createKeyboardHarness();
 
-    harness.keyboard.handleMappingDialogViewportResize();
+    harness.keyboard.handleViewportChange();
 
-    expect(harness.keyboard.isMappingDialogKeyboardActive.value).toBe(false);
-    expect(harness.keyboard.isMappingDialogSoftKeyboardVisible.value).toBe(
-      false,
-    );
+    expect(harness.keyboard.isInputFullscreen.value).toBe(false);
+    expect(harness.keyboard.isSoftKeyboardVisible.value).toBe(false);
+    harness.scope.stop();
+  });
+
+  it("does not fullscreen controls that cannot open a software keyboard", () => {
+    installViewport();
+    const harness = createKeyboardHarness();
+    harness.input.type = "checkbox";
+
+    focusInput(harness);
+
+    expect(harness.keyboard.isInputFullscreen.value).toBe(false);
+    expect(harness.keyboard.isSoftKeyboardVisible.value).toBe(false);
     harness.scope.stop();
   });
 
@@ -218,19 +331,34 @@ describe("subdomain mapping dialog mobile keyboard layout", () => {
       containerRect,
     );
     vi.spyOn(harness.input, "getBoundingClientRect").mockReturnValue(inputRect);
-    harness.input.focus();
-    harness.keyboard.handleMappingDialogFocusIn({
-      target: harness.input,
-    } as unknown as FocusEvent);
+    focusInput(harness);
     const scrollIntoView = vi.mocked(harness.input.scrollIntoView);
     const callsBeforeReset = scrollIntoView.mock.calls.length;
 
-    harness.keyboard.resetMappingDialogKeyboardScroll();
+    harness.keyboard.reset();
     vi.runAllTimers();
 
     expect(scrollIntoView).toHaveBeenCalledTimes(callsBeforeReset);
-    expect(harness.keyboard.isMappingDialogKeyboardActive.value).toBe(false);
+    expect(harness.keyboard.isInputFullscreen.value).toBe(false);
     harness.scope.stop();
+  });
+
+  it("releases viewport listeners when its owning scope is disposed", () => {
+    const viewport = installViewport();
+    const harness = createKeyboardHarness();
+    focusInput(harness);
+
+    harness.scope.stop();
+
+    expect(viewport.removeEventListener).toHaveBeenCalledWith(
+      "resize",
+      expect.any(Function),
+    );
+    expect(viewport.removeEventListener).toHaveBeenCalledWith(
+      "scroll",
+      expect.any(Function),
+    );
+    expect(harness.keyboard.isInputFullscreen.value).toBe(false);
   });
 
   it("defers collapse until after a newly focused footer action can click", () => {
@@ -240,66 +368,46 @@ describe("subdomain mapping dialog mobile keyboard layout", () => {
     const handleClick = vi.fn();
     button.addEventListener("click", handleClick);
     document.body.append(button);
-    harness.input.focus();
-    harness.keyboard.handleMappingDialogFocusIn({
-      target: harness.input,
-    } as unknown as FocusEvent);
+    focusInput(harness);
 
-    harness.input.blur();
-    harness.keyboard.handleMappingDialogFocusOut({
-      target: harness.input,
-    } as unknown as FocusEvent);
+    blurInput(harness);
     button.click();
 
     expect(handleClick).toHaveBeenCalledOnce();
-    expect(harness.keyboard.isMappingDialogKeyboardActive.value).toBe(true);
+    expect(harness.keyboard.isInputFullscreen.value).toBe(true);
     vi.advanceTimersByTime(0);
-    expect(harness.keyboard.isMappingDialogKeyboardActive.value).toBe(false);
+    expect(harness.keyboard.isInputFullscreen.value).toBe(false);
     harness.scope.stop();
   });
 
   it("falls back to the dynamic viewport when VisualViewport is unavailable", () => {
+    installViewport();
     Object.defineProperty(window, "visualViewport", {
       configurable: true,
       value: undefined,
     });
     const harness = createKeyboardHarness();
-    harness.input.focus();
-    harness.keyboard.handleMappingDialogFocusIn({
-      target: harness.input,
-    } as unknown as FocusEvent);
+    focusInput(harness);
 
-    expect(harness.keyboard.mappingDialogContentStyle.value).toMatchObject({
-      "--mapping-dialog-viewport-height": "100dvh",
-      "--mapping-dialog-viewport-top": "0px",
+    expect(harness.keyboard.contentStyle.value).toMatchObject({
+      "--dialog-input-viewport-height": "100dvh",
+      "--dialog-input-viewport-top": "0px",
     });
+    expect(harness.keyboard.isInputFullscreen.value).toBe(true);
+    expect(harness.input.scrollIntoView).toHaveBeenCalled();
     harness.scope.stop();
   });
 });
 
 describe("subdomain mapping dialog footer", () => {
-  it("keeps the safe area until the software keyboard is actually visible", async () => {
+  it("keeps the safe area until the shared dialog reports a software keyboard", () => {
     const wrapper = mount(SubdomainMappingDialogFooter, {
-      props: {
-        dialog: createFooterDialog("basic", {
-          isMappingDialogKeyboardActive: true,
-          isMappingDialogSoftKeyboardVisible: false,
-        }),
-      },
+      props: { dialog: createFooterDialog() },
       global: { plugins: [createTestI18n()] },
     });
 
     expect(wrapper.classes()).toContain(
-      "max-sm:pb-[calc(env(safe-area-inset-bottom)+1rem)]",
-    );
-    await wrapper.setProps({
-      dialog: createFooterDialog("basic", {
-        isMappingDialogKeyboardActive: true,
-        isMappingDialogSoftKeyboardVisible: true,
-      }),
-    });
-    expect(wrapper.classes()).not.toContain(
-      "max-sm:pb-[calc(env(safe-area-inset-bottom)+1rem)]",
+      "max-sm:group-data-[soft-keyboard-visible=false]/dialog:pb-[calc(env(safe-area-inset-bottom)+1rem)]",
     );
   });
 

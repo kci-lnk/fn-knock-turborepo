@@ -1,12 +1,5 @@
 <script setup lang="ts">
-import {
-  computed,
-  nextTick,
-  onBeforeUnmount,
-  onMounted,
-  ref,
-  watch,
-} from "vue";
+import { computed, nextTick, ref, watch } from "vue";
 import { useI18n } from "vue-i18n";
 import { ChevronLeft, ChevronRight, Copy } from "lucide-vue-next";
 import QrcodeVue from "qrcode.vue";
@@ -58,7 +51,6 @@ const emit = defineEmits<{
 
 const { t } = useI18n();
 const otpInputAreaRef = ref<HTMLElement | null>(null);
-let viewportResizeTimer: ReturnType<typeof window.setTimeout> | null = null;
 
 const verificationToken = computed({
   get: () => props.verifyToken,
@@ -74,69 +66,24 @@ function handleOpenChange(open: boolean) {
   if (!open) emit("cancel");
 }
 
-function scrollOtpIntoView(behavior: ScrollBehavior = "smooth") {
-  otpInputAreaRef.value?.scrollIntoView({
-    block: "center",
-    inline: "nearest",
-    behavior,
-  });
-}
-
-function handleDialogFocusIn(event: FocusEvent) {
-  if (props.step !== "BIND") return;
-  const target = event.target as HTMLElement | null;
-  if (!target || !otpInputAreaRef.value?.contains(target)) return;
-  window.setTimeout(() => {
-    scrollOtpIntoView();
-  }, 120);
-}
-
-function handleVisualViewportResize() {
-  if (!props.open || props.step !== "BIND") return;
-  const viewport = window.visualViewport;
-  if (!viewport) return;
-
-  const keyboardHeight = window.innerHeight - viewport.height;
-  if (keyboardHeight < 120) return;
-
-  if (viewportResizeTimer) {
-    window.clearTimeout(viewportResizeTimer);
-  }
-  viewportResizeTimer = window.setTimeout(() => {
-    scrollOtpIntoView();
-  }, 80);
-}
-
 watch(
   () => [props.open, props.step, props.setupData] as const,
   async ([isOpen, step, setup]) => {
     if (!isOpen || step !== "BIND" || !setup) return;
     await nextTick();
-    scrollOtpIntoView("auto");
+    otpInputAreaRef.value?.scrollIntoView({
+      block: "center",
+      inline: "nearest",
+      behavior: "auto",
+    });
   },
 );
-
-onMounted(() => {
-  window.visualViewport?.addEventListener("resize", handleVisualViewportResize);
-});
-
-onBeforeUnmount(() => {
-  window.visualViewport?.removeEventListener(
-    "resize",
-    handleVisualViewportResize,
-  );
-  if (viewportResizeTimer) {
-    window.clearTimeout(viewportResizeTimer);
-    viewportResizeTimer = null;
-  }
-});
 </script>
 
 <template>
   <Dialog :open="open" @update:open="handleOpenChange">
     <DialogContent
-      class="max-w-md !top-[5vh] !translate-y-0 max-h-[85vh] overflow-y-auto overscroll-contain max-sm:!inset-x-0 max-sm:!top-auto max-sm:!bottom-0 max-sm:!translate-x-0 max-sm:!translate-y-0 max-sm:!max-w-none max-sm:max-h-[100dvh] max-sm:rounded-b-none max-sm:border-b-0 max-sm:pb-[calc(env(safe-area-inset-bottom)+1rem)]"
-      @focusin="handleDialogFocusIn"
+      class="max-w-md !top-[5vh] !translate-y-0 max-h-[85vh] overflow-y-auto overscroll-contain max-sm:!inset-x-0 max-sm:!top-auto max-sm:!bottom-0 max-sm:!translate-x-0 max-sm:!translate-y-0 max-sm:!max-w-none max-sm:max-h-[100dvh] max-sm:rounded-b-none max-sm:border-b-0 max-sm:group-data-[soft-keyboard-visible=false]/dialog:pb-[calc(env(safe-area-inset-bottom)+1rem)]"
     >
       <DialogHeader>
         <DialogTitle>{{ title }}</DialogTitle>

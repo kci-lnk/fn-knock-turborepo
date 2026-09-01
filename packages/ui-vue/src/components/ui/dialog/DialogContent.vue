@@ -1,16 +1,19 @@
 <script setup lang="ts">
 import type { DialogContentEmits, DialogContentProps } from "reka-ui"
 import type { HTMLAttributes } from "vue"
+import { computed } from "vue"
 import { reactiveOmit } from "@vueuse/core"
 import { X } from "lucide-vue-next"
 import {
   DialogClose,
   DialogContent,
   DialogPortal,
+  injectDialogRootContext,
   useForwardPropsEmits,
 } from "reka-ui"
 import { cn } from "@/lib/utils"
 import DialogOverlay from "./DialogOverlay.vue"
+import { useMobileDialogInputFullscreen } from "./useMobileDialogInputFullscreen"
 
 defineOptions({
   inheritAttrs: false,
@@ -18,16 +21,36 @@ defineOptions({
 
 const props = withDefaults(defineProps<DialogContentProps & {
   class?: HTMLAttributes["class"],
+  inputFullscreen?: boolean
   overlayClass?: HTMLAttributes["class"],
   showCloseButton?: boolean
 }>(), {
+  inputFullscreen: true,
   showCloseButton: true,
 })
 const emits = defineEmits<DialogContentEmits>()
 
-const delegatedProps = reactiveOmit(props, "class", "overlayClass")
+const delegatedProps = reactiveOmit(
+  props,
+  "class",
+  "inputFullscreen",
+  "overlayClass",
+  "showCloseButton",
+)
 
 const forwarded = useForwardPropsEmits(delegatedProps, emits)
+const rootContext = injectDialogRootContext()
+const isInputFullscreenOpen = computed(
+  () => props.inputFullscreen && rootContext.open.value,
+)
+const {
+  contentStyle,
+  handleFocusIn,
+  handleFocusOut,
+  isInputFullscreen,
+  isSoftKeyboardVisible,
+  shouldScrollContent,
+} = useMobileDialogInputFullscreen({ isDialogOpen: isInputFullscreenOpen })
 </script>
 
 <template>
@@ -35,12 +58,26 @@ const forwarded = useForwardPropsEmits(delegatedProps, emits)
     <DialogOverlay :class="props.overlayClass" />
     <DialogContent
       data-slot="dialog-content"
+      class="group/dialog"
+      :data-input-fullscreen="props.inputFullscreen && isInputFullscreen"
+      :data-soft-keyboard-visible="
+        props.inputFullscreen && isSoftKeyboardVisible
+      "
       v-bind="{ ...$attrs, ...forwarded }"
+      :style="props.inputFullscreen ? contentStyle : undefined"
       :class="
         cn(
           'bg-background data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 fixed top-[50%] left-[50%] z-50 grid w-full max-w-[calc(100%-2rem)] translate-x-[-50%] translate-y-[-50%] gap-4 rounded-lg border p-6 shadow-lg duration-200 sm:max-w-lg',
           props.class,
+          props.inputFullscreen
+            && isInputFullscreen
+            && 'max-sm:!inset-x-0 max-sm:!bottom-auto max-sm:!top-[var(--dialog-input-viewport-top)] max-sm:!h-[var(--dialog-input-viewport-height)] max-sm:!max-h-[var(--dialog-input-viewport-height)] max-sm:!max-w-none max-sm:!translate-x-0 max-sm:!translate-y-0 max-sm:!rounded-none max-sm:!border-0',
+          props.inputFullscreen
+            && shouldScrollContent
+            && 'max-sm:!overflow-y-auto max-sm:overscroll-contain',
         )"
+      @focusin="props.inputFullscreen && handleFocusIn($event)"
+      @focusout="props.inputFullscreen && handleFocusOut($event)"
     >
       <slot />
 

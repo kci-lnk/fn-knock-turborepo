@@ -1,10 +1,8 @@
 import { onMounted, onUnmounted, watch, type WatchSource } from "vue";
 
 type SubdomainProxyLifecycleOptions = {
-  clearMappingDialogKeyboardScrollTimer: () => void;
   clearProtocolHeadersWarningCloseTimer: () => void;
   filteredMappings: WatchSource<unknown>;
-  handleMappingDialogViewportResize: () => void;
   isConfigLoaded: () => boolean;
   loadAccessEntryPort: () => unknown;
   loadConfig: () => Promise<unknown>;
@@ -27,14 +25,6 @@ export const useSubdomainProxyLifecycle = (
   let disposed = false;
   onMounted(async () => {
     options.startAvailabilityClock();
-    window.visualViewport?.addEventListener(
-      "resize",
-      options.handleMappingDialogViewportResize,
-    );
-    window.visualViewport?.addEventListener(
-      "scroll",
-      options.handleMappingDialogViewportResize,
-    );
     if (!options.isConfigLoaded()) await options.loadConfig();
     if (disposed) return;
     void options.loadGlobalVisibilityStatus();
@@ -45,15 +35,6 @@ export const useSubdomainProxyLifecycle = (
   onUnmounted(() => {
     disposed = true;
     options.stopAvailabilityClock();
-    window.visualViewport?.removeEventListener(
-      "resize",
-      options.handleMappingDialogViewportResize,
-    );
-    window.visualViewport?.removeEventListener(
-      "scroll",
-      options.handleMappingDialogViewportResize,
-    );
-    options.clearMappingDialogKeyboardScrollTimer();
     options.clearProtocolHeadersWarningCloseTimer();
     options.stopTrafficRealtimePolling();
     options.stopDiscoverScan();

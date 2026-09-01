@@ -44,8 +44,6 @@ const {
   handleDeleteDialogOpenChange,
   handleDialogOpenChange,
   handleDiscoverDialogOpenChange,
-  handleMappingDialogFocusIn,
-  handleMappingDialogFocusOut,
   handleMappingInputModeChange,
   handlePortalDisabledTooltipOpenChange,
   handlePortalDisabledTooltipTriggerClick,
@@ -64,16 +62,12 @@ const {
   isDiscovering,
   isGatewayAdvancedLoading,
   isMappingAuthService,
-  isMappingDialogKeyboardActive,
-  isMappingDialogSoftKeyboardVisible,
   isMappingValid,
   isMappingWebSocketTarget,
   isPortalDisabledTooltipOpen,
   isRefreshingMappingMetadata,
   isSavingMappings,
   isToggleDialogOpen,
-  mappingDialogContentStyle,
-  mappingDialogScrollStyle,
   mappingForm,
   mappingInputLabel,
   mappingInputMode,
@@ -93,7 +87,6 @@ const {
   setAllSelected,
   setBasicAuthInjection,
   setDiscoverDialogRef,
-  setMappingDialogScrollElement,
   setMappingSubdomain,
   setMappingUseAuth,
   setPreserveHost,
@@ -126,14 +119,11 @@ const {
       :can-show-basic-auth-injection="canShowBasicAuthInjection"
       :can-use-root-domain-suffix="canUseRootDomainSuffix"
       :composed-preview-host="composedPreviewHost"
-      :content-style="mappingDialogContentStyle"
       :full-host-input-hint="fullHostInputHint"
       :gateway-host-response-blocked-reason="gatewayHostResponseBlockedReason"
       :gateway-proxy-headers-blocked-reason="gatewayProxyHeadersBlockedReason"
       :global-waf-enabled="globalWafEnabled"
       :groups="hostMappingGroups"
-      :handle-focus-in="handleMappingDialogFocusIn"
-      :handle-focus-out="handleMappingDialogFocusOut"
       :handle-input-mode-change="handleMappingInputModeChange"
       :handle-portal-disabled-tooltip-open-change="
         handlePortalDisabledTooltipOpenChange
@@ -144,8 +134,6 @@ const {
       :is-gateway-advanced-loading="isGatewayAdvancedLoading"
       :icon-editor="iconEditor"
       :is-mapping-auth-service="isMappingAuthService"
-      :is-mapping-dialog-keyboard-active="isMappingDialogKeyboardActive"
-      :is-mapping-dialog-soft-keyboard-visible="isMappingDialogSoftKeyboardVisible"
       :is-mapping-valid="isMappingValid"
       :is-mapping-web-socket-target="isMappingWebSocketTarget"
       :is-portal-disabled-tooltip-open="isPortalDisabledTooltipOpen"
@@ -163,13 +151,11 @@ const {
       :preserve-host="preserveHostModel"
       :refresh-mapping-metadata="refreshMappingMetadata"
       :saved-root-domain="savedRootDomain"
-      :scroll-style="mappingDialogScrollStyle"
       :send-proxy-headers="sendProxyHeadersModel"
       :set-basic-auth-injection="setBasicAuthInjection"
       :set-mapping-subdomain="setMappingSubdomain"
       :set-mapping-use-auth="setMappingUseAuth"
       :set-preserve-host="setPreserveHost"
-      :set-scroll-element="setMappingDialogScrollElement"
       :set-send-proxy-headers="setSendProxyHeaders"
       :set-show-toolbar="setShowToolbar"
       :should-show-portal-disabled-tooltip="shouldShowPortalDisabledTooltip"

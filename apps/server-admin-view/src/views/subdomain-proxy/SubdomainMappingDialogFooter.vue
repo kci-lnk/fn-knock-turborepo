@@ -12,11 +12,7 @@ const { t } = useI18n();
 
 <template>
   <DialogFooter
-    :class="[
-      'grid shrink-0 grid-cols-2 border-t bg-background px-6 py-4 sm:flex sm:justify-end',
-      !dialog.isMappingDialogSoftKeyboardVisible &&
-        'max-sm:pb-[calc(env(safe-area-inset-bottom)+1rem)]',
-    ]"
+    class="grid shrink-0 grid-cols-2 border-t bg-background px-6 py-4 sm:flex sm:justify-end max-sm:group-data-[soft-keyboard-visible=false]/dialog:pb-[calc(env(safe-area-inset-bottom)+1rem)]"
   >
     <template
       v-if="dialog.visibilityEditor.mappingDialogView === 'path-browser'"

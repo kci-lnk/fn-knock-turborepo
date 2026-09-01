@@ -63,6 +63,142 @@ function isNestedInLabel(node) {
   return false;
 }
 
+function collectPatternIdentifiers(pattern, identifiers) {
+  if (!pattern) return;
+
+  if (pattern.type === "Identifier") {
+    identifiers.add(pattern.name);
+    return;
+  }
+
+  if (pattern.type === "RestElement") {
+    collectPatternIdentifiers(pattern.argument, identifiers);
+    return;
+  }
+
+  if (pattern.type === "AssignmentPattern") {
+    collectPatternIdentifiers(pattern.left, identifiers);
+    return;
+  }
+
+  if (pattern.type === "ArrayPattern") {
+    for (const element of pattern.elements) {
+      collectPatternIdentifiers(element, identifiers);
+    }
+    return;
+  }
+
+  if (pattern.type === "ObjectPattern") {
+    for (const property of pattern.properties) {
+      collectPatternIdentifiers(
+        property.type === "Property" ? property.value : property.argument,
+        identifiers,
+      );
+    }
+  }
+}
+
+function getLoopIdentifiers(node) {
+  const identifiers = new Set();
+  let current = node;
+
+  while (current) {
+    if (current.type === "VElement") {
+      const forAttribute = current.startTag.attributes.find(
+        (attribute) =>
+          attribute.directive && attribute.key.name.name === "for",
+      );
+      const expression = forAttribute?.value?.expression;
+      if (expression?.type === "VForExpression") {
+        for (const pattern of expression.left) {
+          collectPatternIdentifiers(pattern, identifiers);
+        }
+      }
+    }
+    current = current.parent;
+  }
+
+  return identifiers;
+}
+
+function expressionUsesIdentifier(expression, identifiers) {
+  if (!expression || identifiers.size === 0) return false;
+
+  const pending = [expression];
+  const visited = new Set();
+  while (pending.length > 0) {
+    const current = pending.pop();
+    if (!current || typeof current !== "object" || visited.has(current)) {
+      continue;
+    }
+    visited.add(current);
+
+    if (current.type === "Identifier" && identifiers.has(current.name)) {
+      return true;
+    }
+
+    for (const [key, value] of Object.entries(current)) {
+      if (key === "parent") continue;
+      if (Array.isArray(value)) {
+        pending.push(...value);
+      } else if (value && typeof value === "object") {
+        pending.push(value);
+      }
+    }
+  }
+
+  return false;
+}
+
+const noStaticFormFieldIdInLoop = {
+  meta: {
+    type: "problem",
+    docs: {
+      description:
+        "Require form field ids and label targets inside loops to use a loop binding.",
+    },
+    messages: {
+      repeated:
+        "Form field {{attribute}} inside v-for must reference a loop binding so every rendered field remains unique.",
+    },
+    schema: [],
+  },
+  create(context) {
+    const visitor = {
+      VElement(node) {
+        const isLabel = node.rawName === "label" || node.rawName === "Label";
+        const isFormControl =
+          NATIVE_FORM_CONTROLS.has(node.rawName) ||
+          FORM_CONTROL_NAMES.has(node.rawName);
+        if (!isLabel && !isFormControl) return;
+
+        const loopIdentifiers = getLoopIdentifiers(node);
+        if (loopIdentifiers.size === 0) return;
+
+        const attributeName = isLabel ? "for" : "id";
+        const attribute = getAttribute(node, attributeName);
+        if (!attribute) return;
+
+        const expression = attribute.directive
+          ? attribute.value?.expression
+          : null;
+        if (expressionUsesIdentifier(expression, loopIdentifiers)) return;
+
+        context.report({
+          node: attribute,
+          messageId: "repeated",
+          data: { attribute: attributeName },
+        });
+      },
+    };
+
+    return (
+      context.sourceCode.parserServices.defineTemplateBodyVisitor?.(visitor) ??
+      {}
+    );
+  },
+};
+
 const formControlHasAccessibleName = {
   meta: {
     type: "problem",
@@ -210,5 +346,6 @@ export const vueA11yProjectPlugin = {
   rules: {
     "form-control-has-accessible-name": formControlHasAccessibleName,
     "interactive-has-accessible-name": interactiveHasAccessibleName,
+    "no-static-form-field-id-in-loop": noStaticFormFieldIdInLoop,
   },
 };

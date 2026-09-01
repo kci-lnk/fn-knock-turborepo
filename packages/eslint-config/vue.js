@@ -82,6 +82,7 @@ export const vueConfig = [
       "vuejs-accessibility/form-control-has-label": "off",
       "project-a11y/form-control-has-accessible-name": "error",
       "project-a11y/interactive-has-accessible-name": "error",
+      "project-a11y/no-static-form-field-id-in-loop": "error",
       "vuejs-accessibility/label-has-for": [
         "error",
         {

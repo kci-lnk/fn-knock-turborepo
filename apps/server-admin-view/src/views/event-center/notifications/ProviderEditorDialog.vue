@@ -30,6 +30,7 @@ const a11yId = useId();
 
 defineProps<{
   catalog: NotificationProviderDefinition[];
+  connectionConfigInvalid: boolean;
   configuredSensitiveFields: string[];
   form: EditableProviderForm;
   generatedProviderName: string;
@@ -37,6 +38,7 @@ defineProps<{
   open: boolean;
   saving: boolean;
   selectedDefinition: NotificationProviderDefinition | null;
+  showLegacyWebhookHeaderMigration: boolean;
   showWxPusherAlert: boolean;
   testingDraft: boolean;
 }>();
@@ -133,6 +135,19 @@ const { t } = useI18n();
           </AlertDescription>
         </Alert>
 
+        <Alert
+          v-if="showLegacyWebhookHeaderMigration"
+          class="border-amber-200 bg-amber-50/80 text-amber-950"
+        >
+          <AlertTriangle class="h-4 w-4" />
+          <AlertTitle>
+            {{ t("admin.notifications.headers.migrationTitle") }}
+          </AlertTitle>
+          <AlertDescription>
+            {{ t("admin.notifications.headers.migrationDescription") }}
+          </AlertDescription>
+        </Alert>
+
         <div class="flex items-center justify-between rounded-md border p-3">
           <div class="text-sm font-medium">
             {{ t("admin.notifications.providers.enabledStatus") }}
@@ -167,14 +182,17 @@ const { t } = useI18n();
         </Button>
         <Button
           variant="secondary"
-          :disabled="saving || testingDraft"
+          :disabled="saving || testingDraft || connectionConfigInvalid"
           @click="emit('test')"
         >
           <Loader2 v-if="testingDraft" class="mr-2 h-4 w-4 animate-spin" />
           <Send v-else class="mr-2 h-4 w-4" />
           {{ t("admin.notifications.providers.testProvider") }}
         </Button>
-        <Button :disabled="saving || testingDraft" @click="emit('save')">
+        <Button
+          :disabled="saving || testingDraft || connectionConfigInvalid"
+          @click="emit('save')"
+        >
           <Loader2 v-if="saving" class="mr-2 h-4 w-4 animate-spin" />
           {{ t("common.save") }}
         </Button>

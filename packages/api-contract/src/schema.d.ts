@@ -10762,6 +10762,17 @@ export interface components {
             label: string;
             value: string;
         };
+        NotificationHeaderConstraintsData: {
+            /** Format: int64 */
+            max_items: number;
+            /** Format: int64 */
+            max_name_bytes: number;
+            /** Format: int64 */
+            max_total_bytes: number;
+            /** Format: int64 */
+            max_value_bytes: number;
+            reserved_names: string[];
+        };
         NotificationMessageActionData: {
             label: string;
             url: string;
@@ -10968,6 +10979,7 @@ export interface components {
             window_seconds?: number | null;
         };
         NotificationSchemaFieldData: {
+            constraints?: null | components["schemas"]["NotificationHeaderConstraintsData"];
             default_value?: unknown;
             description?: string | null;
             key: string;
@@ -10981,7 +10993,7 @@ export interface components {
             required?: boolean | null;
             sensitive?: boolean | null;
             /** @enum {string} */
-            type: "string" | "number" | "boolean" | "select" | "json";
+            type: "string" | "number" | "boolean" | "select" | "json" | "headers";
         };
         NotificationTargetData: {
             /** Format: date-time */

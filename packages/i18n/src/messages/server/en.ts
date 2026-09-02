@@ -3509,6 +3509,11 @@ export const enServer = {
               description:
                 "Optional. When set, it is sent through the X-Fn-Knock-Signature request header.",
             },
+            custom_headers: {
+              label: "Custom request headers",
+              description:
+                "Optional. These static headers are sent by provider tests and all deliveries.",
+            },
             endpoint_path: {
               label: "Additional path",
               description:
@@ -3527,6 +3532,21 @@ export const enServer = {
             missingUrl: "Missing Webhook URL",
             requestReturned: "Webhook returned HTTP {status}",
             requestFailed: "Webhook request failed",
+            invalidHeadersFormat:
+              "Custom headers must be an array of name/value objects",
+            tooManyHeaders: "At most {max} custom headers are allowed",
+            headerNameRequired: "A custom header name is required",
+            headerNameTooLong: "Header name {name} exceeds {max} bytes",
+            invalidHeaderName: "Header name {name} is invalid",
+            reservedHeaderName:
+              "Header {name} is managed by the system and cannot be customized",
+            duplicateHeaderName:
+              "Header {name} is duplicated (case-insensitive)",
+            invalidHeaderValue: "The value for header {name} is invalid",
+            headerValueTooLong:
+              "The value for header {name} exceeds {max} bytes",
+            headersTooLarge:
+              "The combined custom header size cannot exceed {max} bytes",
           },
         },
         magicpush: {

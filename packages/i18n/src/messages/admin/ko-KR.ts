@@ -7077,6 +7077,33 @@ export const koKRAdmin = {
       enabled: "사용",
       disabled: "사용 안 함",
     },
+    headers: {
+      empty: "사용자 지정 요청 헤더가 없습니다.",
+      name: "Header 이름",
+      value: "Header 값",
+      namePlaceholder: "예: Authorization",
+      valuePlaceholder: "예: Bearer token",
+      add: "Header 추가",
+      remove: "Header 삭제",
+      fixErrors: "먼저 사용자 지정 Header 오류를 수정하세요.",
+      migrationTitle: "이전 규칙 Header가 아직 사용 중입니다",
+      migrationDescription:
+        "이 Provider는 아직 공통 Header로 전환되지 않았습니다. 저장 후에는 여기에서 설정한 Header만 사용합니다. 기존 규칙의 인증 Header를 먼저 다시 입력하세요.",
+      errors: {
+        tooMany: "Header는 최대 {max}개까지 설정할 수 있습니다.",
+        nameRequired: "Header 이름은 필수입니다.",
+        nameTooLong: "Header 이름 {name}이(가) {max}바이트를 초과합니다.",
+        invalidName: "Header 이름 {name}이(가) 올바르지 않습니다.",
+        reservedName:
+          "Header {name}은(는) 시스템에서 관리하므로 설정할 수 없습니다.",
+        duplicateName:
+          "Header {name}이(가) 앞의 이름과 중복됩니다(대소문자 구분 안 함).",
+        valueTooLong: "Header {name}의 값이 {max}바이트를 초과합니다.",
+        invalidValue:
+          "Header {name}의 값에 허용되지 않는 제어 문자가 있습니다.",
+        totalTooLarge: "전체 Header 크기는 {max}바이트를 초과할 수 없습니다.",
+      },
+    },
     deliveries: {
       clearDialogDescription:
         "전송 기록 {count}개를 모두 삭제합니다. 기존 규칙과 이벤트에는 영향을 주지 않지만 전송 기록은 복원할 수 없습니다.",

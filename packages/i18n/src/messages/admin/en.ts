@@ -7122,6 +7122,33 @@ export const enAdmin = {
       enabled: "Enabled",
       disabled: "Disabled",
     },
+    headers: {
+      empty: "No custom request headers configured.",
+      name: "Header name",
+      value: "Header value",
+      namePlaceholder: "For example, Authorization",
+      valuePlaceholder: "For example, Bearer token",
+      add: "Add header",
+      remove: "Remove header",
+      fixErrors: "Fix the custom header configuration first",
+      migrationTitle: "Legacy rule headers are still in use",
+      migrationDescription:
+        "This provider has not switched to provider-level headers yet. After saving, only the headers configured here will be used. Re-enter any authentication headers from existing rules before saving.",
+      errors: {
+        tooMany: "You can configure at most {max} headers.",
+        nameRequired: "The header name is required.",
+        nameTooLong: "Header name {name} exceeds {max} bytes.",
+        invalidName: "Header name {name} is invalid.",
+        reservedName:
+          "Header {name} is managed by the system and cannot be customized.",
+        duplicateName:
+          "Header {name} duplicates an earlier name (case-insensitive).",
+        valueTooLong: "The value for header {name} exceeds {max} bytes.",
+        invalidValue:
+          "The value for header {name} contains a forbidden control character.",
+        totalTooLarge: "The combined header size cannot exceed {max} bytes.",
+      },
+    },
     deliveries: {
       clearDialogDescription:
         "This will delete all {count} delivery records. Existing rules and events are not affected, but delivery history cannot be restored.",

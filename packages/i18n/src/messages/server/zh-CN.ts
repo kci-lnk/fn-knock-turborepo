@@ -3222,6 +3222,11 @@ export const zhCNServer = {
               description:
                 "可选。若填写，会通过 X-Fn-Knock-Signature 请求头发送。",
             },
+            custom_headers: {
+              label: "自定义请求头",
+              description:
+                "可选。测试发送和所有正式投递都会携带这些静态 Header。",
+            },
             endpoint_path: {
               label: "附加路径",
               description: "可选。将拼接到基础 Webhook URL 后发送。",
@@ -3239,6 +3244,16 @@ export const zhCNServer = {
             missingUrl: "缺少 Webhook URL",
             requestReturned: "Webhook 返回 HTTP {status}",
             requestFailed: "Webhook 请求失败",
+            invalidHeadersFormat: "自定义 Header 必须是 name/value 对象数组",
+            tooManyHeaders: "自定义 Header 最多允许 {max} 项",
+            headerNameRequired: "自定义 Header 名称不能为空",
+            headerNameTooLong: "Header {name} 的名称超过 {max} 字节",
+            invalidHeaderName: "Header 名称 {name} 格式不合法",
+            reservedHeaderName: "Header {name} 由系统管理，不能自定义",
+            duplicateHeaderName: "Header {name} 重复（不区分大小写）",
+            invalidHeaderValue: "Header {name} 的值格式不合法",
+            headerValueTooLong: "Header {name} 的值超过 {max} 字节",
+            headersTooLarge: "全部自定义 Header 的总大小不能超过 {max} 字节",
           },
         },
         magicpush: {

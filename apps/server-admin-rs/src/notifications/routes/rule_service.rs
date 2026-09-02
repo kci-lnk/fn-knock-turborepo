@@ -399,7 +399,25 @@ pub(super) async fn normalize_rule_targets(
             .and_then(|id| current_map.get(id));
         let mut raw_config = object_field(raw_target, "target_config");
         normalize_provider_target_aliases(definition.provider_type, &mut raw_config);
-        let target_config = normalize_schema_config(&raw_config, &definition.target_schema)?;
+        let mut target_config = normalize_schema_config(&raw_config, &definition.target_schema)?;
+        let provider_uses_new_webhook_headers = provider_type == "webhook"
+            && provider
+                .pointer("/connection_config/custom_headers")
+                .is_some();
+        if provider_type == "webhook" && !provider_uses_new_webhook_headers {
+            let legacy_headers = raw_config.get("extra_headers_json").cloned().or_else(|| {
+                existing
+                    .filter(|target| {
+                        target.get("provider_id").and_then(Value::as_str)
+                            == Some(provider_id.as_str())
+                    })
+                    .and_then(|target| target.pointer("/target_config/extra_headers_json"))
+                    .cloned()
+            });
+            if let Some(legacy_headers) = legacy_headers {
+                target_config.insert("extra_headers_json".to_string(), legacy_headers);
+            }
+        }
         validate_required_fields(&target_config, &definition.target_schema)?;
         let mode = trimmed_string(raw_target.get("template_override_mode"))
             .or_else(|| {

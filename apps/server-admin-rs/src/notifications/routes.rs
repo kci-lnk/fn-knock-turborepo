@@ -106,6 +106,8 @@ const NOTIFICATION_PROVIDER_ERROR_KEYS: &[&str] = &[
     "smtpConnectionTimeout",
     "missingUrl",
     "requestFailed",
+    "invalidHeadersFormat",
+    "headerNameRequired",
 ];
 const GROUP_BY_VALUES: &[&str] = &["GLOBAL", "IP", "SESSION", "SUBJECT", "HOSTNAME", "PROVIDER"];
 const TRIGGER_STATUSES: &[&str] = &["created", "fanout_done", "partially_failed", "completed"];

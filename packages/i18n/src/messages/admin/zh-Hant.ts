@@ -6471,6 +6471,32 @@ export const zhHantAdmin = {
       enabled: "已啟用",
       disabled: "已禁用",
     },
+    headers: {
+      ...zhCNAdmin.notifications.headers,
+      empty: "尚未配置自訂請求標頭。",
+      name: "Header 名稱",
+      value: "Header 值",
+      namePlaceholder: "例如 Authorization",
+      valuePlaceholder: "例如 Bearer token",
+      add: "新增 Header",
+      remove: "刪除 Header",
+      fixErrors: "請先修正自訂 Header 配置",
+      migrationTitle: "偵測到舊版規則級 Header",
+      migrationDescription:
+        "此 Provider 尚未切換到通用 Header。儲存後將只使用這裡配置的 Header；如舊規則中包含認證資訊，請先在這裡重新填寫。",
+      errors: {
+        ...zhCNAdmin.notifications.headers.errors,
+        tooMany: "最多只能配置 {max} 個 Header。",
+        nameRequired: "Header 名稱不能為空。",
+        nameTooLong: "Header 名稱 {name} 超過 {max} 位元組。",
+        invalidName: "Header 名稱 {name} 格式不合法。",
+        reservedName: "Header {name} 由系統管理，不能自訂。",
+        duplicateName: "Header {name} 與前面的名稱重複（不區分大小寫）。",
+        valueTooLong: "Header {name} 的值超過 {max} 位元組。",
+        invalidValue: "Header {name} 的值包含不允許的控制字元。",
+        totalTooLarge: "全部 Header 的總大小不能超過 {max} 位元組。",
+      },
+    },
     deliveries: {
       ...zhCNAdmin.notifications.deliveries,
       clearDialogDescription:

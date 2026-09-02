@@ -9,6 +9,15 @@ pub(super) struct NotificationFieldOptionData {
 }
 
 #[derive(Serialize, ToSchema)]
+pub(super) struct NotificationHeaderConstraintsData {
+    max_items: i64,
+    max_name_bytes: i64,
+    max_value_bytes: i64,
+    max_total_bytes: i64,
+    reserved_names: Vec<String>,
+}
+
+#[derive(Serialize, ToSchema)]
 pub(super) struct NotificationSchemaFieldData {
     key: String,
     label: String,
@@ -22,6 +31,7 @@ pub(super) struct NotificationSchemaFieldData {
     options: Option<Vec<NotificationFieldOptionData>>,
     min: Option<i64>,
     max: Option<i64>,
+    constraints: Option<NotificationHeaderConstraintsData>,
 }
 
 #[derive(Serialize, ToSchema)]

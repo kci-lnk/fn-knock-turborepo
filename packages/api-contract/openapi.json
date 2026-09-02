@@ -14282,6 +14282,40 @@
         ],
         "type": "object"
       },
+      "NotificationHeaderConstraintsData": {
+        "properties": {
+          "max_items": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "max_name_bytes": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "max_total_bytes": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "max_value_bytes": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "reserved_names": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "max_items",
+          "max_name_bytes",
+          "max_value_bytes",
+          "max_total_bytes",
+          "reserved_names"
+        ],
+        "type": "object"
+      },
       "NotificationMessageActionData": {
         "properties": {
           "label": {
@@ -15382,6 +15416,16 @@
       },
       "NotificationSchemaFieldData": {
         "properties": {
+          "constraints": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/NotificationHeaderConstraintsData"
+              }
+            ]
+          },
           "default_value": {},
           "description": {
             "type": [
@@ -15442,7 +15486,8 @@
               "number",
               "boolean",
               "select",
-              "json"
+              "json",
+              "headers"
             ],
             "type": "string"
           }

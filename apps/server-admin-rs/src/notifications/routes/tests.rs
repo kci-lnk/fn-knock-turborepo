@@ -1,5 +1,65 @@
 use super::*;
 
+async fn notification_test_state() -> (tempfile::TempDir, AppState) {
+    let directory = tempfile::tempdir().unwrap();
+    let mut settings = {
+        let _environment = crate::test_support::EnvGuard::new(&[]);
+        crate::settings::Settings::from_env()
+    };
+    settings.runtime_target = "linux".to_string();
+    settings.data_dir = directory.path().join("data");
+    settings.gateway_config_dir = directory.path().join("gateway");
+    settings.sqlite_path = directory.path().join("fn-knock.sqlite3");
+    settings.legacy_redis_url.clear();
+    settings.go_backend_grpc_addr = "127.0.0.1:1".to_string();
+    settings.internal_rpc_token = "notification-test-token".to_string();
+    let state = AppState::new(settings).await.unwrap();
+    (directory, state)
+}
+
+async fn receive_webhook_request(mut stream: tokio::net::TcpStream) -> String {
+    use tokio::io::{AsyncReadExt, AsyncWriteExt};
+
+    let mut request = Vec::new();
+    loop {
+        let mut buffer = [0_u8; 4096];
+        let read = stream.read(&mut buffer).await.unwrap();
+        assert!(read > 0, "client closed before request body completed");
+        request.extend_from_slice(&buffer[..read]);
+        let Some(header_end) = request.windows(4).position(|value| value == b"\r\n\r\n") else {
+            continue;
+        };
+        let headers = String::from_utf8_lossy(&request[..header_end]);
+        let content_length = headers
+            .lines()
+            .find_map(|line| {
+                let (name, value) = line.split_once(':')?;
+                name.eq_ignore_ascii_case("content-length")
+                    .then(|| value.trim().parse::<usize>().ok())
+                    .flatten()
+            })
+            .unwrap_or_default();
+        if request.len() >= header_end + 4 + content_length {
+            break;
+        }
+    }
+    stream
+        .write_all(
+            b"HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: 11\r\nConnection: close\r\n\r\n{\"ok\":true}",
+        )
+        .await
+        .unwrap();
+    String::from_utf8(request).unwrap()
+}
+
+fn request_header_value<'a>(request: &'a str, expected_name: &str) -> Option<&'a str> {
+    request.lines().find_map(|line| {
+        let (name, value) = line.split_once(':')?;
+        name.eq_ignore_ascii_case(expected_name)
+            .then_some(value.trim())
+    })
+}
+
 #[test]
 fn notification_trace_filter_normalizes_input_and_supports_snapshot_fallback() {
     let trace_id = "trc_3f93d40a-89ea-4dbe-a04f-67692778d973";
@@ -64,6 +124,22 @@ fn masks_sensitive_provider_values_like_node() {
         json!("ab******")
     );
     assert_eq!(mask_sensitive_value(&json!(true)), json!("[configured]"));
+
+    let masked = mask_provider(&json!({
+        "id": "ntfprov_webhook",
+        "name": "Webhook",
+        "type": "webhook",
+        "connection_config": {
+            "url": "https://example.com/hook",
+            "custom_headers": [{ "name": "Authorization", "value": "Bearer secret" }]
+        }
+    }))
+    .unwrap();
+    assert_eq!(
+        masked.pointer("/connection_config_masked/custom_headers"),
+        Some(&json!("[configured]"))
+    );
+    assert!(!masked.to_string().contains("Bearer secret"));
 }
 
 #[test]
@@ -106,6 +182,462 @@ fn applies_schema_defaults_and_required_validation() {
     assert_eq!(normalized.get("method"), Some(&json!("POST")));
     assert_eq!(normalized.get("timeout_seconds"), Some(&json!(5)));
     validate_required_fields(&normalized, &definition.connection_schema).unwrap();
+}
+
+#[test]
+fn webhook_header_schema_is_provider_scoped_and_advertises_constraints() {
+    let definition = provider_definition("webhook").unwrap();
+    let custom_headers = definition
+        .connection_schema
+        .iter()
+        .find(|field| field.key == "custom_headers")
+        .unwrap();
+    assert_eq!(custom_headers.field_type, "headers");
+    assert!(custom_headers.sensitive);
+    assert_eq!(
+        custom_headers
+            .constraints
+            .as_ref()
+            .and_then(|value| value.get("max_items")),
+        Some(&json!(32))
+    );
+    let constraints = custom_headers.constraints.as_ref().unwrap();
+    assert_eq!(constraints.get("max_name_bytes"), Some(&json!(128)));
+    assert_eq!(constraints.get("max_value_bytes"), Some(&json!(8 * 1024)));
+    assert_eq!(constraints.get("max_total_bytes"), Some(&json!(16 * 1024)));
+    assert_eq!(
+        constraints
+            .get("reserved_names")
+            .and_then(Value::as_array)
+            .map(Vec::len),
+        Some(WEBHOOK_RESERVED_HEADER_NAMES.len())
+    );
+    assert!(
+        definition
+            .target_schema
+            .iter()
+            .all(|field| field.key != "extra_headers_json")
+    );
+    assert!(definition.sensitive_fields.contains(&"custom_headers"));
+}
+
+#[test]
+fn webhook_custom_headers_normalize_and_preserve_order() {
+    let normalized = normalize_webhook_custom_headers(&json!([
+        { "name": " Authorization ", "value": " Bearer token " },
+        { "name": "X-Empty", "value": "" }
+    ]))
+    .unwrap();
+    assert_eq!(
+        normalized,
+        json!([
+            { "name": "Authorization", "value": "Bearer token" },
+            { "name": "X-Empty", "value": "" }
+        ])
+    );
+}
+
+#[test]
+fn webhook_custom_headers_accept_documented_boundaries_and_common_names() {
+    let max_count = Value::Array(
+        (0..WEBHOOK_MAX_CUSTOM_HEADERS)
+            .map(|index| json!({ "name": format!("X-Header-{index}"), "value": "ok" }))
+            .collect(),
+    );
+    assert_eq!(
+        parse_webhook_custom_headers(&max_count).unwrap().len(),
+        WEBHOOK_MAX_CUSTOM_HEADERS
+    );
+
+    let max_name = "X".repeat(WEBHOOK_MAX_HEADER_NAME_BYTES);
+    parse_webhook_custom_headers(&json!([{ "name": max_name, "value": "ok" }])).unwrap();
+    parse_webhook_custom_headers(&json!([{
+        "name": "X-Large",
+        "value": "x".repeat(WEBHOOK_MAX_HEADER_VALUE_BYTES)
+    }]))
+    .unwrap();
+
+    let exact_total = json!([
+        { "name": "X-One", "value": "x".repeat(8_187) },
+        { "name": "X-Two", "value": "x".repeat(8_187) }
+    ]);
+    parse_webhook_custom_headers(&exact_total).unwrap();
+
+    parse_webhook_custom_headers(&json!([
+        { "name": "Authorization", "value": "Bearer token" },
+        { "name": "Cookie", "value": "session=example" },
+        { "name": "User-Agent", "value": "fn-knock-test" },
+        { "name": "Accept", "value": "application/json" },
+        { "name": "X-API-Key", "value": "key" }
+    ]))
+    .unwrap();
+}
+
+#[test]
+fn webhook_custom_headers_reject_unsafe_or_oversized_values() {
+    for invalid in [
+        Value::Null,
+        json!({ "Authorization": "Bearer token" }),
+        json!([{ "name": "", "value": "value" }]),
+        json!([{ "name": "\tX-Token", "value": "value" }]),
+        json!([{ "name": "Bad Header", "value": "value" }]),
+        json!([{ "name": "Content-Type", "value": "text/plain" }]),
+        json!([
+            { "name": "X-Token", "value": "one" },
+            { "name": "x-token", "value": "two" }
+        ]),
+        json!([{ "name": "X-Token", "value": "line\nbreak" }]),
+        json!([{ "name": "X-Token", "value": "\ttrim-bypass" }]),
+        json!([{ "name": "X-Token", "value": "trim-bypass\t" }]),
+        json!([{ "name": "X-Token", "value": "control\u{0085}" }]),
+        json!([{ "name": "X-Token", "value": 42 }]),
+        json!([{ "name": "X".repeat(WEBHOOK_MAX_HEADER_NAME_BYTES + 1), "value": "value" }]),
+        json!([{ "name": "X-Token", "value": "x".repeat(WEBHOOK_MAX_HEADER_VALUE_BYTES + 1) }]),
+    ] {
+        assert!(normalize_webhook_custom_headers(&invalid).is_err());
+    }
+
+    let too_many = Value::Array(
+        (0..=WEBHOOK_MAX_CUSTOM_HEADERS)
+            .map(|index| json!({ "name": format!("X-Header-{index}"), "value": "ok" }))
+            .collect(),
+    );
+    assert!(normalize_webhook_custom_headers(&too_many).is_err());
+
+    let too_large = json!([
+        { "name": "X-One", "value": "x".repeat(6000) },
+        { "name": "X-Two", "value": "x".repeat(6000) },
+        { "name": "X-Three", "value": "x".repeat(6000) }
+    ]);
+    assert!(normalize_webhook_custom_headers(&too_large).is_err());
+
+    for reserved in WEBHOOK_RESERVED_HEADER_NAMES {
+        assert!(
+            normalize_webhook_custom_headers(&json!([{
+                "name": reserved.to_ascii_uppercase(),
+                "value": "blocked"
+            }]))
+            .is_err(),
+            "reserved header {reserved} was accepted"
+        );
+    }
+}
+
+#[test]
+fn webhook_header_validation_uses_the_active_server_locale() {
+    let definition = provider_definition("webhook").unwrap();
+    let config = Map::from_iter([(
+        "custom_headers".to_string(),
+        json!([{ "name": "X-Token", "value": "bad\r\nvalue" }]),
+    )]);
+    let error = validate_provider_connection_patch(&definition, &config, &Translator::new("en"))
+        .unwrap_err();
+    match error {
+        NotifyError::BadRequest(message) => {
+            assert_eq!(message, "The value for header X-Token is invalid");
+        }
+        NotifyError::Storage(_) => panic!("unexpected storage error"),
+    }
+}
+
+#[test]
+fn webhook_headers_switch_from_legacy_target_to_provider_configuration() {
+    let malformed_legacy_target =
+        Map::from_iter([("extra_headers_json".to_string(), json!("not-an-object"))]);
+    assert!(resolve_webhook_headers(&Map::new(), Some(&malformed_legacy_target)).is_err());
+    let unsafe_legacy_target = Map::from_iter([(
+        "extra_headers_json".to_string(),
+        json!({ "X-Legacy": "\ttrim-bypass" }),
+    )]);
+    assert!(resolve_webhook_headers(&Map::new(), Some(&unsafe_legacy_target)).is_err());
+
+    let legacy_target = Map::from_iter([(
+        "extra_headers_json".to_string(),
+        json!({ "Authorization": "Bearer legacy", "X-Fn-Knock-Trace-Id": "hidden" }),
+    )]);
+    let legacy = resolve_webhook_headers(&Map::new(), Some(&legacy_target)).unwrap();
+    assert_eq!(
+        legacy,
+        vec![WebhookHeader {
+            name: "Authorization".to_string(),
+            value: "Bearer legacy".to_string(),
+        }]
+    );
+
+    let switched_empty = Map::from_iter([("custom_headers".to_string(), json!([]))]);
+    assert!(
+        resolve_webhook_headers(&switched_empty, Some(&legacy_target))
+            .unwrap()
+            .is_empty()
+    );
+
+    let switched = Map::from_iter([(
+        "custom_headers".to_string(),
+        json!([{ "name": "Authorization", "value": "Bearer provider" }]),
+    )]);
+    assert_eq!(
+        resolve_webhook_headers(&switched, Some(&legacy_target)).unwrap()[0].value,
+        "Bearer provider"
+    );
+}
+
+#[tokio::test]
+async fn webhook_provider_save_switches_and_rule_save_cleans_legacy_headers() {
+    let (_directory, state) = notification_test_state().await;
+    let provider_id = "ntfprov_legacy_webhook";
+    save_provider_raw(
+        &state,
+        &json!({
+            "id": provider_id,
+            "name": "Legacy webhook",
+            "type": "webhook",
+            "enabled": true,
+            "connection_config": {
+                "url": "https://example.com/hook",
+                "method": "POST",
+                "timeout_seconds": 5
+            },
+            "created_at": "2026-09-02T00:00:00Z",
+            "updated_at": "2026-09-02T00:00:00Z"
+        }),
+    )
+    .await
+    .unwrap();
+
+    let raw_targets = json!([{
+        "id": "ntftarget_legacy",
+        "provider_id": provider_id,
+        "target_config": {}
+    }]);
+    let current_targets = vec![json!({
+        "id": "ntftarget_legacy",
+        "provider_id": provider_id,
+        "target_config": {
+            "extra_headers_json": { "Authorization": "Bearer legacy" }
+        }
+    })];
+    let translator = Translator::new("en");
+    let preserved =
+        normalize_rule_targets(&state, Some(&raw_targets), &current_targets, &translator)
+            .await
+            .unwrap();
+    assert_eq!(
+        preserved[0].pointer("/target_config/extra_headers_json/Authorization"),
+        Some(&json!("Bearer legacy"))
+    );
+
+    let second_provider_id = "ntfprov_second_legacy_webhook";
+    save_provider_raw(
+        &state,
+        &json!({
+            "id": second_provider_id,
+            "name": "Second legacy webhook",
+            "type": "webhook",
+            "enabled": true,
+            "connection_config": { "url": "https://second.example.com/hook" },
+            "created_at": "2026-09-02T00:00:00Z",
+            "updated_at": "2026-09-02T00:00:00Z"
+        }),
+    )
+    .await
+    .unwrap();
+    let switched_provider_target = json!([{
+        "id": "ntftarget_legacy",
+        "provider_id": second_provider_id,
+        "target_config": {}
+    }]);
+    let provider_changed = normalize_rule_targets(
+        &state,
+        Some(&switched_provider_target),
+        &current_targets,
+        &translator,
+    )
+    .await
+    .unwrap();
+    assert!(
+        provider_changed[0]
+            .pointer("/target_config/extra_headers_json")
+            .is_none()
+    );
+
+    update_provider_value(
+        &state,
+        provider_id,
+        json!({ "name": "Saved legacy webhook" }),
+    )
+    .await
+    .unwrap();
+    let saved = load_provider(&state, provider_id).await.unwrap().unwrap();
+    assert_eq!(
+        saved.pointer("/connection_config/custom_headers"),
+        Some(&json!([]))
+    );
+
+    let cleaned = normalize_rule_targets(&state, Some(&raw_targets), &current_targets, &translator)
+        .await
+        .unwrap();
+    assert!(
+        cleaned[0]
+            .pointer("/target_config/extra_headers_json")
+            .is_none()
+    );
+}
+
+#[tokio::test]
+async fn webhook_tests_and_deliveries_share_headers_without_leaking_values() {
+    let (_directory, state) = notification_test_state().await;
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let url = format!("http://{}", listener.local_addr().unwrap());
+    let receiver = tokio::spawn(async move {
+        let mut requests = Vec::new();
+        for _ in 0..2 {
+            let (stream, _) = listener.accept().await.unwrap();
+            requests.push(receive_webhook_request(stream).await);
+        }
+        requests
+    });
+    let provider = json!({
+        "id": "ntfprov_webhook_headers",
+        "type": "webhook",
+        "connection_config": {
+            "url": url,
+            "method": "PUT",
+            "timeout_seconds": 5,
+            "shared_secret": "shared-secret-value",
+            "custom_headers": [
+                { "name": "Authorization", "value": "Bearer provider-secret" },
+                { "name": "X-API-Key", "value": "api-key-secret" },
+                { "name": "X-Empty", "value": "" }
+            ]
+        }
+    });
+    let translator = Translator::new("en");
+
+    let test_result = send_webhook_test(&state, &provider, &translator)
+        .await
+        .unwrap();
+    assert!(test_result.success);
+
+    let delivery_result = send_webhook_delivery(
+        &state,
+        &provider,
+        &json!({
+            "id": "ntftarget_webhook_headers",
+            "target_config": {
+                "extra_headers_json": { "Authorization": "Bearer ignored-legacy" }
+            }
+        }),
+        &json!({
+            "id": "ntfdelivery_webhook_headers",
+            "event_id": "event-webhook-headers",
+            "message_snapshot": { "title": "Alert", "severity": "warn" }
+        }),
+        &json!({ "id": "ntftrigger_webhook_headers" }),
+        &json!({ "id": "ntfrule_webhook_headers" }),
+        5,
+        &translator,
+    )
+    .await;
+    assert!(delivery_result.success);
+
+    let requests = receiver.await.unwrap();
+    for request in requests {
+        assert!(request.starts_with("PUT "));
+        assert_eq!(
+            request_header_value(&request, "authorization"),
+            Some("Bearer provider-secret")
+        );
+        assert_eq!(
+            request_header_value(&request, "x-api-key"),
+            Some("api-key-secret")
+        );
+        assert_eq!(request_header_value(&request, "x-empty"), Some(""));
+        assert_eq!(
+            request_header_value(&request, "x-fn-knock-signature"),
+            Some("shared-secret-value")
+        );
+        assert_eq!(
+            request_header_value(&request, "x-fn-knock-provider"),
+            Some("webhook")
+        );
+        assert_eq!(
+            request_header_value(&request, "content-type"),
+            Some("application/json")
+        );
+        assert!(!request.contains("ignored-legacy"));
+    }
+
+    for result in [&test_result, &delivery_result] {
+        let summary = result.request_summary.as_ref().unwrap();
+        let serialized = summary.to_string();
+        assert!(serialized.contains("Authorization"));
+        assert!(serialized.contains("X-API-Key"));
+        assert!(!serialized.contains("provider-secret"));
+        assert!(!serialized.contains("api-key-secret"));
+        assert!(!serialized.contains("shared-secret-value"));
+    }
+
+    let invalid_provider = json!({
+        "type": "webhook",
+        "connection_config": {
+            "url": "http://127.0.0.1:1",
+            "custom_headers": [{ "name": "X-Token", "value": "bad\r\nvalue" }]
+        }
+    });
+    let invalid_result = send_webhook_delivery(
+        &state,
+        &invalid_provider,
+        &json!({ "target_config": {} }),
+        &json!({ "message_snapshot": {} }),
+        &json!({}),
+        &json!({}),
+        5,
+        &translator,
+    )
+    .await;
+    assert!(!invalid_result.success);
+    assert!(!invalid_result.retryable);
+    assert!(invalid_result.request_summary.is_none());
+    assert_eq!(
+        invalid_result.message,
+        "The value for header X-Token is invalid"
+    );
+}
+
+#[tokio::test]
+async fn webhook_provider_test_honors_timeout_while_reading_the_response() {
+    use tokio::io::AsyncReadExt;
+
+    let (_directory, state) = notification_test_state().await;
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let url = format!("http://{}", listener.local_addr().unwrap());
+    let receiver = tokio::spawn(async move {
+        let (mut stream, _) = listener.accept().await.unwrap();
+        let mut buffer = [0_u8; 4096];
+        let _ = stream.read(&mut buffer).await.unwrap();
+        time::sleep(Duration::from_millis(1_500)).await;
+    });
+    let started_at = std::time::Instant::now();
+    let result = send_webhook_test(
+        &state,
+        &json!({
+            "type": "webhook",
+            "connection_config": {
+                "url": url,
+                "method": "POST",
+                "timeout_seconds": 1,
+                "custom_headers": []
+            }
+        }),
+        &Translator::new("en"),
+    )
+    .await
+    .unwrap();
+    assert!(!result.success);
+    assert!(result.retryable);
+    assert!(result.request_summary.is_some());
+    assert!(started_at.elapsed() < Duration::from_millis(1_400));
+    receiver.abort();
 }
 
 #[test]
@@ -180,25 +712,22 @@ fn json_schema_whitespace_matches_node_parse_behavior() {
     let definition = provider_definition("webhook").unwrap();
     let mut raw = Map::new();
 
-    raw.insert("extra_headers_json".to_string(), json!(""));
+    raw.insert("extra_body_json".to_string(), json!(""));
     assert!(
         !normalize_schema_patch(&raw, &definition.target_schema)
             .unwrap()
-            .contains_key("extra_headers_json")
+            .contains_key("extra_body_json")
     );
 
-    raw.insert("extra_headers_json".to_string(), json!("   "));
+    raw.insert("extra_body_json".to_string(), json!("   "));
     assert!(normalize_schema_patch(&raw, &definition.target_schema).is_err());
 
-    raw.insert(
-        "extra_headers_json".to_string(),
-        json!(" {\"X-Env\":\"prod\"} "),
-    );
+    raw.insert("extra_body_json".to_string(), json!(" {\"env\":\"prod\"} "));
     assert_eq!(
         normalize_schema_patch(&raw, &definition.target_schema)
             .unwrap()
-            .get("extra_headers_json"),
-        Some(&json!({ "X-Env": "prod" }))
+            .get("extra_body_json"),
+        Some(&json!({ "env": "prod" }))
     );
 }
 
@@ -646,6 +1175,7 @@ fn harmonyosmeow_url_and_markdown_body_are_safe_and_deterministic() {
                 ("nickname".to_string(), json!("John/Doe")),
                 ("timeout_seconds".to_string(), json!(5)),
             ]),
+            &Translator::new("en"),
         )
         .is_err()
     );

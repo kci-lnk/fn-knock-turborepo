@@ -3626,6 +3626,11 @@ export const jaJPServer = {
               description:
                 "任意。指定すると X-Fn-Knock-Signature リクエストヘッダーで送信します",
             },
+            custom_headers: {
+              label: "カスタムリクエスト Header",
+              description:
+                "任意。Provider テストとすべての配信で、この静的 Header を送信します",
+            },
             endpoint_path: {
               label: "追加パス",
               description: "任意。送信前にベース Webhook URL へ追加します",
@@ -3643,6 +3648,21 @@ export const jaJPServer = {
             missingUrl: "Webhook URL が指定されていません",
             requestReturned: "Webhook が HTTP {status} を返しました",
             requestFailed: "Webhook のリクエストに失敗しました",
+            invalidHeadersFormat:
+              "カスタム Header は name/value オブジェクトの配列で指定してください",
+            tooManyHeaders: "カスタム Header は最大 {max} 件までです",
+            headerNameRequired: "カスタム Header 名は必須です",
+            headerNameTooLong: "Header 名 {name} が {max} バイトを超えています",
+            invalidHeaderName: "Header 名 {name} は無効です",
+            reservedHeaderName:
+              "Header {name} はシステムが管理するため設定できません",
+            duplicateHeaderName:
+              "Header {name} が重複しています（大文字と小文字は区別されません）",
+            invalidHeaderValue: "Header {name} の値は無効です",
+            headerValueTooLong:
+              "Header {name} の値が {max} バイトを超えています",
+            headersTooLarge:
+              "カスタム Header の合計サイズは {max} バイトを超えることができません",
           },
         },
         magicpush: {

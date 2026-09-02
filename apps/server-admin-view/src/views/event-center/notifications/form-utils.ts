@@ -2,6 +2,10 @@ import type {
   NotificationProviderType,
   NotificationSchemaField,
 } from "../../../types";
+import {
+  coerceWebhookHeaderEntries,
+  normalizeWebhookHeaderEntries,
+} from "./webhook-headers";
 
 export type ProviderDialogMode = "create" | "edit";
 
@@ -28,6 +32,10 @@ export const createEditableSchemaRecord = (
 ) =>
   fields.reduce<Record<string, unknown>>((acc, field) => {
     const value = source[field.key];
+    if (field.type === "headers") {
+      acc[field.key] = coerceWebhookHeaderEntries(value);
+      return acc;
+    }
     if (value === undefined || value === null) {
       acc[field.key] =
         field.type === "boolean"
@@ -58,6 +66,10 @@ export const buildSchemaPayload = (args: {
 
   for (const field of args.fields) {
     const raw = args.value[field.key];
+    if (field.type === "headers") {
+      payload[field.key] = normalizeWebhookHeaderEntries(raw);
+      continue;
+    }
     if (field.sensitive) {
       const text = String(raw ?? "").trim();
       if (args.editing && configuredSensitiveFields.has(field.key) && !text) {

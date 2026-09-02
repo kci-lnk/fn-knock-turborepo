@@ -3222,6 +3222,11 @@ export const zhHantServer = {
               description:
                 "可選。若填寫，會透過 X-Fn-Knock-Signature 請求頭發送。",
             },
+            custom_headers: {
+              label: "自訂請求頭",
+              description:
+                "可選。測試發送和所有正式投遞都會攜帶這些靜態 Header。",
+            },
             endpoint_path: {
               label: "附加路徑",
               description: "可選。將拼接到基礎 Webhook URL 後發送。",
@@ -3239,6 +3244,16 @@ export const zhHantServer = {
             missingUrl: "缺少 Webhook URL",
             requestReturned: "Webhook 返回 HTTP {status}",
             requestFailed: "Webhook 請求失敗",
+            invalidHeadersFormat: "自訂 Header 必須是 name/value 物件陣列",
+            tooManyHeaders: "自訂 Header 最多允許 {max} 項",
+            headerNameRequired: "自訂 Header 名稱不能為空",
+            headerNameTooLong: "Header {name} 的名稱超過 {max} 位元組",
+            invalidHeaderName: "Header 名稱 {name} 格式不合法",
+            reservedHeaderName: "Header {name} 由系統管理，不能自訂",
+            duplicateHeaderName: "Header {name} 重複（不區分大小寫）",
+            invalidHeaderValue: "Header {name} 的值格式不合法",
+            headerValueTooLong: "Header {name} 的值超過 {max} 位元組",
+            headersTooLarge: "全部自訂 Header 的總大小不能超過 {max} 位元組",
           },
         },
         magicpush: {

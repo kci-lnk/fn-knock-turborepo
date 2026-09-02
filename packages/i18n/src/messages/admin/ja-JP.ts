@@ -7122,6 +7122,33 @@ export const jaJPAdmin = {
       enabled: "有効",
       disabled: "無効",
     },
+    headers: {
+      empty: "カスタムリクエストヘッダーは設定されていません。",
+      name: "Header 名",
+      value: "Header 値",
+      namePlaceholder: "例: Authorization",
+      valuePlaceholder: "例: Bearer token",
+      add: "Header を追加",
+      remove: "Header を削除",
+      fixErrors: "先にカスタム Header のエラーを修正してください",
+      migrationTitle: "旧ルールの Header が使用されています",
+      migrationDescription:
+        "この Provider はまだ共通 Header に切り替わっていません。保存後は、ここで設定した Header のみが使用されます。既存ルールの認証 Header を先に再入力してください。",
+      errors: {
+        tooMany: "Header は最大 {max} 件まで設定できます。",
+        nameRequired: "Header 名は必須です。",
+        nameTooLong: "Header 名 {name} が {max} バイトを超えています。",
+        invalidName: "Header 名 {name} は無効です。",
+        reservedName: "Header {name} はシステムが管理するため設定できません。",
+        duplicateName:
+          "Header {name} は前の名前と重複しています（大文字と小文字は区別されません）。",
+        valueTooLong: "Header {name} の値が {max} バイトを超えています。",
+        invalidValue:
+          "Header {name} の値に許可されていない制御文字があります。",
+        totalTooLarge:
+          "Header の合計サイズは {max} バイトを超えることができません。",
+      },
+    },
     deliveries: {
       clearDialogDescription:
         "{count} 件の配信記録をすべて削除します。既存のルールとイベントには影響しませんが、配信履歴は復元できません。",

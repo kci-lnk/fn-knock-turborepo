@@ -34,13 +34,32 @@ pub(in crate::notifications::routes) fn provider_config(provider: &Value) -> Map
 pub(in crate::notifications::routes) fn validate_provider_connection_config(
     definition: &ProviderDefinition,
     config: &Map<String, Value>,
+    translator: &Translator,
 ) -> NotifyResult<()> {
+    validate_provider_connection_patch(definition, config, translator)?;
     if definition.provider_type == "harmonyosmeow"
         && !harmonyosmeow_nickname_is_valid(&config_text(config, "nickname"))
     {
-        return Err(NotifyError::BadRequest(
-            notification_provider_error_default("harmonyosmeow", "invalidNickname", &[]),
-        ));
+        return Err(NotifyError::BadRequest(notification_provider_error_text(
+            translator,
+            "harmonyosmeow",
+            "invalidNickname",
+            &[],
+        )));
+    }
+    Ok(())
+}
+
+pub(in crate::notifications::routes) fn validate_provider_connection_patch(
+    definition: &ProviderDefinition,
+    config: &Map<String, Value>,
+    translator: &Translator,
+) -> NotifyResult<()> {
+    if definition.provider_type == "webhook"
+        && let Some(headers) = config.get("custom_headers")
+    {
+        parse_webhook_custom_headers(headers)
+            .map_err(|error| NotifyError::BadRequest(error.text(translator)))?;
     }
     Ok(())
 }

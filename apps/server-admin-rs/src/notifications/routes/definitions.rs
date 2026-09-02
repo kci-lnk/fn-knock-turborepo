@@ -37,6 +37,7 @@ pub(in crate::notifications::routes) struct SchemaField {
     pub(in crate::notifications::routes) min: Option<i64>,
     pub(in crate::notifications::routes) max: Option<i64>,
     pub(in crate::notifications::routes) options: Vec<(&'static str, &'static str)>,
+    pub(in crate::notifications::routes) constraints: Option<Value>,
 }
 
 impl SchemaField {
@@ -160,6 +161,7 @@ pub(super) fn string_schema(
         min: None,
         max: None,
         options: Vec::new(),
+        constraints: None,
     }
 }
 
@@ -180,6 +182,7 @@ pub(super) fn number_schema(
         min: None,
         max: None,
         options: Vec::new(),
+        constraints: None,
     }
 }
 
@@ -200,6 +203,7 @@ pub(super) fn bool_schema(
         min: None,
         max: None,
         options: Vec::new(),
+        constraints: None,
     }
 }
 
@@ -221,6 +225,7 @@ pub(super) fn select_schema(
         min: None,
         max: None,
         options: options.iter().map(|value| (*value, *value)).collect(),
+        constraints: None,
     }
 }
 
@@ -236,6 +241,7 @@ pub(super) fn json_schema(key: &'static str, label: &'static str, required: bool
         min: None,
         max: None,
         options: Vec::new(),
+        constraints: None,
     }
 }
 
@@ -608,6 +614,9 @@ pub(super) fn schema_view(
                     ),
                 );
             }
+            if let Some(constraints) = &field.constraints {
+                value.insert("constraints".to_string(), constraints.clone());
+            }
             Value::Object(value)
         })
         .collect()
@@ -695,6 +704,7 @@ pub(super) fn normalize_schema_patch(
                 Value::String(selected)
             }
             "json" => normalize_json_field(input, field.label)?,
+            "headers" => normalize_webhook_custom_headers(input)?,
             _ => input.clone(),
         };
         if field.field_type == "json" && value.is_null() {

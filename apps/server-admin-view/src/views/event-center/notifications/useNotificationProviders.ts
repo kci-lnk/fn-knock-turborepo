@@ -14,6 +14,7 @@ import {
   type ProviderDialogMode,
   type ProviderFormPayload,
 } from "./form-utils";
+import { validateWebhookHeaderEntries } from "./webhook-headers";
 
 const PROVIDER_TAIL_ORDER = [
   "webhook",
@@ -50,6 +51,7 @@ export const useNotificationProviders = (active: Readonly<Ref<boolean>>) => {
   const testingId = ref<string | null>(null);
   const editingId = ref<string | null>(null);
   const editingProvider = ref<NotificationProviderView | null>(null);
+  const showLegacyWebhookHeaderMigration = ref(false);
   const providerForm = ref<EditableProviderForm>({
     name: "",
     type: "",
@@ -63,6 +65,18 @@ export const useNotificationProviders = (active: Readonly<Ref<boolean>>) => {
       catalog.value[0] ||
       null,
   );
+  const connectionConfigInvalid = computed(() => {
+    const field = selectedDefinition.value?.connection_schema.find(
+      (item) => item.type === "headers",
+    );
+    if (!field) return false;
+    return (
+      validateWebhookHeaderEntries(
+        providerForm.value.connection_config[field.key],
+        field.constraints,
+      ).length > 0
+    );
+  });
   const configuredSensitiveFields = computed(() => {
     if (!editingProvider.value || !selectedDefinition.value) return [];
     return selectedDefinition.value.connection_schema
@@ -142,6 +156,7 @@ export const useNotificationProviders = (active: Readonly<Ref<boolean>>) => {
   const openCreateDialog = () => {
     dialogMode.value = "create";
     editingProvider.value = null;
+    showLegacyWebhookHeaderMigration.value = false;
     resetProviderForm();
     dialogOpen.value = true;
   };
@@ -159,6 +174,12 @@ export const useNotificationProviders = (active: Readonly<Ref<boolean>>) => {
       const providerDetail = result.data;
       const definition =
         catalog.value.find((item) => item.type === providerDetail.type) || null;
+      showLegacyWebhookHeaderMigration.value =
+        providerDetail.type === "webhook" &&
+        !Object.prototype.hasOwnProperty.call(
+          providerDetail.connection_config,
+          "custom_headers",
+        );
       dialogMode.value = "edit";
       editingProvider.value = providerDetail;
       providerForm.value = {
@@ -194,6 +215,7 @@ export const useNotificationProviders = (active: Readonly<Ref<boolean>>) => {
       catalog.value.find((item) => item.type === String(value)) || null;
     if (!nextDefinition) return;
     const nextType = nextDefinition.type;
+    showLegacyWebhookHeaderMigration.value = false;
     const shouldRefreshName =
       dialogMode.value === "create" &&
       (!providerForm.value.name.trim() ||
@@ -238,6 +260,10 @@ export const useNotificationProviders = (active: Readonly<Ref<boolean>>) => {
   const saveProvider = async () => {
     if (!selectedDefinition.value) {
       toast.error(t("admin.notifications.providers.unavailableProviderType"));
+      return;
+    }
+    if (connectionConfigInvalid.value) {
+      toast.error(t("admin.notifications.headers.fixErrors"));
       return;
     }
     saving.value = true;
@@ -290,6 +316,10 @@ export const useNotificationProviders = (active: Readonly<Ref<boolean>>) => {
   const testProviderDraft = async () => {
     if (!selectedDefinition.value) {
       toast.error(t("admin.notifications.providers.unavailableProviderType"));
+      return;
+    }
+    if (connectionConfigInvalid.value) {
+      toast.error(t("admin.notifications.headers.fixErrors"));
       return;
     }
     testingDraft.value = true;
@@ -373,6 +403,7 @@ export const useNotificationProviders = (active: Readonly<Ref<boolean>>) => {
 
   return {
     catalog,
+    connectionConfigInvalid,
     configuredSensitiveFields,
     deleteProvider,
     deletingId,
@@ -394,6 +425,7 @@ export const useNotificationProviders = (active: Readonly<Ref<boolean>>) => {
     showWxPusherAlert: computed(
       () => selectedDefinition.value?.type === "wxpusher",
     ),
+    showLegacyWebhookHeaderMigration,
     testProvider,
     testProviderDraft,
     testingDraft,

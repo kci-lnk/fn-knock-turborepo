@@ -117,6 +117,39 @@ describe("notifications API contract", () => {
     assert.equal(policy.properties?.backoff_seconds?.maximum, 3_600);
   });
 
+  it("publishes the headers field and typed header constraints", () => {
+    const field = contract.components.schemas.NotificationSchemaFieldData;
+    assert.ok(field.properties?.type?.enum?.includes("headers"));
+    assert.equal(
+      field.properties?.constraints?.oneOf?.find((item) => item.$ref)?.$ref,
+      "#/components/schemas/NotificationHeaderConstraintsData",
+    );
+
+    const constraints =
+      contract.components.schemas.NotificationHeaderConstraintsData;
+    for (const property of [
+      "max_items",
+      "max_name_bytes",
+      "max_value_bytes",
+      "max_total_bytes",
+      "reserved_names",
+    ]) {
+      assert.ok(constraints.required?.includes(property), property);
+    }
+
+    const generatedTypes = readSource(
+      "../../../packages/api-contract/src/schema.d.ts",
+    );
+    assert.match(
+      generatedTypes,
+      /type: "string" \| "number" \| "boolean" \| "select" \| "json" \| "headers"/u,
+    );
+    assert.match(
+      generatedTypes,
+      /constraints\?: null \| components\["schemas"\]\["NotificationHeaderConstraintsData"\]/u,
+    );
+  });
+
   it("derives frontend provider, rule, history, and clear request types", () => {
     const api = readSource("../src/lib/api/events.ts");
     for (const schema of [

@@ -6634,6 +6634,30 @@ export const zhCNAdmin = {
       enabled: "已启用",
       disabled: "已禁用",
     },
+    headers: {
+      empty: "尚未配置自定义请求头。",
+      name: "Header 名称",
+      value: "Header 值",
+      namePlaceholder: "例如 Authorization",
+      valuePlaceholder: "例如 Bearer token",
+      add: "添加 Header",
+      remove: "删除 Header",
+      fixErrors: "请先修正自定义 Header 配置",
+      migrationTitle: "检测到旧版规则级 Header",
+      migrationDescription:
+        "此 Provider 尚未切换到通用 Header。保存后将只使用这里配置的 Header；如旧规则中包含认证信息，请先在这里重新填写。",
+      errors: {
+        tooMany: "最多只能配置 {max} 个 Header。",
+        nameRequired: "Header 名称不能为空。",
+        nameTooLong: "Header 名称 {name} 超过 {max} 字节。",
+        invalidName: "Header 名称 {name} 格式不合法。",
+        reservedName: "Header {name} 由系统管理，不能自定义。",
+        duplicateName: "Header {name} 与前面的名称重复（不区分大小写）。",
+        valueTooLong: "Header {name} 的值超过 {max} 字节。",
+        invalidValue: "Header {name} 的值包含不允许的控制字符。",
+        totalTooLarge: "全部 Header 的总大小不能超过 {max} 字节。",
+      },
+    },
     deliveries: {
       clearDialogDescription:
         "将删除全部 {count} 条投递记录。已产生的规则和事件不会受影响，但这些投递历史无法恢复。",

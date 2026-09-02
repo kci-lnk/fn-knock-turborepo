@@ -12,7 +12,12 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import type { NotificationSchemaField } from "../../../types";
+import type {
+  NotificationHeaderEntry,
+  NotificationSchemaField,
+} from "../../../types";
+import WebhookHeadersEditor from "./WebhookHeadersEditor.vue";
+import { coerceWebhookHeaderEntries } from "./webhook-headers";
 
 const a11yId = useId();
 
@@ -60,6 +65,11 @@ const readFieldValue = (field: NotificationSchemaField) => {
   return value;
 };
 
+const readHeaderFieldValue = (
+  field: NotificationSchemaField,
+): NotificationHeaderEntry[] =>
+  coerceWebhookHeaderEntries(readFieldValue(field));
+
 const resolvePlaceholder = (field: NotificationSchemaField) => {
   if (
     field.sensitive &&
@@ -81,7 +91,7 @@ const resolvePlaceholder = (field: NotificationSchemaField) => {
     >
       <div class="space-y-1">
         <Label
-          :for="getFieldDomId(field)"
+          :for="field.type === 'headers' ? undefined : getFieldDomId(field)"
           class="text-sm font-medium"
         >
           {{ field.label }}
@@ -153,6 +163,13 @@ const resolvePlaceholder = (field: NotificationSchemaField) => {
           @update:model-value="(value) => updateField(field.key, value)"
         />
       </div>
+
+      <WebhookHeadersEditor
+        v-else-if="field.type === 'headers'"
+        :model-value="readHeaderFieldValue(field)"
+        :constraints="field.constraints"
+        @update:model-value="(value) => updateField(field.key, value)"
+      />
 
       <Textarea
         v-else

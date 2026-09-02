@@ -43,7 +43,15 @@ export type NotificationTemplateOverrideMode = "inherit" | "custom";
 export type NotificationSeverity = "info" | "warn" | "error" | "critical";
 
 export type NotificationFieldType =
-  "string" | "number" | "boolean" | "select" | "json";
+  SystemEventSchemas["NotificationSchemaFieldData"]["type"];
+
+export interface NotificationHeaderEntry {
+  name: string;
+  value: string;
+}
+
+export type NotificationHeaderConstraints =
+  SystemEventSchemas["NotificationHeaderConstraintsData"];
 
 export interface NotificationFieldOption {
   label: string;
@@ -62,6 +70,7 @@ export interface NotificationSchemaField {
   options?: NotificationFieldOption[];
   min?: number;
   max?: number;
+  constraints?: NotificationHeaderConstraints;
 }
 
 export interface NotificationProviderCapabilities {

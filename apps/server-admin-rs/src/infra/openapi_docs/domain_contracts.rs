@@ -1041,6 +1041,7 @@ struct BackupImportResultData {
     ExternalCertificateDeployBodyData,
     ExternalCertificateDeployData,
     NotificationFieldOptionData,
+    NotificationHeaderConstraintsData,
     NotificationSchemaFieldData,
     NotificationProviderCapabilitiesData,
     NotificationProviderDefinitionData,
@@ -3388,7 +3389,7 @@ pub(super) fn components() -> Map<String, Value> {
         &mut schemas,
         "NotificationSchemaFieldData",
         "type",
-        &["string", "number", "boolean", "select", "json"],
+        &["string", "number", "boolean", "select", "json", "headers"],
     );
     for schema in [
         "NotificationProviderData",

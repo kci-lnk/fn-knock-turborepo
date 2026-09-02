@@ -1,6 +1,7 @@
 use super::*;
 
 pub(super) async fn create_provider_value(state: &AppState, body: Value) -> NotifyResult<Value> {
+    let translator = Translator::from_state(state).await;
     let provider_type = trimmed_string(body.get("type")).ok_or_bad(
         notification_service_default_text("unsupportedProviderType", &[]),
     )?;
@@ -9,9 +10,16 @@ pub(super) async fn create_provider_value(state: &AppState, body: Value) -> Noti
     )?;
     let mut raw_config = object_field(&body, "connection_config");
     normalize_provider_connection_aliases(definition.provider_type, &mut raw_config);
-    let connection_config = normalize_schema_config(&raw_config, &definition.connection_schema)?;
+    validate_provider_connection_patch(&definition, &raw_config, &translator)?;
+    let mut connection_config =
+        normalize_schema_config(&raw_config, &definition.connection_schema)?;
+    if definition.provider_type == "webhook" {
+        connection_config
+            .entry("custom_headers".to_string())
+            .or_insert_with(|| Value::Array(Vec::new()));
+    }
     validate_required_fields(&connection_config, &definition.connection_schema)?;
-    validate_provider_connection_config(&definition, &connection_config)?;
+    validate_provider_connection_config(&definition, &connection_config, &translator)?;
 
     let existing = load_providers(state).await?;
     let names = existing
@@ -20,7 +28,6 @@ pub(super) async fn create_provider_value(state: &AppState, body: Value) -> Noti
         .map(str::to_string)
         .collect::<Vec<_>>();
     let requested_name = trimmed_string(body.get("name"));
-    let translator = Translator::from_state(state).await;
     let default_name_base = provider_definition_label(&definition, &translator);
     let name =
         requested_name.unwrap_or_else(|| build_next_sequential_name(&default_name_base, &names));
@@ -45,6 +52,7 @@ pub(super) async fn update_provider_value(
     id: &str,
     body: Value,
 ) -> NotifyResult<Value> {
+    let translator = Translator::from_state(state).await;
     let current = load_provider(state, id)
         .await?
         .ok_or_bad(notification_service_default_text("providerNotFound", &[]))?;
@@ -58,6 +66,7 @@ pub(super) async fn update_provider_value(
     let mut raw_patch = object_field(&body, "connection_config");
     normalize_provider_connection_aliases(definition.provider_type, &mut raw_patch);
     drop_masked_sensitive_patch_values(&definition, &mut raw_patch);
+    validate_provider_connection_patch(&definition, &raw_patch, &translator)?;
     let patch = normalize_schema_patch(&raw_patch, &definition.connection_schema)?;
     let mut merged = current
         .get("connection_config")
@@ -67,9 +76,14 @@ pub(super) async fn update_provider_value(
     for (key, value) in patch {
         merged.insert(key, value);
     }
+    if definition.provider_type == "webhook" {
+        merged
+            .entry("custom_headers".to_string())
+            .or_insert_with(|| Value::Array(Vec::new()));
+    }
     apply_schema_defaults(&mut merged, &definition.connection_schema);
     validate_required_fields(&merged, &definition.connection_schema)?;
-    validate_provider_connection_config(&definition, &merged)?;
+    validate_provider_connection_config(&definition, &merged, &translator)?;
 
     let mut updated = current
         .as_object()
@@ -124,6 +138,7 @@ pub(super) async fn draft_provider_value(state: &AppState, body: Value) -> Notif
     let mut raw_patch = object_field(&body, "connection_config");
     normalize_provider_connection_aliases(definition.provider_type, &mut raw_patch);
     drop_masked_sensitive_patch_values(&definition, &mut raw_patch);
+    validate_provider_connection_patch(&definition, &raw_patch, &translator)?;
     let patch = normalize_schema_patch(&raw_patch, &definition.connection_schema)?;
     let mut connection_config = existing
         .as_ref()
@@ -136,7 +151,7 @@ pub(super) async fn draft_provider_value(state: &AppState, body: Value) -> Notif
     }
     apply_schema_defaults(&mut connection_config, &definition.connection_schema);
     validate_required_fields(&connection_config, &definition.connection_schema)?;
-    validate_provider_connection_config(&definition, &connection_config)?;
+    validate_provider_connection_config(&definition, &connection_config, &translator)?;
 
     let now = time_utils::now_iso();
     Ok(json!({

@@ -28,6 +28,7 @@ const props = withDefaults(
 const { t } = useI18n();
 const {
   catalog,
+  connectionConfigInvalid,
   configuredSensitiveFields,
   deleteProvider,
   deletingId,
@@ -46,6 +47,7 @@ const {
   saveProvider,
   saving,
   selectedDefinition,
+  showLegacyWebhookHeaderMigration,
   showWxPusherAlert,
   testProvider,
   testProviderDraft,
@@ -195,12 +197,14 @@ const {
   <ProviderEditorDialog
     v-model:open="dialogOpen"
     :catalog="catalog"
+    :connection-config-invalid="connectionConfigInvalid"
     :configured-sensitive-fields="configuredSensitiveFields"
     :form="providerForm"
     :generated-provider-name="generatedProviderName"
     :mode="dialogMode"
     :saving="saving"
     :selected-definition="selectedDefinition"
+    :show-legacy-webhook-header-migration="showLegacyWebhookHeaderMigration"
     :show-wx-pusher-alert="showWxPusherAlert"
     :testing-draft="testingDraft"
     @save="saveProvider"

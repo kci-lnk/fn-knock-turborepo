@@ -3530,6 +3530,11 @@ export const koKRServer = {
               description:
                 "선택 사항입니다. 설정하면 X-Fn-Knock-Signature 요청 헤더로 전송됩니다.",
             },
+            custom_headers: {
+              label: "사용자 지정 요청 Header",
+              description:
+                "선택 사항입니다. Provider 테스트와 모든 전송에 이 정적 Header를 포함합니다.",
+            },
             endpoint_path: {
               label: "추가 경로",
               description:
@@ -3548,6 +3553,22 @@ export const koKRServer = {
             missingUrl: "웹훅 URL 누락",
             requestReturned: "웹훅이 HTTP {status}(을)를 반환했습니다.",
             requestFailed: "웹훅 요청이 실패했습니다.",
+            invalidHeadersFormat:
+              "사용자 지정 Header는 name/value 객체 배열이어야 합니다.",
+            tooManyHeaders: "사용자 지정 Header는 최대 {max}개까지 허용됩니다.",
+            headerNameRequired: "사용자 지정 Header 이름은 필수입니다.",
+            headerNameTooLong:
+              "Header 이름 {name}이(가) {max}바이트를 초과합니다.",
+            invalidHeaderName: "Header 이름 {name}이(가) 올바르지 않습니다.",
+            reservedHeaderName:
+              "Header {name}은(는) 시스템에서 관리하므로 설정할 수 없습니다.",
+            duplicateHeaderName:
+              "Header {name}이(가) 중복됩니다(대소문자 구분 안 함).",
+            invalidHeaderValue: "Header {name}의 값이 올바르지 않습니다.",
+            headerValueTooLong:
+              "Header {name}의 값이 {max}바이트를 초과합니다.",
+            headersTooLarge:
+              "전체 사용자 지정 Header 크기는 {max}바이트를 초과할 수 없습니다.",
           },
         },
         magicpush: {

@@ -5535,7 +5535,7 @@ fn refine_path_parameters(operation: &mut Map<String, Value>, contract: &DomainO
                 "description": "Primary certificate domain; wildcard names are accepted when URL-encoded."
             }),
         )],
-        "/api/admin/ssl/certificates/{id}" => {
+        "/api/admin/ssl/certificates/{id}" | "/api/admin/ssl/certificates/{id}/download" => {
             &[("id", json!({ "type": "string", "minLength": 1 }))]
         }
         _ => return,

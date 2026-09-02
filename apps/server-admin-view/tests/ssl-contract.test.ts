@@ -79,6 +79,7 @@ describe("SSL certificate API contract", () => {
       ["post", "/api/admin/ssl/certificates"],
       ["delete", "/api/admin/ssl/certificates"],
       ["delete", "/api/admin/ssl/certificates/{id}"],
+      ["get", "/api/admin/ssl/certificates/{id}/download"],
       ["post", "/api/admin/ssl/activate"],
       ["post", "/api/admin/ssl/deployment-mode"],
       ["delete", "/api/admin/ssl"],
@@ -138,7 +139,7 @@ describe("SSL certificate API contract", () => {
           operation.tags?.includes("ssl"),
       ),
     );
-    assert.equal(sslOperations.length, 29);
+    assert.equal(sslOperations.length, 30);
     assert.ok(contract.paths["/api/admin/ssl/external-bindings/lan"].get);
     assert.ok(contract.paths["/api/admin/ssl/external-bindings/lan"].put);
     for (const operation of sslOperations) {
@@ -309,6 +310,10 @@ describe("SSL certificate API contract", () => {
       contract.paths["/api/admin/ssl/ca/server-cert.zip"].get.responses?.["200"]
         ?.content?.["application/zip"],
     );
+    assert.ok(
+      contract.paths["/api/admin/ssl/certificates/{id}/download"].get
+        .responses?.["200"]?.content?.["application/zip"],
+    );
   });
 
   it("derives frontend SSL models, requests, and queries from OpenAPI", () => {
@@ -337,6 +342,36 @@ describe("SSL certificate API contract", () => {
     assert.match(api, /rotateExternalCertificateBindingToken/u);
     assert.match(lanApi, /getLanCertificateDeployment/u);
     assert.match(lanApi, /updateLanCertificateDeployment/u);
+  });
+
+  it("keeps certificate library actions lightweight and downloadable", () => {
+    const root = readSource("../src/views/ssl-settings/CertConfig.vue");
+    const card = readSource(
+      "../src/views/ssl-settings/CertificateLibraryCard.vue",
+    );
+    const download = readSource(
+      "../src/views/ssl-settings/useCertificateLibraryDownload.ts",
+    );
+    const api = readSource("../src/lib/api/config-proxy-api.ts");
+
+    assert.match(root, /useCertificateLibraryDownload/u);
+    assert.match(card, /size="icon-sm"/u);
+    assert.match(card, /ShieldCheck/u);
+    assert.match(card, /<Download/u);
+    assert.match(card, /Trash2/u);
+    assert.match(card, /TooltipContent/u);
+    assert.match(card, /variant="destructive-outline"/u);
+    assert.match(root, /:is-mutation-pending=/u);
+    assert.match(card, /:aria-label="activateButtonLabel"/u);
+    assert.match(
+      card,
+      /<TooltipContent>\{\{ activateButtonLabel \}\}<\/TooltipContent>/u,
+    );
+    assert.doesNotMatch(card, /\{\{ t\("admin\.certConfig\.delete"\) \}\}/u);
+    assert.match(download, /downloadBlob/u);
+    assert.match(download, /if \(isDownloading\.value\) return/u);
+    assert.match(api, /downloadSSLCertificate/u);
+    assert.match(api, /responseType: "blob"/u);
   });
 
   it("encapsulates external deployment state outside the SSL composition root", () => {

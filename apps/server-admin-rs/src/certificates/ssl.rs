@@ -61,8 +61,9 @@ use handlers::{
     __path_activate_certificate, __path_active_cert_pem, __path_active_cert_zip,
     __path_add_ca_host, __path_ca_cert_pem, __path_ca_clear, __path_ca_hosts, __path_ca_init,
     __path_ca_issue, __path_ca_server_cert_zip, __path_ca_status, __path_clear_library,
-    __path_clear_ssl, __path_delete_ca_host, __path_delete_certificate, __path_save_certificate,
-    __path_set_deployment_mode, __path_shared_file_content, __path_shared_files, __path_status,
+    __path_clear_ssl, __path_delete_ca_host, __path_delete_certificate,
+    __path_download_certificate, __path_save_certificate, __path_set_deployment_mode,
+    __path_shared_file_content, __path_shared_files, __path_status,
 };
 use lan::*;
 pub(crate) use library::*;
@@ -299,6 +300,7 @@ pub(crate) fn ssl_openapi_routes() -> OpenApiRouter<AppState> {
         .routes(routes!(save_certificate))
         .routes(routes!(clear_library))
         .routes(routes!(delete_certificate))
+        .routes(routes!(download_certificate))
         .routes(routes!(activate_certificate))
         .routes(routes!(set_deployment_mode))
         .routes(routes!(get_lan_certificate_deployment))

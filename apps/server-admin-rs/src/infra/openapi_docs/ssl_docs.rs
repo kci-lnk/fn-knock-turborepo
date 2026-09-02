@@ -197,6 +197,14 @@ const OPERATIONS: &[OperationDocumentation] = &[
         errors: &[NOT_FOUND, GATEWAY_SYNC_ERROR],
     },
     OperationDocumentation {
+        method: "get",
+        path: "/api/admin/ssl/certificates/{id}/download",
+        summary: "下载指定证书库条目",
+        description: "按证书库标识符下载证书与匹配私钥的 ZIP 包，包含 `server-cert.pem` 和 `server-key.pem`。该附件含有私钥，下载后必须按敏感凭据保管。",
+        success_description: "返回包含指定证书库条目证书和私钥的 ZIP 附件。",
+        errors: &[NOT_FOUND, INTERNAL_ERROR],
+    },
+    OperationDocumentation {
         method: "post",
         path: "/api/admin/ssl/activate",
         summary: "激活证书库中的证书",
@@ -1166,7 +1174,8 @@ fn document_request_examples(operation: &mut Map<String, Value>, method: &str, p
 fn document_parameter_examples(operation: &mut Map<String, Value>, method: &str, path: &str) {
     let example = match (method, path) {
         ("get", "/api/admin/ssl/shared-files/content") => Some("certificates/example.pem"),
-        ("delete", "/api/admin/ssl/certificates/{id}") => Some("ssl_example_2026"),
+        ("delete", "/api/admin/ssl/certificates/{id}")
+        | ("get", "/api/admin/ssl/certificates/{id}/download") => Some("ssl_example_2026"),
         ("patch" | "delete", "/api/admin/ssl/external-bindings/{id}")
         | ("post", "/api/admin/ssl/external-bindings/{id}/rotate-token") => {
             Some("a17f93f95c2d4e9db7d41b8122345678")

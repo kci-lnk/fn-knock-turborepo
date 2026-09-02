@@ -188,10 +188,14 @@
       :coverage-badge-variant="coverageBadgeVariant"
       :delete-certificate="deleteCertificate"
       :deleting-certificate-id="deletingCertificateId"
+      :download-certificate="downloadCertificate"
+      :downloading-certificate-id="downloadingCertificateId"
       :format-date="formatDate"
       :is-activating="isActivating"
       :is-clearing-library="isClearingLibrary"
       :is-deleting="isDeleting"
+      :is-downloading="isDownloading"
+      :is-mutation-pending="isActivating || isDeleting || isClearingLibrary"
       :ready="hasLoadedSSLStatus"
       :source-label="sourceLabel"
       :summary="certificateLibrarySummary"
@@ -227,6 +231,7 @@ import CertificateDeploymentCard from "./CertificateDeploymentCard.vue";
 import ExternalCertificateDeploymentCard from "./ExternalCertificateDeploymentCard.vue";
 import CertificateLibraryCard from "./CertificateLibraryCard.vue";
 import CertificateStatusCard from "./CertificateStatusCard.vue";
+import { useCertificateLibraryDownload } from "./useCertificateLibraryDownload";
 import { useCertConfigViewModel } from "./useCertConfigViewModel";
 import { useSSLSharedFiles } from "./useSSLSharedFiles";
 
@@ -304,6 +309,8 @@ const { isPending: isUpdatingDeploymentMode, run: runUpdateDeploymentMode } =
   });
 
 const showLoadingSkeleton = useDelayedLoading(isLoading);
+const { downloadCertificate, downloadingCertificateId, isDownloading } =
+  useCertificateLibraryDownload((key) => t(key));
 
 const {
   activateButtonLabel,
@@ -399,17 +406,21 @@ async function handleClear() {
 }
 
 async function activateCertificate(id: string) {
+  if (isLibraryMutationPending()) return;
   activatingCertificateId.value = id;
-  await runActivateSSL(async () => {
-    await ConfigAPI.activateSSLCertificate(id);
-    await loadSSLStatus();
-    toast.success(
-      sslStatus.value?.deploymentMode === "multi_sni"
-        ? t("admin.certConfig.defaultCertificateSwitched")
-        : t("admin.certConfig.activeCertificateSwitched"),
-    );
-  });
-  activatingCertificateId.value = null;
+  try {
+    await runActivateSSL(async () => {
+      await ConfigAPI.activateSSLCertificate(id);
+      await loadSSLStatus();
+      toast.success(
+        sslStatus.value?.deploymentMode === "multi_sni"
+          ? t("admin.certConfig.defaultCertificateSwitched")
+          : t("admin.certConfig.activeCertificateSwitched"),
+      );
+    });
+  } finally {
+    activatingCertificateId.value = null;
+  }
 }
 
 async function activateRecommendedCertificate() {
@@ -432,20 +443,28 @@ async function updateDeploymentMode(mode: "single_active" | "multi_sni") {
 }
 
 async function deleteCertificate(id: string) {
+  if (isLibraryMutationPending()) return;
   deletingCertificateId.value = id;
-  await runDeleteSSL(async () => {
-    await ConfigAPI.deleteSSLCertificate(id);
-    await loadSSLStatus();
-    toast.success(t("admin.certConfig.deleteSuccess"));
-  });
-  deletingCertificateId.value = null;
+  try {
+    await runDeleteSSL(async () => {
+      await ConfigAPI.deleteSSLCertificate(id);
+      await loadSSLStatus();
+      toast.success(t("admin.certConfig.deleteSuccess"));
+    });
+  } finally {
+    deletingCertificateId.value = null;
+  }
 }
 
 async function handleClearLibrary() {
+  if (isLibraryMutationPending()) return;
   await runClearSSLLibrary(async () => {
     await ConfigAPI.clearSSLCertificateLibrary();
     await loadSSLStatus();
     toast.success(t("admin.certConfig.clearLibrarySuccess"));
   });
 }
+
+const isLibraryMutationPending = () =>
+  isActivating.value || isDeleting.value || isClearingLibrary.value;
 </script>

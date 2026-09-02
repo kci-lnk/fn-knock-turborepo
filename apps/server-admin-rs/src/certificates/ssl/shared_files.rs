@@ -183,5 +183,6 @@ pub(crate) fn binary_response(
             .headers_mut()
             .insert(header::CONTENT_DISPOSITION, value);
     }
+    crate::http_utils::apply_no_store_headers(response.headers_mut());
     response
 }

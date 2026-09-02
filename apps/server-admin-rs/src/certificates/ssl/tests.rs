@@ -27,6 +27,49 @@ fn ssl_certificate_ids_match_node_shape() {
 }
 
 #[test]
+fn selects_certificate_pair_for_library_download_by_id() {
+    let ssl = json!({
+        "certificates": [
+            { "id": "first", "cert": "FIRST CERT", "key": "FIRST KEY" },
+            { "id": "second", "cert": "SECOND CERT", "key": "SECOND KEY" }
+        ]
+    });
+
+    assert_eq!(
+        certificate_pair_by_id(&ssl, "second"),
+        CertificatePairLookup::Found("SECOND CERT", "SECOND KEY")
+    );
+    assert_eq!(
+        certificate_pair_by_id(&ssl, "missing"),
+        CertificatePairLookup::Missing
+    );
+    assert_eq!(
+        certificate_pair_by_id(
+            &json!({ "certificates": [{ "id": "empty", "cert": "", "key": "KEY" }] }),
+            "empty"
+        ),
+        CertificatePairLookup::Invalid
+    );
+}
+
+#[test]
+fn certificate_download_response_disables_caching() {
+    let response = binary_response(vec![1, 2, 3], "application/zip", "certificate.zip");
+
+    assert!(
+        response
+            .headers()
+            .get(header::CACHE_CONTROL)
+            .is_some_and(|value| value.to_str().is_ok_and(|value| value.contains("no-store")))
+    );
+    assert_eq!(response.headers().get(header::PRAGMA).unwrap(), "no-cache");
+    assert_eq!(
+        response.headers().get(header::CONTENT_DISPOSITION).unwrap(),
+        "attachment; filename=\"certificate.zip\""
+    );
+}
+
+#[test]
 fn normalizes_legacy_ssl_into_library() {
     let ssl = normalize_ssl_config(Some(&json!({
         "cert": "CERT",

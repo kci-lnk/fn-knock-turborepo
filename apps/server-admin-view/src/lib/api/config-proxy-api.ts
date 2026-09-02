@@ -323,6 +323,13 @@ export const configProxyApi = {
   async deleteSSLCertificate(id: string): Promise<void> {
     await apiClient.delete(`/ssl/certificates/${encodeURIComponent(id)}`);
   },
+  async downloadSSLCertificate(id: string): Promise<Blob> {
+    const res = await apiClient.get(
+      `/ssl/certificates/${encodeURIComponent(id)}/download`,
+      { responseType: "blob" },
+    );
+    return res.data;
+  },
   async clearSSLCertificateLibrary(): Promise<void> {
     await apiClient.delete("/ssl/certificates");
   },

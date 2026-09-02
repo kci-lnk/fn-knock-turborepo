@@ -232,6 +232,7 @@ function validateContract(openapiPath) {
     ["post /api/admin/ssl/certificates", "SslCertificateSaveBodyData"],
     ["delete /api/admin/ssl/certificates", null],
     ["delete /api/admin/ssl/certificates/{id}", null],
+    ["get /api/admin/ssl/certificates/{id}/download", null],
     ["post /api/admin/ssl/activate", "SslCertificateActivateBodyData"],
     ["post /api/admin/ssl/deployment-mode", "SslDeploymentModeBodyData"],
     ["delete /api/admin/ssl", null],

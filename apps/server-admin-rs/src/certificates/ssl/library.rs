@@ -43,6 +43,39 @@ fn reject_acme_external_domain_conflict(
     Ok(())
 }
 
+#[derive(Debug, Eq, PartialEq)]
+pub(super) enum CertificatePairLookup<'a> {
+    Found(&'a str, &'a str),
+    Invalid,
+    Missing,
+}
+
+pub(super) fn certificate_pair_by_id<'a>(ssl: &'a Value, id: &str) -> CertificatePairLookup<'a> {
+    let Some(certificate) =
+        ssl.get("certificates")
+            .and_then(Value::as_array)
+            .and_then(|certificates| {
+                certificates
+                    .iter()
+                    .find(|certificate| certificate.get("id").and_then(Value::as_str) == Some(id))
+            })
+    else {
+        return CertificatePairLookup::Missing;
+    };
+    let Some((cert, key)) = certificate
+        .get("cert")
+        .and_then(Value::as_str)
+        .zip(certificate.get("key").and_then(Value::as_str))
+    else {
+        return CertificatePairLookup::Invalid;
+    };
+    if cert.trim().is_empty() || key.trim().is_empty() {
+        CertificatePairLookup::Invalid
+    } else {
+        CertificatePairLookup::Found(cert, key)
+    }
+}
+
 pub(super) async fn save_ssl_certificate(
     state: &AppState,
     input: SaveCertificateBody,

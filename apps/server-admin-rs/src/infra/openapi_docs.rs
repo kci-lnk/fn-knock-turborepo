@@ -1742,6 +1742,15 @@ pub(crate) fn build_openapi_document() -> Value {
     );
     let ssl_certificate_id_parameter =
         json!([{"name":"id","in":"path","required":true,"schema":{"type":"string","minLength":1}}]);
+    insert_typed_media_operation(
+        &mut paths,
+        &typed_ssl,
+        "/api/admin/ssl/certificates/{id}/download",
+        "get",
+        zip_attachment,
+        Some(ssl_certificate_id_parameter.clone()),
+        false,
+    );
     insert_typed_empty_enveloped_operation(
         &mut paths,
         &typed_ssl,

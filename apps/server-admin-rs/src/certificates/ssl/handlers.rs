@@ -512,6 +512,51 @@ pub(super) async fn delete_certificate(
     }
 }
 
+#[utoipa::path(get, path = "/api/admin/ssl/certificates/{id}/download", tag = "ssl", operation_id = "get_api_admin_ssl_certificates_id_download", responses((status = 200, description = "Certificate archive attachment")))]
+pub(super) async fn download_certificate(
+    State(state): State<AppState>,
+    AxumPath(id): AxumPath<String>,
+) -> Response {
+    let translator = Translator::from_state(&state).await;
+    let config = match state.storage.store.get_config().await {
+        Ok(config) => config,
+        Err(error) => {
+            tracing::warn!(%error, "failed to read SSL certificate library");
+            return response::error(
+                StatusCode::INTERNAL_SERVER_ERROR,
+                ssl_route_text(&translator, "certReadFailed"),
+            );
+        }
+    };
+    let ssl = normalize_ssl_config(config.get("ssl"));
+    let (cert, key) = match certificate_pair_by_id(&ssl, &id) {
+        CertificatePairLookup::Found(cert, key) => (cert, key),
+        CertificatePairLookup::Missing => {
+            return response::error(
+                StatusCode::NOT_FOUND,
+                ssl_route_text(&translator, "certNotFound"),
+            );
+        }
+        CertificatePairLookup::Invalid => {
+            tracing::warn!(certificate_id = %id, "SSL certificate library entry is missing certificate material");
+            return response::error(
+                StatusCode::INTERNAL_SERVER_ERROR,
+                ssl_route_text(&translator, "certReadFailed"),
+            );
+        }
+    };
+    match zip_cert_pair(cert, key) {
+        Ok(bytes) => binary_response(bytes, "application/zip", "certificate.zip"),
+        Err(error) => {
+            tracing::warn!(%error, certificate_id = %id, "failed to zip SSL certificate library entry");
+            response::error(
+                StatusCode::INTERNAL_SERVER_ERROR,
+                ssl_route_text(&translator, "certZipCreateFailed"),
+            )
+        }
+    }
+}
+
 #[utoipa::path(delete, path = "/api/admin/ssl/certificates", tag = "ssl", operation_id = "delete_api_admin_ssl_certificates", responses((status = 200, description = "Cleared certificate library")))]
 pub(super) async fn clear_library(State(state): State<AppState>) -> Response {
     let translator = Translator::from_state(&state).await;

@@ -46475,6 +46475,90 @@
         "x-fn-knock-contract-source": "utoipa"
       }
     },
+    "/api/admin/ssl/certificates/{id}/download": {
+      "get": {
+        "description": "按证书库标识符下载证书与匹配私钥的 ZIP 包，包含 `server-cert.pem` 和 `server-key.pem`。该附件含有私钥，下载后必须按敏感凭据保管。",
+        "operationId": "get_api_admin_ssl_certificates_id_download",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "example": "ssl_example_2026",
+              "minLength": 1,
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/zip": {
+                "schema": {
+                  "format": "binary",
+                  "type": "string"
+                }
+              }
+            },
+            "description": "返回包含指定证书库条目证书和私钥的 ZIP 附件。",
+            "headers": {
+              "Content-Disposition": {
+                "description": "Attachment filename",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": null,
+                  "message": "请求未完成；请根据接口说明检查输入和当前 SSL 状态。",
+                  "success": false
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorEnvelope"
+                }
+              }
+            },
+            "description": "请求的证书、CA 文件、共享文件或证书库记录不存在。"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": null,
+                  "message": "请求未完成；请根据接口说明检查输入和当前 SSL 状态。",
+                  "success": false
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorEnvelope"
+                }
+              }
+            },
+            "description": "SSL 配置、证书处理、本地 CA 或网关同步失败；写操作可能已经保存本地变更，具体以后续状态查询为准。"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorEnvelope"
+                }
+              }
+            },
+            "description": "未分类的 SSL 操作失败时返回标准错误信封；请结合 HTTP 状态、错误消息和 SSL 状态排查。"
+          }
+        },
+        "summary": "下载指定证书库条目",
+        "tags": [
+          "ssl"
+        ],
+        "x-fn-knock-contract-source": "utoipa"
+      }
+    },
     "/api/admin/ssl/deployment-mode": {
       "post": {
         "description": "`single_active` 仅向网关部署当前激活证书；`multi_sni` 部署证书库并以激活证书作为默认项。切换到 `multi_sni` 且未指定激活证书时会选择证书库首项；网关同步失败会恢复之前的本地配置。",

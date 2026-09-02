@@ -5454,6 +5454,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/admin/ssl/certificates/{id}/download": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * 下载指定证书库条目
+         * @description 按证书库标识符下载证书与匹配私钥的 ZIP 包，包含 `server-cert.pem` 和 `server-key.pem`。该附件含有私钥，下载后必须按敏感凭据保管。
+         */
+        get: operations["get_api_admin_ssl_certificates_id_download"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/admin/ssl/deployment-mode": {
         parameters: {
             query?: never;
@@ -26637,6 +26657,71 @@ export interface operations {
                 };
             };
             /** @description 本地 SSL 配置无法同步到网关。部署模式切换会恢复先前配置；其他写操作请通过状态接口确认最终部署结果。 */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "code": null,
+                     *       "message": "请求未完成；请根据接口说明检查输入和当前 SSL 状态。",
+                     *       "success": false
+                     *     }
+                     */
+                    "application/json": components["schemas"]["ApiErrorEnvelope"];
+                };
+            };
+            /** @description 未分类的 SSL 操作失败时返回标准错误信封；请结合 HTTP 状态、错误消息和 SSL 状态排查。 */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorEnvelope"];
+                };
+            };
+        };
+    };
+    get_api_admin_ssl_certificates_id_download: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 返回包含指定证书库条目证书和私钥的 ZIP 附件。 */
+            200: {
+                headers: {
+                    /** @description Attachment filename */
+                    "Content-Disposition"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/zip": string;
+                };
+            };
+            /** @description 请求的证书、CA 文件、共享文件或证书库记录不存在。 */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "code": null,
+                     *       "message": "请求未完成；请根据接口说明检查输入和当前 SSL 状态。",
+                     *       "success": false
+                     *     }
+                     */
+                    "application/json": components["schemas"]["ApiErrorEnvelope"];
+                };
+            };
+            /** @description SSL 配置、证书处理、本地 CA 或网关同步失败；写操作可能已经保存本地变更，具体以后续状态查询为准。 */
             500: {
                 headers: {
                     [name: string]: unknown;

@@ -23,6 +23,17 @@ describe("mapping management navigation", () => {
     );
   });
 
+  it("places tabs beside the title on desktop and after the description on mobile", () => {
+    const page = readSource("../src/views/MappingManagement.vue");
+
+    assert.match(
+      page,
+      /sm:grid-cols-\[auto_minmax\(0,1fr\)\][\s\S]*sm:col-start-2 sm:row-start-1/u,
+    );
+    assert.match(page, /class="order-2 text-sm text-muted-foreground/u);
+    assert.match(page, /class="order-3 min-w-0 overflow-x-auto/u);
+  });
+
   it("redirects legacy list routes while preserving their queries", () => {
     const router = readSource("../src/router/index.ts");
 

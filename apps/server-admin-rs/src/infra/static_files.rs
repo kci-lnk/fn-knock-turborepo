@@ -194,10 +194,12 @@ pub async fn auth_fallback(State(state): State<AppState>, req: Request<Body>) ->
     let normalized_path = normalize_auth_path(&path);
     if is_api_path(&normalized_path) {
         let translator = Translator::from_state(&state).await;
-        return response::error(
+        let mut response = response::error(
             StatusCode::NOT_FOUND,
             translator.t("server.authRoutes.pathNotFound"),
         );
+        crate::http_utils::apply_no_store_headers(response.headers_mut());
+        return response;
     }
     if req.method() != Method::GET && req.method() != Method::HEAD {
         return method_not_allowed();
@@ -239,10 +241,12 @@ pub async fn admin_fallback(
     let path = original_uri.path();
     if is_api_path(path) {
         let translator = Translator::from_state(&state).await;
-        return response::error(
+        let mut response = response::error(
             StatusCode::NOT_FOUND,
             translator.t("server.apiPathNotFound"),
         );
+        crate::http_utils::apply_no_store_headers(response.headers_mut());
+        return response;
     }
     if req.method() != Method::GET && req.method() != Method::HEAD {
         return method_not_allowed();
@@ -558,7 +562,17 @@ fn encoding_qualities(header_value: &str, target: &str) -> (Option<f32>, Option<
 }
 
 fn is_api_path(path: &str) -> bool {
-    path == "/api" || path.starts_with("/api/")
+    path == "/api"
+        || path.starts_with("/api/")
+        || contains_path_namespace(path, "/api/admin")
+        || contains_path_namespace(path, "/api/auth")
+}
+
+fn contains_path_namespace(path: &str, namespace: &str) -> bool {
+    path.match_indices(namespace).any(|(start, _)| {
+        let end = start + namespace.len();
+        end == path.len() || path.as_bytes().get(end) == Some(&b'/')
+    })
 }
 
 fn is_asset_request_path(path: &str) -> bool {
@@ -891,8 +905,11 @@ mod tests {
     fn api_path_matching_respects_segment_boundaries() {
         assert!(is_api_path("/api"));
         assert!(is_api_path("/api/status"));
+        assert!(is_api_path("/index.html/api/admin/wol/targets"));
+        assert!(is_api_path("/stale/base/api/auth/session"));
         assert!(!is_api_path("/apix"));
         assert!(!is_api_path("/api-client"));
+        assert!(!is_api_path("/docs/api/admin-guide"));
     }
 
     #[test]

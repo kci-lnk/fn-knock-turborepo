@@ -33,6 +33,8 @@ export const zhHantCommon = {
   active: "運行中",
   inactive: "未啟用",
   tryLater: "請稍後重試",
+  invalidApiResponse:
+    "伺服器傳回了異常頁面或無效資料，請重新整理或重新開啟頁面後再試。",
   appearance: "外觀",
   appearanceLight: "日間模式",
   appearanceDark: "夜間模式",

@@ -206,6 +206,7 @@ fn backend_router_with_capabilities(
     } else {
         api
     };
+    let api = api.layer(middleware::from_fn(api_no_store_headers_middleware));
     #[cfg(test)]
     let api = api.layer(middleware::from_fn(route_contract_probe_middleware));
     let external_certificate_routes = external_certificate_routes();
@@ -263,6 +264,12 @@ async fn api_not_found(State(state): State<AppState>) -> axum::response::Respons
     )
 }
 
+async fn api_no_store_headers_middleware(req: Request<Body>, next: Next) -> AxumResponse {
+    let mut response = next.run(req).await;
+    crate::http_utils::apply_no_store_headers(response.headers_mut());
+    response
+}
+
 pub(super) fn auth_router(state: AppState) -> Router {
     let api = Router::new()
         .nest("/api/auth", auth_api_routes())
@@ -271,7 +278,8 @@ pub(super) fn auth_router(state: AppState) -> Router {
         .layer(middleware::from_fn_with_state(
             state.clone(),
             hmac_middleware,
-        ));
+        ))
+        .layer(middleware::from_fn(api_no_store_headers_middleware));
     let public_external_certificate_routes = public_external_certificate_routes();
     #[cfg(test)]
     let public_external_certificate_routes = public_external_certificate_routes
@@ -379,6 +387,58 @@ mod tests {
             .await
             .expect("OpenWrt router test state");
         (directory, state)
+    }
+
+    #[tokio::test]
+    async fn admin_api_responses_disable_browser_and_intermediary_caches() {
+        let (_directory, state) = openwrt_test_state().await;
+        let app = backend_router(state, false);
+
+        for path in [
+            "/api/admin/not-a-real-route",
+            "/index.html/api/admin/wol/targets",
+        ] {
+            let response = app
+                .clone()
+                .oneshot(Request::get(path).body(Body::empty()).unwrap())
+                .await
+                .unwrap();
+
+            assert_eq!(response.status(), StatusCode::NOT_FOUND, "{path}");
+            assert_eq!(
+                response
+                    .headers()
+                    .get(header::CONTENT_TYPE)
+                    .and_then(|value| value.to_str().ok()),
+                Some("application/json"),
+                "{path}"
+            );
+            assert_eq!(
+                response.headers().get(header::CACHE_CONTROL).unwrap(),
+                "private, no-store, no-cache, max-age=0, must-revalidate",
+                "{path}"
+            );
+            assert_eq!(
+                response.headers().get(header::PRAGMA).unwrap(),
+                "no-cache",
+                "{path}"
+            );
+            assert_eq!(
+                response.headers().get(header::EXPIRES).unwrap(),
+                "0",
+                "{path}"
+            );
+            assert_eq!(
+                response.headers().get("CDN-Cache-Control").unwrap(),
+                "private, no-store",
+                "{path}"
+            );
+            assert_eq!(
+                response.headers().get("Surrogate-Control").unwrap(),
+                "no-store",
+                "{path}"
+            );
+        }
     }
 
     fn materialize_contract_path(path: &str) -> String {

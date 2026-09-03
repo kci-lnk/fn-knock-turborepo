@@ -34,6 +34,8 @@ export const zhCNCommon = {
   active: "运行中",
   inactive: "未启用",
   tryLater: "请稍后重试",
+  invalidApiResponse:
+    "服务器返回了异常页面或无效数据，请刷新或重新打开页面后重试。",
   appearance: "外观",
   appearanceLight: "日间模式",
   appearanceDark: "夜间模式",

@@ -6,8 +6,10 @@ import { describe, it } from "node:test";
 import {
   createGatewayAuthRecovery,
   isAxiosNetworkErrorWithoutResponse,
+  isGatewayAuthRecoveryCandidate,
   type GatewayAuthRecoveryLocation,
 } from "../src/lib/gateway-auth-recovery";
+import { INVALID_API_RESPONSE_ERROR_CODE } from "@frontend-core/api/createApiClient";
 
 const currentUrl = "https://admin.example.com/settings?tab=update#/details";
 
@@ -15,6 +17,13 @@ const networkError = () => ({
   isAxiosError: true,
   code: "ERR_NETWORK",
   message: "Network Error",
+});
+
+const invalidApiResponseError = () => ({
+  isAxiosError: true,
+  code: INVALID_API_RESPONSE_ERROR_CODE,
+  message: "Invalid API response",
+  response: { status: 200 },
 });
 
 const jsonResponse = (payload: unknown, status = 200) =>
@@ -96,7 +105,31 @@ describe("gateway authentication recovery", () => {
       }),
       false,
     );
-    assert.equal(isAxiosNetworkErrorWithoutResponse(new Error("offline")), false);
+    assert.equal(
+      isAxiosNetworkErrorWithoutResponse(new Error("offline")),
+      false,
+    );
+    assert.equal(isGatewayAuthRecoveryCandidate(networkError()), true);
+    assert.equal(
+      isGatewayAuthRecoveryCandidate(invalidApiResponseError()),
+      true,
+    );
+  });
+
+  it("probes authentication after a successful but invalid API response", async () => {
+    const { location, replacements } = createLocation();
+    let requestCount = 0;
+    const recovery = createGatewayAuthRecovery({
+      fetchImpl: async () => {
+        requestCount += 1;
+        return jsonResponse(unauthenticatedPayload());
+      },
+      location,
+    });
+
+    assert.equal(await recovery.recover(invalidApiResponseError()), true);
+    assert.equal(requestCount, 1);
+    assert.equal(replacements.length, 1);
   });
 
   it("uses the shared authentication redirect returned by bootstrap", async () => {
@@ -151,8 +184,7 @@ describe("gateway authentication recovery", () => {
     ]) {
       const { location, replacements } = createLocation();
       const recovery = createGatewayAuthRecovery({
-        fetchImpl: async () =>
-          jsonResponse(unauthenticatedPayload(redirectTo)),
+        fetchImpl: async () => jsonResponse(unauthenticatedPayload(redirectTo)),
         location,
       });
 

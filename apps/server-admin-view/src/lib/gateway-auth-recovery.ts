@@ -1,4 +1,5 @@
 import axios from "axios";
+import { isInvalidApiResponseError } from "@frontend-core/api/createApiClient";
 
 const AUTH_BOOTSTRAP_PATH = "/__auth__/api/auth/bootstrap";
 const DEFAULT_AUTH_PROBE_TIMEOUT_MS = 3_000;
@@ -15,10 +16,7 @@ export interface GatewayAuthRecoveryLocation {
 export interface GatewayAuthRecoveryOptions {
   fetchImpl: typeof fetch;
   location: GatewayAuthRecoveryLocation;
-  navigationTarget?: Pick<
-    Window,
-    "addEventListener" | "removeEventListener"
-  >;
+  navigationTarget?: Pick<Window, "addEventListener" | "removeEventListener">;
   navigationTimeoutMs?: number;
   timeoutMs?: number;
   now?: () => number;
@@ -40,9 +38,7 @@ interface NormalizedGatewayAuthRecoveryOptions {
   now: () => number;
 }
 
-export const isAxiosNetworkErrorWithoutResponse = (
-  error: unknown,
-): boolean => {
+export const isAxiosNetworkErrorWithoutResponse = (error: unknown): boolean => {
   if (!axios.isAxiosError(error) || error.response != null) return false;
 
   return (
@@ -50,6 +46,9 @@ export const isAxiosNetworkErrorWithoutResponse = (
     error.message.trim().toLowerCase() === "network error"
   );
 };
+
+export const isGatewayAuthRecoveryCandidate = (error: unknown): boolean =>
+  isAxiosNetworkErrorWithoutResponse(error) || isInvalidApiResponseError(error);
 
 const readUnauthenticatedRedirect = (payload: unknown): string | null => {
   if (!isRecord(payload) || payload.success !== true) return null;
@@ -213,7 +212,7 @@ export const createGatewayAuthRecovery = (
 
   return {
     recover(error: unknown) {
-      if (!isAxiosNetworkErrorWithoutResponse(error)) {
+      if (!isGatewayAuthRecoveryCandidate(error)) {
         return Promise.resolve(false);
       }
       if (activeProbe) return activeProbe;

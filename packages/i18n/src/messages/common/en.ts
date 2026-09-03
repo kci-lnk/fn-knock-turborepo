@@ -34,6 +34,8 @@ export const enCommon = {
   active: "Running",
   inactive: "Disabled",
   tryLater: "Please try again later.",
+  invalidApiResponse:
+    "The server returned an invalid response. Refresh or reopen this page and try again.",
   appearance: "Appearance",
   appearanceLight: "Light",
   appearanceDark: "Dark",

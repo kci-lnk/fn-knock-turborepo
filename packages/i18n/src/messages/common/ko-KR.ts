@@ -34,6 +34,8 @@ export const koKRCommon = {
   active: "실행 중",
   inactive: "사용 안 함",
   tryLater: "나중에 다시 시도해 주세요.",
+  invalidApiResponse:
+    "서버가 잘못된 응답을 반환했습니다. 페이지를 새로고침하거나 다시 연 후 시도해 주세요.",
   appearance: "화면 모드",
   appearanceLight: "라이트 모드",
   appearanceDark: "다크 모드",

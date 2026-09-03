@@ -1,4 +1,5 @@
 import { createApiClient } from "@frontend-core/api/createApiClient";
+import { browserT } from "@fn-knock/i18n/vue/auth";
 import type { InternalAxiosRequestConfig } from "axios";
 import type {
   AuthBootstrapData,
@@ -102,6 +103,7 @@ const applyNoStoreRequestDefaults = (config: InternalAxiosRequestConfig) => {
 
 export const apiClient = createApiClient({
   baseURL: authApiBasePath,
+  invalidResponseMessage: () => browserT("common.invalidApiResponse"),
 });
 
 apiClient.interceptors.request.use((config) =>

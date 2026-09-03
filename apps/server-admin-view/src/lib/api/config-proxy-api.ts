@@ -33,7 +33,6 @@ import {
   type RevisionedHostMappingCatalog,
   type RevisionedHostMappings,
 } from "./config-revisions";
-
 type ProxyMappingsUpdate =
   ApiContractComponents["schemas"]["ProxyMappingsUpdateData"];
 type SubdomainModeUpdate =
@@ -228,6 +227,7 @@ export const configProxyApi = {
   },
   async downloadHostMappingBookmarks(): Promise<Blob> {
     const res = await apiClient.get("/config/host_mappings/bookmarks/export", {
+      fnKnockAllowDocumentResponse: true,
       responseType: "blob",
     });
     return res.data;

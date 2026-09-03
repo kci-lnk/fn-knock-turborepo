@@ -34,6 +34,8 @@ export const jaJPCommon = {
   active: "実行中",
   inactive: "無効",
   tryLater: "しばらくしてから、もう一度お試しください。",
+  invalidApiResponse:
+    "サーバーから無効な応答が返されました。ページを更新するか、開き直してもう一度お試しください。",
   appearance: "外観",
   appearanceLight: "ライト",
   appearanceDark: "ダーク",

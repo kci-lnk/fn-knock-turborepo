@@ -60,14 +60,7 @@ const { t } = useI18n();
           <GatewayLocationMatchSection :form="form" />
           <GatewayLocationAccessSection :form="form" />
 
-          <section
-            aria-labelledby="location-action-heading"
-            class="space-y-4 py-5"
-          >
-            <h3 id="location-action-heading" class="text-sm font-semibold">
-              {{ t("admin.gatewayLocationsSettings.responseActionSection") }}
-            </h3>
-
+          <div class="space-y-4 py-5">
             <div
               role="group"
               :aria-label="t('admin.gatewayLocationsSettings.action')"
@@ -112,7 +105,7 @@ const { t } = useI18n();
               @add-header="emit('addHeader')"
               @remove-header="emit('removeHeader', $event)"
             />
-          </section>
+          </div>
         </div>
 
         <p

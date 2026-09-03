@@ -28,7 +28,6 @@ const createTestI18n = () =>
               "Matches this path prefix and all paths below it.",
             pathPreview: "Path preview",
             prefixMatch: "Prefix match",
-            requestMatchSection: "Request matching",
             rewriteHtmlPath: "Rewrite HTML paths",
             rewriteHtmlPathHelp:
               "The gateway rewrites upstream HTML links and asset paths.",

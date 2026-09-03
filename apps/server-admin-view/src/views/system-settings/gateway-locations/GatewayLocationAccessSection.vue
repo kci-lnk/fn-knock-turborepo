@@ -15,11 +15,7 @@ const { t } = useI18n();
 </script>
 
 <template>
-  <section aria-labelledby="location-access-heading" class="space-y-4 py-5">
-    <h3 id="location-access-heading" class="text-sm font-semibold">
-      {{ t("admin.gatewayLocationsSettings.accessPolicySection") }}
-    </h3>
-
+  <div class="py-5">
     <div
       class="grid gap-3 sm:grid-cols-[18rem_minmax(0,1fr)] sm:items-start sm:gap-4"
     >
@@ -50,5 +46,5 @@ const { t } = useI18n();
         }}
       </p>
     </div>
-  </section>
+  </div>
 </template>

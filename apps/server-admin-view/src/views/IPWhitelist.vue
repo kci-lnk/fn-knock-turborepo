@@ -8,8 +8,6 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import DocsLinkButton from "@/components/DocsLinkButton.vue";
-import { docsUrls } from "../lib/docs";
 import WhitelistAddDialog from "./ip-whitelist/WhitelistAddDialog.vue";
 import WhitelistRecordsPanel from "./ip-whitelist/WhitelistRecordsPanel.vue";
 import WhitelistRegionGroups from "./ip-whitelist/WhitelistRegionGroups.vue";
@@ -34,16 +32,13 @@ const {
 </script>
 
 <template>
-  <Card class="mb-6">
+  <Card>
     <CardHeader>
       <CardTitle class="flex items-center justify-between">
         <span>{{ t("admin.ipWhitelist.title") }}</span>
-        <div class="flex items-center gap-2">
-          <DocsLinkButton :href="docsUrls.guides.whitelist" />
-          <Button @click="showAddDialog = true">
-            {{ t("admin.ipWhitelist.addTarget") }}
-          </Button>
-        </div>
+        <Button @click="showAddDialog = true">
+          {{ t("admin.ipWhitelist.addTarget") }}
+        </Button>
       </CardTitle>
       <CardDescription>
         {{ t("admin.ipWhitelist.pageDescription") }}

@@ -47,8 +47,10 @@ const router = createRouter({
         },
         {
           path: "whitelist",
-          name: "Whitelist",
-          component: () => import("../views/IPWhitelist.vue"),
+          redirect: (to) => ({
+            path: "/sessions",
+            query: { ...to.query, tab: "ip-whitelist" },
+          }),
         },
         {
           path: "proxy",
@@ -329,7 +331,7 @@ router.beforeEach(async (to, from) => {
       return true;
     }
     if (to.path !== "/wol") {
-      return "/whitelist";
+      return "/sessions?tab=ip-whitelist";
     }
   }
 
@@ -343,14 +345,18 @@ router.beforeEach(async (to, from) => {
   }
 
   if (to.path === "/proxy") {
-    return isSubdomainRoutingMode ? "/subdomains" : "/whitelist";
+    return isSubdomainRoutingMode
+      ? "/subdomains"
+      : "/sessions?tab=ip-whitelist";
   }
 
   if (
     (to.path === "/subdomains" || to.path.startsWith("/subdomains/")) &&
     !isSubdomainRoutingMode
   ) {
-    return configStore.config?.run_type === 1 ? "/proxy" : "/whitelist";
+    return configStore.config?.run_type === 1
+      ? "/proxy"
+      : "/sessions?tab=ip-whitelist";
   }
 
   if (

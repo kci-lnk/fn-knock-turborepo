@@ -55,7 +55,6 @@ export const zhCNAdmin = {
     nextRestart: "连续失败 {count} 次，下次重试：",
   },
   nav: {
-    ipWhitelist: "IP白名单",
     sslCert: "SSL证书",
     dashboard: "控制台",
     ddns: "动态域名",
@@ -5844,8 +5843,9 @@ export const zhCNAdmin = {
     confirmKick: "确认踢出",
     page: {
       title: "会话与安全",
-      description: "查看在线会话、异常登录退避和扫描器黑名单。",
+      description: "管理在线会话、IP白名单、异常登录退避和黑名单。",
       sessionsTab: "会话管理",
+      ipWhitelistTab: "IP白名单",
       loginBackoffTab: "异常登录退避",
       ipBlacklistTab: "扫描器黑名单",
       generalBlacklistTab: "通用黑名单",

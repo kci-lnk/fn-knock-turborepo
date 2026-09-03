@@ -61,7 +61,6 @@ export const jaJPAdmin = {
     nextRestart: "{count} 回連続失敗。次の再試行：",
   },
   nav: {
-    ipWhitelist: "ホワイトリスト",
     sslCert: "SSL",
     dashboard: "ダッシュボード",
     ddns: "DDNS",
@@ -6303,8 +6302,9 @@ export const jaJPAdmin = {
     page: {
       title: "セッションとセキュリティ",
       description:
-        "オンラインセッション、ログイン試行制限、スキャナーのブロックリストを確認します。",
+        "オンラインセッション、IP ホワイトリスト、ログイン試行制限、ブラックリストを管理します。",
       sessionsTab: "セッション",
+      ipWhitelistTab: "IP ホワイトリスト",
       loginBackoffTab: "ログイン試行制限",
       ipBlacklistTab: "スキャナーのブラックリスト",
       generalBlacklistTab: "共通ブラックリスト",

@@ -66,7 +66,6 @@ export const koKRAdmin = {
     nextRestart: "{count}회 연속 실패, 다음 재시도:",
   },
   nav: {
-    ipWhitelist: "허용 목록",
     sslCert: "SSL 인증서",
     dashboard: "대시보드",
     ddns: "DDNS",
@@ -6257,8 +6256,9 @@ export const koKRAdmin = {
     page: {
       title: "세션 및 보안",
       description:
-        "온라인 세션, 로그인 백오프와 스캐너 차단 목록을 확인합니다.",
+        "온라인 세션, IP 허용 목록, 로그인 백오프와 차단 목록을 관리합니다.",
       sessionsTab: "세션",
+      ipWhitelistTab: "IP 허용 목록",
       loginBackoffTab: "로그인 백오프",
       ipBlacklistTab: "스캐너 차단 목록",
       generalBlacklistTab: "일반 차단 목록",

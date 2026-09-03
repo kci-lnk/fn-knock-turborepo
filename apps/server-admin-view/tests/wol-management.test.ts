@@ -42,7 +42,7 @@ describe("Wake-on-LAN management", () => {
     assert.match(runtimeAccess, /query: \{ tab: "features" \}/u);
     assert.match(
       router,
-      /if \(to\.path !== "\/wol"\) \{\s*return "\/whitelist"/u,
+      /if \(to\.path !== "\/wol"\) \{\s*return "\/sessions\?tab=ip-whitelist"/u,
     );
     assert.match(gatewayPortalPanel, /v-if="model\.wolFeatureEnabled"/u);
     assert.match(

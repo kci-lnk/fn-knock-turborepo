@@ -58,7 +58,6 @@ export const zhHantAdmin = {
   },
   nav: {
     ...zhCNAdmin.nav,
-    ipWhitelist: "IP白名單",
     sslCert: "SSL證書",
     dashboard: "控制台",
     ddns: "動態域名",
@@ -5761,8 +5760,9 @@ export const zhHantAdmin = {
     confirmKick: "確認踢出",
     page: {
       title: "會話與安全",
-      description: "查看在線會話、異常登入退避和掃描器黑名單。",
+      description: "管理在線會話、IP 白名單、異常登入退避和黑名單。",
       sessionsTab: "會話管理",
+      ipWhitelistTab: "IP 白名單",
       loginBackoffTab: "異常登入退避",
       ipBlacklistTab: "掃描器黑名單",
       generalBlacklistTab: "通用黑名單",

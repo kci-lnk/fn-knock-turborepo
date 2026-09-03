@@ -7,7 +7,6 @@ export const DEFAULT_SIDEBAR_MENU_ORDER: readonly SidebarNavItemId[] = [
   "tunnel",
   "protocol_mapping",
   "sessions",
-  "ip_whitelist",
   "ssl_certificate",
   "ddns",
   "auth",
@@ -51,7 +50,11 @@ export const normalizeSidebarMenuOrder = (
     const wolIndex = normalized.indexOf("wol");
     if (wolIndex >= 0) normalized.splice(wolIndex, 1);
     const settingsIndex = normalized.indexOf("system_settings");
-    normalized.splice(settingsIndex >= 0 ? settingsIndex : normalized.length, 0, "wol");
+    normalized.splice(
+      settingsIndex >= 0 ? settingsIndex : normalized.length,
+      0,
+      "wol",
+    );
   }
   return normalized;
 };

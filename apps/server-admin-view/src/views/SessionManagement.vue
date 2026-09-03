@@ -11,6 +11,7 @@ import { docsUrls } from "../lib/docs";
 const SessionsTab = defineAsyncComponent(
   () => import("./session-management/SessionsTab.vue"),
 );
+const IpWhitelistTab = defineAsyncComponent(() => import("./IPWhitelist.vue"));
 const LoginBackoffTab = defineAsyncComponent(
   () => import("./session-management/LoginBackoffTab.vue"),
 );
@@ -31,12 +32,18 @@ const showSessionsTab = computed(
     configStore.config?.run_type === 1 || configStore.config?.run_type === 3,
 );
 const defaultTab = computed(() =>
-  showSessionsTab.value ? "sessions" : "login-backoff",
+  showSessionsTab.value ? "sessions" : "ip-whitelist",
 );
 const allowedTabs = computed(() =>
   showSessionsTab.value
-    ? ["sessions", "login-backoff", "ip-blacklist", "general-blacklist"]
-    : ["login-backoff", "ip-blacklist", "general-blacklist"],
+    ? [
+        "sessions",
+        "ip-whitelist",
+        "login-backoff",
+        "ip-blacklist",
+        "general-blacklist",
+      ]
+    : ["ip-whitelist", "login-backoff", "ip-blacklist", "general-blacklist"],
 );
 const { currentTab, navigateTo } = useSyncedQueryTab({
   route,
@@ -48,7 +55,9 @@ const { currentTab, navigateTo } = useSyncedQueryTab({
 const currentDocsHref = computed(() =>
   currentTab.value === "sessions"
     ? docsUrls.guides.sessionManagement
-    : docsUrls.guides.security,
+    : currentTab.value === "ip-whitelist"
+      ? docsUrls.guides.whitelist
+      : docsUrls.guides.security,
 );
 </script>
 
@@ -72,22 +81,30 @@ const currentDocsHref = computed(() =>
       @update:model-value="navigateTo"
       class="w-full"
     >
-      <TabsList>
-        <TabsTrigger v-if="showSessionsTab" value="sessions">
-          {{ t("admin.sessions.page.sessionsTab") }}
-        </TabsTrigger>
-        <TabsTrigger value="login-backoff">
-          {{ t("admin.sessions.page.loginBackoffTab") }}
-        </TabsTrigger>
-        <TabsTrigger value="ip-blacklist">
-          {{ t("admin.sessions.page.ipBlacklistTab") }}
-        </TabsTrigger>
-        <TabsTrigger value="general-blacklist">
-          {{ t("admin.sessions.page.generalBlacklistTab") }}
-        </TabsTrigger>
-      </TabsList>
+      <div class="overflow-x-auto pb-1">
+        <TabsList>
+          <TabsTrigger v-if="showSessionsTab" value="sessions">
+            {{ t("admin.sessions.page.sessionsTab") }}
+          </TabsTrigger>
+          <TabsTrigger value="ip-whitelist">
+            {{ t("admin.sessions.page.ipWhitelistTab") }}
+          </TabsTrigger>
+          <TabsTrigger value="login-backoff">
+            {{ t("admin.sessions.page.loginBackoffTab") }}
+          </TabsTrigger>
+          <TabsTrigger value="ip-blacklist">
+            {{ t("admin.sessions.page.ipBlacklistTab") }}
+          </TabsTrigger>
+          <TabsTrigger value="general-blacklist">
+            {{ t("admin.sessions.page.generalBlacklistTab") }}
+          </TabsTrigger>
+        </TabsList>
+      </div>
       <TabsContent v-if="showSessionsTab" value="sessions" class="pt-2">
         <SessionsTab />
+      </TabsContent>
+      <TabsContent value="ip-whitelist" class="pt-2">
+        <IpWhitelistTab />
       </TabsContent>
       <TabsContent value="login-backoff" class="pt-2">
         <LoginBackoffTab />

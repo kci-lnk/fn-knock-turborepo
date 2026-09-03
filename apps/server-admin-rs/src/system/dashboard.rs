@@ -894,7 +894,6 @@ pub(crate) const DEFAULT_SIDEBAR_MENU_ORDER: &[&str] = &[
     "tunnel",
     "protocol_mapping",
     "sessions",
-    "ip_whitelist",
     "ssl_certificate",
     "ddns",
     "wol",
@@ -1130,6 +1129,7 @@ mod tests {
         let normalized = normalize_sidebar_menu_order(Some(&json!([
             "events",
             "events",
+            "ip_whitelist",
             "unknown",
             42,
             "dashboard"
@@ -1138,6 +1138,7 @@ mod tests {
         assert_eq!(items.first(), Some(&json!("events")));
         assert_eq!(items.get(1), Some(&json!("dashboard")));
         assert_eq!(items.len(), DEFAULT_SIDEBAR_MENU_ORDER.len());
+        assert!(!items.iter().any(|item| item == "ip_whitelist"));
         assert_eq!(
             items
                 .iter()

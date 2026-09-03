@@ -63,7 +63,6 @@ export const enAdmin = {
     nextRestart: "{count} consecutive failures; next retry:",
   },
   nav: {
-    ipWhitelist: "Whitelist",
     sslCert: "SSL",
     dashboard: "Dashboard",
     ddns: "DDNS",
@@ -6310,8 +6309,9 @@ export const enAdmin = {
     page: {
       title: "Sessions & Security",
       description:
-        "View online sessions, login backoff, and scanner blacklist.",
+        "Manage online sessions, IP whitelist, login backoff, and blacklists.",
       sessionsTab: "Sessions",
+      ipWhitelistTab: "IP whitelist",
       loginBackoffTab: "Login backoff",
       ipBlacklistTab: "Scanner blacklist",
       generalBlacklistTab: "General blacklist",

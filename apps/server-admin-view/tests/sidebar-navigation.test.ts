@@ -78,7 +78,6 @@ describe("sidebar navigation order", () => {
       "route_mapping",
       "tunnel",
       "sessions",
-      "ip_whitelist",
       "ssl_certificate",
       "ddns",
       "auth",
@@ -95,7 +94,7 @@ describe("sidebar navigation order", () => {
     );
 
     const directModeVisible: SidebarNavItemId[] = [
-      "ip_whitelist",
+      "sessions",
       "ssl_certificate",
       "ddns",
       "auth",
@@ -162,6 +161,7 @@ describe("sidebar navigation order", () => {
     const normalized = normalizeSidebarMenuOrder([
       "events",
       "events",
+      "ip_whitelist",
       "unknown",
       42,
       "dashboard",
@@ -170,6 +170,10 @@ describe("sidebar navigation order", () => {
     assert.deepEqual(normalized.slice(0, 2), ["events", "dashboard"]);
     assert.equal(normalized.length, DEFAULT_SIDEBAR_MENU_ORDER.length);
     assert.equal(normalized.filter((id) => id === "events").length, 1);
+    assert.equal(
+      (normalized as readonly string[]).includes("ip_whitelist"),
+      false,
+    );
     assert.equal(
       hasSameSidebarMenuOrder(
         normalizeSidebarMenuOrder(DEFAULT_SIDEBAR_MENU_ORDER),

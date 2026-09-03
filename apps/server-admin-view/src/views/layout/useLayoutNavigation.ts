@@ -16,7 +16,6 @@ import {
   Settings2,
   ShieldAlert,
   ShieldBan,
-  ShieldCheck,
   SquareTerminal,
   UsersRound,
 } from "lucide-vue-next";
@@ -51,10 +50,10 @@ export const useLayoutNavigation = () => {
     });
     const items: SidebarNavItem[] = [
       {
-        id: "ip_whitelist",
-        name: t("admin.nav.ipWhitelist"),
-        path: "/whitelist",
-        icon: ShieldCheck,
+        id: "sessions",
+        name: t("admin.nav.sessions"),
+        path: "/sessions",
+        icon: UsersRound,
       },
       {
         id: "ssl_certificate",
@@ -108,12 +107,6 @@ export const useLayoutNavigation = () => {
           icon: RadioTower,
         });
       }
-      items.splice(showTunnel ? 3 : 2, 0, {
-        id: "sessions",
-        name: t("admin.nav.sessions"),
-        path: "/sessions",
-        icon: UsersRound,
-      });
     } else if (isAnySubdomainRoutingMode(configStore.config)) {
       const showProtocolMapping = isProtocolMappingVisible(configStore.config);
       items.splice(1, 0, {
@@ -130,12 +123,6 @@ export const useLayoutNavigation = () => {
           icon: ServerCog,
         });
       }
-      items.splice(showProtocolMapping ? 3 : 2, 0, {
-        id: "sessions",
-        name: t("admin.nav.sessions"),
-        path: "/sessions",
-        icon: UsersRound,
-      });
     }
     items.push({
       id: "auth",

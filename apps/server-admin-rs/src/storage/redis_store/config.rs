@@ -117,7 +117,6 @@ pub fn default_config() -> Value {
             "tunnel",
             "protocol_mapping",
             "sessions",
-            "ip_whitelist",
             "ssl_certificate",
             "ddns",
             "wol",

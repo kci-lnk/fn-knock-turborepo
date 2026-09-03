@@ -14,6 +14,7 @@ pub(super) struct DeliveryBuildArgs {
     pub(super) message_snapshot: Value,
     pub(super) target_snapshot: Value,
     pub(super) provider_snapshot: Value,
+    pub(super) webhook_event_snapshot: Option<Value>,
     pub(super) attempt_count: i64,
     pub(super) triggered_at: String,
     pub(super) next_retry_at: Option<String>,
@@ -42,6 +43,9 @@ pub(super) fn build_delivery_value(args: DeliveryBuildArgs) -> Value {
     });
     if !args.trace_id.is_empty() {
         delivery["trace_id"] = Value::String(args.trace_id);
+    }
+    if let Some(event_snapshot) = args.webhook_event_snapshot {
+        delivery["webhook_event_snapshot"] = event_snapshot;
     }
     delivery
 }

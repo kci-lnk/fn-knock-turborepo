@@ -399,6 +399,12 @@ pub(super) async fn normalize_rule_targets(
             .and_then(|id| current_map.get(id));
         let mut raw_config = object_field(raw_target, "target_config");
         normalize_provider_target_aliases(definition.provider_type, &mut raw_config);
+        if provider_type == "webhook"
+            && let Some(body) = raw_config.get("body_override")
+        {
+            parse_webhook_body_config(body, WebhookBodyScope::Target)
+                .map_err(|error| NotifyError::BadRequest(error.text(translator)))?;
+        }
         let mut target_config = normalize_schema_config(&raw_config, &definition.target_schema)?;
         let provider_uses_new_webhook_headers = provider_type == "webhook"
             && provider
@@ -416,6 +422,20 @@ pub(super) async fn normalize_rule_targets(
             });
             if let Some(legacy_headers) = legacy_headers {
                 target_config.insert("extra_headers_json".to_string(), legacy_headers);
+            }
+        }
+        if provider_type == "webhook" {
+            let legacy_extra_body = raw_config.get("extra_body_json").cloned().or_else(|| {
+                existing
+                    .filter(|target| {
+                        target.get("provider_id").and_then(Value::as_str)
+                            == Some(provider_id.as_str())
+                    })
+                    .and_then(|target| target.pointer("/target_config/extra_body_json"))
+                    .cloned()
+            });
+            if let Some(legacy_extra_body) = legacy_extra_body {
+                target_config.insert("extra_body_json".to_string(), legacy_extra_body);
             }
         }
         validate_required_fields(&target_config, &definition.target_schema)?;

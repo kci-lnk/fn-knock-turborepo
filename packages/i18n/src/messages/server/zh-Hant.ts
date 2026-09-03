@@ -3205,11 +3205,11 @@ export const zhHantServer = {
         },
         webhook: {
           label: "Webhook 通知",
-          description: "向任意支援 HTTP JSON 的地址發送標準通知消息。",
+          description: "向任意 HTTP 地址發送標準或自訂 JSON、文字通知。",
           fields: {
             url: {
               label: "Webhook 地址",
-              description: "接收標準通知 JSON 的目標地址。",
+              description: "接收 Webhook 請求的目標地址。",
             },
             method: {
               label: "請求方法",
@@ -3227,9 +3227,18 @@ export const zhHantServer = {
               description:
                 "可選。測試發送和所有正式投遞都會攜帶這些靜態 Header。",
             },
+            body_config: {
+              label: "請求體",
+              description:
+                "使用標準通知 Body，或透過變數組裝自訂 JSON、文字 Body。",
+            },
             endpoint_path: {
               label: "附加路徑",
               description: "可選。將拼接到基礎 Webhook URL 後發送。",
+            },
+            body_override: {
+              label: "請求體覆寫",
+              description: "繼承 Provider Body，或為目前通知目標單獨覆寫。",
             },
             extra_headers_json: {
               label: "額外請求頭 JSON",
@@ -3254,6 +3263,22 @@ export const zhHantServer = {
             invalidHeaderValue: "Header {name} 的值格式不合法",
             headerValueTooLong: "Header {name} 的值超過 {max} 位元組",
             headersTooLarge: "全部自訂 Header 的總大小不能超過 {max} 位元組",
+            invalidBodyConfig: "Webhook Body 設定格式不正確",
+            invalidBodyMode: "Webhook Body 模式 {mode} 不正確",
+            invalidBodyFormat: "Webhook Body 格式 {format} 不正確",
+            bodyTemplateRequired: "自訂 Webhook Body 模板不能為空",
+            bodyTemplateTooLarge: "Webhook Body 模板不能超過 {max} 位元組",
+            invalidBodyTemplateJson: "Webhook JSON Body 模板不是合法 JSON",
+            unclosedBodyVariable: "Webhook Body 中存在未閉合變數",
+            invalidBodyVariable: "Webhook Body 變數 {path} 格式不正確",
+            tooManyBodyVariables: "Webhook Body 模板最多允許 {max} 個變數",
+            invalidBodyContentType: "Webhook Body 的 Content-Type 不合法",
+            bodyContentTypeTooLong:
+              "Webhook Body 的 Content-Type 不能超過 {max} 位元組",
+            duplicateRenderedBodyKey: "Webhook Body 變數產生了重複的 JSON 鍵",
+            renderedBodyTooLarge: "渲染後的 Webhook Body 不能超過 {max} 位元組",
+            invalidBodySample: "Webhook Body 範例上下文必須是 JSON 物件",
+            bodySampleTooLarge: "Webhook Body 範例上下文不能超過 {max} 位元組",
           },
         },
         magicpush: {

@@ -162,6 +162,19 @@ onBeforeUnmount(() => {
   editorView.value?.destroy();
   editorView.value = null;
 });
+
+defineExpose({
+  insertText(value: string) {
+    const view = editorView.value;
+    if (!view) return;
+    const selection = view.state.selection.main;
+    view.dispatch({
+      changes: { from: selection.from, to: selection.to, insert: value },
+      selection: { anchor: selection.from + value.length },
+    });
+    view.focus();
+  },
+});
 </script>
 
 <template>

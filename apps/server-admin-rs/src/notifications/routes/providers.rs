@@ -14,6 +14,7 @@ mod pushplus;
 mod serverchan;
 mod telegram;
 mod webhook;
+mod webhook_body;
 mod wecom;
 mod wxpusher;
 
@@ -32,6 +33,7 @@ pub(super) use pushplus::*;
 pub(super) use serverchan::*;
 pub(super) use telegram::*;
 pub(super) use webhook::*;
+pub(super) use webhook_body::*;
 pub(super) use wecom::*;
 pub(super) use wxpusher::*;
 
@@ -49,12 +51,23 @@ pub(super) async fn run_provider_test(
     provider: Value,
     translator: &Translator,
 ) -> Result<ProviderTestResult, String> {
+    run_provider_test_with_options(state, provider, translator, WebhookTestOptions::default()).await
+}
+
+pub(super) async fn run_provider_test_with_options(
+    state: &AppState,
+    provider: Value,
+    translator: &Translator,
+    webhook_options: WebhookTestOptions,
+) -> Result<ProviderTestResult, String> {
     let provider_type = provider
         .get("type")
         .and_then(Value::as_str)
         .unwrap_or_default();
     match provider_type {
-        "webhook" => send_webhook_test(state, &provider, translator).await,
+        "webhook" => {
+            send_webhook_test_with_options(state, &provider, translator, webhook_options).await
+        }
         provider_type if is_http_notification_provider(provider_type) => {
             let message = build_provider_test_message(translator);
             let target = json!({ "target_config": {} });

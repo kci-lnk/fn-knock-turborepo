@@ -4363,6 +4363,7 @@ dependencies = [
  "ldap3",
  "lettre",
  "libc",
+ "mime",
  "mime_guess",
  "native-tls",
  "num-traits",

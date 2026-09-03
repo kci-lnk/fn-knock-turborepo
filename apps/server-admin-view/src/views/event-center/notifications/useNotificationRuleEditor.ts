@@ -15,7 +15,15 @@ import {
 } from "../constants";
 import { createEditableSchemaRecord } from "./form-utils";
 import {
+  parseWebhookSampleContext,
+  validateWebhookBodyConfig,
+  validateWebhookSampleContext,
+  type WebhookBodyConstraints,
+  type WebhookBodyPreview,
+} from "./webhook-body";
+import {
   buildRulePayload,
+  buildRuleTargetConfigPayload,
   createEmptyDeliveryPolicy,
   createEmptyRuleForm,
   resolveGroupByForEventType,
@@ -88,6 +96,29 @@ export function useNotificationRuleEditor({
   );
   const hasAvailableProvidersForAdd = computed(
     () => availableProvidersForAdd.value.length > 0,
+  );
+  const webhookTargetConfigInvalid = (target: EditableRuleTarget) => {
+    const definition = resolveProviderDefinitionById(target.provider_id);
+    const bodyField = definition?.target_schema.find(
+      (field) => field.type === "webhook_body",
+    );
+    if (!bodyField) return false;
+    const constraints = bodyField.constraints as
+      WebhookBodyConstraints | undefined;
+    return (
+      validateWebhookBodyConfig(
+        target.target_config[bodyField.key],
+        constraints,
+        "target",
+      ).length > 0 ||
+      validateWebhookSampleContext(
+        target.target_config.__webhook_sample_context,
+        constraints,
+      ).length > 0
+    );
+  };
+  const ruleFormInvalid = computed(() =>
+    ruleForm.value.targets.some(webhookTargetConfigInvalid),
   );
 
   const selectedEventTypeCount = computed(
@@ -235,15 +266,28 @@ export function useNotificationRuleEditor({
       cooldown_seconds: String(rule.cooldown_seconds),
       targets: rule.targets.map((target) => {
         const definition = resolveProviderDefinitionById(target.provider_id);
+        const targetConfig = definition
+          ? createEditableSchemaRecord(
+              definition.target_schema,
+              target.target_config,
+            )
+          : {};
+        if (definition?.type === "webhook") {
+          for (const key of [
+            "extra_headers_json",
+            "extra_body_json",
+          ] as const) {
+            if (
+              Object.prototype.hasOwnProperty.call(target.target_config, key)
+            ) {
+              targetConfig[key] = target.target_config[key];
+            }
+          }
+        }
         return {
           id: target.id,
           provider_id: target.provider_id,
-          target_config: definition
-            ? createEditableSchemaRecord(
-                definition.target_schema,
-                target.target_config,
-              )
-            : {},
+          target_config: targetConfig,
           delivery_policy: {
             timeout_seconds: String(
               target.delivery_policy?.timeout_seconds ?? "",
@@ -297,7 +341,105 @@ export function useNotificationRuleEditor({
     );
   };
 
+  const updateWebhookTargetTransient = (
+    index: number,
+    patch: Record<string, unknown>,
+  ) => {
+    const target = ruleForm.value.targets[index];
+    if (!target) return;
+    target.target_config = { ...target.target_config, ...patch };
+  };
+
+  const buildWebhookTargetTestPayload = (index: number) => {
+    const target = ruleForm.value.targets[index];
+    if (!target) throw new Error(t("admin.notifications.rules.missingTargets"));
+    const provider = providers.value.find(
+      (item) => item.id === target.provider_id,
+    );
+    const definition = resolveProviderDefinitionById(target.provider_id);
+    if (!provider || provider.type !== "webhook" || !definition) {
+      throw new Error(
+        t("admin.notifications.providers.unavailableProviderType"),
+      );
+    }
+    const bodyField = definition.target_schema.find(
+      (field) => field.type === "webhook_body",
+    );
+    return {
+      id: provider.id,
+      name: provider.name,
+      type: "webhook" as const,
+      enabled: provider.enabled,
+      connection_config: {},
+      target_config: buildRuleTargetConfigPayload({
+        target,
+        definition,
+      }),
+      sample_context: parseWebhookSampleContext(
+        target.target_config.__webhook_sample_context,
+        bodyField?.constraints as WebhookBodyConstraints | undefined,
+      ),
+    };
+  };
+
+  const previewWebhookTarget = async (index: number) => {
+    const target = ruleForm.value.targets[index];
+    if (!target || webhookTargetConfigInvalid(target)) {
+      toast.error(t("admin.notifications.body.fixErrors"));
+      return;
+    }
+    updateWebhookTargetTransient(index, { __webhook_body_previewing: true });
+    try {
+      const result = await EventCenterAPI.previewNotificationWebhookBody(
+        buildWebhookTargetTestPayload(index),
+      );
+      updateWebhookTargetTransient(index, {
+        __webhook_body_preview: result.data satisfies WebhookBodyPreview,
+      });
+    } catch (error) {
+      toast.error(t("admin.notifications.body.previewFailed"), {
+        description:
+          error instanceof Error ? error.message : t("common.tryLater"),
+      });
+    } finally {
+      updateWebhookTargetTransient(index, {
+        __webhook_body_previewing: false,
+      });
+    }
+  };
+
+  const testWebhookTarget = async (index: number) => {
+    const target = ruleForm.value.targets[index];
+    if (!target || webhookTargetConfigInvalid(target)) {
+      toast.error(t("admin.notifications.body.fixErrors"));
+      return;
+    }
+    updateWebhookTargetTransient(index, { __webhook_body_testing: true });
+    try {
+      const result = await EventCenterAPI.testNotificationProviderDraft(
+        buildWebhookTargetTestPayload(index),
+      );
+      if (!result.success) {
+        throw new Error(
+          result.message || t("admin.notifications.body.testFailed"),
+        );
+      }
+      toast.success(t("admin.notifications.body.testSuccess"));
+    } catch (error) {
+      toast.error(t("admin.notifications.body.testFailed"), {
+        description:
+          error instanceof Error ? error.message : t("common.tryLater"),
+      });
+    } finally {
+      updateWebhookTargetTransient(index, { __webhook_body_testing: false });
+    }
+  };
+
   const saveRule = async () => {
+    if (ruleFormInvalid.value) {
+      toast.error(t("admin.notifications.body.fixErrors"));
+      return;
+    }
     if (!ruleForm.value.targets.length) {
       toast.error(t("admin.notifications.rules.missingTargets"));
       return;
@@ -447,6 +589,7 @@ export function useNotificationRuleEditor({
     hasAvailableEventTypes,
     availableProvidersForAdd,
     hasAvailableProvidersForAdd,
+    ruleFormInvalid,
     isAllEventTypesSelected,
     dialogTitleText,
     dialogDescriptionText,
@@ -460,6 +603,8 @@ export function useNotificationRuleEditor({
     removeTarget,
     toggleAllEventTypes,
     toggleEventType,
+    previewWebhookTarget,
+    testWebhookTarget,
     saveRule,
   };
 }

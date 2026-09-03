@@ -3513,11 +3513,11 @@ export const koKRServer = {
         webhook: {
           label: "Webhook",
           description:
-            "HTTP JSON을 지원하는 모든 엔드포인트에 표준 알림 JSON을 보냅니다.",
+            "모든 HTTP 엔드포인트에 표준 또는 사용자 지정 JSON·텍스트 알림을 보냅니다.",
           fields: {
             url: {
               label: "Webhook URL",
-              description: "표준 알림 JSON을 수신하는 대상 주소입니다.",
+              description: "Webhook 요청을 수신하는 대상 주소입니다.",
             },
             method: {
               label: "요청 메서드",
@@ -3535,10 +3535,20 @@ export const koKRServer = {
               description:
                 "선택 사항입니다. Provider 테스트와 모든 전송에 이 정적 Header를 포함합니다.",
             },
+            body_config: {
+              label: "요청 Body",
+              description:
+                "표준 알림 Body를 사용하거나 변수로 사용자 지정 JSON 또는 텍스트 Body를 구성합니다.",
+            },
             endpoint_path: {
               label: "추가 경로",
               description:
                 "선택 사항. 전송하기 전에 기본 Webhook URL에 추가됩니다.",
+            },
+            body_override: {
+              label: "요청 Body 재정의",
+              description:
+                "Provider Body를 상속하거나 이 알림 대상에 대해서만 재정의합니다.",
             },
             extra_headers_json: {
               label: "추가 헤더 JSON",
@@ -3569,6 +3579,34 @@ export const koKRServer = {
               "Header {name}의 값이 {max}바이트를 초과합니다.",
             headersTooLarge:
               "전체 사용자 지정 Header 크기는 {max}바이트를 초과할 수 없습니다.",
+            invalidBodyConfig: "Webhook Body 설정이 올바르지 않습니다.",
+            invalidBodyMode:
+              "Webhook Body 모드 {mode}이(가) 올바르지 않습니다.",
+            invalidBodyFormat:
+              "Webhook Body 형식 {format}이(가) 올바르지 않습니다.",
+            bodyTemplateRequired:
+              "사용자 지정 Webhook Body 템플릿이 필요합니다.",
+            bodyTemplateTooLarge:
+              "Webhook Body 템플릿은 {max}바이트를 초과할 수 없습니다.",
+            invalidBodyTemplateJson:
+              "Webhook JSON Body 템플릿이 올바른 JSON이 아닙니다.",
+            unclosedBodyVariable: "Webhook Body 변수가 닫히지 않았습니다.",
+            invalidBodyVariable:
+              "Webhook Body 변수 {path}이(가) 올바르지 않습니다.",
+            tooManyBodyVariables:
+              "Webhook Body 템플릿에는 최대 {max}개의 변수를 사용할 수 있습니다.",
+            invalidBodyContentType:
+              "Webhook Body Content-Type이 올바르지 않습니다.",
+            bodyContentTypeTooLong:
+              "Webhook Body Content-Type은 {max}바이트를 초과할 수 없습니다.",
+            duplicateRenderedBodyKey:
+              "Webhook Body 변수로 인해 JSON 키가 중복되었습니다.",
+            renderedBodyTooLarge:
+              "렌더링된 Webhook Body는 {max}바이트를 초과할 수 없습니다.",
+            invalidBodySample:
+              "Webhook Body 샘플 컨텍스트는 JSON 객체여야 합니다.",
+            bodySampleTooLarge:
+              "Webhook Body 샘플 컨텍스트는 {max}바이트를 초과할 수 없습니다.",
           },
         },
         magicpush: {

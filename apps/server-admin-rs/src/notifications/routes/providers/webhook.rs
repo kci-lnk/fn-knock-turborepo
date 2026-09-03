@@ -59,11 +59,46 @@ fn webhook_headers_schema() -> SchemaField {
         max: None,
         options: Vec::new(),
         constraints: Some(json!({
+            "kind": "headers",
             "max_items": WEBHOOK_MAX_CUSTOM_HEADERS,
             "max_name_bytes": WEBHOOK_MAX_HEADER_NAME_BYTES,
             "max_value_bytes": WEBHOOK_MAX_HEADER_VALUE_BYTES,
             "max_total_bytes": WEBHOOK_MAX_HEADERS_TOTAL_BYTES,
             "reserved_names": WEBHOOK_RESERVED_HEADER_NAMES
+        })),
+    }
+}
+
+fn webhook_body_schema(
+    key: &'static str,
+    label: &'static str,
+    scope: WebhookBodyScope,
+) -> SchemaField {
+    let (scope_name, default_mode) = match scope {
+        WebhookBodyScope::Provider => ("provider", "standard"),
+        WebhookBodyScope::Target => ("target", "inherit"),
+    };
+    SchemaField {
+        key,
+        label,
+        field_type: "webhook_body",
+        required: false,
+        sensitive: scope == WebhookBodyScope::Provider,
+        placeholder: None,
+        default_value: Some(json!({ "mode": default_mode })),
+        min: None,
+        max: None,
+        options: Vec::new(),
+        constraints: Some(json!({
+            "kind": "webhook_body",
+            "scope": scope_name,
+            "formats": ["json", "text"],
+            "variable_roots": WEBHOOK_BODY_VARIABLE_ROOTS,
+            "max_template_bytes": WEBHOOK_MAX_BODY_TEMPLATE_BYTES,
+            "max_sample_bytes": WEBHOOK_MAX_BODY_SAMPLE_BYTES,
+            "max_placeholders": WEBHOOK_MAX_BODY_PLACEHOLDERS,
+            "max_rendered_bytes": WEBHOOK_MAX_RENDERED_BODY_BYTES,
+            "max_content_type_bytes": WEBHOOK_MAX_CONTENT_TYPE_BYTES
         })),
     }
 }
@@ -206,7 +241,7 @@ pub(in crate::notifications::routes) fn webhook_definition() -> ProviderDefiniti
     ProviderDefinition {
         provider_type: "webhook",
         label: "Webhook",
-        description: "Send a JSON payload to a custom webhook endpoint.",
+        description: "Send a standard or custom JSON or text payload to an HTTP endpoint.",
         connection_schema: vec![
             string_schema("url", "Webhook URL", true, true, None)
                 .placeholder("https://example.com/hooks/fn-knock"),
@@ -215,14 +250,18 @@ pub(in crate::notifications::routes) fn webhook_definition() -> ProviderDefiniti
             string_schema("shared_secret", "Shared secret", false, true, None)
                 .placeholder("secret"),
             webhook_headers_schema(),
+            webhook_body_schema("body_config", "Request body", WebhookBodyScope::Provider),
         ],
         target_schema: vec![
             string_schema("endpoint_path", "Endpoint path", false, false, None)
                 .placeholder("/alerts"),
-            json_schema("extra_body_json", "Extra body", false)
-                .placeholder(r#"{"service":"gateway"}"#),
+            webhook_body_schema(
+                "body_override",
+                "Request body override",
+                WebhookBodyScope::Target,
+            ),
         ],
-        sensitive_fields: vec!["url", "shared_secret", "custom_headers"],
+        sensitive_fields: vec!["url", "shared_secret", "custom_headers", "body_config"],
         supports_markdown: true,
         supports_actions: true,
         supports_mentions: true,
@@ -281,6 +320,78 @@ pub(in crate::notifications::routes) fn resolve_webhook_headers(
         .unwrap_or_else(|| Ok(Vec::new()))
 }
 
+#[derive(Clone, Debug, Default)]
+pub(in crate::notifications::routes) struct WebhookTestOptions {
+    pub(in crate::notifications::routes) target_config: Option<Map<String, Value>>,
+    pub(in crate::notifications::routes) sample_context: Option<Value>,
+}
+
+pub(in crate::notifications::routes) fn webhook_test_options_from_body(
+    body: &Value,
+    translator: &Translator,
+) -> NotifyResult<WebhookTestOptions> {
+    let target_config = if let Some(raw_target) = body.get("target_config") {
+        let raw_target = raw_target.as_object().ok_or_else(|| {
+            NotifyError::BadRequest(notification_provider_error_text(
+                translator,
+                "webhook",
+                "invalidBodyConfig",
+                &[],
+            ))
+        })?;
+        if let Some(body_override) = raw_target.get("body_override") {
+            parse_webhook_body_config(body_override, WebhookBodyScope::Target)
+                .map_err(|error| NotifyError::BadRequest(error.text(translator)))?;
+        }
+        let definition = webhook_definition();
+        let mut normalized = normalize_schema_config(raw_target, &definition.target_schema)?;
+        if let Some(extra_headers) = raw_target.get("extra_headers_json") {
+            let extra_headers = normalize_json_field(extra_headers, "Extra headers")?;
+            if !extra_headers.is_null() {
+                normalized.insert("extra_headers_json".to_string(), extra_headers);
+            }
+        }
+        if let Some(extra_body) = raw_target.get("extra_body_json") {
+            let extra_body = normalize_json_field(extra_body, "Extra body")?;
+            if !extra_body.is_null() {
+                normalized.insert("extra_body_json".to_string(), extra_body);
+            }
+        }
+        Some(normalized)
+    } else {
+        None
+    };
+    Ok(WebhookTestOptions {
+        target_config,
+        sample_context: body.get("sample_context").cloned(),
+    })
+}
+
+fn webhook_body_error_result(
+    error: &WebhookBodyValidationError,
+    translator: &Translator,
+) -> ProviderTestResult {
+    ProviderTestResult {
+        success: false,
+        retryable: false,
+        message: error.text(translator),
+        request_summary: None,
+        response_summary: None,
+    }
+}
+
+fn prepare_webhook_body(
+    config: &Map<String, Value>,
+    target_config: Option<&Map<String, Value>>,
+    standard_body: &Value,
+    template_context: &Value,
+) -> Result<RenderedWebhookBody, WebhookBodyValidationError> {
+    match resolve_webhook_body_config(config, target_config)? {
+        Some(body_config) => render_webhook_body(&body_config, template_context),
+        None => render_standard_webhook_body(standard_body),
+    }
+}
+
 #[allow(clippy::too_many_arguments)]
 async fn execute_webhook_request(
     state: &AppState,
@@ -288,7 +399,7 @@ async fn execute_webhook_request(
     target_config: Option<&Map<String, Value>>,
     method: String,
     url: String,
-    body: Value,
+    body: RenderedWebhookBody,
     timeout_seconds: i64,
     translator: &Translator,
 ) -> ProviderTestResult {
@@ -308,7 +419,7 @@ async fn execute_webhook_request(
         "PUT" => state.fallback_client.put(&url),
         _ => state.fallback_client.post(&url),
     }
-    .header("content-type", "application/json")
+    .header("content-type", body.content_type.as_str())
     .header("x-fn-knock-provider", "webhook");
     let mut header_names = vec![
         "content-type".to_string(),
@@ -331,15 +442,15 @@ async fn execute_webhook_request(
         "method": method,
         "url": url,
         "header_names": header_names,
-        "body_preview": {
-            "title": body.pointer("/message/title").cloned().unwrap_or(Value::Null),
-            "severity": body.pointer("/message/severity").cloned().unwrap_or(Value::Null),
-            "event_id": body.pointer("/context/event_id").cloned().unwrap_or(Value::Null)
-        }
+        "body_format": body.format.as_str(),
+        "content_type": body.content_type,
+        "body_bytes": body.bytes.len(),
+        "missing_variable_count": body.missing_variables.len()
     });
+    let request_body = body.bytes;
 
     match time::timeout(Duration::from_secs(timeout_seconds.max(1) as u64), async {
-        let response = request.json(&body).send().await?;
+        let response = request.body(request_body).send().await?;
         Ok::<_, reqwest::Error>(read_provider_response(response).await)
     })
     .await
@@ -390,10 +501,20 @@ async fn execute_webhook_request(
     }
 }
 
+#[cfg(test)]
 pub(in crate::notifications::routes) async fn send_webhook_test(
     state: &AppState,
     provider: &Value,
     translator: &Translator,
+) -> Result<ProviderTestResult, String> {
+    send_webhook_test_with_options(state, provider, translator, WebhookTestOptions::default()).await
+}
+
+pub(in crate::notifications::routes) async fn send_webhook_test_with_options(
+    state: &AppState,
+    provider: &Value,
+    translator: &Translator,
+    options: WebhookTestOptions,
 ) -> Result<ProviderTestResult, String> {
     let config = provider
         .get("connection_config")
@@ -401,7 +522,7 @@ pub(in crate::notifications::routes) async fn send_webhook_test(
         .ok_or_else(|| {
             notification_provider_error_text(translator, "webhook", "missingUrl", &[])
         })?;
-    let url = config
+    let base_url = config
         .get("url")
         .and_then(Value::as_str)
         .map(str::trim)
@@ -409,25 +530,180 @@ pub(in crate::notifications::routes) async fn send_webhook_test(
         .ok_or_else(|| {
             notification_provider_error_text(translator, "webhook", "missingUrl", &[])
         })?;
+    let target_config = options.target_config.as_ref();
+    let endpoint_path = target_config
+        .and_then(|target| target.get("endpoint_path"))
+        .and_then(Value::as_str)
+        .map(str::trim)
+        .unwrap_or("");
+    let url = resolve_webhook_url(base_url, endpoint_path);
     let message = build_provider_test_message(translator);
-    let body = json!({
+    let extra_body = target_config
+        .and_then(|target| target.get("extra_body_json"))
+        .cloned()
+        .unwrap_or_else(|| json!({}));
+    let mode = if target_config.is_some() {
+        "target_test"
+    } else {
+        "provider_test"
+    };
+    let standard_body = json!({
         "source": "fn_knock",
         "provider_type": "webhook",
-        "message": message,
-        "context": { "mode": "provider_test" },
-        "payload": { "extra_body": {} }
+        "message": message.clone(),
+        "context": { "mode": mode },
+        "payload": { "extra_body": extra_body.clone() }
     });
+    let target = json!({
+        "id": "ntftarget_test",
+        "provider_id": provider.get("id").cloned().unwrap_or(Value::Null)
+    });
+    let rule = json!({
+        "id": "ntfrule_test",
+        "name": "Webhook test",
+        "event_type": "FN_EVENT_AUTH_LOGIN_SUCCESS",
+        "group_by": "GLOBAL",
+        "window_seconds": 60,
+        "threshold_count": 1,
+        "cooldown_seconds": 60
+    });
+    let event = json!({
+        "id": "evt_webhook_test",
+        "type": "FN_EVENT_AUTH_LOGIN_SUCCESS",
+        "source": "SERVER_ADMIN",
+        "level": "INFO",
+        "happened_at": message.get("occurred_at").cloned().unwrap_or(Value::Null),
+        "dedupe_key": Value::Null,
+        "subject": { "kind": "APPLICATION", "id": "fn-knock" },
+        "tags": ["test"],
+        "payload": { "test": true }
+    });
+    let template_context = build_webhook_template_context(
+        &message,
+        &event,
+        json!({
+            "mode": mode,
+            "trigger_id": Value::Null,
+            "delivery_id": Value::Null,
+            "event_id": "evt_webhook_test",
+            "rule_id": "ntfrule_test",
+            "target_id": "ntftarget_test",
+            "provider_id": provider.get("id").cloned().unwrap_or(Value::Null)
+        }),
+        &rule,
+        &target,
+        provider,
+        extra_body,
+    );
+    let template_context = match apply_webhook_sample_context(
+        template_context,
+        options.sample_context.as_ref(),
+        mode,
+        provider,
+    ) {
+        Ok(context) => context,
+        Err(error) => return Ok(webhook_body_error_result(&error, translator)),
+    };
+    let body = match prepare_webhook_body(config, target_config, &standard_body, &template_context)
+    {
+        Ok(body) => body,
+        Err(error) => return Ok(webhook_body_error_result(&error, translator)),
+    };
     Ok(execute_webhook_request(
         state,
         config,
-        None,
+        target_config,
         webhook_method(config),
-        url.to_string(),
+        url,
         body,
         provider_timeout_seconds(provider, 5),
         translator,
     )
     .await)
+}
+
+pub(in crate::notifications::routes) fn preview_webhook_body(
+    provider: &Value,
+    translator: &Translator,
+    options: WebhookTestOptions,
+) -> Result<Value, String> {
+    let config = provider
+        .get("connection_config")
+        .and_then(Value::as_object)
+        .ok_or_else(|| {
+            notification_provider_error_text(translator, "webhook", "missingUrl", &[])
+        })?;
+    let target_config = options.target_config.as_ref();
+    let message = build_provider_test_message(translator);
+    let extra_body = target_config
+        .and_then(|target| target.get("extra_body_json"))
+        .cloned()
+        .unwrap_or_else(|| json!({}));
+    let mode = if target_config.is_some() {
+        "target_test"
+    } else {
+        "provider_test"
+    };
+    let standard_body = json!({
+        "source": "fn_knock",
+        "provider_type": "webhook",
+        "message": message.clone(),
+        "context": { "mode": mode },
+        "payload": { "extra_body": extra_body.clone() }
+    });
+    let target = json!({
+        "id": "ntftarget_test",
+        "provider_id": provider.get("id").cloned().unwrap_or(Value::Null)
+    });
+    let rule = json!({
+        "id": "ntfrule_test",
+        "name": "Webhook test",
+        "event_type": "FN_EVENT_AUTH_LOGIN_SUCCESS",
+        "group_by": "GLOBAL",
+        "window_seconds": 60,
+        "threshold_count": 1,
+        "cooldown_seconds": 60
+    });
+    let event = json!({
+        "id": "evt_webhook_test",
+        "type": "FN_EVENT_AUTH_LOGIN_SUCCESS",
+        "source": "SERVER_ADMIN",
+        "level": "INFO",
+        "happened_at": message.get("occurred_at").cloned().unwrap_or(Value::Null),
+        "dedupe_key": Value::Null,
+        "subject": { "kind": "APPLICATION", "id": "fn-knock" },
+        "tags": ["test"],
+        "payload": { "test": true }
+    });
+    let context = build_webhook_template_context(
+        &message,
+        &event,
+        json!({
+            "mode": mode,
+            "trigger_id": Value::Null,
+            "delivery_id": Value::Null,
+            "event_id": "evt_webhook_test",
+            "rule_id": "ntfrule_test",
+            "target_id": "ntftarget_test",
+            "provider_id": provider.get("id").cloned().unwrap_or(Value::Null)
+        }),
+        &rule,
+        &target,
+        provider,
+        extra_body,
+    );
+    let context =
+        apply_webhook_sample_context(context, options.sample_context.as_ref(), mode, provider)
+            .map_err(|error| error.text(translator))?;
+    let body = prepare_webhook_body(config, target_config, &standard_body, &context)
+        .map_err(|error| error.text(translator))?;
+    Ok(json!({
+        "format": body.format.as_str(),
+        "content_type": body.content_type,
+        "body": String::from_utf8_lossy(&body.bytes),
+        "byte_length": body.bytes.len(),
+        "missing_variables": body.missing_variables
+    }))
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -472,10 +748,10 @@ pub(in crate::notifications::routes) async fn send_webhook_delivery(
         .get("extra_body_json")
         .cloned()
         .unwrap_or_else(|| json!({}));
-    let body = json!({
+    let standard_body = json!({
         "source": "fn_knock",
         "provider_type": "webhook",
-        "message": message,
+        "message": message.clone(),
         "context": {
             "trigger_id": trigger.get("id").cloned().unwrap_or(Value::Null),
             "delivery_id": delivery.get("id").cloned().unwrap_or(Value::Null),
@@ -485,6 +761,51 @@ pub(in crate::notifications::routes) async fn send_webhook_delivery(
         },
         "payload": { "extra_body": extra_body }
     });
+    let event = delivery
+        .get("webhook_event_snapshot")
+        .cloned()
+        .unwrap_or_else(|| {
+            json!({
+                "id": delivery.get("event_id").cloned().unwrap_or(Value::Null),
+                "type": message.pointer("/metadata/event_type").cloned().unwrap_or(Value::Null),
+                "source": message.pointer("/metadata/event_source").cloned().unwrap_or(Value::Null),
+                "level": message.pointer("/metadata/event_level").cloned().unwrap_or(Value::Null),
+                "happened_at": message.get("occurred_at").cloned().unwrap_or(Value::Null),
+                "payload": {}
+            })
+        });
+    let rule_snapshot = trigger.get("rule_snapshot").unwrap_or(rule);
+    let target_snapshot = delivery.get("target_snapshot").unwrap_or(target);
+    let provider_snapshot = delivery.get("provider_snapshot").unwrap_or(provider);
+    let template_context = build_webhook_template_context(
+        &message,
+        &event,
+        json!({
+            "mode": "delivery",
+            "trigger_id": trigger.get("id").cloned().unwrap_or(Value::Null),
+            "delivery_id": delivery.get("id").cloned().unwrap_or(Value::Null),
+            "rule_id": rule.get("id").cloned().unwrap_or(Value::Null),
+            "target_id": target.get("id").cloned().unwrap_or(Value::Null),
+            "provider_id": provider.get("id").cloned().unwrap_or(Value::Null),
+            "event_id": delivery.get("event_id").cloned().unwrap_or(Value::Null)
+        }),
+        rule_snapshot,
+        target_snapshot,
+        provider_snapshot,
+        target_config
+            .get("extra_body_json")
+            .cloned()
+            .unwrap_or_else(|| json!({})),
+    );
+    let body = match prepare_webhook_body(
+        &config,
+        Some(&target_config),
+        &standard_body,
+        &template_context,
+    ) {
+        Ok(body) => body,
+        Err(error) => return webhook_body_error_result(&error, translator),
+    };
     execute_webhook_request(
         state,
         &config,

@@ -1216,6 +1216,15 @@ pub(crate) fn build_openapi_document() -> Value {
     insert_typed_enveloped_operation(
         &mut paths,
         &typed_notifications,
+        "/api/admin/notifications/providers/webhook/preview",
+        "post",
+        "NotificationWebhookBodyPreviewData",
+        None,
+        Some("NotificationWebhookBodyPreviewBodyData"),
+    );
+    insert_typed_enveloped_operation(
+        &mut paths,
+        &typed_notifications,
         "/api/admin/notifications/providers/{id}",
         "get",
         "NotificationProviderDetailData",
@@ -4899,7 +4908,7 @@ mod tests {
                 }
             }
         }
-        assert_eq!(operations, 451);
+        assert_eq!(operations, 452);
         assert_eq!(documented_tags, operation_tags);
         assert!(documented_tags.iter().all(|tag| {
             tags.iter().any(|item| {
@@ -5570,7 +5579,7 @@ mod tests {
             .filter_map(Value::as_object)
             .flat_map(|path| path.values())
             .collect::<Vec<_>>();
-        assert_eq!(operations.len(), 451);
+        assert_eq!(operations.len(), 452);
         assert!(
             operations
                 .iter()

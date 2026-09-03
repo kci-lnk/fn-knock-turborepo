@@ -13,10 +13,18 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import type {
+  NotificationHeaderConstraints,
   NotificationHeaderEntry,
   NotificationSchemaField,
 } from "../../../types";
 import WebhookHeadersEditor from "./WebhookHeadersEditor.vue";
+import WebhookBodyTemplateEditor from "./WebhookBodyTemplateEditor.vue";
+import type {
+  WebhookBodyConstraints,
+  WebhookBodyPreview,
+  WebhookBodyScope,
+} from "./webhook-body";
+import { coerceWebhookBodyConfig } from "./webhook-body";
 import { coerceWebhookHeaderEntries } from "./webhook-headers";
 
 const a11yId = useId();
@@ -38,6 +46,8 @@ const props = withDefaults(
 
 const emit = defineEmits<{
   "update:modelValue": [value: Record<string, unknown>];
+  "webhook-body-preview": [];
+  "webhook-body-test": [];
 }>();
 
 const configuredSensitiveFieldSet = computed(
@@ -51,6 +61,14 @@ const updateField = (key: string, value: unknown) => {
   emit("update:modelValue", {
     ...props.modelValue,
     [key]: value,
+  });
+};
+
+const updateWebhookBodyField = (key: string, value: unknown) => {
+  emit("update:modelValue", {
+    ...props.modelValue,
+    [key]: value,
+    __webhook_body_preview: null,
   });
 };
 
@@ -69,6 +87,18 @@ const readHeaderFieldValue = (
   field: NotificationSchemaField,
 ): NotificationHeaderEntry[] =>
   coerceWebhookHeaderEntries(readFieldValue(field));
+
+const readHeaderConstraints = (field: NotificationSchemaField) =>
+  field.constraints as NotificationHeaderConstraints | undefined;
+
+const readBodyFieldValue = (field: NotificationSchemaField) =>
+  coerceWebhookBodyConfig(
+    readFieldValue(field),
+    (field.constraints as WebhookBodyConstraints | undefined)?.scope ===
+      "target"
+      ? ("target" satisfies WebhookBodyScope)
+      : ("provider" satisfies WebhookBodyScope),
+  );
 
 const resolvePlaceholder = (field: NotificationSchemaField) => {
   if (
@@ -91,7 +121,11 @@ const resolvePlaceholder = (field: NotificationSchemaField) => {
     >
       <div class="space-y-1">
         <Label
-          :for="field.type === 'headers' ? undefined : getFieldDomId(field)"
+          :for="
+            ['headers', 'webhook_body'].includes(field.type)
+              ? undefined
+              : getFieldDomId(field)
+          "
           class="text-sm font-medium"
         >
           {{ field.label }}
@@ -167,8 +201,29 @@ const resolvePlaceholder = (field: NotificationSchemaField) => {
       <WebhookHeadersEditor
         v-else-if="field.type === 'headers'"
         :model-value="readHeaderFieldValue(field)"
-        :constraints="field.constraints"
+        :constraints="readHeaderConstraints(field)"
         @update:model-value="(value) => updateField(field.key, value)"
+      />
+
+      <WebhookBodyTemplateEditor
+        v-else-if="field.type === 'webhook_body'"
+        :model-value="readBodyFieldValue(field)"
+        :constraints="field.constraints as WebhookBodyConstraints"
+        :sample-context="String(modelValue.__webhook_sample_context || '')"
+        :preview="
+          (modelValue.__webhook_body_preview as WebhookBodyPreview | null) ||
+          null
+        "
+        :previewing="Boolean(modelValue.__webhook_body_previewing)"
+        :testing="Boolean(modelValue.__webhook_body_testing)"
+        @update:model-value="
+          (value) => updateWebhookBodyField(field.key, value)
+        "
+        @update:sample-context="
+          (value) => updateWebhookBodyField('__webhook_sample_context', value)
+        "
+        @preview="emit('webhook-body-preview')"
+        @test="emit('webhook-body-test')"
       />
 
       <Textarea

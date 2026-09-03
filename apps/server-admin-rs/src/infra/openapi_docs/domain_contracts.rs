@@ -1042,6 +1042,8 @@ struct BackupImportResultData {
     ExternalCertificateDeployData,
     NotificationFieldOptionData,
     NotificationHeaderConstraintsData,
+    NotificationWebhookBodyConstraintsData,
+    NotificationSchemaConstraintsData,
     NotificationSchemaFieldData,
     NotificationProviderCapabilitiesData,
     NotificationProviderDefinitionData,
@@ -1053,8 +1055,10 @@ struct BackupImportResultData {
     NotificationProviderCreateBodyData,
     NotificationProviderUpdateBodyData,
     NotificationProviderTestBodyData,
+    NotificationWebhookBodyPreviewBodyData,
     NotificationProviderTestResultData,
     NotificationProviderTestResponseData,
+    NotificationWebhookBodyPreviewData,
     NotificationTemplateData,
     NotificationDeliveryPolicyData,
     NotificationTargetData,
@@ -3376,6 +3380,7 @@ pub(super) fn components() -> Map<String, Value> {
         "NotificationProviderSnapshotData",
         "NotificationProviderCreateBodyData",
         "NotificationProviderTestBodyData",
+        "NotificationWebhookBodyPreviewBodyData",
     ] {
         set_property_enum(&mut schemas, schema, "type", &notification_provider_types);
     }
@@ -3389,7 +3394,39 @@ pub(super) fn components() -> Map<String, Value> {
         &mut schemas,
         "NotificationSchemaFieldData",
         "type",
-        &["string", "number", "boolean", "select", "json", "headers"],
+        &[
+            "string",
+            "number",
+            "boolean",
+            "select",
+            "json",
+            "headers",
+            "webhook_body",
+        ],
+    );
+    set_property_enum(
+        &mut schemas,
+        "NotificationHeaderConstraintsData",
+        "kind",
+        &["headers"],
+    );
+    set_property_enum(
+        &mut schemas,
+        "NotificationWebhookBodyConstraintsData",
+        "kind",
+        &["webhook_body"],
+    );
+    set_property_enum(
+        &mut schemas,
+        "NotificationWebhookBodyConstraintsData",
+        "scope",
+        &["provider", "target"],
+    );
+    set_property_enum(
+        &mut schemas,
+        "NotificationWebhookBodyPreviewData",
+        "format",
+        &["json", "text"],
     );
     for schema in [
         "NotificationProviderData",
@@ -3407,6 +3444,7 @@ pub(super) fn components() -> Map<String, Value> {
         "NotificationProviderCreateBodyData",
         "NotificationProviderUpdateBodyData",
         "NotificationProviderTestBodyData",
+        "NotificationWebhookBodyPreviewBodyData",
     ] {
         set_property_metadata(
             &mut schemas,

@@ -46,6 +46,7 @@ defineProps<{
 const emit = defineEmits<{
   save: [];
   test: [];
+  "preview-webhook-body": [];
   "type-change": [value: unknown];
   "update:open": [value: boolean];
 }>();
@@ -168,6 +169,7 @@ const { t } = useI18n();
             :configured-sensitive-fields="configuredSensitiveFields"
             :reveal-sensitive-values="mode === 'edit'"
             @update:model-value="form.connection_config = $event"
+            @webhook-body-preview="emit('preview-webhook-body')"
           />
         </div>
       </div>

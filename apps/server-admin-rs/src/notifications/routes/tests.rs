@@ -60,6 +60,13 @@ fn request_header_value<'a>(request: &'a str, expected_name: &str) -> Option<&'a
     })
 }
 
+fn request_body(request: &str) -> &str {
+    request
+        .split_once("\r\n\r\n")
+        .map(|(_, body)| body)
+        .unwrap_or("")
+}
+
 #[test]
 fn notification_trace_filter_normalizes_input_and_supports_snapshot_fallback() {
     let trace_id = "trc_3f93d40a-89ea-4dbe-a04f-67692778d973";
@@ -94,6 +101,7 @@ fn delivery_records_omit_empty_trace_ids_but_keep_real_correlations() {
             message_snapshot: json!({}),
             target_snapshot: json!({}),
             provider_snapshot: json!({}),
+            webhook_event_snapshot: None,
             attempt_count: 0,
             triggered_at: "2026-08-29T00:00:00Z".to_string(),
             next_retry_at: None,
@@ -131,7 +139,12 @@ fn masks_sensitive_provider_values_like_node() {
         "type": "webhook",
         "connection_config": {
             "url": "https://example.com/hook",
-            "custom_headers": [{ "name": "Authorization", "value": "Bearer secret" }]
+            "custom_headers": [{ "name": "Authorization", "value": "Bearer secret" }],
+            "body_config": {
+                "mode": "custom",
+                "format": "text",
+                "template": "private body template"
+            }
         }
     }))
     .unwrap();
@@ -139,7 +152,12 @@ fn masks_sensitive_provider_values_like_node() {
         masked.pointer("/connection_config_masked/custom_headers"),
         Some(&json!("[configured]"))
     );
+    assert_eq!(
+        masked.pointer("/connection_config_masked/body_config"),
+        Some(&json!("[configured]"))
+    );
     assert!(!masked.to_string().contains("Bearer secret"));
+    assert!(!masked.to_string().contains("private body template"));
 }
 
 #[test]
@@ -219,6 +237,307 @@ fn webhook_header_schema_is_provider_scoped_and_advertises_constraints() {
             .all(|field| field.key != "extra_headers_json")
     );
     assert!(definition.sensitive_fields.contains(&"custom_headers"));
+}
+
+#[test]
+fn webhook_body_schema_advertises_scopes_limits_and_hides_legacy_editor() {
+    let definition = provider_definition("webhook").unwrap();
+    let provider_body = definition
+        .connection_schema
+        .iter()
+        .find(|field| field.key == "body_config")
+        .unwrap();
+    let target_body = definition
+        .target_schema
+        .iter()
+        .find(|field| field.key == "body_override")
+        .unwrap();
+    assert_eq!(provider_body.field_type, "webhook_body");
+    assert!(provider_body.sensitive);
+    assert_eq!(
+        provider_body.default_value,
+        Some(json!({ "mode": "standard" }))
+    );
+    assert_eq!(target_body.field_type, "webhook_body");
+    assert_eq!(
+        target_body.default_value,
+        Some(json!({ "mode": "inherit" }))
+    );
+    assert_eq!(
+        provider_body.constraints.as_ref().unwrap().get("scope"),
+        Some(&json!("provider"))
+    );
+    assert_eq!(
+        target_body.constraints.as_ref().unwrap().get("scope"),
+        Some(&json!("target"))
+    );
+    assert_eq!(
+        provider_body
+            .constraints
+            .as_ref()
+            .unwrap()
+            .get("max_template_bytes"),
+        Some(&json!(WEBHOOK_MAX_BODY_TEMPLATE_BYTES))
+    );
+    assert!(
+        definition
+            .target_schema
+            .iter()
+            .all(|field| field.key != "extra_body_json")
+    );
+    assert!(definition.sensitive_fields.contains(&"body_config"));
+}
+
+#[test]
+fn webhook_body_configs_normalize_validate_and_resolve_precedence() {
+    assert_eq!(
+        normalize_webhook_body_config(&json!({}), WebhookBodyScope::Provider).unwrap(),
+        json!({ "mode": "standard" })
+    );
+    assert_eq!(
+        normalize_webhook_body_config(&json!({}), WebhookBodyScope::Target).unwrap(),
+        json!({ "mode": "inherit" })
+    );
+    let provider_custom = json!({
+        "mode": "custom",
+        "format": "json",
+        "content_type": "application/problem+json",
+        "template": "{\"provider\":true}"
+    });
+    let target_custom = json!({
+        "mode": "custom",
+        "format": "text",
+        "content_type": "text/plain; charset=utf-8",
+        "template": "target"
+    });
+    let provider = Map::from_iter([("body_config".to_string(), provider_custom.clone())]);
+    let inherited = Map::from_iter([("body_override".to_string(), json!({ "mode": "inherit" }))]);
+    assert_eq!(
+        resolve_webhook_body_config(&provider, Some(&inherited))
+            .unwrap()
+            .unwrap()
+            .format,
+        WebhookBodyFormat::Json
+    );
+    let overridden = Map::from_iter([("body_override".to_string(), target_custom)]);
+    assert_eq!(
+        resolve_webhook_body_config(&provider, Some(&overridden))
+            .unwrap()
+            .unwrap()
+            .format,
+        WebhookBodyFormat::Text
+    );
+    assert!(
+        resolve_webhook_body_config(&Map::new(), None)
+            .unwrap()
+            .is_none()
+    );
+
+    for invalid in [
+        json!(0),
+        json!({ "mode": true }),
+        json!({ "mode": "custom", "format": false, "template": "{}" }),
+        json!({ "mode": "custom", "format": "text", "template": 42 }),
+        json!({ "mode": "custom", "format": "text", "template": "", "content_type": 42 }),
+        json!({ "mode": "inherit" }),
+        json!({ "mode": "custom", "format": "yaml", "template": "{}" }),
+        json!({ "mode": "custom", "format": "json", "template": "{" }),
+        json!({ "mode": "custom", "format": "text", "template": "{{secret.value}}" }),
+        json!({ "mode": "custom", "format": "text", "template": "{{message.title}}", "content_type": "text/plain\r\nX-Evil: yes" }),
+        json!({ "mode": "custom", "format": "text", "template": "{{message.title}}", "content_type": "not a mime" }),
+    ] {
+        assert!(parse_webhook_body_config(&invalid, WebhookBodyScope::Provider).is_err());
+    }
+
+    let max_template = json!({
+        "mode": "custom",
+        "format": "text",
+        "template": "x".repeat(WEBHOOK_MAX_BODY_TEMPLATE_BYTES)
+    });
+    parse_webhook_body_config(&max_template, WebhookBodyScope::Provider).unwrap();
+    let oversized_template = json!({
+        "mode": "custom",
+        "format": "text",
+        "template": "x".repeat(WEBHOOK_MAX_BODY_TEMPLATE_BYTES + 1)
+    });
+    assert!(parse_webhook_body_config(&oversized_template, WebhookBodyScope::Provider).is_err());
+
+    let max_placeholders = json!({
+        "mode": "custom",
+        "format": "text",
+        "template": "{{message.title}}".repeat(WEBHOOK_MAX_BODY_PLACEHOLDERS)
+    });
+    parse_webhook_body_config(&max_placeholders, WebhookBodyScope::Provider).unwrap();
+    let too_many_placeholders = json!({
+        "mode": "custom",
+        "format": "text",
+        "template": "{{message.title}}".repeat(WEBHOOK_MAX_BODY_PLACEHOLDERS + 1)
+    });
+    assert!(parse_webhook_body_config(&too_many_placeholders, WebhookBodyScope::Provider).is_err());
+}
+
+#[test]
+fn webhook_body_renderer_preserves_json_types_paths_escapes_and_missing_values() {
+    let context = json!({
+        "message": { "title": "Alert" },
+        "event": { "payload": { "ip": "192.0.2.10", "items": [1, { "ok": true }] } }
+    });
+    let json_config = parse_webhook_body_config(
+        &json!({
+            "mode": "custom",
+            "format": "json",
+            "template": r#"{"payload":"{{event.payload}}","item":"{{event.payload.items.1}}","embedded":"ip={{event.payload.ip}} items={{event.payload.items}}","missing":"{{event.payload.none}}","missing_text":"x{{event.payload.none}}y","literal":"\\{{message.title}}"}"#
+        }),
+        WebhookBodyScope::Provider,
+    )
+    .unwrap();
+    let rendered = render_webhook_body(&json_config, &context).unwrap();
+    let body: Value = serde_json::from_slice(&rendered.bytes).unwrap();
+    assert_eq!(body.pointer("/payload/ip"), Some(&json!("192.0.2.10")));
+    assert_eq!(body.pointer("/item/ok"), Some(&json!(true)));
+    assert_eq!(
+        body.get("embedded"),
+        Some(&json!("ip=192.0.2.10 items=[1,{\"ok\":true}]"))
+    );
+    assert_eq!(body.get("missing"), Some(&Value::Null));
+    assert_eq!(body.get("missing_text"), Some(&json!("xy")));
+    assert_eq!(body.get("literal"), Some(&json!("{{message.title}}")));
+    assert_eq!(rendered.missing_variables, vec!["event.payload.none"]);
+
+    let text_config = parse_webhook_body_config(
+        &json!({
+            "mode": "custom",
+            "format": "text",
+            "template": r#"\{{literal}} {{message.title}} {{event.payload.items.1}} {{event.payload.missing}}"#
+        }),
+        WebhookBodyScope::Provider,
+    )
+    .unwrap();
+    let rendered = render_webhook_body(&text_config, &context).unwrap();
+    assert_eq!(
+        String::from_utf8(rendered.bytes).unwrap(),
+        "{{literal}} Alert {\"ok\":true} "
+    );
+    assert_eq!(rendered.missing_variables, vec!["event.payload.missing"]);
+}
+
+#[test]
+fn webhook_sample_context_keeps_provider_authoritative_and_removes_event_trace_id() {
+    let provider = json!({ "id": "ntfprov_real", "name": "Real", "type": "webhook" });
+    let base = build_webhook_template_context(
+        &json!({ "title": "Base" }),
+        &json!({
+            "id": "evt_base",
+            "trace_id": "hidden-base",
+            "payload": { "trace_id": "hidden-nested-base" }
+        }),
+        json!({ "mode": "provider_test" }),
+        &json!({}),
+        &json!({}),
+        &provider,
+        json!({}),
+    );
+    let applied = apply_webhook_sample_context(
+        base,
+        Some(&json!({
+            "event": {
+                "id": "evt_sample",
+                "trace_id": "hidden-sample",
+                "payload": {
+                    "ip": "192.0.2.20",
+                    "trace_id": "hidden-nested-sample",
+                    "items": [{ "waf_trace_id": "hidden-array-sample" }]
+                }
+            },
+            "message": { "title": "Sample", "trace_id": "hidden-message" },
+            "provider": { "id": "spoofed", "shared_secret": "secret" },
+            "context": { "mode": "spoofed", "delivery_id": "sample-delivery", "secret": "hidden-context" },
+            "rule": { "id": "sample-rule", "shared_secret": "hidden-rule" },
+            "target": { "id": "sample-target", "endpoint_path": "/hidden" },
+            "legacy": { "extra_body": { "kept": true }, "secret": "hidden-legacy" }
+        })),
+        "target_test",
+        &provider,
+    )
+    .unwrap();
+    assert_eq!(applied.pointer("/event/id"), Some(&json!("evt_sample")));
+    assert!(applied.pointer("/event/trace_id").is_none());
+    assert!(applied.pointer("/event/payload/trace_id").is_none());
+    assert!(
+        applied
+            .pointer("/event/payload/items/0/waf_trace_id")
+            .is_none()
+    );
+    assert!(applied.pointer("/message/trace_id").is_none());
+    assert_eq!(
+        applied.pointer("/provider/id"),
+        Some(&json!("ntfprov_real"))
+    );
+    assert!(applied.pointer("/provider/shared_secret").is_none());
+    assert_eq!(
+        applied.pointer("/context/mode"),
+        Some(&json!("target_test"))
+    );
+    assert_eq!(
+        applied.pointer("/context/delivery_id"),
+        Some(&json!("sample-delivery"))
+    );
+    for path in [
+        "/context/secret",
+        "/rule/shared_secret",
+        "/target/endpoint_path",
+        "/legacy/secret",
+    ] {
+        assert!(applied.pointer(path).is_none(), "unexpected path {path}");
+    }
+    assert_eq!(
+        applied.pointer("/legacy/extra_body/kept"),
+        Some(&json!(true))
+    );
+
+    let oversized_sample = json!({ "message": "x".repeat(WEBHOOK_MAX_BODY_SAMPLE_BYTES) });
+    assert!(
+        apply_webhook_sample_context(
+            json!({}),
+            Some(&oversized_sample),
+            "provider_test",
+            &provider
+        )
+        .is_err()
+    );
+
+    let oversized_render = parse_webhook_body_config(
+        &json!({
+            "mode": "custom",
+            "format": "text",
+            "template": "{{message}}"
+        }),
+        WebhookBodyScope::Provider,
+    )
+    .unwrap();
+    assert!(
+        render_webhook_body(
+            &oversized_render,
+            &json!({ "message": "x".repeat(WEBHOOK_MAX_RENDERED_BODY_BYTES + 1) })
+        )
+        .is_err()
+    );
+
+    let duplicate_keys = parse_webhook_body_config(
+        &json!({
+            "mode": "custom",
+            "format": "json",
+            "template": "{\"{{message.first}}\":1,\"{{message.second}}\":2}"
+        }),
+        WebhookBodyScope::Provider,
+    )
+    .unwrap();
+    let duplicate_error = render_webhook_body(
+        &duplicate_keys,
+        &json!({ "message": { "first": "secret-key-value", "second": "secret-key-value" } }),
+    )
+    .unwrap_err();
+    assert!(!duplicate_error.default_text().contains("secret-key-value"));
 }
 
 #[test]
@@ -605,6 +924,172 @@ async fn webhook_tests_and_deliveries_share_headers_without_leaking_values() {
 }
 
 #[tokio::test]
+async fn webhook_custom_bodies_match_preview_test_and_delivery_without_leaking_content() {
+    let (_directory, state) = notification_test_state().await;
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let url = format!("http://{}", listener.local_addr().unwrap());
+    let receiver = tokio::spawn(async move {
+        let mut requests = Vec::new();
+        for _ in 0..3 {
+            let (stream, _) = listener.accept().await.unwrap();
+            requests.push(receive_webhook_request(stream).await);
+        }
+        requests
+    });
+    let provider = json!({
+        "id": "ntfprov_webhook_body",
+        "name": "Body webhook",
+        "type": "webhook",
+        "connection_config": {
+            "url": url,
+            "method": "POST",
+            "timeout_seconds": 5,
+            "body_config": {
+                "mode": "custom",
+                "format": "json",
+                "content_type": "application/problem+json",
+                "template": "{\"title\":\"{{message.title}}\",\"event\":\"{{event}}\",\"missing\":\"{{event.payload.missing}}\"}"
+            }
+        }
+    });
+    let translator = Translator::new("en");
+
+    let provider_options = WebhookTestOptions {
+        sample_context: Some(json!({
+            "message": { "title": "provider-body-secret" },
+            "event": { "id": "evt_provider", "trace_id": "must-not-render", "payload": {} }
+        })),
+        ..WebhookTestOptions::default()
+    };
+    let preview = preview_webhook_body(&provider, &translator, provider_options.clone()).unwrap();
+    assert_eq!(
+        preview.get("content_type"),
+        Some(&json!("application/problem+json"))
+    );
+    assert_eq!(
+        preview.get("missing_variables"),
+        Some(&json!(["event.payload.missing"]))
+    );
+    assert!(!preview.to_string().contains("must-not-render"));
+    let provider_result =
+        send_webhook_test_with_options(&state, &provider, &translator, provider_options)
+            .await
+            .unwrap();
+    assert!(provider_result.success);
+
+    let target_config = Map::from_iter([
+        (
+            "body_override".to_string(),
+            json!({
+                "mode": "custom",
+                "format": "text",
+                "content_type": "text/plain; charset=utf-8",
+                "template": r#"{{message.title}}|{{event.payload.ip}}|\{{literal}}|{{legacy.extra_body}}"#
+            }),
+        ),
+        ("extra_body_json".to_string(), json!({ "legacy": true })),
+    ]);
+    let target_result = send_webhook_test_with_options(
+        &state,
+        &provider,
+        &translator,
+        WebhookTestOptions {
+            target_config: Some(target_config.clone()),
+            sample_context: Some(json!({
+                "message": { "title": "target-body-secret" },
+                "event": { "trace_id": "must-not-render", "payload": { "ip": "192.0.2.30" } }
+            })),
+        },
+    )
+    .await
+    .unwrap();
+    assert!(target_result.success);
+
+    let delivery_result = send_webhook_delivery(
+        &state,
+        &provider,
+        &json!({
+            "id": "ntftarget_webhook_body",
+            "provider_id": "ntfprov_webhook_body",
+            "target_config": target_config
+        }),
+        &json!({
+            "id": "ntfdelivery_webhook_body",
+            "event_id": "evt_delivery_body",
+            "message_snapshot": { "title": "delivery-body-secret" },
+            "webhook_event_snapshot": {
+                "id": "evt_delivery_body",
+                "trace_id": "must-not-render",
+                "payload": { "ip": "192.0.2.40" }
+            }
+        }),
+        &json!({ "id": "ntftrigger_webhook_body" }),
+        &json!({ "id": "ntfrule_webhook_body" }),
+        5,
+        &translator,
+    )
+    .await;
+    assert!(delivery_result.success);
+
+    let requests = receiver.await.unwrap();
+    assert_eq!(
+        request_header_value(&requests[0], "content-type"),
+        Some("application/problem+json")
+    );
+    let provider_body: Value = serde_json::from_str(request_body(&requests[0])).unwrap();
+    assert_eq!(
+        provider_body.get("title"),
+        Some(&json!("provider-body-secret"))
+    );
+    assert!(provider_body.get("event").unwrap().is_object());
+    assert_eq!(provider_body.get("missing"), Some(&Value::Null));
+    assert!(!request_body(&requests[0]).contains("must-not-render"));
+
+    assert_eq!(
+        request_header_value(&requests[1], "content-type"),
+        Some("text/plain; charset=utf-8")
+    );
+    assert_eq!(
+        request_body(&requests[1]),
+        "target-body-secret|192.0.2.30|{{literal}}|{\"legacy\":true}"
+    );
+    assert_eq!(
+        request_body(&requests[2]),
+        "delivery-body-secret|192.0.2.40|{{literal}}|{\"legacy\":true}"
+    );
+    assert!(!request_body(&requests[2]).contains("must-not-render"));
+
+    for result in [&provider_result, &target_result, &delivery_result] {
+        let summary = result.request_summary.as_ref().unwrap().to_string();
+        assert!(summary.contains("body_format"));
+        assert!(summary.contains("body_bytes"));
+        assert!(!summary.contains("body-secret"));
+        assert!(!summary.contains("template"));
+    }
+
+    let invalid_result = send_webhook_delivery(
+        &state,
+        &json!({
+            "type": "webhook",
+            "connection_config": {
+                "url": "http://127.0.0.1:1",
+                "body_config": { "mode": "custom", "format": "json", "template": "{" }
+            }
+        }),
+        &json!({ "target_config": {} }),
+        &json!({ "message_snapshot": {} }),
+        &json!({}),
+        &json!({}),
+        5,
+        &translator,
+    )
+    .await;
+    assert!(!invalid_result.success);
+    assert!(!invalid_result.retryable);
+    assert!(invalid_result.request_summary.is_none());
+}
+
+#[tokio::test]
 async fn webhook_provider_test_honors_timeout_while_reading_the_response() {
     use tokio::io::AsyncReadExt;
 
@@ -708,26 +1193,58 @@ fn schema_string_values_follow_node_string_coercion() {
 }
 
 #[test]
-fn json_schema_whitespace_matches_node_parse_behavior() {
+fn webhook_target_schema_hides_legacy_extra_body_and_normalizes_body_override() {
     let definition = provider_definition("webhook").unwrap();
     let mut raw = Map::new();
-
-    raw.insert("extra_body_json".to_string(), json!(""));
-    assert!(
-        !normalize_schema_patch(&raw, &definition.target_schema)
-            .unwrap()
-            .contains_key("extra_body_json")
+    raw.insert(
+        "extra_body_json".to_string(),
+        json!({ "preserved_only_by_rule_service": true }),
     );
-
-    raw.insert("extra_body_json".to_string(), json!("   "));
-    assert!(normalize_schema_patch(&raw, &definition.target_schema).is_err());
-
-    raw.insert("extra_body_json".to_string(), json!(" {\"env\":\"prod\"} "));
+    raw.insert(
+        "body_override".to_string(),
+        json!({
+            "mode": "custom",
+            "format": "text",
+            "template": "{{message.title}}"
+        }),
+    );
+    let normalized = normalize_schema_patch(&raw, &definition.target_schema).unwrap();
+    assert!(
+        !normalized.contains_key("extra_body_json"),
+        "legacy body must not be exposed through the catalog schema"
+    );
     assert_eq!(
-        normalize_schema_patch(&raw, &definition.target_schema)
-            .unwrap()
-            .get("extra_body_json"),
-        Some(&json!({ "env": "prod" }))
+        normalized.get("body_override"),
+        Some(&json!({
+            "mode": "custom",
+            "format": "text",
+            "content_type": "text/plain; charset=utf-8",
+            "template": "{{message.title}}"
+        }))
+    );
+}
+
+#[test]
+fn webhook_target_test_options_keep_hidden_legacy_data() {
+    let options = webhook_test_options_from_body(
+        &json!({
+            "target_config": {
+                "extra_headers_json": { "Authorization": "Bearer legacy" },
+                "extra_body_json": { "legacy": true },
+                "body_override": { "mode": "inherit" }
+            }
+        }),
+        &Translator::new("en"),
+    )
+    .unwrap();
+    let target = options.target_config.unwrap();
+    assert_eq!(
+        target.get("extra_headers_json"),
+        Some(&json!({ "Authorization": "Bearer legacy" }))
+    );
+    assert_eq!(
+        target.get("extra_body_json"),
+        Some(&json!({ "legacy": true }))
     );
 }
 
@@ -1700,6 +2217,10 @@ fn sanitizes_legacy_notification_snapshots_before_display_or_delivery() {
     let record = json!({
         "id": "delivery_legacy",
         "trace_id": trace_id,
+        "webhook_event_snapshot": {
+            "id": "evt_internal",
+            "payload": { "secret": "internal-only" }
+        },
         "message_snapshot": {
             "title": "Legacy notification",
             "summary": "A stored notification from before the fix",
@@ -1721,6 +2242,7 @@ fn sanitizes_legacy_notification_snapshots_before_display_or_delivery() {
 
     let sanitized = sanitize_notification_record(record);
     assert_eq!(sanitized.get("trace_id"), Some(&json!(trace_id)));
+    assert!(sanitized.get("webhook_event_snapshot").is_none());
     let message = sanitized.get("message_snapshot").unwrap();
     assert!(message.get("trace_id").is_none());
     assert!(message.get("waf_trace_id").is_none());

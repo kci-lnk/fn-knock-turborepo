@@ -3491,12 +3491,11 @@ export const enServer = {
         webhook: {
           label: "Webhook",
           description:
-            "Send standard notification JSON to any endpoint that supports HTTP JSON.",
+            "Send standard or custom JSON and text notifications to any HTTP endpoint.",
           fields: {
             url: {
               label: "Webhook URL",
-              description:
-                "Target address that receives standard notification JSON.",
+              description: "Target address that receives the Webhook request.",
             },
             method: {
               label: "Request method",
@@ -3514,10 +3513,20 @@ export const enServer = {
               description:
                 "Optional. These static headers are sent by provider tests and all deliveries.",
             },
+            body_config: {
+              label: "Request body",
+              description:
+                "Use the standard notification body or build a custom JSON or text body with variables.",
+            },
             endpoint_path: {
               label: "Additional path",
               description:
                 "Optional. Appended to the base Webhook URL before sending.",
+            },
+            body_override: {
+              label: "Request body override",
+              description:
+                "Inherit the provider body or override it for this notification target.",
             },
             extra_headers_json: {
               label: "Extra headers JSON",
@@ -3547,6 +3556,29 @@ export const enServer = {
               "The value for header {name} exceeds {max} bytes",
             headersTooLarge:
               "The combined custom header size cannot exceed {max} bytes",
+            invalidBodyConfig: "Webhook body configuration is invalid",
+            invalidBodyMode: "Webhook body mode {mode} is invalid",
+            invalidBodyFormat: "Webhook body format {format} is invalid",
+            bodyTemplateRequired: "A custom Webhook body template is required",
+            bodyTemplateTooLarge:
+              "The Webhook body template cannot exceed {max} bytes",
+            invalidBodyTemplateJson:
+              "The Webhook JSON body template is not valid JSON",
+            unclosedBodyVariable: "A Webhook body variable is not closed",
+            invalidBodyVariable: "Webhook body variable {path} is invalid",
+            tooManyBodyVariables:
+              "The Webhook body template can contain at most {max} variables",
+            invalidBodyContentType: "Webhook body Content-Type is invalid",
+            bodyContentTypeTooLong:
+              "Webhook body Content-Type cannot exceed {max} bytes",
+            duplicateRenderedBodyKey:
+              "Webhook body variables produced duplicate JSON keys",
+            renderedBodyTooLarge:
+              "The rendered Webhook body cannot exceed {max} bytes",
+            invalidBodySample:
+              "Webhook body sample context must be a JSON object",
+            bodySampleTooLarge:
+              "Webhook body sample context cannot exceed {max} bytes",
           },
         },
         magicpush: {

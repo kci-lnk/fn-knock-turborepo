@@ -18,10 +18,12 @@ const {
   hasAvailableProvidersForAdd,
   hasProviders,
   removeTarget,
+  previewWebhookTarget,
   resolveProviderDefinitionById,
   resolveProviderName,
   resolveProviderTypeLabel,
   ruleForm,
+  testWebhookTarget,
 } = props.controller;
 const { t } = useI18n();
 </script>
@@ -135,6 +137,8 @@ const { t } = useI18n();
             "
             :model-value="target.target_config"
             @update:model-value="ruleForm.targets[index]!.target_config = $event"
+            @webhook-body-preview="previewWebhookTarget(index)"
+            @webhook-body-test="testWebhookTarget(index)"
           />
         </div>
       </div>

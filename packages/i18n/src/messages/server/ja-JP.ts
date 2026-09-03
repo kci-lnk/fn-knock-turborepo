@@ -3609,11 +3609,11 @@ export const jaJPServer = {
         webhook: {
           label: "Webhook",
           description:
-            "HTTP JSON に対応する任意のエンドポイントへ標準形式の通知を送信します",
+            "任意の HTTP エンドポイントへ標準またはカスタムの JSON／テキスト通知を送信します",
           fields: {
             url: {
               label: "Webhook URL",
-              description: "標準形式の通知 JSON を受信するエンドポイント",
+              description: "Webhook リクエストを受信するエンドポイント",
             },
             method: {
               label: "リクエストメソッド",
@@ -3631,9 +3631,19 @@ export const jaJPServer = {
               description:
                 "任意。Provider テストとすべての配信で、この静的 Header を送信します",
             },
+            body_config: {
+              label: "リクエスト Body",
+              description:
+                "標準通知 Body を使用するか、変数でカスタム JSON／テキスト Body を組み立てます",
+            },
             endpoint_path: {
               label: "追加パス",
               description: "任意。送信前にベース Webhook URL へ追加します",
+            },
+            body_override: {
+              label: "リクエスト Body の上書き",
+              description:
+                "Provider の Body を継承するか、この通知先だけ上書きします",
             },
             extra_headers_json: {
               label: "追加ヘッダー JSON",
@@ -3663,6 +3673,30 @@ export const jaJPServer = {
               "Header {name} の値が {max} バイトを超えています",
             headersTooLarge:
               "カスタム Header の合計サイズは {max} バイトを超えることができません",
+            invalidBodyConfig: "Webhook Body 設定が無効です",
+            invalidBodyMode: "Webhook Body モード {mode} は無効です",
+            invalidBodyFormat: "Webhook Body 形式 {format} は無効です",
+            bodyTemplateRequired:
+              "カスタム Webhook Body テンプレートは必須です",
+            bodyTemplateTooLarge:
+              "Webhook Body テンプレートは {max} バイト以下にしてください",
+            invalidBodyTemplateJson:
+              "Webhook JSON Body テンプレートが有効な JSON ではありません",
+            unclosedBodyVariable: "Webhook Body の変数が閉じられていません",
+            invalidBodyVariable: "Webhook Body 変数 {path} は無効です",
+            tooManyBodyVariables:
+              "Webhook Body テンプレートの変数は最大 {max} 個です",
+            invalidBodyContentType: "Webhook Body の Content-Type は無効です",
+            bodyContentTypeTooLong:
+              "Webhook Body の Content-Type は {max} バイト以下にしてください",
+            duplicateRenderedBodyKey:
+              "Webhook Body 変数により JSON キーが重複しました",
+            renderedBodyTooLarge:
+              "レンダリング後の Webhook Body は {max} バイト以下にしてください",
+            invalidBodySample:
+              "Webhook Body のサンプルコンテキストは JSON オブジェクトで指定してください",
+            bodySampleTooLarge:
+              "Webhook Body のサンプルコンテキストは {max} バイト以下にしてください",
           },
         },
         magicpush: {

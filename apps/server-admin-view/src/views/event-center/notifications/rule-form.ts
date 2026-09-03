@@ -74,6 +74,27 @@ export const buildDeliveryPolicyPayload = (
   return payload;
 };
 
+export const buildRuleTargetConfigPayload = ({
+  target,
+  definition,
+}: {
+  target: EditableRuleTarget;
+  definition: NotificationProviderDefinition | null;
+}) => {
+  const targetConfig = buildSchemaPayload({
+    fields: definition?.target_schema || [],
+    value: target.target_config,
+  });
+  if (definition?.type === "webhook") {
+    for (const key of ["extra_headers_json", "extra_body_json"] as const) {
+      if (Object.prototype.hasOwnProperty.call(target.target_config, key)) {
+        targetConfig[key] = target.target_config[key];
+      }
+    }
+  }
+  return targetConfig;
+};
+
 export const resolveGroupByForEventType = ({
   eventType,
   form,
@@ -113,9 +134,9 @@ export const buildRulePayload = ({
       ...(target.id ? { id: target.id } : {}),
       provider_id: target.provider_id,
       enabled: true,
-      target_config: buildSchemaPayload({
-        fields: definition?.target_schema || [],
-        value: target.target_config,
+      target_config: buildRuleTargetConfigPayload({
+        target,
+        definition,
       }),
       delivery_policy: buildDeliveryPolicyPayload(target.delivery_policy),
       template_override_mode: target.template_override_mode,

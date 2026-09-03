@@ -10,11 +10,32 @@ pub(super) struct NotificationFieldOptionData {
 
 #[derive(Serialize, ToSchema)]
 pub(super) struct NotificationHeaderConstraintsData {
+    kind: String,
     max_items: i64,
     max_name_bytes: i64,
     max_value_bytes: i64,
     max_total_bytes: i64,
     reserved_names: Vec<String>,
+}
+
+#[derive(Serialize, ToSchema)]
+pub(super) struct NotificationWebhookBodyConstraintsData {
+    kind: String,
+    scope: String,
+    formats: Vec<String>,
+    variable_roots: Vec<String>,
+    max_template_bytes: i64,
+    max_sample_bytes: i64,
+    max_placeholders: i64,
+    max_rendered_bytes: i64,
+    max_content_type_bytes: i64,
+}
+
+#[derive(Serialize, ToSchema)]
+#[serde(untagged)]
+pub(super) enum NotificationSchemaConstraintsData {
+    Headers(NotificationHeaderConstraintsData),
+    WebhookBody(NotificationWebhookBodyConstraintsData),
 }
 
 #[derive(Serialize, ToSchema)]
@@ -31,7 +52,7 @@ pub(super) struct NotificationSchemaFieldData {
     options: Option<Vec<NotificationFieldOptionData>>,
     min: Option<i64>,
     max: Option<i64>,
-    constraints: Option<NotificationHeaderConstraintsData>,
+    constraints: Option<NotificationSchemaConstraintsData>,
 }
 
 #[derive(Serialize, ToSchema)]
@@ -145,6 +166,29 @@ pub(super) struct NotificationProviderTestBodyData {
     provider_type: String,
     enabled: Option<bool>,
     connection_config: Value,
+    target_config: Option<Value>,
+    sample_context: Option<Value>,
+}
+
+#[derive(Serialize, ToSchema)]
+pub(super) struct NotificationWebhookBodyPreviewBodyData {
+    id: Option<String>,
+    name: Option<String>,
+    #[serde(rename = "type")]
+    provider_type: Option<String>,
+    enabled: Option<bool>,
+    connection_config: Option<Value>,
+    target_config: Option<Value>,
+    sample_context: Option<Value>,
+}
+
+#[derive(Serialize, ToSchema)]
+pub(super) struct NotificationWebhookBodyPreviewData {
+    format: String,
+    content_type: String,
+    body: String,
+    byte_length: i64,
+    missing_variables: Vec<String>,
 }
 
 #[derive(Serialize, ToSchema)]

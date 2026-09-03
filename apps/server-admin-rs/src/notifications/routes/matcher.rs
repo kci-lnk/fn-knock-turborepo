@@ -173,6 +173,9 @@ pub(super) fn sanitize_notification_message(message: &Value) -> Value {
 
 pub(super) fn sanitize_notification_record(record: Value) -> Value {
     let mut sanitized = record;
+    if let Some(object) = sanitized.as_object_mut() {
+        object.remove("webhook_event_snapshot");
+    }
     if let Some(message) = sanitized
         .get_mut("message_snapshot")
         .filter(|value| !value.is_null())

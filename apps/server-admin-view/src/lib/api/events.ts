@@ -35,6 +35,10 @@ type NotificationProviderUpdateBody =
   NotificationSchemas["NotificationProviderUpdateBodyData"];
 type NotificationProviderTestBody =
   NotificationSchemas["NotificationProviderTestBodyData"];
+type NotificationWebhookBodyPreviewResponse =
+  ApiContractOperations["post_api_admin_notifications_providers_webhook_preview"]["responses"][200]["content"]["application/json"];
+type NotificationWebhookBodyPreviewBody =
+  NotificationSchemas["NotificationWebhookBodyPreviewBodyData"];
 type NotificationRuleCreateBody =
   NotificationSchemas["NotificationRuleCreateBodyData"];
 type NotificationRuleUpdateBody =
@@ -158,6 +162,15 @@ export const EventCenterAPI = {
   },
   async testNotificationProviderDraft(payload: NotificationProviderTestBody) {
     const res = await apiClient.post("/notifications/providers/test", payload);
+    return res.data;
+  },
+  async previewNotificationWebhookBody(
+    payload: NotificationWebhookBodyPreviewBody,
+  ): Promise<NotificationWebhookBodyPreviewResponse> {
+    const res = await apiClient.post(
+      "/notifications/providers/webhook/preview",
+      payload,
+    );
     return res.data;
   },
   async getNotificationRules(): Promise<{

@@ -281,6 +281,10 @@ function validateContract(openapiPath) {
       "post /api/admin/notifications/providers/test",
       "NotificationProviderTestBodyData",
     ],
+    [
+      "post /api/admin/notifications/providers/webhook/preview",
+      "NotificationWebhookBodyPreviewBodyData",
+    ],
     ["get /api/admin/notifications/providers/{id}", null],
     [
       "patch /api/admin/notifications/providers/{id}",

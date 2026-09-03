@@ -4186,6 +4186,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/admin/notifications/providers/webhook/preview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * 预览通知中心回调请求体
+         * @description 管理通知提供者、规则、触发记录和投递记录。。`POST /api/admin/notifications/providers/webhook/preview` 用于提交操作或创建、更新服务状态；执行结果以响应中的数据和消息为准。 请求体字段、必填项和可选值请以 Swagger 展开的 schema 为准。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
+         */
+        post: operations["post_api_admin_notifications_providers_webhook_preview"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/admin/notifications/providers/{id}": {
         parameters: {
             query?: never;
@@ -10763,6 +10783,8 @@ export interface components {
             value: string;
         };
         NotificationHeaderConstraintsData: {
+            /** @enum {string} */
+            kind: "headers";
             /** Format: int64 */
             max_items: number;
             /** Format: int64 */
@@ -10891,6 +10913,8 @@ export interface components {
             enabled?: boolean | null;
             id?: string | null;
             name?: string | null;
+            sample_context?: unknown;
+            target_config?: unknown;
             /** @enum {string} */
             type: "wxpusher" | "serverchan" | "pushplus" | "wecom" | "dingtalk" | "feishu" | "email" | "webhook" | "pushdeer" | "harmonyosmeow" | "magicpush" | "bark" | "telegram";
         };
@@ -10978,8 +11002,9 @@ export interface components {
             /** Format: int64 */
             window_seconds?: number | null;
         };
+        NotificationSchemaConstraintsData: components["schemas"]["NotificationHeaderConstraintsData"] | components["schemas"]["NotificationWebhookBodyConstraintsData"];
         NotificationSchemaFieldData: {
-            constraints?: null | components["schemas"]["NotificationHeaderConstraintsData"];
+            constraints?: null | components["schemas"]["NotificationSchemaConstraintsData"];
             default_value?: unknown;
             description?: string | null;
             key: string;
@@ -10993,7 +11018,7 @@ export interface components {
             required?: boolean | null;
             sensitive?: boolean | null;
             /** @enum {string} */
-            type: "string" | "number" | "boolean" | "select" | "json" | "headers";
+            type: "string" | "number" | "boolean" | "select" | "json" | "headers" | "webhook_body";
         };
         NotificationTargetData: {
             /** Format: date-time */
@@ -11043,6 +11068,44 @@ export interface components {
             /** Format: int64 */
             total: number;
             triggers: components["schemas"]["NotificationTriggerData"][];
+        };
+        NotificationWebhookBodyConstraintsData: {
+            formats: string[];
+            /** @enum {string} */
+            kind: "webhook_body";
+            /** Format: int64 */
+            max_content_type_bytes: number;
+            /** Format: int64 */
+            max_placeholders: number;
+            /** Format: int64 */
+            max_rendered_bytes: number;
+            /** Format: int64 */
+            max_sample_bytes: number;
+            /** Format: int64 */
+            max_template_bytes: number;
+            /** @enum {string} */
+            scope: "provider" | "target";
+            variable_roots: string[];
+        };
+        NotificationWebhookBodyPreviewBodyData: {
+            /** @description Provider-specific configuration; catalog fields marked sensitive contain secrets */
+            connection_config?: unknown;
+            enabled?: boolean | null;
+            id?: string | null;
+            name?: string | null;
+            sample_context?: unknown;
+            target_config?: unknown;
+            /** @enum {string|null} */
+            type?: "wxpusher" | "serverchan" | "pushplus" | "wecom" | "dingtalk" | "feishu" | "email" | "webhook" | "pushdeer" | "harmonyosmeow" | "magicpush" | "bark" | "telegram" | null;
+        };
+        NotificationWebhookBodyPreviewData: {
+            body: string;
+            /** Format: int64 */
+            byte_length: number;
+            content_type: string;
+            /** @enum {string} */
+            format: "json" | "text";
+            missing_variables: string[];
         };
         OidcBindingData: {
             avatar_url?: string | null;
@@ -23292,6 +23355,46 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["NotificationProviderTestResponseData"];
+                };
+            };
+            /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorEnvelope"];
+                };
+            };
+        };
+    };
+    post_api_admin_notifications_providers_webhook_preview: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["NotificationWebhookBodyPreviewBodyData"];
+            };
+        };
+        responses: {
+            /** @description 「预览通知中心回调请求体」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        data: components["schemas"]["NotificationWebhookBodyPreviewData"];
+                        message?: string | null;
+                        /** @constant */
+                        success: true;
+                    } & {
+                        [key: string]: unknown;
+                    };
                 };
             };
             /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */

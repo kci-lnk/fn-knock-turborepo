@@ -14284,6 +14284,12 @@
       },
       "NotificationHeaderConstraintsData": {
         "properties": {
+          "kind": {
+            "enum": [
+              "headers"
+            ],
+            "type": "string"
+          },
           "max_items": {
             "format": "int64",
             "type": "integer"
@@ -14308,6 +14314,7 @@
           }
         },
         "required": [
+          "kind",
           "max_items",
           "max_name_bytes",
           "max_value_bytes",
@@ -14849,6 +14856,8 @@
               "null"
             ]
           },
+          "sample_context": {},
+          "target_config": {},
           "type": {
             "enum": [
               "wxpusher",
@@ -15414,6 +15423,16 @@
         },
         "type": "object"
       },
+      "NotificationSchemaConstraintsData": {
+        "oneOf": [
+          {
+            "$ref": "#/components/schemas/NotificationHeaderConstraintsData"
+          },
+          {
+            "$ref": "#/components/schemas/NotificationWebhookBodyConstraintsData"
+          }
+        ]
+      },
       "NotificationSchemaFieldData": {
         "properties": {
           "constraints": {
@@ -15422,7 +15441,7 @@
                 "type": "null"
               },
               {
-                "$ref": "#/components/schemas/NotificationHeaderConstraintsData"
+                "$ref": "#/components/schemas/NotificationSchemaConstraintsData"
               }
             ]
           },
@@ -15487,7 +15506,8 @@
               "boolean",
               "select",
               "json",
-              "headers"
+              "headers",
+              "webhook_body"
             ],
             "type": "string"
           }
@@ -15712,6 +15732,152 @@
         "required": [
           "triggers",
           "total"
+        ],
+        "type": "object"
+      },
+      "NotificationWebhookBodyConstraintsData": {
+        "properties": {
+          "formats": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "kind": {
+            "enum": [
+              "webhook_body"
+            ],
+            "type": "string"
+          },
+          "max_content_type_bytes": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "max_placeholders": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "max_rendered_bytes": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "max_sample_bytes": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "max_template_bytes": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "scope": {
+            "enum": [
+              "provider",
+              "target"
+            ],
+            "type": "string"
+          },
+          "variable_roots": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "kind",
+          "scope",
+          "formats",
+          "variable_roots",
+          "max_template_bytes",
+          "max_sample_bytes",
+          "max_placeholders",
+          "max_rendered_bytes",
+          "max_content_type_bytes"
+        ],
+        "type": "object"
+      },
+      "NotificationWebhookBodyPreviewBodyData": {
+        "properties": {
+          "connection_config": {
+            "description": "Provider-specific configuration; catalog fields marked sensitive contain secrets",
+            "writeOnly": true
+          },
+          "enabled": {
+            "type": [
+              "boolean",
+              "null"
+            ]
+          },
+          "id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "name": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "sample_context": {},
+          "target_config": {},
+          "type": {
+            "enum": [
+              "wxpusher",
+              "serverchan",
+              "pushplus",
+              "wecom",
+              "dingtalk",
+              "feishu",
+              "email",
+              "webhook",
+              "pushdeer",
+              "harmonyosmeow",
+              "magicpush",
+              "bark",
+              "telegram"
+            ],
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "type": "object"
+      },
+      "NotificationWebhookBodyPreviewData": {
+        "properties": {
+          "body": {
+            "type": "string"
+          },
+          "byte_length": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "content_type": {
+            "type": "string"
+          },
+          "format": {
+            "enum": [
+              "json",
+              "text"
+            ],
+            "type": "string"
+          },
+          "missing_variables": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "format",
+          "content_type",
+          "body",
+          "byte_length",
+          "missing_variables"
         ],
         "type": "object"
       },
@@ -41350,6 +41516,69 @@
           }
         },
         "summary": "测试通知中心提供者",
+        "tags": [
+          "notifications"
+        ],
+        "x-fn-knock-contract-source": "utoipa"
+      }
+    },
+    "/api/admin/notifications/providers/webhook/preview": {
+      "post": {
+        "description": "管理通知提供者、规则、触发记录和投递记录。。`POST /api/admin/notifications/providers/webhook/preview` 用于提交操作或创建、更新服务状态；执行结果以响应中的数据和消息为准。 请求体字段、必填项和可选值请以 Swagger 展开的 schema 为准。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。",
+        "operationId": "post_api_admin_notifications_providers_webhook_preview",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/NotificationWebhookBodyPreviewBodyData"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "properties": {
+                    "data": {
+                      "$ref": "#/components/schemas/NotificationWebhookBodyPreviewData"
+                    },
+                    "message": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "success": {
+                      "const": true,
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "success",
+                    "data"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "「预览通知中心回调请求体」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorEnvelope"
+                }
+              }
+            },
+            "description": "接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。"
+          }
+        },
+        "summary": "预览通知中心回调请求体",
         "tags": [
           "notifications"
         ],

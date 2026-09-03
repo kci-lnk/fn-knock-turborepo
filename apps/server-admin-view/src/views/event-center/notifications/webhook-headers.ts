@@ -5,6 +5,7 @@ import type {
 
 export const DEFAULT_WEBHOOK_HEADER_CONSTRAINTS: NotificationHeaderConstraints =
   {
+    kind: "headers",
     max_items: 32,
     max_name_bytes: 128,
     max_value_bytes: 8 * 1024,

@@ -229,22 +229,6 @@ pub(super) fn select_schema(
     }
 }
 
-pub(super) fn json_schema(key: &'static str, label: &'static str, required: bool) -> SchemaField {
-    SchemaField {
-        key,
-        label,
-        field_type: "json",
-        required,
-        sensitive: false,
-        placeholder: None,
-        default_value: None,
-        min: None,
-        max: None,
-        options: Vec::new(),
-        constraints: None,
-    }
-}
-
 pub(super) fn provider_definition_view(
     definition: &ProviderDefinition,
     translator: &Translator,
@@ -705,6 +689,14 @@ pub(super) fn normalize_schema_patch(
             }
             "json" => normalize_json_field(input, field.label)?,
             "headers" => normalize_webhook_custom_headers(input)?,
+            "webhook_body" => normalize_webhook_body_config(
+                input,
+                if field.key == "body_override" {
+                    WebhookBodyScope::Target
+                } else {
+                    WebhookBodyScope::Provider
+                },
+            )?,
             _ => input.clone(),
         };
         if field.field_type == "json" && value.is_null() {

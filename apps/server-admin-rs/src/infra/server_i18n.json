@@ -2922,11 +2922,11 @@
           },
           "webhook": {
             "label": "Webhook 通知",
-            "description": "向任意支持 HTTP JSON 的地址发送标准通知消息。",
+            "description": "向任意 HTTP 地址发送标准或自定义 JSON、文本通知。",
             "fields": {
               "url": {
                 "label": "Webhook 地址",
-                "description": "接收标准通知 JSON 的目标地址。"
+                "description": "接收 Webhook 请求的目标地址。"
               },
               "method": {
                 "label": "请求方法"
@@ -2953,6 +2953,14 @@
               "custom_headers": {
                 "label": "自定义请求头",
                 "description": "可选。测试发送和所有正式投递都会携带这些静态 Header。"
+              },
+              "body_config": {
+                "label": "请求体",
+                "description": "使用标准通知 Body，或通过变量组装自定义 JSON、文本 Body。"
+              },
+              "body_override": {
+                "label": "请求体覆盖",
+                "description": "继承提供商 Body，或为当前通知目标单独覆盖。"
               }
             },
             "errors": {
@@ -2968,7 +2976,22 @@
               "duplicateHeaderName": "Header {name} 重复（不区分大小写）",
               "invalidHeaderValue": "Header {name} 的值格式不合法",
               "headerValueTooLong": "Header {name} 的值超过 {max} 字节",
-              "headersTooLarge": "全部自定义 Header 的总大小不能超过 {max} 字节"
+              "headersTooLarge": "全部自定义 Header 的总大小不能超过 {max} 字节",
+              "invalidBodyConfig": "Webhook Body 配置格式不正确",
+              "invalidBodyMode": "Webhook Body 模式 {mode} 不正确",
+              "invalidBodyFormat": "Webhook Body 格式 {format} 不正确",
+              "bodyTemplateRequired": "自定义 Webhook Body 模板不能为空",
+              "bodyTemplateTooLarge": "Webhook Body 模板不能超过 {max} 字节",
+              "invalidBodyTemplateJson": "Webhook JSON Body 模板不是合法 JSON",
+              "unclosedBodyVariable": "Webhook Body 中存在未闭合变量",
+              "invalidBodyVariable": "Webhook Body 变量 {path} 格式不正确",
+              "tooManyBodyVariables": "Webhook Body 模板最多允许 {max} 个变量",
+              "invalidBodyContentType": "Webhook Body 的 Content-Type 不合法",
+              "bodyContentTypeTooLong": "Webhook Body 的 Content-Type 不能超过 {max} 字节",
+              "duplicateRenderedBodyKey": "Webhook Body 变量产生了重复的 JSON 键",
+              "renderedBodyTooLarge": "渲染后的 Webhook Body 不能超过 {max} 字节",
+              "invalidBodySample": "Webhook Body 样例上下文必须是 JSON 对象",
+              "bodySampleTooLarge": "Webhook Body 样例上下文不能超过 {max} 字节"
             }
           },
           "magicpush": {
@@ -6143,11 +6166,11 @@
           },
           "webhook": {
             "label": "Webhook 通知",
-            "description": "向任意支援 HTTP JSON 的地址發送標準通知消息。",
+            "description": "向任意 HTTP 地址發送標準或自訂 JSON、文字通知。",
             "fields": {
               "url": {
                 "label": "Webhook 地址",
-                "description": "接收標準通知 JSON 的目標地址。"
+                "description": "接收 Webhook 請求的目標地址。"
               },
               "method": {
                 "label": "請求方法"
@@ -6174,6 +6197,14 @@
               "custom_headers": {
                 "label": "自訂請求頭",
                 "description": "可選。測試發送和所有正式投遞都會攜帶這些靜態 Header。"
+              },
+              "body_config": {
+                "label": "請求體",
+                "description": "使用標準通知 Body，或透過變數組裝自訂 JSON、文字 Body。"
+              },
+              "body_override": {
+                "label": "請求體覆寫",
+                "description": "繼承 Provider Body，或為目前通知目標單獨覆寫。"
               }
             },
             "errors": {
@@ -6189,7 +6220,22 @@
               "duplicateHeaderName": "Header {name} 重複（不區分大小寫）",
               "invalidHeaderValue": "Header {name} 的值格式不合法",
               "headerValueTooLong": "Header {name} 的值超過 {max} 位元組",
-              "headersTooLarge": "全部自訂 Header 的總大小不能超過 {max} 位元組"
+              "headersTooLarge": "全部自訂 Header 的總大小不能超過 {max} 位元組",
+              "invalidBodyConfig": "Webhook Body 設定格式不正確",
+              "invalidBodyMode": "Webhook Body 模式 {mode} 不正確",
+              "invalidBodyFormat": "Webhook Body 格式 {format} 不正確",
+              "bodyTemplateRequired": "自訂 Webhook Body 模板不能為空",
+              "bodyTemplateTooLarge": "Webhook Body 模板不能超過 {max} 位元組",
+              "invalidBodyTemplateJson": "Webhook JSON Body 模板不是合法 JSON",
+              "unclosedBodyVariable": "Webhook Body 中存在未閉合變數",
+              "invalidBodyVariable": "Webhook Body 變數 {path} 格式不正確",
+              "tooManyBodyVariables": "Webhook Body 模板最多允許 {max} 個變數",
+              "invalidBodyContentType": "Webhook Body 的 Content-Type 不合法",
+              "bodyContentTypeTooLong": "Webhook Body 的 Content-Type 不能超過 {max} 位元組",
+              "duplicateRenderedBodyKey": "Webhook Body 變數產生了重複的 JSON 鍵",
+              "renderedBodyTooLarge": "渲染後的 Webhook Body 不能超過 {max} 位元組",
+              "invalidBodySample": "Webhook Body 範例上下文必須是 JSON 物件",
+              "bodySampleTooLarge": "Webhook Body 範例上下文不能超過 {max} 位元組"
             }
           },
           "magicpush": {
@@ -9364,11 +9410,11 @@
           },
           "webhook": {
             "label": "Webhook",
-            "description": "Send standard notification JSON to any endpoint that supports HTTP JSON.",
+            "description": "Send standard or custom JSON and text notifications to any HTTP endpoint.",
             "fields": {
               "url": {
                 "label": "Webhook URL",
-                "description": "Target address that receives standard notification JSON."
+                "description": "Target address that receives the Webhook request."
               },
               "method": {
                 "label": "Request method"
@@ -9395,6 +9441,14 @@
               "custom_headers": {
                 "label": "Custom request headers",
                 "description": "Optional. These static headers are sent by provider tests and all deliveries."
+              },
+              "body_config": {
+                "label": "Request body",
+                "description": "Use the standard notification body or build a custom JSON or text body with variables."
+              },
+              "body_override": {
+                "label": "Request body override",
+                "description": "Inherit the provider body or override it for this notification target."
               }
             },
             "errors": {
@@ -9410,7 +9464,22 @@
               "duplicateHeaderName": "Header {name} is duplicated (case-insensitive)",
               "invalidHeaderValue": "The value for header {name} is invalid",
               "headerValueTooLong": "The value for header {name} exceeds {max} bytes",
-              "headersTooLarge": "The combined custom header size cannot exceed {max} bytes"
+              "headersTooLarge": "The combined custom header size cannot exceed {max} bytes",
+              "invalidBodyConfig": "Webhook body configuration is invalid",
+              "invalidBodyMode": "Webhook body mode {mode} is invalid",
+              "invalidBodyFormat": "Webhook body format {format} is invalid",
+              "bodyTemplateRequired": "A custom Webhook body template is required",
+              "bodyTemplateTooLarge": "The Webhook body template cannot exceed {max} bytes",
+              "invalidBodyTemplateJson": "The Webhook JSON body template is not valid JSON",
+              "unclosedBodyVariable": "A Webhook body variable is not closed",
+              "invalidBodyVariable": "Webhook body variable {path} is invalid",
+              "tooManyBodyVariables": "The Webhook body template can contain at most {max} variables",
+              "invalidBodyContentType": "Webhook body Content-Type is invalid",
+              "bodyContentTypeTooLong": "Webhook body Content-Type cannot exceed {max} bytes",
+              "duplicateRenderedBodyKey": "Webhook body variables produced duplicate JSON keys",
+              "renderedBodyTooLarge": "The rendered Webhook body cannot exceed {max} bytes",
+              "invalidBodySample": "Webhook body sample context must be a JSON object",
+              "bodySampleTooLarge": "Webhook body sample context cannot exceed {max} bytes"
             }
           },
           "magicpush": {
@@ -12585,11 +12654,11 @@
           },
           "webhook": {
             "label": "Webhook",
-            "description": "HTTP JSON을 지원하는 모든 엔드포인트에 표준 알림 JSON을 보냅니다.",
+            "description": "모든 HTTP 엔드포인트에 표준 또는 사용자 지정 JSON·텍스트 알림을 보냅니다.",
             "fields": {
               "url": {
                 "label": "Webhook URL",
-                "description": "표준 알림 JSON을 수신하는 대상 주소입니다."
+                "description": "Webhook 요청을 수신하는 대상 주소입니다."
               },
               "method": {
                 "label": "요청 메서드"
@@ -12616,6 +12685,14 @@
               "custom_headers": {
                 "label": "사용자 지정 요청 Header",
                 "description": "선택 사항입니다. Provider 테스트와 모든 전송에 이 정적 Header를 포함합니다."
+              },
+              "body_config": {
+                "label": "요청 Body",
+                "description": "표준 알림 Body를 사용하거나 변수로 사용자 지정 JSON 또는 텍스트 Body를 구성합니다."
+              },
+              "body_override": {
+                "label": "요청 Body 재정의",
+                "description": "Provider Body를 상속하거나 이 알림 대상에 대해서만 재정의합니다."
               }
             },
             "errors": {
@@ -12631,7 +12708,22 @@
               "duplicateHeaderName": "Header {name}이(가) 중복됩니다(대소문자 구분 안 함).",
               "invalidHeaderValue": "Header {name}의 값이 올바르지 않습니다.",
               "headerValueTooLong": "Header {name}의 값이 {max}바이트를 초과합니다.",
-              "headersTooLarge": "전체 사용자 지정 Header 크기는 {max}바이트를 초과할 수 없습니다."
+              "headersTooLarge": "전체 사용자 지정 Header 크기는 {max}바이트를 초과할 수 없습니다.",
+              "invalidBodyConfig": "Webhook Body 설정이 올바르지 않습니다.",
+              "invalidBodyMode": "Webhook Body 모드 {mode}이(가) 올바르지 않습니다.",
+              "invalidBodyFormat": "Webhook Body 형식 {format}이(가) 올바르지 않습니다.",
+              "bodyTemplateRequired": "사용자 지정 Webhook Body 템플릿이 필요합니다.",
+              "bodyTemplateTooLarge": "Webhook Body 템플릿은 {max}바이트를 초과할 수 없습니다.",
+              "invalidBodyTemplateJson": "Webhook JSON Body 템플릿이 올바른 JSON이 아닙니다.",
+              "unclosedBodyVariable": "Webhook Body 변수가 닫히지 않았습니다.",
+              "invalidBodyVariable": "Webhook Body 변수 {path}이(가) 올바르지 않습니다.",
+              "tooManyBodyVariables": "Webhook Body 템플릿에는 최대 {max}개의 변수를 사용할 수 있습니다.",
+              "invalidBodyContentType": "Webhook Body Content-Type이 올바르지 않습니다.",
+              "bodyContentTypeTooLong": "Webhook Body Content-Type은 {max}바이트를 초과할 수 없습니다.",
+              "duplicateRenderedBodyKey": "Webhook Body 변수로 인해 JSON 키가 중복되었습니다.",
+              "renderedBodyTooLarge": "렌더링된 Webhook Body는 {max}바이트를 초과할 수 없습니다.",
+              "invalidBodySample": "Webhook Body 샘플 컨텍스트는 JSON 객체여야 합니다.",
+              "bodySampleTooLarge": "Webhook Body 샘플 컨텍스트는 {max}바이트를 초과할 수 없습니다."
             }
           },
           "magicpush": {
@@ -15806,11 +15898,11 @@
           },
           "webhook": {
             "label": "Webhook",
-            "description": "HTTP JSON に対応する任意のエンドポイントへ標準形式の通知を送信します",
+            "description": "任意の HTTP エンドポイントへ標準またはカスタムの JSON／テキスト通知を送信します",
             "fields": {
               "url": {
                 "label": "Webhook URL",
-                "description": "標準形式の通知 JSON を受信するエンドポイント"
+                "description": "Webhook リクエストを受信するエンドポイント"
               },
               "method": {
                 "label": "リクエストメソッド"
@@ -15837,6 +15929,14 @@
               "custom_headers": {
                 "label": "カスタムリクエスト Header",
                 "description": "任意。Provider テストとすべての配信で、この静的 Header を送信します"
+              },
+              "body_config": {
+                "label": "リクエスト Body",
+                "description": "標準通知 Body を使用するか、変数でカスタム JSON／テキスト Body を組み立てます"
+              },
+              "body_override": {
+                "label": "リクエスト Body の上書き",
+                "description": "Provider の Body を継承するか、この通知先だけ上書きします"
               }
             },
             "errors": {
@@ -15852,7 +15952,22 @@
               "duplicateHeaderName": "Header {name} が重複しています（大文字と小文字は区別されません）",
               "invalidHeaderValue": "Header {name} の値は無効です",
               "headerValueTooLong": "Header {name} の値が {max} バイトを超えています",
-              "headersTooLarge": "カスタム Header の合計サイズは {max} バイトを超えることができません"
+              "headersTooLarge": "カスタム Header の合計サイズは {max} バイトを超えることができません",
+              "invalidBodyConfig": "Webhook Body 設定が無効です",
+              "invalidBodyMode": "Webhook Body モード {mode} は無効です",
+              "invalidBodyFormat": "Webhook Body 形式 {format} は無効です",
+              "bodyTemplateRequired": "カスタム Webhook Body テンプレートは必須です",
+              "bodyTemplateTooLarge": "Webhook Body テンプレートは {max} バイト以下にしてください",
+              "invalidBodyTemplateJson": "Webhook JSON Body テンプレートが有効な JSON ではありません",
+              "unclosedBodyVariable": "Webhook Body の変数が閉じられていません",
+              "invalidBodyVariable": "Webhook Body 変数 {path} は無効です",
+              "tooManyBodyVariables": "Webhook Body テンプレートの変数は最大 {max} 個です",
+              "invalidBodyContentType": "Webhook Body の Content-Type は無効です",
+              "bodyContentTypeTooLong": "Webhook Body の Content-Type は {max} バイト以下にしてください",
+              "duplicateRenderedBodyKey": "Webhook Body 変数により JSON キーが重複しました",
+              "renderedBodyTooLarge": "レンダリング後の Webhook Body は {max} バイト以下にしてください",
+              "invalidBodySample": "Webhook Body のサンプルコンテキストは JSON オブジェクトで指定してください",
+              "bodySampleTooLarge": "Webhook Body のサンプルコンテキストは {max} バイト以下にしてください"
             }
           },
           "magicpush": {

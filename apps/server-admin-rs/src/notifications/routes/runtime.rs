@@ -343,6 +343,12 @@ pub(super) async fn fanout_trigger_targets(
                     .unwrap_or_else(|| {
                         deleted_provider_snapshot(provider_id, trigger_created_at, &translator)
                     }),
+                webhook_event_snapshot: provider
+                    .as_ref()
+                    .filter(|provider| {
+                        provider.get("type").and_then(Value::as_str) == Some("webhook")
+                    })
+                    .map(|_| sanitize_webhook_event_snapshot(event)),
                 attempt_count: 0,
                 triggered_at: trigger_created_at.to_string(),
                 next_retry_at: None,
@@ -370,6 +376,9 @@ pub(super) async fn fanout_trigger_targets(
             message_snapshot: message.clone(),
             target_snapshot: target.clone(),
             provider_snapshot: mask_provider(&provider).unwrap_or_else(|_| json!({})),
+            webhook_event_snapshot: (provider.get("type").and_then(Value::as_str)
+                == Some("webhook"))
+            .then(|| sanitize_webhook_event_snapshot(event)),
             attempt_count: 0,
             triggered_at: trigger_created_at.to_string(),
             next_retry_at: Some(trigger_created_at.to_string()),

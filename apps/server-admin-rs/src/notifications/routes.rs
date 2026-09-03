@@ -108,6 +108,21 @@ const NOTIFICATION_PROVIDER_ERROR_KEYS: &[&str] = &[
     "requestFailed",
     "invalidHeadersFormat",
     "headerNameRequired",
+    "invalidBodyConfig",
+    "invalidBodyMode",
+    "invalidBodyFormat",
+    "bodyTemplateRequired",
+    "bodyTemplateTooLarge",
+    "invalidBodyTemplateJson",
+    "unclosedBodyVariable",
+    "invalidBodyVariable",
+    "tooManyBodyVariables",
+    "invalidBodyContentType",
+    "bodyContentTypeTooLong",
+    "duplicateRenderedBodyKey",
+    "renderedBodyTooLarge",
+    "invalidBodySample",
+    "bodySampleTooLarge",
 ];
 const GROUP_BY_VALUES: &[&str] = &["GLOBAL", "IP", "SESSION", "SUBJECT", "HOSTNAME", "PROVIDER"];
 const TRIGGER_STATUSES: &[&str] = &["created", "fanout_done", "partially_failed", "completed"];
@@ -179,6 +194,7 @@ pub(crate) fn notification_openapi_routes() -> OpenApiRouter<AppState> {
         .routes(routes!(list_providers))
         .routes(routes!(create_provider))
         .routes(routes!(test_provider_draft))
+        .routes(routes!(preview_webhook_provider_body))
         .routes(routes!(get_provider))
         .routes(routes!(update_provider))
         .routes(routes!(delete_provider))
@@ -403,8 +419,33 @@ async fn test_provider(State(state): State<AppState>, Path(id): Path<String>) ->
 #[utoipa::path(post, path = "/api/admin/notifications/providers/test", tag = "notifications", operation_id = "post_api_admin_notifications_providers_test", responses((status = 200, description = "Notification provider draft test result")))]
 async fn test_provider_draft(State(state): State<AppState>, Json(body): Json<Value>) -> Response {
     let translator = Translator::from_state(&state).await;
+    let webhook_options = if body.get("type").and_then(Value::as_str) == Some("webhook") {
+        match webhook_test_options_from_body(&body, &translator) {
+            Ok(options) => options,
+            Err(NotifyError::BadRequest(message)) => {
+                return response::error(StatusCode::BAD_REQUEST, message);
+            }
+            Err(NotifyError::Storage(error)) => {
+                return internal_error(
+                    &state,
+                    "failed to normalize webhook provider test options",
+                    error,
+                )
+                .await;
+            }
+        }
+    } else {
+        WebhookTestOptions::default()
+    };
     match draft_provider_value(&state, body).await {
-        Ok(provider) => match run_provider_test(&state, provider.clone(), &translator).await {
+        Ok(provider) => match run_provider_test_with_options(
+            &state,
+            provider.clone(),
+            &translator,
+            webhook_options,
+        )
+        .await
+        {
             Ok(test_result) => {
                 let test_result = localize_provider_test_result(test_result, &translator);
                 let mut tested_provider = provider;
@@ -421,6 +462,93 @@ async fn test_provider_draft(State(state): State<AppState>, Json(body): Json<Val
                 error,
             )
             .await
+        }
+    }
+}
+
+#[utoipa::path(post, path = "/api/admin/notifications/providers/webhook/preview", tag = "notifications", operation_id = "post_api_admin_notifications_providers_webhook_preview", responses((status = 200, description = "Rendered Webhook body preview")))]
+async fn preview_webhook_provider_body(
+    State(state): State<AppState>,
+    Json(mut body): Json<Value>,
+) -> Response {
+    let translator = Translator::from_state(&state).await;
+    let provider_type = if let Some(provider_type) = body.get("type").and_then(Value::as_str) {
+        provider_type.to_string()
+    } else if let Some(id) = trimmed_string(body.get("id")) {
+        match load_provider(&state, &id).await {
+            Ok(Some(provider)) => provider
+                .get("type")
+                .and_then(Value::as_str)
+                .unwrap_or_default()
+                .to_string(),
+            Ok(None) => {
+                return response::error(
+                    StatusCode::BAD_REQUEST,
+                    notification_service_text(&translator, "providerNotFound", &[]),
+                );
+            }
+            Err(error) => {
+                return internal_error(
+                    &state,
+                    "failed to load webhook provider for body preview",
+                    error,
+                )
+                .await;
+            }
+        }
+    } else {
+        String::new()
+    };
+    if provider_type != "webhook" {
+        return response::error(
+            StatusCode::BAD_REQUEST,
+            notification_service_text(&translator, "unsupportedProviderType", &[]),
+        );
+    }
+    if body.get("type").is_none()
+        && let Some(object) = body.as_object_mut()
+    {
+        object.insert("type".to_string(), Value::String(provider_type));
+    }
+    if trimmed_string(body.get("id")).is_none()
+        && let Some(object) = body.as_object_mut()
+    {
+        let config = object
+            .entry("connection_config".to_string())
+            .or_insert_with(|| json!({}));
+        if let Some(config) = config.as_object_mut()
+            && trimmed_string(config.get("url")).is_none()
+        {
+            // Rendering does not require a reachable endpoint. Keep draft preview useful
+            // before the provider URL has been entered; save and test still validate it.
+            config.insert(
+                "url".to_string(),
+                Value::String("http://webhook-preview.invalid".to_string()),
+            );
+        }
+    }
+    let options = match webhook_test_options_from_body(&body, &translator) {
+        Ok(options) => options,
+        Err(NotifyError::BadRequest(message)) => {
+            return response::error(StatusCode::BAD_REQUEST, message);
+        }
+        Err(NotifyError::Storage(error)) => {
+            return internal_error(
+                &state,
+                "failed to normalize webhook body preview options",
+                error,
+            )
+            .await;
+        }
+    };
+    match draft_provider_value(&state, body).await {
+        Ok(provider) => match preview_webhook_body(&provider, &translator, options) {
+            Ok(preview) => response::ok(preview).into_response(),
+            Err(message) => response::error(StatusCode::BAD_REQUEST, message),
+        },
+        Err(NotifyError::BadRequest(message)) => response::error(StatusCode::BAD_REQUEST, message),
+        Err(NotifyError::Storage(error)) => {
+            internal_error(&state, "failed to build webhook body preview", error).await
         }
     }
 }

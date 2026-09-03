@@ -42,6 +42,7 @@ const {
   openCreateDialog,
   openEditDialog,
   providerForm,
+  previewWebhookBody,
   providers,
   resolveProviderTypeLabel,
   saveProvider,
@@ -209,6 +210,7 @@ const {
     :testing-draft="testingDraft"
     @save="saveProvider"
     @test="testProviderDraft"
+    @preview-webhook-body="previewWebhookBody"
     @type-change="handleTypeChange"
   />
 </template>

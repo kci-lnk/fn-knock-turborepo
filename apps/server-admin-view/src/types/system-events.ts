@@ -50,8 +50,18 @@ export interface NotificationHeaderEntry {
   value: string;
 }
 
-export type NotificationHeaderConstraints =
-  SystemEventSchemas["NotificationHeaderConstraintsData"];
+export type NotificationSchemaConstraints =
+  SystemEventSchemas["NotificationSchemaConstraintsData"];
+export type NotificationHeaderConstraints = Extract<
+  NotificationSchemaConstraints,
+  { kind: "headers" }
+>;
+export type NotificationWebhookBodyConstraints = Extract<
+  NotificationSchemaConstraints,
+  { kind: "webhook_body" }
+>;
+export type NotificationWebhookBodyPreview =
+  SystemEventSchemas["NotificationWebhookBodyPreviewData"];
 
 export interface NotificationFieldOption {
   label: string;
@@ -66,11 +76,11 @@ export interface NotificationSchemaField {
   type: NotificationFieldType;
   required?: boolean;
   sensitive?: boolean;
-  default_value?: string | number | boolean | null;
+  default_value?: unknown;
   options?: NotificationFieldOption[];
   min?: number;
   max?: number;
-  constraints?: NotificationHeaderConstraints;
+  constraints?: NotificationSchemaConstraints;
 }
 
 export interface NotificationProviderCapabilities {

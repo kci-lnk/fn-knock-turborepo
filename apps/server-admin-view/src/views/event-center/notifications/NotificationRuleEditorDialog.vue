@@ -14,7 +14,8 @@ import NotificationRuleEventTypes from "./NotificationRuleEventTypes.vue";
 import NotificationRuleTargets from "./NotificationRuleTargets.vue";
 
 const props = defineProps<{ controller: NotificationRuleEditorController }>();
-const { dialogOpen, isEditMode, saveRule, saving } = props.controller;
+const { dialogOpen, isEditMode, ruleFormInvalid, saveRule, saving } =
+  props.controller;
 const { t } = useI18n();
 </script>
 
@@ -48,7 +49,7 @@ const { t } = useI18n();
           <Button variant="outline" @click="dialogOpen = false">
             {{ t("common.cancel") }}
           </Button>
-          <Button :disabled="saving" @click="saveRule">
+          <Button :disabled="saving || ruleFormInvalid" @click="saveRule">
             <Loader2 v-if="saving" class="mr-2 h-4 w-4 animate-spin" />
             {{ t("common.save") }}
           </Button>

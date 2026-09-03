@@ -3,6 +3,7 @@ import { useI18n } from "vue-i18n";
 import { toast } from "@admin-shared/utils/toast";
 import { EventCenterAPI } from "@/lib/api/events";
 import type {
+  NotificationHeaderConstraints,
   NotificationProviderDefinition,
   NotificationProviderView,
 } from "@/types";
@@ -15,6 +16,12 @@ import {
   type ProviderFormPayload,
 } from "./form-utils";
 import { validateWebhookHeaderEntries } from "./webhook-headers";
+import {
+  parseWebhookSampleContext,
+  validateWebhookBodyConfig,
+  validateWebhookSampleContext,
+  type WebhookBodyConstraints,
+} from "./webhook-body";
 
 const PROVIDER_TAIL_ORDER = [
   "webhook",
@@ -65,18 +72,40 @@ export const useNotificationProviders = (active: Readonly<Ref<boolean>>) => {
       catalog.value[0] ||
       null,
   );
-  const connectionConfigInvalid = computed(() => {
-    const field = selectedDefinition.value?.connection_schema.find(
-      (item) => item.type === "headers",
-    );
+  const selectedWebhookBodyField = computed(() =>
+    selectedDefinition.value?.connection_schema.find(
+      (field) => field.type === "webhook_body",
+    ),
+  );
+  const headerConfigInvalid = computed(() =>
+    (selectedDefinition.value?.connection_schema || []).some(
+      (field) =>
+        field.type === "headers" &&
+        validateWebhookHeaderEntries(
+          providerForm.value.connection_config[field.key],
+          field.constraints as NotificationHeaderConstraints | undefined,
+        ).length > 0,
+    ),
+  );
+  const webhookBodyConfigInvalid = computed(() => {
+    const field = selectedWebhookBodyField.value;
     if (!field) return false;
+    const constraints = field.constraints as WebhookBodyConstraints | undefined;
     return (
-      validateWebhookHeaderEntries(
+      validateWebhookBodyConfig(
         providerForm.value.connection_config[field.key],
-        field.constraints,
+        constraints,
+        "provider",
+      ).length > 0 ||
+      validateWebhookSampleContext(
+        providerForm.value.connection_config.__webhook_sample_context,
+        constraints,
       ).length > 0
     );
   });
+  const connectionConfigInvalid = computed(
+    () => headerConfigInvalid.value || webhookBodyConfigInvalid.value,
+  );
   const configuredSensitiveFields = computed(() => {
     if (!editingProvider.value || !selectedDefinition.value) return [];
     return selectedDefinition.value.connection_schema
@@ -257,13 +286,36 @@ export const useNotificationProviders = (active: Readonly<Ref<boolean>>) => {
     };
   };
 
+  const webhookSampleContext = () =>
+    parseWebhookSampleContext(
+      providerForm.value.connection_config.__webhook_sample_context,
+      selectedWebhookBodyField.value?.constraints as
+        WebhookBodyConstraints | undefined,
+    );
+
+  const updateWebhookTransient = (patch: Record<string, unknown>) => {
+    providerForm.value = {
+      ...providerForm.value,
+      connection_config: {
+        ...providerForm.value.connection_config,
+        ...patch,
+      },
+    };
+  };
+
   const saveProvider = async () => {
     if (!selectedDefinition.value) {
       toast.error(t("admin.notifications.providers.unavailableProviderType"));
       return;
     }
     if (connectionConfigInvalid.value) {
-      toast.error(t("admin.notifications.headers.fixErrors"));
+      toast.error(
+        t(
+          webhookBodyConfigInvalid.value
+            ? "admin.notifications.body.fixErrors"
+            : "admin.notifications.headers.fixErrors",
+        ),
+      );
       return;
     }
     saving.value = true;
@@ -319,7 +371,13 @@ export const useNotificationProviders = (active: Readonly<Ref<boolean>>) => {
       return;
     }
     if (connectionConfigInvalid.value) {
-      toast.error(t("admin.notifications.headers.fixErrors"));
+      toast.error(
+        t(
+          webhookBodyConfigInvalid.value
+            ? "admin.notifications.body.fixErrors"
+            : "admin.notifications.headers.fixErrors",
+        ),
+      );
       return;
     }
     testingDraft.value = true;
@@ -327,6 +385,7 @@ export const useNotificationProviders = (active: Readonly<Ref<boolean>>) => {
       const result = await EventCenterAPI.testNotificationProviderDraft({
         ...buildProviderPayload(),
         id: dialogMode.value === "edit" ? editingProvider.value?.id : undefined,
+        sample_context: webhookSampleContext(),
       });
       if (!result.success) {
         throw new Error(
@@ -343,6 +402,29 @@ export const useNotificationProviders = (active: Readonly<Ref<boolean>>) => {
       });
     } finally {
       testingDraft.value = false;
+    }
+  };
+
+  const previewWebhookBody = async () => {
+    if (!selectedDefinition.value || webhookBodyConfigInvalid.value) {
+      toast.error(t("admin.notifications.body.fixErrors"));
+      return;
+    }
+    updateWebhookTransient({ __webhook_body_previewing: true });
+    try {
+      const result = await EventCenterAPI.previewNotificationWebhookBody({
+        ...buildProviderPayload(),
+        id: dialogMode.value === "edit" ? editingProvider.value?.id : undefined,
+        sample_context: webhookSampleContext(),
+      });
+      updateWebhookTransient({ __webhook_body_preview: result.data });
+    } catch (error) {
+      toast.error(t("admin.notifications.body.previewFailed"), {
+        description:
+          error instanceof Error ? error.message : t("common.tryLater"),
+      });
+    } finally {
+      updateWebhookTransient({ __webhook_body_previewing: false });
     }
   };
 
@@ -417,6 +499,7 @@ export const useNotificationProviders = (active: Readonly<Ref<boolean>>) => {
     openCreateDialog,
     openEditDialog,
     providerForm,
+    previewWebhookBody,
     providers,
     resolveProviderTypeLabel,
     saveProvider,

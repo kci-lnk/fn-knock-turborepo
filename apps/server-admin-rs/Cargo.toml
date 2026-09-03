@@ -44,6 +44,7 @@ regex = "1.12"
 jsonwebtoken = "9.3"
 ldap3 = { version = "0.12.1", default-features = false, features = ["tls-native"] }
 lettre = { version = "0.11", default-features = false, features = ["builder", "smtp-transport", "tokio1-rustls-tls"] }
+mime = "0.3"
 mime_guess = "2.0"
 native-tls = { version = "0.2.18", features = ["vendored"] }
 rand = "0.9"

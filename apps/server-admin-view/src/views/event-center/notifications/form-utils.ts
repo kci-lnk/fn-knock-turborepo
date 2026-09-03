@@ -6,6 +6,17 @@ import {
   coerceWebhookHeaderEntries,
   normalizeWebhookHeaderEntries,
 } from "./webhook-headers";
+import {
+  coerceWebhookBodyConfig,
+  normalizeWebhookBodyConfig,
+  type WebhookBodyConstraints,
+  type WebhookBodyScope,
+} from "./webhook-body";
+
+const webhookBodyScope = (field: NotificationSchemaField): WebhookBodyScope =>
+  (field.constraints as WebhookBodyConstraints | undefined)?.scope === "target"
+    ? "target"
+    : "provider";
 
 export type ProviderDialogMode = "create" | "edit";
 
@@ -34,6 +45,10 @@ export const createEditableSchemaRecord = (
     const value = source[field.key];
     if (field.type === "headers") {
       acc[field.key] = coerceWebhookHeaderEntries(value);
+      return acc;
+    }
+    if (field.type === "webhook_body") {
+      acc[field.key] = coerceWebhookBodyConfig(value, webhookBodyScope(field));
       return acc;
     }
     if (value === undefined || value === null) {
@@ -68,6 +83,13 @@ export const buildSchemaPayload = (args: {
     const raw = args.value[field.key];
     if (field.type === "headers") {
       payload[field.key] = normalizeWebhookHeaderEntries(raw);
+      continue;
+    }
+    if (field.type === "webhook_body") {
+      payload[field.key] = normalizeWebhookBodyConfig(
+        raw,
+        webhookBodyScope(field),
+      );
       continue;
     }
     if (field.sensitive) {

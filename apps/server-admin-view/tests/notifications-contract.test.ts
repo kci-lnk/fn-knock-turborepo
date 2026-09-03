@@ -42,6 +42,7 @@ describe("notifications API contract", () => {
       ["get", "/api/admin/notifications/providers"],
       ["post", "/api/admin/notifications/providers"],
       ["post", "/api/admin/notifications/providers/test"],
+      ["post", "/api/admin/notifications/providers/webhook/preview"],
       ["get", "/api/admin/notifications/providers/{id}"],
       ["patch", "/api/admin/notifications/providers/{id}"],
       ["delete", "/api/admin/notifications/providers/{id}"],
@@ -117,13 +118,18 @@ describe("notifications API contract", () => {
     assert.equal(policy.properties?.backoff_seconds?.maximum, 3_600);
   });
 
-  it("publishes the headers field and typed header constraints", () => {
+  it("publishes typed webhook header and body fields and constraints", () => {
     const field = contract.components.schemas.NotificationSchemaFieldData;
     assert.ok(field.properties?.type?.enum?.includes("headers"));
-    assert.equal(
-      field.properties?.constraints?.oneOf?.find((item) => item.$ref)?.$ref,
+    assert.ok(field.properties?.type?.enum?.includes("webhook_body"));
+    const constraintRefs =
+      contract.components.schemas.NotificationSchemaConstraintsData.oneOf?.map(
+        (item) => item.$ref,
+      );
+    assert.deepEqual(constraintRefs, [
       "#/components/schemas/NotificationHeaderConstraintsData",
-    );
+      "#/components/schemas/NotificationWebhookBodyConstraintsData",
+    ]);
 
     const constraints =
       contract.components.schemas.NotificationHeaderConstraintsData;
@@ -137,16 +143,49 @@ describe("notifications API contract", () => {
       assert.ok(constraints.required?.includes(property), property);
     }
 
+    const bodyConstraints =
+      contract.components.schemas.NotificationWebhookBodyConstraintsData;
+    for (const property of [
+      "kind",
+      "scope",
+      "formats",
+      "variable_roots",
+      "max_template_bytes",
+      "max_sample_bytes",
+      "max_placeholders",
+      "max_rendered_bytes",
+      "max_content_type_bytes",
+    ]) {
+      assert.ok(bodyConstraints.required?.includes(property), property);
+    }
+
+    const testBody =
+      contract.components.schemas.NotificationProviderTestBodyData;
+    assert.ok(testBody.properties?.target_config);
+    assert.ok(testBody.properties?.sample_context);
+    const previewBody =
+      contract.components.schemas.NotificationWebhookBodyPreviewBodyData;
+    assert.ok(previewBody.properties?.id);
+    assert.ok(previewBody.properties?.connection_config);
+    assert.notEqual(previewBody.required?.includes("id"), true);
+    assert.notEqual(previewBody.required?.includes("type"), true);
+    assert.equal(
+      contract.paths["/api/admin/notifications/providers/webhook/preview"].post
+        .responses?.["200"]?.content?.["application/json"]?.schema?.properties
+        ?.data?.$ref,
+      "#/components/schemas/NotificationWebhookBodyPreviewData",
+    );
+
     const generatedTypes = readSource(
       "../../../packages/api-contract/src/schema.d.ts",
     );
     assert.match(
       generatedTypes,
-      /type: "string" \| "number" \| "boolean" \| "select" \| "json" \| "headers"/u,
+      /type: "string" \| "number" \| "boolean" \| "select" \| "json" \| "headers" \| "webhook_body"/u,
     );
     assert.match(
       generatedTypes,
-      /constraints\?: null \| components\["schemas"\]\["NotificationHeaderConstraintsData"\]/u,
+      /NotificationSchemaConstraintsData: components\["schemas"\]\["NotificationHeaderConstraintsData"\] \| components\["schemas"\]\["NotificationWebhookBodyConstraintsData"\]/u,
     );
   });
 
@@ -156,6 +195,7 @@ describe("notifications API contract", () => {
       "NotificationProviderCreateBodyData",
       "NotificationProviderUpdateBodyData",
       "NotificationProviderTestBodyData",
+      "NotificationWebhookBodyPreviewBodyData",
       "NotificationRuleCreateBodyData",
       "NotificationRuleUpdateBodyData",
       "NotificationDeliveryClearBodyData",

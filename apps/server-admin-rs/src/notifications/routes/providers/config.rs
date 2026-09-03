@@ -61,6 +61,12 @@ pub(in crate::notifications::routes) fn validate_provider_connection_patch(
         parse_webhook_custom_headers(headers)
             .map_err(|error| NotifyError::BadRequest(error.text(translator)))?;
     }
+    if definition.provider_type == "webhook"
+        && let Some(body) = config.get("body_config")
+    {
+        parse_webhook_body_config(body, WebhookBodyScope::Provider)
+            .map_err(|error| NotifyError::BadRequest(error.text(translator)))?;
+    }
     Ok(())
 }
 

@@ -55,59 +55,52 @@ const { t } = useI18n();
         </DialogDescription>
       </DialogHeader>
 
-      <div class="flex-1 space-y-4 overflow-y-auto px-4 py-5 sm:px-6">
-        <GatewayLocationMatchSection :form="form" />
-        <GatewayLocationAccessSection :form="form" />
+      <div class="flex-1 overflow-y-auto px-4 sm:px-6">
+        <div class="divide-y divide-border/60">
+          <GatewayLocationMatchSection :form="form" />
+          <GatewayLocationAccessSection :form="form" />
 
-        <section
-          aria-labelledby="location-action-heading"
-          class="space-y-4 rounded-lg border border-border/60 p-4"
-        >
-          <div class="space-y-1">
+          <section
+            aria-labelledby="location-action-heading"
+            class="space-y-4 py-5"
+          >
             <h3 id="location-action-heading" class="text-sm font-semibold">
               {{ t("admin.gatewayLocationsSettings.responseActionSection") }}
             </h3>
-            <p class="text-xs leading-5 text-muted-foreground">
-              {{
-                t("admin.gatewayLocationsSettings.responseActionDescription")
-              }}
-            </p>
-          </div>
 
-          <div
-            role="group"
-            :aria-label="t('admin.gatewayLocationsSettings.action')"
-            class="grid grid-cols-2 rounded-lg bg-muted p-[3px] text-sm text-muted-foreground"
-          >
-            <button
-              type="button"
-              class="h-9 rounded-md font-medium transition-colors"
-              :class="
-                form.action === 'proxy'
-                  ? 'bg-background text-foreground shadow-sm'
-                  : 'hover:text-foreground'
-              "
-              :aria-pressed="form.action === 'proxy'"
-              @click="emit('setAction', 'proxy')"
+            <div
+              role="group"
+              :aria-label="t('admin.gatewayLocationsSettings.action')"
+              class="grid grid-cols-2 rounded-lg bg-muted p-[3px] text-sm text-muted-foreground"
             >
-              {{ t("admin.gatewayLocationsSettings.proxyAction") }}
-            </button>
-            <button
-              type="button"
-              class="h-9 rounded-md font-medium transition-colors"
-              :class="
-                form.action === 'response'
-                  ? 'bg-background text-foreground shadow-sm'
-                  : 'hover:text-foreground'
-              "
-              :aria-pressed="form.action === 'response'"
-              @click="emit('setAction', 'response')"
-            >
-              {{ t("admin.gatewayLocationsSettings.fixedResponse") }}
-            </button>
-          </div>
+              <button
+                type="button"
+                class="h-9 rounded-md font-medium transition-colors"
+                :class="
+                  form.action === 'proxy'
+                    ? 'bg-background text-foreground shadow-sm'
+                    : 'hover:text-foreground'
+                "
+                :aria-pressed="form.action === 'proxy'"
+                @click="emit('setAction', 'proxy')"
+              >
+                {{ t("admin.gatewayLocationsSettings.proxyAction") }}
+              </button>
+              <button
+                type="button"
+                class="h-9 rounded-md font-medium transition-colors"
+                :class="
+                  form.action === 'response'
+                    ? 'bg-background text-foreground shadow-sm'
+                    : 'hover:text-foreground'
+                "
+                :aria-pressed="form.action === 'response'"
+                @click="emit('setAction', 'response')"
+              >
+                {{ t("admin.gatewayLocationsSettings.fixedResponse") }}
+              </button>
+            </div>
 
-          <div class="border-t border-border/60 pt-4">
             <GatewayLocationProxyFields
               v-if="form.action === 'proxy'"
               :form="form"
@@ -119,13 +112,13 @@ const { t } = useI18n();
               @add-header="emit('addHeader')"
               @remove-header="emit('removeHeader', $event)"
             />
-          </div>
-        </section>
+          </section>
+        </div>
 
         <p
           v-if="formError"
           role="alert"
-          class="rounded-md border border-destructive/30 bg-destructive/5 px-3 py-2.5 text-sm text-destructive"
+          class="mb-5 rounded-md bg-destructive/5 px-3 py-2.5 text-sm text-destructive"
         >
           {{ formError }}
         </p>

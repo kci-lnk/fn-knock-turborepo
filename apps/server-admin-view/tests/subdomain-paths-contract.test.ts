@@ -90,7 +90,8 @@ describe("subdomain path rules", () => {
     );
 
     assert.match(dialog, /flex max-h-\[calc\(100dvh-1rem\)\]/u);
-    assert.match(dialog, /flex-1 space-y-4 overflow-y-auto/u);
+    assert.match(dialog, /flex-1 overflow-y-auto/u);
+    assert.match(dialog, /divide-y divide-border\/60/u);
     assert.ok(
       dialog.indexOf("overflow-y-auto") < dialog.indexOf("<DialogFooter"),
     );

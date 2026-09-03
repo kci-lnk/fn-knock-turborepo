@@ -19,9 +19,7 @@ const { t } = useI18n();
 
 <template>
   <div class="space-y-4">
-    <div
-      class="grid gap-3 rounded-md border border-border/60 bg-muted/10 p-4 sm:grid-cols-[8.5rem_minmax(0,1fr)]"
-    >
+    <div class="grid gap-3 sm:grid-cols-[8.5rem_minmax(0,1fr)]">
       <div class="space-y-2">
         <Label for="response-status">
           {{ t("admin.gatewayLocationsSettings.statusCode") }}
@@ -46,7 +44,7 @@ const { t } = useI18n();
       :content-type="form.response.content_type"
     />
 
-    <div class="space-y-3 rounded-md border border-border/60 px-4 py-3">
+    <div class="space-y-3">
       <div class="flex items-center justify-between gap-3">
         <div class="text-sm font-medium">
           {{ t("admin.gatewayLocationsSettings.responseHeaders") }}

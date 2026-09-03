@@ -15,10 +15,7 @@ const { t } = useI18n();
 </script>
 
 <template>
-  <section
-    aria-labelledby="location-access-heading"
-    class="space-y-4 rounded-lg border border-border/60 p-4"
-  >
+  <section aria-labelledby="location-access-heading" class="space-y-4 py-5">
     <h3 id="location-access-heading" class="text-sm font-semibold">
       {{ t("admin.gatewayLocationsSettings.accessPolicySection") }}
     </h3>
@@ -45,9 +42,7 @@ const { t } = useI18n();
         </Select>
       </div>
 
-      <p
-        class="rounded-md bg-muted/50 px-3 py-2.5 text-xs leading-5 text-muted-foreground sm:mt-6"
-      >
+      <p class="text-xs leading-5 text-muted-foreground sm:mt-7">
         {{
           form.auth_mode === "public"
             ? t("admin.gatewayLocationsSettings.authPublicDescription")

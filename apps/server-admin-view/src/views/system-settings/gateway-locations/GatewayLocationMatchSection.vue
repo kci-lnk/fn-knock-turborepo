@@ -36,18 +36,10 @@ const pathPlaceholder = computed(() =>
 </script>
 
 <template>
-  <section
-    aria-labelledby="location-match-heading"
-    class="space-y-4 rounded-lg border border-border/60 p-4"
-  >
-    <div class="space-y-1">
-      <h3 id="location-match-heading" class="text-sm font-semibold">
-        {{ t("admin.gatewayLocationsSettings.requestMatchSection") }}
-      </h3>
-      <p class="text-xs leading-5 text-muted-foreground">
-        {{ t("admin.gatewayLocationsSettings.requestMatchDescription") }}
-      </p>
-    </div>
+  <section aria-labelledby="location-match-heading" class="space-y-4 py-5">
+    <h3 id="location-match-heading" class="text-sm font-semibold">
+      {{ t("admin.gatewayLocationsSettings.requestMatchSection") }}
+    </h3>
 
     <div class="grid gap-4 sm:grid-cols-[13rem_minmax(0,1fr)]">
       <div class="space-y-2">

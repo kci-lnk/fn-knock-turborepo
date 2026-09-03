@@ -1841,8 +1841,6 @@ export const enAdmin = {
     path: "Path",
     action: "Action",
     requestMatchSection: "Request matching",
-    requestMatchDescription:
-      "Choose a match mode, then enter the path this rule applies to.",
     matchMethod: "Match mode",
     exactPath: "Full exact path",
     pathPrefix: "Path prefix",
@@ -1850,8 +1848,6 @@ export const enAdmin = {
     pathPrefixDescription: "Matches this path prefix and all paths below it.",
     accessPolicySection: "Access policy",
     responseActionSection: "Response action",
-    responseActionDescription:
-      "Choose whether matched requests are proxied upstream or answered directly.",
     authBehavior: "Authentication",
     authInherit: "Inherit subdomain mapping",
     authPublic: "Public access",

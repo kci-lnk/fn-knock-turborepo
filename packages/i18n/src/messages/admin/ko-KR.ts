@@ -1824,8 +1824,6 @@ export const koKRAdmin = {
     path: "경로",
     action: "동작",
     requestMatchSection: "요청 일치",
-    requestMatchDescription:
-      "일치 방식을 선택한 다음 이 규칙을 적용할 경로를 입력하세요.",
     matchMethod: "일치 방식",
     exactPath: "전체 정확한 경로",
     pathPrefix: "경로 접두사",
@@ -1833,8 +1831,6 @@ export const koKRAdmin = {
     pathPrefixDescription: "이 경로 접두사와 모든 하위 경로에 일치합니다.",
     accessPolicySection: "액세스 정책",
     responseActionSection: "응답 동작",
-    responseActionDescription:
-      "일치한 요청을 업스트림으로 프록시하거나 고정 응답을 직접 반환합니다.",
     authBehavior: "인증 동작",
     authInherit: "서브도메인 매핑 상속",
     authPublic: "공개 액세스",

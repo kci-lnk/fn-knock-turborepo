@@ -28,8 +28,6 @@ const createTestI18n = () =>
               "Matches this path prefix and all paths below it.",
             pathPreview: "Path preview",
             prefixMatch: "Prefix match",
-            requestMatchDescription:
-              "Choose a match mode, then enter the path this rule applies to.",
             requestMatchSection: "Request matching",
             rewriteHtmlPath: "Rewrite HTML paths",
             rewriteHtmlPathHelp:
@@ -191,7 +189,7 @@ describe("gateway location rule dialog sections", () => {
     });
 
     expect(wrapper.text()).not.toContain("Rewrite HTML paths");
-    expect(wrapper.get(".grid.gap-3").classes()).toContain("sm:grid-cols-1");
+    expect(wrapper.get(".grid.gap-4").classes()).toContain("sm:grid-cols-1");
     wrapper.unmount();
   });
 

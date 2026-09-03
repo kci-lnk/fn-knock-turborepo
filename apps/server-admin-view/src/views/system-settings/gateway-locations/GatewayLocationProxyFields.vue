@@ -61,10 +61,10 @@ const pathForwardingPreview = computed(() =>
     </div>
 
     <div
-      class="grid gap-3"
+      class="grid gap-4"
       :class="isWebSocketTarget ? 'sm:grid-cols-1' : 'sm:grid-cols-2'"
     >
-      <div class="space-y-3 rounded-md border border-border/60 px-4 py-3">
+      <div class="space-y-3">
         <div class="space-y-2">
           <Label for="location-path-forwarding">
             {{ t("admin.gatewayLocationsSettings.pathForwarding") }}
@@ -83,27 +83,25 @@ const pathForwardingPreview = computed(() =>
             </SelectContent>
           </Select>
         </div>
-        <div class="space-y-1 text-xs text-muted-foreground">
-          <div class="font-medium text-foreground/80">
+        <div
+          class="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground"
+        >
+          <span class="font-medium text-foreground/80">
             {{ t("admin.gatewayLocationsSettings.pathPreview") }}
-          </div>
-          <div class="grid gap-1 font-mono">
-            <span class="break-all">
-              {{ pathForwardingPreview.requestPath }}
-            </span>
-            <span class="text-foreground">-&gt;</span>
-            <span class="break-all">
-              {{ pathForwardingPreview.upstreamPath }}
-            </span>
-          </div>
+          </span>
+          <span class="break-all font-mono">
+            {{ pathForwardingPreview.requestPath }}
+            <span class="px-1 text-foreground">-&gt;</span>
+            {{ pathForwardingPreview.upstreamPath }}
+          </span>
         </div>
       </div>
 
       <div
         v-if="!isWebSocketTarget"
-        class="flex items-start justify-between gap-4 rounded-md border border-border/60 px-4 py-3"
+        class="flex items-start justify-between gap-4 sm:pt-7"
       >
-        <div class="flex min-w-0 items-center gap-1.5 pt-0.5">
+        <div class="flex min-w-0 items-center gap-1.5 pt-1.5">
           <Label for="location-rewrite-html">
             {{ t("admin.gatewayLocationsSettings.rewriteHtmlPath") }}
           </Label>

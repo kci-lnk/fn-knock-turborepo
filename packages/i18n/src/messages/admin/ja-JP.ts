@@ -1842,8 +1842,6 @@ export const jaJPAdmin = {
     path: "パス",
     action: "アクション",
     requestMatchSection: "リクエストの照合",
-    requestMatchDescription:
-      "一致方法を選択してから、このルールを適用するパスを入力します。",
     matchMethod: "一致方法",
     exactPath: "完全な一致パス",
     pathPrefix: "パスプレフィックス",
@@ -1852,8 +1850,6 @@ export const jaJPAdmin = {
       "このパスプレフィックスと、その配下のすべてのパスに一致します。",
     accessPolicySection: "アクセスポリシー",
     responseActionSection: "レスポンスアクション",
-    responseActionDescription:
-      "一致したリクエストを上流へ転送するか、固定レスポンスを直接返すかを選択します。",
     authBehavior: "認証動作",
     authInherit: "サブドメインマッピングを継承",
     authPublic: "公開アクセス",

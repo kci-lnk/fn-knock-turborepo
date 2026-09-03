@@ -115,7 +115,6 @@ pub fn default_config() -> Value {
             "dashboard",
             "route_mapping",
             "tunnel",
-            "protocol_mapping",
             "sessions",
             "ssl_certificate",
             "ddns",
@@ -124,7 +123,6 @@ pub fn default_config() -> Value {
             "ssh_security",
             "events",
             "gateway_request_logs",
-            "waf_logs",
             "web_terminal",
             "system_settings"
         ]

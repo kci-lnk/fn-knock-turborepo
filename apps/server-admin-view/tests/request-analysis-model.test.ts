@@ -186,10 +186,14 @@ test("request analytics tabs expose real panels while retaining component state"
   );
 
   assert.match(pageSource, /defaultTab: "logs"/u);
-  assert.match(pageSource, /allowedTabs: \["logs", "analytics"\]/u);
+  assert.match(pageSource, /allowedTabs,/u);
   assert.match(
     pageSource,
-    /<TabsTrigger value="logs">[\s\S]*<TabsTrigger value="analytics">/u,
+    /showWafTab\.value \? \["logs", "waf", "analytics"\] : \["logs", "analytics"\]/u,
+  );
+  assert.match(
+    pageSource,
+    /<TabsTrigger value="logs">[\s\S]*value="waf"[\s\S]*<TabsTrigger value="analytics">/u,
   );
   assert.match(
     pageSource,
@@ -227,11 +231,8 @@ test("request analytics tabs expose real panels while retaining component state"
   assert.doesNotMatch(analyticsSource, /metric\.tone/u);
   assert.doesNotMatch(analyticsSource, /averageDuration/u);
   assert.match(cardSource, /bg-foreground\/\[0\.08\]/u);
-  assert.match(pageSource, /grid-cols-2 sm:flex sm:w-auto/u);
-  assert.match(
-    analyticsActionsSource,
-    /grid-cols-\[minmax\(0,1fr\)_auto\]/u,
-  );
+  assert.match(pageSource, /showWafTab \? 'grid-cols-3' : 'grid-cols-2'/u);
+  assert.match(analyticsActionsSource, /grid-cols-\[minmax\(0,1fr\)_auto\]/u);
   assert.match(analyticsOverviewSource, /col-span-2 lg:col-span-1/u);
   assert.match(logsFiltersSource, /grid-cols-2 items-center/u);
   assert.match(logsTableSource, /class="divide-y md:hidden"/u);
@@ -249,10 +250,7 @@ test("cached request-log pagination stops floating while its tab is inactive", (
 
   assert.match(dockSource, /onActivated/u);
   assert.match(dockSource, /onDeactivated/u);
-  assert.match(
-    dockSource,
-    /isLifecycleActive\.value\s*&&\s*\(props\.active/u,
-  );
+  assert.match(dockSource, /isLifecycleActive\.value\s*&&\s*\(props\.active/u);
   assert.match(
     dockSource,
     /onDeactivated\(\(\) => \{[\s\S]*isLifecycleActive\.value = false;[\s\S]*disconnectIntersectionObserver\(\);[\s\S]*hasFloatingFocus\.value = false;/u,

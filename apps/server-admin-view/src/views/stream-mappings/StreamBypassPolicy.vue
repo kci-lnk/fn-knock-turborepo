@@ -30,8 +30,8 @@ const model = useStreamBypassPolicyPage();
     <Breadcrumb>
       <BreadcrumbList>
         <BreadcrumbItem>
-          <BreadcrumbLink href="#/streams">
-            {{ t("admin.streamMappings.title") }}
+          <BreadcrumbLink href="#/mappings?tab=protocol">
+            {{ t("admin.nav.mappingManagement") }}
           </BreadcrumbLink>
         </BreadcrumbItem>
         <BreadcrumbSeparator />

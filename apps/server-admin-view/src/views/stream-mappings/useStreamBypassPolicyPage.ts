@@ -133,7 +133,8 @@ export const useStreamBypassPolicyPage = () => {
     }
   };
 
-  const cancel = () => void router.push("/streams");
+  const cancel = () =>
+    void router.push({ path: "/mappings", query: { tab: "protocol" } });
 
   const setEnabled = (enabled: boolean) => {
     if (enabled && !authEnabled.value) return;

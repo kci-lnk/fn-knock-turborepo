@@ -12,9 +12,7 @@ import {
   RadioTower,
   MonitorUp,
   Route as RouteIcon,
-  ServerCog,
   Settings2,
-  ShieldAlert,
   ShieldBan,
   SquareTerminal,
   UsersRound,
@@ -24,7 +22,6 @@ import {
   isAnySubdomainRoutingMode,
   isReverseProxySubdomainMode,
 } from "@/lib/reverse-proxy-submode";
-import { isProtocolMappingVisible } from "@/lib/protocol-mapping-visibility";
 import { useConfigStore } from "@/store/config";
 import { useUpdateStore } from "@/store/update";
 import { orderSidebarNavItems, type SidebarNavItem } from "./sidebarNavigation";
@@ -38,6 +35,13 @@ export const useLayoutNavigation = () => {
 
   const isNavActive = (path: string) => {
     const activePath = pendingNavPath.value ?? route.path;
+    if (path === "/mappings") {
+      return (
+        activePath === path ||
+        activePath.startsWith("/subdomains/") ||
+        activePath.startsWith("/streams/")
+      );
+    }
     if (activePath === path) return true;
     if (path === "/") return activePath === "/";
     return activePath.startsWith(`${path}/`);
@@ -92,9 +96,9 @@ export const useLayoutNavigation = () => {
       items.splice(1, 0, {
         id: "route_mapping",
         name: isSubdomainMode
-          ? t("admin.nav.subdomainMapping")
+          ? t("admin.nav.mappingManagement")
           : t("admin.nav.pathMapping"),
-        path: isSubdomainMode ? "/subdomains" : "/proxy",
+        path: isSubdomainMode ? "/mappings" : "/proxy",
         icon: isSubdomainMode ? Globe2 : RouteIcon,
       });
       const showTunnel =
@@ -108,21 +112,12 @@ export const useLayoutNavigation = () => {
         });
       }
     } else if (isAnySubdomainRoutingMode(configStore.config)) {
-      const showProtocolMapping = isProtocolMappingVisible(configStore.config);
       items.splice(1, 0, {
         id: "route_mapping",
-        name: t("admin.nav.subdomainMapping"),
-        path: "/subdomains",
+        name: t("admin.nav.mappingManagement"),
+        path: "/mappings",
         icon: Globe2,
       });
-      if (showProtocolMapping) {
-        items.splice(2, 0, {
-          id: "protocol_mapping",
-          name: t("admin.nav.protocolMapping"),
-          path: "/streams",
-          icon: ServerCog,
-        });
-      }
     }
     items.push({
       id: "auth",
@@ -150,14 +145,6 @@ export const useLayoutNavigation = () => {
       path: "/request-analysis",
       icon: ChartNoAxesCombined,
     });
-    if (configStore.config?.waf?.enabled) {
-      items.push({
-        id: "waf_logs",
-        name: t("admin.nav.wafLogs"),
-        path: "/waf-logs",
-        icon: ShieldAlert,
-      });
-    }
     items.push({
       id: "web_terminal",
       name: t("admin.nav.webTerminal"),

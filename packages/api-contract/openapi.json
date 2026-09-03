@@ -6146,7 +6146,6 @@
                 "dashboard",
                 "route_mapping",
                 "tunnel",
-                "protocol_mapping",
                 "sessions",
                 "ssl_certificate",
                 "ddns",
@@ -6155,7 +6154,6 @@
                 "ssh_security",
                 "events",
                 "gateway_request_logs",
-                "waf_logs",
                 "web_terminal",
                 "system_settings"
               ],
@@ -6202,7 +6200,6 @@
                 "dashboard",
                 "route_mapping",
                 "tunnel",
-                "protocol_mapping",
                 "sessions",
                 "ssl_certificate",
                 "ddns",
@@ -6211,7 +6208,6 @@
                 "ssh_security",
                 "events",
                 "gateway_request_logs",
-                "waf_logs",
                 "web_terminal",
                 "system_settings"
               ],

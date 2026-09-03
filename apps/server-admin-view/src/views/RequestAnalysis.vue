@@ -16,16 +16,21 @@ const GatewayRequestLogs = defineAsyncComponent(
 const RequestAnalyticsTab = defineAsyncComponent(
   () => import("./request-analysis/RequestAnalyticsTab.vue"),
 );
+const WAFLogs = defineAsyncComponent(() => import("./WAFLogs.vue"));
 
 const { t } = useI18n();
 const route = useRoute();
 const router = useRouter();
 const configStore = useConfigStore();
+const showWafTab = computed(() => configStore.config?.waf?.enabled === true);
+const allowedTabs = computed(() =>
+  showWafTab.value ? ["logs", "waf", "analytics"] : ["logs", "analytics"],
+);
 const { currentTab, navigateTo } = useSyncedQueryTab({
   route,
   router,
   defaultTab: "logs",
-  allowedTabs: ["logs", "analytics"],
+  allowedTabs,
 });
 const isLoggingEnabled = computed(
   () => configStore.config?.gateway_logging?.enabled ?? false,
@@ -55,7 +60,7 @@ const goToSettings = () => {
     </div>
 
     <Alert
-      v-if="!isLoggingEnabled"
+      v-if="currentTab !== 'waf' && !isLoggingEnabled"
       class="flex items-center gap-3 rounded-lg border-dashed bg-muted/20 px-4 py-3 text-foreground shadow-none"
     >
       <Info class="h-4 w-4 shrink-0 text-muted-foreground" />
@@ -81,9 +86,15 @@ const goToSettings = () => {
       <div
         class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between"
       >
-        <TabsList class="grid w-full shrink-0 grid-cols-2 sm:flex sm:w-auto">
+        <TabsList
+          class="grid w-full shrink-0 sm:flex sm:w-auto"
+          :class="showWafTab ? 'grid-cols-3' : 'grid-cols-2'"
+        >
           <TabsTrigger value="logs">
             {{ t("admin.requestAnalysis.pageTabs.logs") }}
+          </TabsTrigger>
+          <TabsTrigger v-if="showWafTab" value="waf">
+            {{ t("admin.requestAnalysis.pageTabs.waf") }}
           </TabsTrigger>
           <TabsTrigger value="analytics">
             {{ t("admin.requestAnalysis.pageTabs.analytics") }}
@@ -98,6 +109,11 @@ const goToSettings = () => {
             class="w-full sm:w-auto"
           />
           <div
+            v-show="currentTab === 'waf'"
+            id="request-analysis-waf-actions"
+            class="w-full sm:w-auto"
+          />
+          <div
             v-show="currentTab === 'analytics'"
             id="request-analysis-analytics-actions"
             class="w-full sm:w-auto"
@@ -108,6 +124,11 @@ const goToSettings = () => {
         <TabsContent value="logs" class="mt-0 outline-none">
           <KeepAlive>
             <GatewayRequestLogs v-if="currentTab === 'logs'" />
+          </KeepAlive>
+        </TabsContent>
+        <TabsContent v-if="showWafTab" value="waf" class="mt-0 outline-none">
+          <KeepAlive>
+            <WAFLogs v-if="currentTab === 'waf'" />
           </KeepAlive>
         </TabsContent>
         <TabsContent value="analytics" class="mt-0 outline-none">

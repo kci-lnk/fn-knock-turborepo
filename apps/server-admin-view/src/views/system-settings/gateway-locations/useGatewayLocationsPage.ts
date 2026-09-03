@@ -96,7 +96,7 @@ export function useGatewayLocationsPage() {
     if (host) {
       void router.push(`/subdomains/${encodeURIComponent(host)}/paths`);
     } else {
-      void router.push("/subdomains");
+      void router.push({ path: "/mappings", query: { tab: "subdomain" } });
     }
     resetDraftFromSelected();
   };
@@ -167,7 +167,8 @@ export function useGatewayLocationsPage() {
       ? t("admin.gatewayLocationsSettings.authInheritProtected")
       : t("admin.gatewayLocationsSettings.authInheritPublic");
   };
-  const backToSubdomains = () => void router.push("/subdomains");
+  const backToSubdomains = () =>
+    void router.push({ path: "/mappings", query: { tab: "subdomain" } });
 
   watch(() => route.params.host, ensureSelectedHost);
   onMounted(async () => {

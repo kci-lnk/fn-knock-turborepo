@@ -6,6 +6,7 @@ import RefreshButton from "@/components/RefreshButton.vue";
 import ConfirmDangerPopover from "@admin-shared/components/common/ConfirmDangerPopover.vue";
 
 defineProps<{
+  compact?: boolean;
   isBlockingIps: boolean;
   isDeleting: boolean;
   isMutatingBlacklistIps: boolean;
@@ -26,8 +27,14 @@ const { t } = useI18n();
 </script>
 
 <template>
-  <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-    <div class="space-y-1">
+  <div
+    :class="
+      compact
+        ? 'flex w-full justify-end'
+        : 'flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between'
+    "
+  >
+    <div v-if="!compact" class="space-y-1">
       <div class="flex items-center gap-2">
         <h2 class="text-lg font-semibold tracking-tight">
           {{ t("admin.wafLogs.title") }}

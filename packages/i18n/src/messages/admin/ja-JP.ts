@@ -65,17 +65,15 @@ export const jaJPAdmin = {
     dashboard: "ダッシュボード",
     ddns: "DDNS",
     wol: "リモート起動",
-    subdomainMapping: "ドメイン",
+    mappingManagement: "マッピング管理",
     pathMapping: "パス",
     tunnel: "トンネル",
     sessions: "セッション",
-    protocolMapping: "ストリーム",
     authConfig: "認証",
     sshSecurity: "SSH",
     events: "イベント",
     requestLogs: "リクエスト分析",
     deepMonitor: "詳細監視",
-    wafLogs: "WAF",
     webTerminal: "ターミナル",
     systemSettings: "システム",
     systemUpdate: "システム更新",
@@ -3623,6 +3621,12 @@ export const jaJPAdmin = {
     externalCopied: "コピーしました",
     externalCopyFailed: "受信設定をコピーできませんでした",
   },
+  mappingManagement: {
+    title: "マッピング管理",
+    description: "サブドメインとプロトコルのマッピングを一元管理します。",
+    subdomainTab: "サブドメイン",
+    protocolTab: "プロトコル",
+  },
   streamMappings: {
     title: "プロトコルマッピング",
     serviceProfile: "サービス識別",
@@ -5229,9 +5233,13 @@ export const jaJPAdmin = {
   requestAnalysis: {
     title: "リクエスト分析",
     description:
-      "トラフィック、性能、ルーティング、クライアント、セキュリティの観点からゲートウェイリクエストを分析します。",
+      "リクエストログ、WAF イベント、トラフィック分析を一元的に確認します。",
     settings: "ログ設定",
-    pageTabs: { analytics: "分析", logs: "ログ" },
+    pageTabs: {
+      logs: "リクエストログ",
+      waf: "WAF ログ",
+      analytics: "データ分析",
+    },
     ranges: {
       label: "分析期間",
       today: "今日",

@@ -83,7 +83,8 @@ export const useSubdomainAdvancedAuthPage = () => {
       loading.value = false;
     }
   };
-  const cancel = () => void router.push("/subdomains");
+  const cancel = () =>
+    void router.push({ path: "/mappings", query: { tab: "subdomain" } });
   const showValidationError = (
     issue: NonNullable<ReturnType<typeof getAdvancedAuthValidationIssue>>,
   ) => {

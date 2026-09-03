@@ -30,8 +30,8 @@ const model = useSubdomainAdvancedAuthPage();
     <Breadcrumb>
       <BreadcrumbList>
         <BreadcrumbItem>
-          <BreadcrumbLink href="#/subdomains">
-            {{ t("admin.advancedAuth.subdomains") }}
+          <BreadcrumbLink href="#/mappings?tab=subdomain">
+            {{ t("admin.nav.mappingManagement") }}
           </BreadcrumbLink>
         </BreadcrumbItem>
         <BreadcrumbSeparator />

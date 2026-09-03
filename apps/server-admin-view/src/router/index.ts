@@ -58,9 +58,16 @@ const router = createRouter({
           component: () => import("../views/ReverseProxy.vue"),
         },
         {
+          path: "mappings",
+          name: "MappingManagement",
+          component: () => import("../views/MappingManagement.vue"),
+        },
+        {
           path: "subdomains",
-          name: "SubdomainProxy",
-          component: () => import("../views/SubdomainProxy.vue"),
+          redirect: (to) => ({
+            path: "/mappings",
+            query: { ...to.query, tab: "subdomain" },
+          }),
         },
         {
           path: "subdomains/panel-sync",
@@ -86,8 +93,10 @@ const router = createRouter({
         },
         {
           path: "streams",
-          name: "StreamMappings",
-          component: () => import("../views/StreamMappings.vue"),
+          redirect: (to) => ({
+            path: "/mappings",
+            query: { ...to.query, tab: "protocol" },
+          }),
         },
         {
           path: "streams/:protocol/:port/bypass-policy",
@@ -163,13 +172,15 @@ const router = createRouter({
               typeof to.query.host === "string" ? to.query.host.trim() : "";
             return host
               ? `/subdomains/${encodeURIComponent(host)}/deep-monitor`
-              : "/subdomains";
+              : "/mappings?tab=subdomain";
           },
         },
         {
           path: "waf-logs",
-          name: "WAFLogs",
-          component: () => import("../views/WAFLogs.vue"),
+          redirect: (to) => ({
+            path: "/request-analysis",
+            query: { ...to.query, tab: "waf" },
+          }),
         },
         {
           path: "system",
@@ -306,7 +317,9 @@ router.beforeEach(async (to, from) => {
   if (
     to.path !== "/" &&
     to.path !== "/dashboard" &&
+    to.path !== "/mappings" &&
     to.path !== "/streams" &&
+    !to.path.startsWith("/streams/") &&
     to.path !== "/proxy" &&
     to.path !== "/subdomains" &&
     !to.path.startsWith("/subdomains/") &&
@@ -339,14 +352,20 @@ router.beforeEach(async (to, from) => {
 
   if (to.path === "/proxy" && configStore.config?.run_type === 1) {
     if (isReverseProxySubdomainMode(configStore.config)) {
-      return "/subdomains";
+      return "/mappings?tab=subdomain";
     }
     return true;
   }
 
   if (to.path === "/proxy") {
     return isSubdomainRoutingMode
-      ? "/subdomains"
+      ? "/mappings?tab=subdomain"
+      : "/sessions?tab=ip-whitelist";
+  }
+
+  if (to.path === "/mappings" && !isSubdomainRoutingMode) {
+    return configStore.config?.run_type === 1
+      ? "/proxy"
       : "/sessions?tab=ip-whitelist";
   }
 
@@ -357,6 +376,19 @@ router.beforeEach(async (to, from) => {
     return configStore.config?.run_type === 1
       ? "/proxy"
       : "/sessions?tab=ip-whitelist";
+  }
+
+  if (to.path.startsWith("/streams/") && !isSubdomainRoutingMode) {
+    return configStore.config?.run_type === 1
+      ? "/proxy"
+      : "/sessions?tab=ip-whitelist";
+  }
+
+  if (
+    to.path.startsWith("/streams/") &&
+    !isProtocolMappingVisible(configStore.config)
+  ) {
+    return "/mappings?tab=subdomain";
   }
 
   if (
@@ -376,23 +408,6 @@ router.beforeEach(async (to, from) => {
   });
   if (runtimeCapabilityRedirect) {
     return runtimeCapabilityRedirect;
-  }
-
-  if (to.path === "/streams" && !isProtocolMappingVisible(configStore.config)) {
-    if (configStore.config?.run_type === 1) {
-      return isReverseProxySubdomainMode(configStore.config)
-        ? "/subdomains"
-        : "/proxy";
-    }
-    if (configStore.config?.run_type === 3) {
-      return {
-        path: "/system",
-        query: {
-          tab: "features",
-        },
-      };
-    }
-    return "/";
   }
 
   return true;

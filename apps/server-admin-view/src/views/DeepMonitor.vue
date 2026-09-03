@@ -295,8 +295,8 @@ onUnmounted(() => {
     <Breadcrumb>
       <BreadcrumbList>
         <BreadcrumbItem>
-          <BreadcrumbLink href="#/subdomains">{{
-            t("admin.nav.subdomainMapping")
+          <BreadcrumbLink href="#/mappings?tab=subdomain">{{
+            t("admin.nav.mappingManagement")
           }}</BreadcrumbLink>
         </BreadcrumbItem>
         <BreadcrumbSeparator />

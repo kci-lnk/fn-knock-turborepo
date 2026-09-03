@@ -1,7 +1,6 @@
 <script setup lang="ts">
 import { computed, ref } from "vue";
 import { useI18n } from "vue-i18n";
-import { useRouter } from "vue-router";
 import type { WAFEvent } from "../types";
 import DetailDialog from "@admin-shared/components/common/DetailDialog.vue";
 import DetailFieldsGrid from "@admin-shared/components/common/DetailFieldsGrid.vue";
@@ -13,13 +12,11 @@ import {
   useWafLogsResource,
 } from "./waf-logs/useWafLogsResource";
 import WAFLogsTable from "./waf-logs/WAFLogsTable.vue";
-import WAFLogsDisabledNotice from "./waf-logs/WAFLogsDisabledNotice.vue";
 import WAFLogsFilters from "./waf-logs/WAFLogsFilters.vue";
 import WAFLogsHeader from "./waf-logs/WAFLogsHeader.vue";
 import WAFLogsPagination from "./waf-logs/WAFLogsPagination.vue";
 import TraceIdLink from "@/components/TraceIdLink.vue";
 
-const router = useRouter();
 const { t, locale } = useI18n();
 
 const isDetailsOpen = ref(false);
@@ -40,7 +37,6 @@ const {
   handleLoadOlder,
   handleSearch,
   isDeleting,
-  isWAFEnabled,
   limit,
   loading,
   refreshAll,
@@ -53,10 +49,6 @@ const {
 const viewDetails = (event: WAFEvent) => {
   activeEvent.value = event;
   isDetailsOpen.value = true;
-};
-
-const goToSettings = () => {
-  router.push({ path: "/system", query: { tab: "waf" } });
 };
 
 const getEntryActionIp = (event: WAFEvent) => {
@@ -158,22 +150,23 @@ const {
 
 <template>
   <div class="flex h-full flex-col gap-3">
-    <WAFLogsHeader
-      :is-blocking-ips="isBlockingIps"
-      :is-deleting="isDeleting"
-      :is-mutating-blacklist-ips="isMutatingBlacklistIps"
-      :is-releasing-ips="isReleasingIps"
-      :loading="loading"
-      :selected-blocked-count="selectedBlockedWafIps.length"
-      :selected-date="selectedDate"
-      :selected-unblocked-count="selectedUnblockedWafIps.length"
-      @block-selected="blockIpsFromWafLogs(selectedUnblockedWafIps)"
-      @delete-date="deleteSelectedDate"
-      @refresh="refreshAll"
-      @release-selected="releaseIpsFromWafLogs(selectedBlockedWafIps)"
-    />
-
-    <WAFLogsDisabledNotice v-if="!isWAFEnabled" @open-settings="goToSettings" />
+    <Teleport defer to="#request-analysis-waf-actions">
+      <WAFLogsHeader
+        compact
+        :is-blocking-ips="isBlockingIps"
+        :is-deleting="isDeleting"
+        :is-mutating-blacklist-ips="isMutatingBlacklistIps"
+        :is-releasing-ips="isReleasingIps"
+        :loading="loading"
+        :selected-blocked-count="selectedBlockedWafIps.length"
+        :selected-date="selectedDate"
+        :selected-unblocked-count="selectedUnblockedWafIps.length"
+        @block-selected="blockIpsFromWafLogs(selectedUnblockedWafIps)"
+        @delete-date="deleteSelectedDate"
+        @refresh="refreshAll"
+        @release-selected="releaseIpsFromWafLogs(selectedBlockedWafIps)"
+      />
+    </Teleport>
 
     <div
       class="flex min-h-0 flex-1 flex-col overflow-hidden rounded-xl border bg-background"

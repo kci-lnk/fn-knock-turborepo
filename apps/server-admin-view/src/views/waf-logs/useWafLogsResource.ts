@@ -55,9 +55,6 @@ export const useWafLogsResource = () => {
   } = useCursorPagination({ loading });
   const { trackIps, getSnapshot } = useIpLocationBatch();
 
-  const isWAFEnabled = computed(
-    () => configStore.config?.waf?.enabled ?? false,
-  );
   const cursorPageLabel = computed(() =>
     t("admin.wafLogs.cursorPage", { page: cursorHistory.value.length + 1 }),
   );
@@ -266,7 +263,6 @@ export const useWafLogsResource = () => {
     handleLoadOlder,
     handleSearch,
     isDeleting,
-    isWAFEnabled,
     limit,
     loading,
     refreshAll,

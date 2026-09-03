@@ -79,8 +79,8 @@ const toggleAuto = async (connection: PanelConnection, enabled: boolean) => {
     <Breadcrumb>
       <BreadcrumbList>
         <BreadcrumbItem>
-          <BreadcrumbLink href="#/subdomains">
-            {{ t("admin.subdomainProxy.mappingsTitle") }}
+          <BreadcrumbLink href="#/mappings?tab=subdomain">
+            {{ t("admin.nav.mappingManagement") }}
           </BreadcrumbLink>
         </BreadcrumbItem>
         <BreadcrumbSeparator />

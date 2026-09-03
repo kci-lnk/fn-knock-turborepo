@@ -70,17 +70,15 @@ export const koKRAdmin = {
     dashboard: "대시보드",
     ddns: "DDNS",
     wol: "원격 깨우기",
-    subdomainMapping: "서브도메인",
+    mappingManagement: "매핑 관리",
     pathMapping: "경로 매핑",
     tunnel: "터널",
     sessions: "세션",
-    protocolMapping: "프로토콜 매핑",
     authConfig: "인증 설정",
     sshSecurity: "SSH 보안",
     events: "이벤트 센터",
     requestLogs: "요청 분석",
     deepMonitor: "심층 모니터",
-    wafLogs: "WAF 로그",
     webTerminal: "웹 터미널",
     systemSettings: "시스템 설정",
     systemUpdate: "시스템 업데이트",
@@ -3607,6 +3605,12 @@ export const koKRAdmin = {
     externalCopied: "복사됨",
     externalCopyFailed: "수신 구성 복사에 실패했습니다",
   },
+  mappingManagement: {
+    title: "매핑 관리",
+    description: "서브도메인 및 프로토콜 매핑을 한곳에서 관리합니다.",
+    subdomainTab: "서브도메인",
+    protocolTab: "프로토콜",
+  },
   streamMappings: {
     title: "프로토콜 매핑",
     serviceProfile: "서비스 식별",
@@ -5192,10 +5196,13 @@ export const koKRAdmin = {
   },
   requestAnalysis: {
     title: "요청 분석",
-    description:
-      "트래픽, 성능, 라우팅, 클라이언트 및 보안 관점에서 게이트웨이 요청을 분석합니다.",
+    description: "요청 로그, WAF 이벤트 및 트래픽 분석을 한곳에서 확인합니다.",
     settings: "로그 설정",
-    pageTabs: { analytics: "분석", logs: "로그" },
+    pageTabs: {
+      logs: "요청 로그",
+      waf: "WAF 로그",
+      analytics: "데이터 분석",
+    },
     ranges: {
       label: "분석 기간",
       today: "오늘",

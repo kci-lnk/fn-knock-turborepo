@@ -892,7 +892,6 @@ pub(crate) const DEFAULT_SIDEBAR_MENU_ORDER: &[&str] = &[
     "dashboard",
     "route_mapping",
     "tunnel",
-    "protocol_mapping",
     "sessions",
     "ssl_certificate",
     "ddns",
@@ -901,7 +900,6 @@ pub(crate) const DEFAULT_SIDEBAR_MENU_ORDER: &[&str] = &[
     "ssh_security",
     "events",
     "gateway_request_logs",
-    "waf_logs",
     "web_terminal",
     "system_settings",
 ];
@@ -1130,6 +1128,8 @@ mod tests {
             "events",
             "events",
             "ip_whitelist",
+            "protocol_mapping",
+            "waf_logs",
             "unknown",
             42,
             "dashboard"
@@ -1139,6 +1139,8 @@ mod tests {
         assert_eq!(items.get(1), Some(&json!("dashboard")));
         assert_eq!(items.len(), DEFAULT_SIDEBAR_MENU_ORDER.len());
         assert!(!items.iter().any(|item| item == "ip_whitelist"));
+        assert!(!items.iter().any(|item| item == "protocol_mapping"));
+        assert!(!items.iter().any(|item| item == "waf_logs"));
         assert_eq!(
             items
                 .iter()

@@ -52,8 +52,8 @@ const {
     <Breadcrumb>
       <BreadcrumbList>
         <BreadcrumbItem>
-          <BreadcrumbLink href="#/subdomains">
-            {{ t("admin.gatewayLocationsSettings.subdomains") }}
+          <BreadcrumbLink href="#/mappings?tab=subdomain">
+            {{ t("admin.nav.mappingManagement") }}
           </BreadcrumbLink>
         </BreadcrumbItem>
         <BreadcrumbSeparator />

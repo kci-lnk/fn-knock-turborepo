@@ -135,7 +135,7 @@ describe("sidebar navigation order", () => {
 
   it("keeps hidden menu slots while merging a visible drag order", () => {
     const visibleOrder = DEFAULT_SIDEBAR_MENU_ORDER.filter(
-      (id) => id !== "tunnel" && id !== "protocol_mapping",
+      (id) => id !== "tunnel",
     );
     const nextVisibleOrder = [
       "sessions",
@@ -147,7 +147,6 @@ describe("sidebar navigation order", () => {
     });
 
     assert.equal(merged[2], "tunnel");
-    assert.equal(merged[3], "protocol_mapping");
     assert.equal(merged[0], "sessions");
     assert.deepEqual(
       orderSidebarNavItems(DEFAULT_SIDEBAR_MENU_ORDER.map(item), merged).map(
@@ -162,6 +161,8 @@ describe("sidebar navigation order", () => {
       "events",
       "events",
       "ip_whitelist",
+      "protocol_mapping",
+      "waf_logs",
       "unknown",
       42,
       "dashboard",
@@ -174,6 +175,11 @@ describe("sidebar navigation order", () => {
       (normalized as readonly string[]).includes("ip_whitelist"),
       false,
     );
+    assert.equal(
+      (normalized as readonly string[]).includes("protocol_mapping"),
+      false,
+    );
+    assert.equal((normalized as readonly string[]).includes("waf_logs"), false);
     assert.equal(
       hasSameSidebarMenuOrder(
         normalizeSidebarMenuOrder(DEFAULT_SIDEBAR_MENU_ORDER),

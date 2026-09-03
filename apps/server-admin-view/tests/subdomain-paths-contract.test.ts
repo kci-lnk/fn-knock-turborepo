@@ -27,7 +27,7 @@ describe("subdomain path rules", () => {
       "../src/views/system-settings/GatewayLocationsSettings.vue",
     );
 
-    assert.match(page, /href="#\/subdomains"/u);
+    assert.match(page, /href="#\/mappings\?tab=subdomain"/u);
     assert.doesNotMatch(page, /href="#\/system\?tab=gateway"/u);
   });
 

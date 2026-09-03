@@ -4814,7 +4814,7 @@ mod tests {
                 );
             }
         }
-        assert_eq!(ssl_operations, 29);
+        assert_eq!(ssl_operations, 30);
 
         assert!(
             document
@@ -4899,7 +4899,7 @@ mod tests {
                 }
             }
         }
-        assert_eq!(operations, 450);
+        assert_eq!(operations, 451);
         assert_eq!(documented_tags, operation_tags);
         assert!(documented_tags.iter().all(|tag| {
             tags.iter().any(|item| {
@@ -5570,7 +5570,7 @@ mod tests {
             .filter_map(Value::as_object)
             .flat_map(|path| path.values())
             .collect::<Vec<_>>();
-        assert_eq!(operations.len(), 450);
+        assert_eq!(operations.len(), 451);
         assert!(
             operations
                 .iter()

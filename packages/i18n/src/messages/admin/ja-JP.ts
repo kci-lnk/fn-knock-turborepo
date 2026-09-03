@@ -1841,6 +1841,19 @@ export const jaJPAdmin = {
     match: "一致方法",
     path: "パス",
     action: "アクション",
+    requestMatchSection: "リクエストの照合",
+    requestMatchDescription:
+      "一致方法を選択してから、このルールを適用するパスを入力します。",
+    matchMethod: "一致方法",
+    exactPath: "完全な一致パス",
+    pathPrefix: "パスプレフィックス",
+    exactPathDescription: "この完全なリクエストパスだけに一致します。",
+    pathPrefixDescription:
+      "このパスプレフィックスと、その配下のすべてのパスに一致します。",
+    accessPolicySection: "アクセスポリシー",
+    responseActionSection: "レスポンスアクション",
+    responseActionDescription:
+      "一致したリクエストを上流へ転送するか、固定レスポンスを直接返すかを選択します。",
     authBehavior: "認証動作",
     authInherit: "サブドメインマッピングを継承",
     authPublic: "公開アクセス",
@@ -1883,6 +1896,9 @@ export const jaJPAdmin = {
     pathForwardingKeep: "パス全体を維持",
     pathPreview: "パスプレビュー",
     rewriteHtmlPath: "HTML 内のパスを書き換え",
+    rewriteHtmlPathHelp:
+      "有効にすると、ゲートウェイが上流 HTML 内のリンクとリソースパスを書き換え、現在のパスからアクセスしてもページを正しく読み込めるようにします。HTML レスポンスにのみ適用されます。",
+    rewriteHtmlPathHelpAria: "HTML パスの書き換えについて",
     statusCode: "ステータスコード",
     responseHeaders: "レスポンスヘッダー",
     addResponseHeader: "レスポンスヘッダーを追加",

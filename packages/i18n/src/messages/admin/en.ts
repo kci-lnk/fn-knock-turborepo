@@ -1840,6 +1840,18 @@ export const enAdmin = {
     match: "Match",
     path: "Path",
     action: "Action",
+    requestMatchSection: "Request matching",
+    requestMatchDescription:
+      "Choose a match mode, then enter the path this rule applies to.",
+    matchMethod: "Match mode",
+    exactPath: "Full exact path",
+    pathPrefix: "Path prefix",
+    exactPathDescription: "Matches only this complete request path.",
+    pathPrefixDescription: "Matches this path prefix and all paths below it.",
+    accessPolicySection: "Access policy",
+    responseActionSection: "Response action",
+    responseActionDescription:
+      "Choose whether matched requests are proxied upstream or answered directly.",
     authBehavior: "Authentication",
     authInherit: "Inherit subdomain mapping",
     authPublic: "Public access",
@@ -1882,6 +1894,9 @@ export const enAdmin = {
     pathForwardingKeep: "Keep full path",
     pathPreview: "Path preview",
     rewriteHtmlPath: "Rewrite HTML paths",
+    rewriteHtmlPathHelp:
+      "When enabled, the gateway rewrites links and asset paths in upstream HTML so the page loads correctly from the current path. This applies only to HTML responses.",
+    rewriteHtmlPathHelpAria: "Learn about rewriting HTML paths",
     statusCode: "Status code",
     responseHeaders: "Response headers",
     addResponseHeader: "Add response header",

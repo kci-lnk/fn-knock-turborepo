@@ -1,5 +1,4 @@
 <script setup lang="ts">
-import { computed } from "vue";
 import { useI18n } from "vue-i18n";
 import { Button } from "@/components/ui/button";
 import {
@@ -10,29 +9,14 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import { Switch } from "@/components/ui/switch";
-import ConfirmDangerPopover from "@admin-shared/components/common/ConfirmDangerPopover.vue";
-import ProxyTargetInputField from "@admin-shared/components/common/ProxyTargetInputField.vue";
-import {
-  buildProxyPathForwardingPreview,
-  type ProxyPathForwardingMode,
-} from "@admin-shared/utils/proxyPathForwarding";
-import { Trash2 } from "lucide-vue-next";
-import ResponseBodyEditor from "@/components/ResponseBodyEditor.vue";
-import ResponseContentTypeField from "@/components/ResponseContentTypeField.vue";
 import type { HostLocationAction } from "@/types";
+import GatewayLocationAccessSection from "./GatewayLocationAccessSection.vue";
+import GatewayLocationMatchSection from "./GatewayLocationMatchSection.vue";
+import GatewayLocationProxyFields from "./GatewayLocationProxyFields.vue";
+import GatewayLocationResponseFields from "./GatewayLocationResponseFields.vue";
 import type { GatewayLocationForm } from "./gatewayLocationModel";
 
-const props = defineProps<{
+defineProps<{
   editingIndex: number | null;
   form: GatewayLocationForm;
   formError: string;
@@ -51,27 +35,14 @@ const emit = defineEmits<{
 }>();
 
 const { t } = useI18n();
-
-const pathForwardingMode = computed<ProxyPathForwardingMode>({
-  get: () => (props.form.strip_path ? "strip" : "keep"),
-  set: (mode) => {
-    props.form.strip_path = mode === "strip";
-  },
-});
-
-const pathForwardingPreview = computed(() =>
-  buildProxyPathForwardingPreview({
-    routePath: props.form.path,
-    target: props.form.target,
-    mode: pathForwardingMode.value,
-  }),
-);
 </script>
 
 <template>
   <Dialog :open="open" @update:open="emit('update:open', $event)">
-    <DialogContent class="max-h-[85vh] overflow-y-auto sm:max-w-[800px]">
-      <DialogHeader>
+    <DialogContent
+      class="flex max-h-[calc(100dvh-1rem)] w-[calc(100%-1rem)] flex-col gap-0 overflow-hidden p-0 sm:max-h-[90vh] sm:w-full sm:max-w-[800px]"
+    >
+      <DialogHeader class="border-b px-4 py-5 pr-12 sm:px-6">
         <DialogTitle>
           {{
             editingIndex === null
@@ -84,64 +55,25 @@ const pathForwardingPreview = computed(() =>
         </DialogDescription>
       </DialogHeader>
 
-      <div class="grid gap-5">
-        <div class="grid gap-3 sm:grid-cols-[minmax(0,1fr)_14rem]">
-          <div class="space-y-2">
-            <Label for="location-path">
-              {{ t("admin.gatewayLocationsSettings.path") }}
-            </Label>
-            <Input id="location-path" v-model="form.path" placeholder="/api" />
-          </div>
-          <div class="space-y-2">
-            <Label for="location-match">
-              {{ t("admin.gatewayLocationsSettings.match") }}
-            </Label>
-            <Select v-model="form.match">
-              <SelectTrigger id="location-match" class="w-full">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="exact">
-                  {{ t("admin.gatewayLocationsSettings.exactMatch") }}
-                </SelectItem>
-                <SelectItem value="prefix">
-                  {{ t("admin.gatewayLocationsSettings.prefixMatch") }}
-                </SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-        </div>
+      <div class="flex-1 space-y-4 overflow-y-auto px-4 py-5 sm:px-6">
+        <GatewayLocationMatchSection :form="form" />
+        <GatewayLocationAccessSection :form="form" />
 
-        <div class="space-y-2 rounded-md border border-border/60 p-4">
-          <Label for="location-auth-mode">
-            {{ t("admin.gatewayLocationsSettings.authBehavior") }}
-          </Label>
-          <Select v-model="form.auth_mode">
-            <SelectTrigger id="location-auth-mode" class="w-full sm:w-72">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="inherit">
-                {{ t("admin.gatewayLocationsSettings.authInherit") }}
-              </SelectItem>
-              <SelectItem value="public">
-                {{ t("admin.gatewayLocationsSettings.authPublic") }}
-              </SelectItem>
-            </SelectContent>
-          </Select>
-          <p class="text-xs leading-5 text-muted-foreground">
-            {{
-              form.auth_mode === "public"
-                ? t("admin.gatewayLocationsSettings.authPublicDescription")
-                : t("admin.gatewayLocationsSettings.authInheritDescription")
-            }}
-          </p>
-        </div>
-
-        <div class="space-y-2">
-          <div class="text-sm font-medium">
-            {{ t("admin.gatewayLocationsSettings.action") }}
+        <section
+          aria-labelledby="location-action-heading"
+          class="space-y-4 rounded-lg border border-border/60 p-4"
+        >
+          <div class="space-y-1">
+            <h3 id="location-action-heading" class="text-sm font-semibold">
+              {{ t("admin.gatewayLocationsSettings.responseActionSection") }}
+            </h3>
+            <p class="text-xs leading-5 text-muted-foreground">
+              {{
+                t("admin.gatewayLocationsSettings.responseActionDescription")
+              }}
+            </p>
           </div>
+
           <div
             role="group"
             :aria-label="t('admin.gatewayLocationsSettings.action')"
@@ -174,177 +106,46 @@ const pathForwardingPreview = computed(() =>
               {{ t("admin.gatewayLocationsSettings.fixedResponse") }}
             </button>
           </div>
-        </div>
 
-        <template v-if="form.action === 'proxy'">
-          <div class="space-y-2">
-            <Label for="location-target">
-              {{ t("admin.gatewayLocationsSettings.target") }}
-            </Label>
-            <ProxyTargetInputField
-              v-model="form.target"
-              input-id="location-target"
-              protocol-id="location-target-protocol"
-              placeholder="127.0.0.1:8080"
+          <div class="border-t border-border/60 pt-4">
+            <GatewayLocationProxyFields
+              v-if="form.action === 'proxy'"
+              :form="form"
+              :is-web-socket-target="isProxyLocationWebSocketTarget"
+            />
+            <GatewayLocationResponseFields
+              v-else
+              :form="form"
+              @add-header="emit('addHeader')"
+              @remove-header="emit('removeHeader', $event)"
             />
           </div>
-          <div class="grid gap-3 sm:grid-cols-2">
-            <div class="space-y-3 rounded-md border px-4 py-3">
-              <div class="space-y-2">
-                <Label for="location-path-forwarding">
-                  {{ t("admin.gatewayLocationsSettings.pathForwarding") }}
-                </Label>
-                <Select v-model="pathForwardingMode">
-                  <SelectTrigger id="location-path-forwarding" class="w-full">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="strip">
-                      {{
-                        t("admin.gatewayLocationsSettings.pathForwardingStrip")
-                      }}
-                    </SelectItem>
-                    <SelectItem value="keep">
-                      {{
-                        t("admin.gatewayLocationsSettings.pathForwardingKeep")
-                      }}
-                    </SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div class="space-y-1 text-xs text-muted-foreground">
-                <div class="font-medium text-foreground/80">
-                  {{ t("admin.gatewayLocationsSettings.pathPreview") }}
-                </div>
-                <div class="grid gap-1 font-mono">
-                  <span class="break-all">
-                    {{ pathForwardingPreview.requestPath }}
-                  </span>
-                  <span class="text-foreground">-&gt;</span>
-                  <span class="break-all">
-                    {{ pathForwardingPreview.upstreamPath }}
-                  </span>
-                </div>
-              </div>
-            </div>
-            <div
-              v-if="!isProxyLocationWebSocketTarget"
-              class="flex items-center justify-between gap-4 rounded-md border px-4 py-3"
-            >
-              <Label for="location-rewrite-html">
-                {{ t("admin.gatewayLocationsSettings.rewriteHtmlPath") }}
-              </Label>
-              <Switch id="location-rewrite-html" v-model="form.rewrite_html" />
-            </div>
-          </div>
-        </template>
+        </section>
 
-        <template v-else>
-          <div
-            class="grid gap-3 rounded-md border border-border/60 bg-muted/10 p-4 sm:grid-cols-[8.5rem_minmax(0,1fr)]"
-          >
-            <div class="space-y-2">
-              <Label for="response-status">
-                {{ t("admin.gatewayLocationsSettings.statusCode") }}
-              </Label>
-              <Input
-                id="response-status"
-                v-model.number="form.response.status"
-                type="number"
-                min="100"
-                max="599"
-              />
-            </div>
-            <ResponseContentTypeField
-              v-model="form.response.content_type"
-              input-id="response-content-type"
-              select-id="response-content-type-preset"
-            />
-          </div>
-
-          <div class="space-y-3 rounded-md border px-4 py-3">
-            <div class="flex items-center justify-between gap-3">
-              <div class="text-sm font-medium">
-                {{ t("admin.gatewayLocationsSettings.responseHeaders") }}
-              </div>
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                @click="emit('addHeader')"
-              >
-                {{ t("admin.gatewayLocationsSettings.addResponseHeader") }}
-              </Button>
-            </div>
-            <div
-              v-if="form.headers.length === 0"
-              class="text-sm text-muted-foreground"
-            >
-              {{ t("admin.gatewayLocationsSettings.noCustomResponseHeaders") }}
-            </div>
-            <div
-              v-for="(header, index) in form.headers"
-              :key="index"
-              class="grid gap-2 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_2.5rem]"
-            >
-              <Input
-                aria-label="X-Example"
-                v-model="header.name"
-                placeholder="X-Example"
-              />
-              <Input
-                aria-label="value"
-                v-model="header.value"
-                placeholder="value"
-              />
-              <ConfirmDangerPopover
-                :title="t('admin.gatewayLocationsSettings.deleteHeaderTitle')"
-                :description="
-                  t('admin.gatewayLocationsSettings.deleteHeaderDescription', {
-                    name:
-                      header.name.trim() ||
-                      t('admin.gatewayLocationsSettings.unnamedHeader'),
-                  })
-                "
-                :confirm-text="
-                  t('admin.gatewayLocationsSettings.confirmDelete')
-                "
-                :on-confirm="() => emit('removeHeader', index)"
-                content-class="w-64 text-left"
-              >
-                <template #trigger>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon"
-                    class="text-destructive hover:bg-destructive/10 hover:text-destructive"
-                  >
-                    <Trash2 class="h-4 w-4" />
-                    <span class="sr-only">
-                      {{ t("admin.gatewayLocationsSettings.deleteHeaderSr") }}
-                    </span>
-                  </Button>
-                </template>
-              </ConfirmDangerPopover>
-            </div>
-          </div>
-
-          <ResponseBodyEditor
-            v-model="form.response.body"
-            :content-type="form.response.content_type"
-          />
-        </template>
-
-        <p v-if="formError" class="text-sm text-destructive">
+        <p
+          v-if="formError"
+          role="alert"
+          class="rounded-md border border-destructive/30 bg-destructive/5 px-3 py-2.5 text-sm text-destructive"
+        >
           {{ formError }}
         </p>
       </div>
 
-      <DialogFooter>
-        <Button variant="outline" @click="emit('close')">
+      <DialogFooter
+        class="border-t bg-background px-4 py-4 sm:flex-row sm:justify-end sm:px-6"
+      >
+        <Button
+          class="w-full sm:w-auto"
+          variant="outline"
+          @click="emit('close')"
+        >
           {{ t("common.cancel") }}
         </Button>
-        <Button :disabled="!!formError || isSaving" @click="emit('save')">
+        <Button
+          class="w-full sm:w-auto"
+          :disabled="!!formError || isSaving"
+          @click="emit('save')"
+        >
           {{ t("admin.gatewayLocationsSettings.saveRule") }}
         </Button>
       </DialogFooter>

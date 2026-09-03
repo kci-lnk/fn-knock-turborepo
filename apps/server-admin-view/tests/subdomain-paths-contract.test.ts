@@ -42,17 +42,59 @@ describe("subdomain path rules", () => {
   });
 
   it("exposes inherited and public authentication in the editor and table", () => {
-    const dialog = source(
-      "../src/views/system-settings/gateway-locations/GatewayLocationRuleDialog.vue",
+    const accessSection = source(
+      "../src/views/system-settings/gateway-locations/GatewayLocationAccessSection.vue",
     );
     const table = source(
       "../src/views/system-settings/gateway-locations/GatewayLocationRulesTable.vue",
     );
 
-    assert.match(dialog, /v-model="form\.auth_mode"/u);
-    assert.match(dialog, /value="inherit"/u);
-    assert.match(dialog, /value="public"/u);
+    assert.match(accessSection, /v-model="form\.auth_mode"/u);
+    assert.match(accessSection, /value="inherit"/u);
+    assert.match(accessSection, /value="public"/u);
     assert.match(table, /formatAuthMode\(location\)/u);
+  });
+
+  it("presents match mode before a path label that follows its semantics", () => {
+    const matchSection = source(
+      "../src/views/system-settings/gateway-locations/GatewayLocationMatchSection.vue",
+    );
+
+    assert.ok(
+      matchSection.indexOf('id="location-match"') <
+        matchSection.indexOf('id="location-path"'),
+    );
+    assert.match(matchSection, /form\.match === "exact"/u);
+    assert.match(matchSection, /gatewayLocationsSettings\.exactPath/u);
+    assert.match(matchSection, /gatewayLocationsSettings\.pathPrefix/u);
+  });
+
+  it("keeps the HTML rewrite explanation beside the proxy control", () => {
+    const proxyFields = source(
+      "../src/views/system-settings/gateway-locations/GatewayLocationProxyFields.vue",
+    );
+
+    assert.match(proxyFields, /CircleAlert/u);
+    assert.match(proxyFields, /TooltipTrigger/u);
+    assert.match(proxyFields, /rewriteHtmlPathHelpAria/u);
+    assert.match(proxyFields, /rewriteHtmlPathHelp/u);
+    assert.match(proxyFields, /v-if="!isWebSocketTarget"/u);
+  });
+
+  it("keeps the long form scrollable between a fixed header and footer", () => {
+    const dialog = source(
+      "../src/views/system-settings/gateway-locations/GatewayLocationRuleDialog.vue",
+    );
+    const matchSection = source(
+      "../src/views/system-settings/gateway-locations/GatewayLocationMatchSection.vue",
+    );
+
+    assert.match(dialog, /flex max-h-\[calc\(100dvh-1rem\)\]/u);
+    assert.match(dialog, /flex-1 space-y-4 overflow-y-auto/u);
+    assert.ok(
+      dialog.indexOf("overflow-y-auto") < dialog.indexOf("<DialogFooter"),
+    );
+    assert.match(matchSection, /sm:grid-cols-\[13rem_minmax\(0,1fr\)\]/u);
   });
 
   it("serializes public authentication and normalizes legacy rules", () => {

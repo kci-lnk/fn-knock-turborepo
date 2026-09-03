@@ -1823,6 +1823,18 @@ export const koKRAdmin = {
     match: "일치 방식",
     path: "경로",
     action: "동작",
+    requestMatchSection: "요청 일치",
+    requestMatchDescription:
+      "일치 방식을 선택한 다음 이 규칙을 적용할 경로를 입력하세요.",
+    matchMethod: "일치 방식",
+    exactPath: "전체 정확한 경로",
+    pathPrefix: "경로 접두사",
+    exactPathDescription: "이 전체 요청 경로에만 일치합니다.",
+    pathPrefixDescription: "이 경로 접두사와 모든 하위 경로에 일치합니다.",
+    accessPolicySection: "액세스 정책",
+    responseActionSection: "응답 동작",
+    responseActionDescription:
+      "일치한 요청을 업스트림으로 프록시하거나 고정 응답을 직접 반환합니다.",
     authBehavior: "인증 동작",
     authInherit: "서브도메인 매핑 상속",
     authPublic: "공개 액세스",
@@ -1865,6 +1877,9 @@ export const koKRAdmin = {
     pathForwardingKeep: "전체 경로 유지",
     pathPreview: "경로 미리보기",
     rewriteHtmlPath: "HTML 경로 다시 쓰기",
+    rewriteHtmlPathHelp:
+      "활성화하면 게이트웨이가 업스트림 HTML의 링크와 리소스 경로를 다시 작성하여 현재 경로에서 페이지가 올바르게 로드되도록 합니다. HTML 응답에만 적용됩니다.",
+    rewriteHtmlPathHelpAria: "HTML 경로 다시 쓰기 알아보기",
     statusCode: "상태 코드",
     responseHeaders: "응답 헤더",
     addResponseHeader: "응답 헤더 추가",

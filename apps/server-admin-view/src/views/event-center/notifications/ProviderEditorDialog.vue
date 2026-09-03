@@ -56,7 +56,9 @@ const { t } = useI18n();
 
 <template>
   <Dialog :open="open" @update:open="emit('update:open', $event)">
-    <DialogContent class="max-h-[85vh] overflow-y-auto sm:max-w-[760px]">
+    <DialogContent
+      class="max-h-[85vh] min-w-0 overflow-x-hidden overflow-y-auto sm:max-w-[960px]"
+    >
       <DialogHeader>
         <DialogTitle>
           {{
@@ -70,7 +72,7 @@ const { t } = useI18n();
         </DialogDescription>
       </DialogHeader>
 
-      <div class="space-y-5 py-2">
+      <div class="min-w-0 space-y-5 py-2">
         <div class="grid gap-4 md:grid-cols-2">
           <div class="space-y-2">
             <Label :for="`${a11yId}-providereditordialog-1`">{{
@@ -159,7 +161,7 @@ const { t } = useI18n();
           />
         </div>
 
-        <div v-if="selectedDefinition" class="space-y-3">
+        <div v-if="selectedDefinition" class="min-w-0 space-y-3">
           <div class="text-sm font-medium">
             {{ t("admin.notifications.providers.connectionConfig") }}
           </div>

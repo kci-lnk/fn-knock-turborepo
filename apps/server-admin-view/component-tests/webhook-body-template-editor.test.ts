@@ -171,6 +171,32 @@ describe("WebhookBodyTemplateEditor", () => {
     }
   });
 
+  it("contains long preview output without horizontal overflow", () => {
+    const wrapper = mountEditor({
+      preview: {
+        format: "json",
+        content_type: "application/json",
+        body: JSON.stringify({ value: "x".repeat(2048) }),
+        byte_length: 2060,
+        missing_variables: ["event.payload.deeplyNestedUnbrokenPath"],
+      },
+    });
+
+    expect(wrapper.classes()).toEqual(
+      expect.arrayContaining(["min-w-0", "max-w-full"]),
+    );
+    expect(wrapper.get("pre").classes()).toEqual(
+      expect.arrayContaining([
+        "w-full",
+        "min-w-0",
+        "max-w-full",
+        "overflow-x-hidden",
+        "whitespace-pre-wrap",
+        "[overflow-wrap:anywhere]",
+      ]),
+    );
+  });
+
   it("disables preview and test when the sample context exceeds its byte limit", async () => {
     const wrapper = mountEditor({
       constraints: {

@@ -241,6 +241,11 @@ describe("ProviderEditorDialog webhook headers", () => {
     expect(document.body.textContent).toContain(
       "Legacy rule headers are still in use",
     );
+    const dialogContent = document.body.querySelector(
+      '[data-slot="dialog-content"]',
+    );
+    expect(dialogContent?.classList).toContain("sm:max-w-[960px]");
+    expect(dialogContent?.classList).toContain("overflow-x-hidden");
     for (const label of ["Test provider", "Save"]) {
       const button = [...document.body.querySelectorAll("button")].find(
         (candidate) => candidate.textContent?.trim() === label,

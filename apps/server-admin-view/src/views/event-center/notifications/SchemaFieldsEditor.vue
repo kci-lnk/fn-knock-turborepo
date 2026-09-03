@@ -113,11 +113,11 @@ const resolvePlaceholder = (field: NotificationSchemaField) => {
 </script>
 
 <template>
-  <div class="space-y-4">
+  <div class="min-w-0 space-y-4">
     <div
       v-for="field in fields"
       :key="field.key"
-      class="grid gap-2 rounded-md border border-border/60 p-3"
+      class="min-w-0 grid gap-2 rounded-md border border-border/60 p-3"
     >
       <div class="space-y-1">
         <Label

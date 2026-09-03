@@ -165,7 +165,7 @@ const issueText = computed(() => {
 </script>
 
 <template>
-  <div class="space-y-4">
+  <div class="min-w-0 max-w-full space-y-4">
     <div class="grid gap-3 sm:grid-cols-2">
       <div class="space-y-2">
         <div class="text-xs font-medium text-muted-foreground">
@@ -243,6 +243,7 @@ const issueText = computed(() => {
         </div>
         <CodeMirrorEditor
           ref="templateEditor"
+          class="min-w-0 max-w-full"
           :model-value="config.template || ''"
           :language="config.format === 'json' ? 'json' : 'text'"
           min-height="240px"
@@ -286,6 +287,7 @@ const issueText = computed(() => {
       </p>
       <div class="mt-3">
         <CodeMirrorEditor
+          class="min-w-0 max-w-full"
           :model-value="sampleText"
           language="json"
           min-height="220px"
@@ -332,21 +334,23 @@ const issueText = computed(() => {
 
     <div
       v-if="preview"
-      class="overflow-hidden rounded-md border border-border/70 bg-muted/20"
+      class="min-w-0 max-w-full overflow-hidden rounded-md border border-border/70 bg-muted/20"
     >
       <div
-        class="flex flex-wrap items-center gap-2 border-b border-border/70 px-3 py-2 text-xs"
+        class="flex min-w-0 flex-wrap items-center gap-2 border-b border-border/70 px-3 py-2 text-xs"
       >
         <Badge variant="secondary">{{ preview.format }}</Badge>
-        <span class="font-mono">{{ preview.content_type }}</span>
+        <span class="min-w-0 break-all font-mono">{{
+          preview.content_type
+        }}</span>
         <span class="text-muted-foreground">{{ preview.byte_length }} B</span>
       </div>
-      <pre class="max-h-80 overflow-auto whitespace-pre-wrap p-3 text-xs">{{
-        preview.body
-      }}</pre>
+      <pre
+        class="m-0 block max-h-80 w-full min-w-0 max-w-full overflow-x-hidden overflow-y-auto whitespace-pre-wrap break-words p-3 text-xs [overflow-wrap:anywhere]"
+        >{{ preview.body }}</pre>
       <div
         v-if="preview.missing_variables.length"
-        class="border-t border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800"
+        class="break-words border-t border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800 [overflow-wrap:anywhere]"
       >
         {{ t("admin.notifications.body.missingVariables") }}:
         {{ preview.missing_variables.join(", ") }}

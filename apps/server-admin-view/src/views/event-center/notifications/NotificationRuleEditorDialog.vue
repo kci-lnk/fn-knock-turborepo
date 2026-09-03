@@ -2,11 +2,7 @@
 import { Loader2 } from "lucide-vue-next";
 import { useI18n } from "vue-i18n";
 import { Button } from "@/components/ui/button";
-import {
-  Dialog,
-  DialogContent,
-  DialogFooter,
-} from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogFooter } from "@/components/ui/dialog";
 import type { NotificationRuleEditorController } from "./notification-rule-editor-contract";
 import NotificationRuleConditions from "./NotificationRuleConditions.vue";
 import NotificationRuleDialogHeader from "./NotificationRuleDialogHeader.vue";
@@ -22,11 +18,11 @@ const { t } = useI18n();
 <template>
   <Dialog v-model:open="dialogOpen">
     <DialogContent
-      class="flex max-h-[92vh] flex-col gap-0 overflow-hidden p-0 sm:max-w-[1040px]"
+      class="flex max-h-[92vh] min-w-0 flex-col gap-0 overflow-hidden p-0 sm:max-w-[1040px]"
     >
       <NotificationRuleDialogHeader :controller="controller" />
       <div
-        class="flex-1 space-y-6 overflow-y-auto bg-background px-4 py-5 sm:px-6"
+        class="min-w-0 flex-1 space-y-6 overflow-x-hidden overflow-y-auto bg-background px-4 py-5 sm:px-6"
       >
         <NotificationRuleEventTypes
           v-if="!isEditMode"

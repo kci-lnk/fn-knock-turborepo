@@ -29,7 +29,7 @@ const { t } = useI18n();
 </script>
 
 <template>
-  <section class="space-y-4">
+  <section class="min-w-0 space-y-4">
     <div
       class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between"
     >
@@ -70,7 +70,7 @@ const { t } = useI18n();
     </div>
     <div
       v-else
-      class="overflow-hidden rounded-lg border border-border/70 bg-background"
+      class="min-w-0 overflow-hidden rounded-lg border border-border/70 bg-background"
     >
       <div
         class="hidden grid-cols-[minmax(0,1fr)_180px_auto] gap-4 border-b bg-muted/20 px-4 py-3 text-xs font-medium text-muted-foreground sm:grid"
@@ -85,7 +85,7 @@ const { t } = useI18n();
       <div
         v-for="(target, index) in ruleForm.targets"
         :key="target.id || index"
-        class="grid grid-cols-[minmax(0,1fr)_auto] gap-x-3 gap-y-3 border-b border-border/60 px-4 py-4 last:border-b-0 sm:grid-cols-[minmax(0,1fr)_180px_auto] sm:gap-4"
+        class="min-w-0 grid grid-cols-[minmax(0,1fr)_auto] gap-x-3 gap-y-3 border-b border-border/60 px-4 py-4 last:border-b-0 sm:grid-cols-[minmax(0,1fr)_180px_auto] sm:gap-4"
       >
         <div class="min-w-0 pr-2 sm:pr-0">
           <div
@@ -126,7 +126,7 @@ const { t } = useI18n();
             resolveProviderDefinitionById(target.provider_id)?.target_schema
               .length
           "
-          class="col-span-2 rounded-md border border-dashed bg-muted/10 p-3 sm:col-span-3"
+          class="col-span-2 min-w-0 rounded-md border border-dashed bg-muted/10 p-3 sm:col-span-3"
         >
           <div class="mb-3 text-xs font-medium text-muted-foreground">
             {{ t("admin.notifications.rules.targetConfig") }}
@@ -136,7 +136,9 @@ const { t } = useI18n();
               resolveProviderDefinitionById(target.provider_id)!.target_schema
             "
             :model-value="target.target_config"
-            @update:model-value="ruleForm.targets[index]!.target_config = $event"
+            @update:model-value="
+              ruleForm.targets[index]!.target_config = $event
+            "
             @webhook-body-preview="previewWebhookTarget(index)"
             @webhook-body-test="testWebhookTarget(index)"
           />

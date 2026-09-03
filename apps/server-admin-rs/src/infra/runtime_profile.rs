@@ -234,6 +234,9 @@ pub(crate) fn detect_deployment_target(explicit: Option<&str>) -> String {
     if let Some(target) = explicit.and_then(normalize_deployment_target) {
         return target.to_string();
     }
+    if detect_openwrt_environment_at(Path::new("/etc/openwrt_release")) {
+        return "openwrt".to_string();
+    }
     if detect_strong_fpk_environment() {
         return "fpk".to_string();
     }
@@ -250,6 +253,10 @@ pub(crate) fn detect_deployment_target(explicit: Option<&str>) -> String {
         return "macos".to_string();
     }
     "dev".to_string()
+}
+
+fn detect_openwrt_environment_at(release_path: &Path) -> bool {
+    release_path.is_file()
 }
 
 fn detect_strong_fpk_environment() -> bool {
@@ -368,6 +375,18 @@ mod tests {
         let is_fpk = detect_fpk_environment();
 
         assert!(is_fpk);
+    }
+
+    #[test]
+    fn detects_openwrt_from_its_release_marker() {
+        let directory = tempfile::tempdir().expect("create OpenWrt marker test directory");
+        let release_path = directory.path().join("openwrt_release");
+        fs::write(&release_path, "DISTRIB_ID='OpenWrt'\n").expect("write OpenWrt marker");
+
+        assert!(detect_openwrt_environment_at(&release_path));
+        assert!(!detect_openwrt_environment_at(
+            &directory.path().join("missing")
+        ));
     }
 
     #[test]

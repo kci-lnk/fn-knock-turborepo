@@ -20,7 +20,7 @@ async fn generic_linux_test_state() -> (tempfile::TempDir, AppState) {
 }
 
 #[tokio::test]
-async fn generic_linux_root_rejects_clock_sync_and_dnsmasq_install() {
+async fn generic_linux_root_rejects_clock_sync_and_dnsmasq_operations() {
     let profile = crate::runtime_profile::RuntimeProfile {
         deployment_target: "linux".to_string(),
         is_docker: false,
@@ -38,10 +38,18 @@ async fn generic_linux_root_rejects_clock_sync_and_dnsmasq_install() {
 
     let (_directory, state) = generic_linux_test_state().await;
     let clock_response = clock_sync(axum::extract::State(state.clone())).await;
-    let dnsmasq_response = dnsmasq_install(axum::extract::State(state)).await;
+    let dnsmasq_status_response = dnsmasq_status(axum::extract::State(state.clone())).await;
+    let dnsmasq_install_response = dnsmasq_install(axum::extract::State(state)).await;
 
     assert_eq!(clock_response.status(), axum::http::StatusCode::FORBIDDEN);
-    assert_eq!(dnsmasq_response.status(), axum::http::StatusCode::FORBIDDEN);
+    assert_eq!(
+        dnsmasq_status_response.status(),
+        axum::http::StatusCode::FORBIDDEN
+    );
+    assert_eq!(
+        dnsmasq_install_response.status(),
+        axum::http::StatusCode::FORBIDDEN
+    );
 }
 
 #[test]

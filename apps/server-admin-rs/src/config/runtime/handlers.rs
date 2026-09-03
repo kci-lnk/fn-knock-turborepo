@@ -586,7 +586,7 @@ pub(super) async fn update_smart_connect(
     Json(body): Json<Value>,
 ) -> Response {
     let translator = Translator::from_state(&state).await;
-    if !host_firewall_available(&state) {
+    if !smart_connect_host_management_available(&state) {
         return response::error(
             StatusCode::FORBIDDEN,
             capability_blocked_text(&state, "smart_connect_available", &translator),

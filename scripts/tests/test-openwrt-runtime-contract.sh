@@ -72,6 +72,19 @@ done
 grep -Fq -- '"FN_KNOCK_DISABLE_IPTABLES=1"' deploy/openwrt/etc/init.d/fn-knock || \
   fail "OpenWrt gateway does not force-disable iptables"
 
+SMART_CONNECT_RUNTIME_SOURCE="apps/server-admin-rs/src/config/runtime/smart_connect.rs"
+RUNTIME_PROFILE_SOURCE="apps/server-admin-rs/src/infra/runtime_profile.rs"
+grep -Fq -- 'smart_connect_host_management_available(state),' "${SMART_CONNECT_RUNTIME_SOURCE}" || \
+  fail "OpenWrt smart connect cleanup is not guarded by runtime capabilities"
+grep -Fq -- 'if !should_schedule_smart_connect_sync(&state, &config)' "${SMART_CONNECT_RUNTIME_SOURCE}" || \
+  fail "OpenWrt host mapping changes can still schedule smart connect synchronization"
+grep -Fq -- 'resolve_smart_connect_dnsmasq_status(host_management_available' "${SMART_CONNECT_RUNTIME_SOURCE}" || \
+  fail "OpenWrt smart connect details can still probe the host dnsmasq service"
+grep -Fq -- 'if !smart_connect_host_management_available(state)' "${SMART_CONNECT_RUNTIME_SOURCE}" || \
+  fail "OpenWrt smart connect activation can still write dnsmasq configuration"
+grep -Fq -- 'Path::new("/etc/openwrt_release")' "${RUNTIME_PROFILE_SOURCE}" || \
+  fail "OpenWrt runtime detection relies only on an injected environment variable"
+
 if grep -Eq -- 'clean\.sh|iptables|ip6tables|nftables' deploy/openwrt/control/prerm; then
   fail "OpenWrt uninstall lifecycle still performs firewall cleanup"
 fi

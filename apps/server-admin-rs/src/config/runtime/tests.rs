@@ -1,23 +1,27 @@
 use super::*;
 
-async fn fpk_lite_runtime_test_state() -> (tempfile::TempDir, AppState) {
-    let directory = tempfile::tempdir().expect("create FPK Lite runtime test directory");
+async fn runtime_test_state(runtime_target: &str) -> (tempfile::TempDir, AppState) {
+    let directory = tempfile::tempdir().expect("create runtime test directory");
     let mut settings = {
         let _environment = crate::test_support::EnvGuard::new(&[]);
         crate::settings::Settings::from_env()
     };
-    settings.runtime_target = "fpk-lite".to_string();
+    settings.runtime_target = runtime_target.to_string();
     settings.data_dir = directory.path().join("data");
     settings.gateway_config_dir = directory.path().join("gateway");
     settings.sqlite_path = directory.path().join("fn-knock.sqlite3");
     settings.legacy_redis_url = String::new();
-    settings.internal_rpc_token = "fpk-lite-runtime-test-token".to_string();
+    settings.internal_rpc_token = format!("{runtime_target}-runtime-test-token");
     settings.go_backend_grpc_addr = "127.0.0.1:1".to_string();
     settings.request_timeout = std::time::Duration::from_millis(100);
     let state = AppState::new(settings)
         .await
-        .expect("create FPK Lite runtime state");
+        .expect("create runtime test state");
     (directory, state)
+}
+
+async fn fpk_lite_runtime_test_state() -> (tempfile::TempDir, AppState) {
+    runtime_test_state("fpk-lite").await
 }
 
 async fn response_json(response: Response) -> Value {
@@ -1635,7 +1639,7 @@ fn smart_connect_cleanup_deactivates_dnsmasq_even_without_managed_config() {
     let managed_config = directory.path().join("missing-smart-connect.conf");
     let calls = std::cell::Cell::new(0);
 
-    clear_smart_connect_managed_config_at(&managed_config, || {
+    clear_smart_connect_managed_config_at(true, &managed_config, || {
         calls.set(calls.get() + 1);
         Ok(())
     })
@@ -1645,13 +1649,96 @@ fn smart_connect_cleanup_deactivates_dnsmasq_even_without_managed_config() {
     assert!(!managed_config.exists());
 }
 
+#[tokio::test]
+async fn openwrt_boot_and_import_sync_never_manage_dnsmasq() {
+    let (_directory, state) = runtime_test_state("openwrt").await;
+    let mut config = state.storage.store.get_config().await.expect("load config");
+    config["run_type"] = json!(3);
+    config["smart_connect"] = json!({
+        "enabled": true,
+        "selected_ipv4": "192.168.31.246"
+    });
+
+    assert!(!smart_connect_host_management_available(&state));
+    assert!(!smart_connect_runtime_available(&state, &config));
+    assert!(!should_schedule_smart_connect_sync(&state, &config));
+    let details = sync_smart_connect(&state, &config)
+        .await
+        .expect("OpenWrt runtime sync must be host-side-effect free");
+    assert_eq!(details["dnsmasq"]["installed"], json!(false));
+    assert_eq!(details["dnsmasq"]["service_active"], json!(false));
+    assert_eq!(details["dnsmasq"]["initialized"], json!(false));
+    sync_smart_connect_on_boot(&state, &config)
+        .await
+        .expect("OpenWrt boot sync must be host-side-effect free");
+
+    config["smart_connect"]["enabled"] = json!(false);
+    sync_smart_connect_after_import(&state, &config)
+        .await
+        .expect("OpenWrt import sync must be host-side-effect free");
+
+    let runtime = state
+        .storage
+        .store
+        .get_json_value(SMART_CONNECT_RUNTIME_KEY)
+        .await
+        .expect("load smart connect runtime")
+        .expect("smart connect runtime was recorded");
+    assert_eq!(runtime["selected_ipv4"], json!("192.168.31.246"));
+    assert_eq!(runtime["synced_domains"], json!([]));
+    assert_eq!(runtime["managed_rule_count"], json!(0));
+    assert_eq!(runtime["last_sync_error"], Value::Null);
+}
+
+#[test]
+fn unavailable_runtime_preserves_residual_config_without_dnsmasq_control() {
+    let directory = tempfile::tempdir().unwrap();
+    let managed_config = directory.path().join("fn-knock-smart-connect.conf");
+    std::fs::write(&managed_config, "address=/example.com/192.168.31.246\n").unwrap();
+    let calls = std::cell::Cell::new(0);
+
+    clear_smart_connect_managed_config_at(false, &managed_config, || {
+        calls.set(calls.get() + 1);
+        Ok(())
+    })
+    .expect("unsupported runtime must be a no-op");
+
+    assert_eq!(calls.get(), 0);
+    assert!(managed_config.exists());
+}
+
+#[test]
+fn unavailable_runtime_does_not_probe_dnsmasq_status() {
+    let calls = std::cell::Cell::new(0);
+
+    let status = resolve_smart_connect_dnsmasq_status(false, "unsupported runtime", || {
+        calls.set(calls.get() + 1);
+        json!({ "installed": true })
+    });
+
+    assert_eq!(calls.get(), 0);
+    assert_eq!(status["installed"], json!(false));
+    assert_eq!(status["service_active"], json!(false));
+    assert_eq!(status["initialized"], json!(false));
+    assert_eq!(status["install_state"]["message"], "unsupported runtime");
+
+    let status = resolve_smart_connect_dnsmasq_status(true, "", || {
+        calls.set(calls.get() + 1);
+        json!({ "installed": true, "service_active": true })
+    });
+
+    assert_eq!(calls.get(), 1);
+    assert_eq!(status["installed"], json!(true));
+    assert_eq!(status["service_active"], json!(true));
+}
+
 #[test]
 fn smart_connect_cleanup_removes_managed_config_and_propagates_deactivation_failure() {
     let directory = tempfile::tempdir().unwrap();
     let managed_config = directory.path().join("fn-knock-smart-connect.conf");
     std::fs::write(&managed_config, "address=/example.com/192.168.1.20\n").unwrap();
 
-    let error = clear_smart_connect_managed_config_at(&managed_config, || {
+    let error = clear_smart_connect_managed_config_at(true, &managed_config, || {
         Err("failed to disable dnsmasq on boot: permission denied".to_string())
     })
     .expect_err("propagate dnsmasq deactivation failure");

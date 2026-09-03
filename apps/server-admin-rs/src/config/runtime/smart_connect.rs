@@ -18,12 +18,27 @@ pub(super) async fn load_smart_connect_details(state: &AppState) -> anyhow::Resu
     ))
 }
 
+pub(super) fn smart_connect_host_management_available(state: &AppState) -> bool {
+    let profile = runtime_profile::get_runtime_profile(state);
+    runtime_profile::get_runtime_capabilities(&profile).smart_connect_available
+}
+
+pub(super) fn smart_connect_runtime_available(state: &AppState, config: &Value) -> bool {
+    smart_connect_host_management_available(state)
+        && config.get("run_type").and_then(Value::as_i64) == Some(3)
+}
+
+pub(super) fn should_schedule_smart_connect_sync(state: &AppState, config: &Value) -> bool {
+    let smart = normalize_smart_connect_config(config.get("smart_connect"));
+    smart_connect_runtime_available(state, config)
+        && smart.get("enabled").and_then(Value::as_bool) == Some(true)
+}
+
 pub(super) async fn sync_smart_connect(state: &AppState, config: &Value) -> Result<Value, String> {
     let translator = Translator::from_state(state).await;
     let smart = normalize_smart_connect_config(config.get("smart_connect"));
     let domains = list_smart_connect_domains(config);
-    let available =
-        host_firewall_available(state) && config.get("run_type").and_then(Value::as_i64) == Some(3);
+    let available = smart_connect_runtime_available(state, config);
     let enabled = smart.get("enabled").and_then(Value::as_bool) == Some(true);
     let selected_ipv4 = smart
         .get("selected_ipv4")
@@ -35,7 +50,7 @@ pub(super) async fn sync_smart_connect(state: &AppState, config: &Value) -> Resu
 
     let runtime_result = async {
         if !available || !enabled {
-            clear_smart_connect_managed_config(&translator)?;
+            clear_smart_connect_managed_config(state, &translator)?;
             return Ok(json!({
                 "selected_ipv4": selected_ipv4,
                 "synced_domains": [],
@@ -57,7 +72,7 @@ pub(super) async fn sync_smart_connect(state: &AppState, config: &Value) -> Resu
         if dnsmasq.get("initialized").and_then(Value::as_bool) != Some(true) {
             return Err(smart_connect_text(&translator, "dnsmasqNotInitialized"));
         }
-        apply_smart_connect_managed_config(&selected_ipv4, &domains, &translator)?;
+        apply_smart_connect_managed_config(state, &selected_ipv4, &domains, &translator)?;
         Ok(json!({
             "selected_ipv4": selected_ipv4,
             "synced_domains": domains,
@@ -145,8 +160,7 @@ pub(super) async fn sync_smart_connect_on_boot(
     config: &Value,
 ) -> Result<(), String> {
     let smart = normalize_smart_connect_config(config.get("smart_connect"));
-    let available =
-        host_firewall_available(state) && config.get("run_type").and_then(Value::as_i64) == Some(3);
+    let available = smart_connect_runtime_available(state, config);
     let enabled = smart.get("enabled").and_then(Value::as_bool) == Some(true);
     if available && enabled {
         sync_smart_connect(state, config).await?;
@@ -160,7 +174,7 @@ pub(super) async fn sync_smart_connect_on_boot(
         .trim()
         .to_string();
     let translator = Translator::from_state(state).await;
-    clear_smart_connect_managed_config(&translator)?;
+    clear_smart_connect_managed_config(state, &translator)?;
     let runtime = json!({
         "selected_ipv4": selected_ipv4,
         "synced_domains": [],
@@ -181,10 +195,7 @@ pub(crate) fn schedule_smart_connect_sync_after_host_mappings_change(
     state: AppState,
     config: Value,
 ) {
-    let smart = normalize_smart_connect_config(config.get("smart_connect"));
-    if config.get("run_type").and_then(Value::as_i64) != Some(3)
-        || smart.get("enabled").and_then(Value::as_bool) != Some(true)
-    {
+    if !should_schedule_smart_connect_sync(&state, &config) {
         return;
     }
 
@@ -216,11 +227,11 @@ pub(super) fn build_smart_connect_details(
     translator: &Translator,
 ) -> Value {
     let smart = normalize_smart_connect_config(config.get("smart_connect"));
-    let available =
-        host_runtime_available(state) && config.get("run_type").and_then(Value::as_i64) == Some(3);
+    let host_management_available = smart_connect_host_management_available(state);
+    let available = smart_connect_runtime_available(state, config);
     let reason = if available {
         String::new()
-    } else if !host_runtime_available(state) {
+    } else if !host_management_available {
         capability_blocked_text(state, "smart_connect_available", translator)
     } else {
         let mode = smart_connect_run_type_label(
@@ -229,6 +240,10 @@ pub(super) fn build_smart_connect_details(
         );
         smart_connect_text_params(translator, "unavailableReason", &[("mode", mode)])
     };
+    let dnsmasq_status =
+        resolve_smart_connect_dnsmasq_status(host_management_available, &reason, || {
+            system_assets::build_dnsmasq_status_with_translator(translator)
+        });
     json!({
         "config": smart,
         "availability": {
@@ -236,11 +251,35 @@ pub(super) fn build_smart_connect_details(
             "reason": reason,
         },
         "dnsmasq": merge_dnsmasq_runtime(
-            system_assets::build_dnsmasq_status_with_translator(translator),
+            dnsmasq_status,
             runtime
         ),
         "domains": list_smart_connect_domains(config),
         "local_ip_options": list_private_ipv4_candidates(),
+    })
+}
+
+pub(super) fn resolve_smart_connect_dnsmasq_status<F>(
+    host_management_available: bool,
+    unavailable_message: &str,
+    load_status: F,
+) -> Value
+where
+    F: FnOnce() -> Value,
+{
+    if host_management_available {
+        return load_status();
+    }
+    json!({
+        "installed": false,
+        "service_active": false,
+        "initialized": false,
+        "version": "",
+        "install_state": {
+            "status": "uninstalled",
+            "progress": 0,
+            "message": unavailable_message,
+        }
     })
 }
 
@@ -320,10 +359,18 @@ pub(super) fn list_private_ipv4_candidates() -> Vec<Value> {
 }
 
 pub(super) fn apply_smart_connect_managed_config(
+    state: &AppState,
     selected_ipv4: &str,
     domains: &[String],
     translator: &Translator,
 ) -> Result<(), String> {
+    if !smart_connect_host_management_available(state) {
+        return Err(capability_blocked_text(
+            state,
+            "smart_connect_available",
+            translator,
+        ));
+    }
     let content = build_smart_connect_managed_config(selected_ipv4, domains);
     let path = Path::new(SMART_CONNECT_MANAGED_CONF_PATH);
     if let Some(parent) = path.parent() {
@@ -335,19 +382,28 @@ pub(super) fn apply_smart_connect_managed_config(
     system_assets::activate_dnsmasq_service(translator)
 }
 
-pub(super) fn clear_smart_connect_managed_config(translator: &Translator) -> Result<(), String> {
-    clear_smart_connect_managed_config_at(Path::new(SMART_CONNECT_MANAGED_CONF_PATH), || {
-        system_assets::deactivate_dnsmasq_service(translator)
-    })
+pub(super) fn clear_smart_connect_managed_config(
+    state: &AppState,
+    translator: &Translator,
+) -> Result<(), String> {
+    clear_smart_connect_managed_config_at(
+        smart_connect_host_management_available(state),
+        Path::new(SMART_CONNECT_MANAGED_CONF_PATH),
+        || system_assets::deactivate_dnsmasq_service(translator),
+    )
 }
 
 pub(super) fn clear_smart_connect_managed_config_at<F>(
+    host_management_available: bool,
     path: &Path,
     deactivate: F,
 ) -> Result<(), String>
 where
     F: FnOnce() -> Result<(), String>,
 {
+    if !host_management_available {
+        return Ok(());
+    }
     if path.exists() {
         fs::remove_file(path).map_err(|error| error.to_string())?;
     }

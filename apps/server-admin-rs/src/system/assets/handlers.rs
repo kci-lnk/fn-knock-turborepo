@@ -243,6 +243,12 @@ pub(super) async fn frp_delete(State(state): State<AppState>) -> Response {
 #[utoipa::path(get, path = "/api/admin/system/dnsmasq/status", tag = "system", operation_id = "get_api_admin_system_dnsmasq_status", responses((status = 200, description = "dnsmasq runtime status")))]
 pub(super) async fn dnsmasq_status(State(state): State<AppState>) -> Response {
     let translator = Translator::from_state(&state).await;
+    if !smart_connect_available(&state) {
+        return response::error(
+            StatusCode::FORBIDDEN,
+            smart_connect_unavailable_message(&state, &translator),
+        );
+    }
     response::ok(build_dnsmasq_status_with_translator(&translator)).into_response()
 }
 

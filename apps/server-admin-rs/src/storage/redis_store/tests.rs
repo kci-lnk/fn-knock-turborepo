@@ -7,6 +7,7 @@ mod aggregates;
 mod analytics;
 mod config;
 mod core;
+mod discovery;
 mod events_notifications;
 mod identity;
 mod mobility;

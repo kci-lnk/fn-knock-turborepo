@@ -10,6 +10,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value, json};
 use url::Url;
 use utoipa_axum::{router::OpenApiRouter, routes};
+use uuid::Uuid;
 
 use crate::{http_body, http_utils, i18n::Translator, response, state::AppState, time_utils};
 
@@ -20,6 +21,7 @@ const LOOKUP_SUCCESS_CACHE_TTL_SECONDS: usize = 7 * 24 * 60 * 60;
 const LOOKUP_FAILED_STATE_TTL_SECONDS: usize = 300;
 const MAX_ATTEMPTS: i64 = 5;
 const QUEUE_ERROR_RETRY_DELAY: Duration = Duration::from_secs(1);
+const QUEUE_LOCK_RETRY_FLOOR: Duration = Duration::from_millis(250);
 const QUEUE_BATCH_SIZE: usize = 3;
 const DEFAULT_IP_LOOKUP_URL: &str = "https://ipaddress.fnknock.cn/api/v1";
 const USER_AGENT: &str = "fn-knock-server-admin/1.0";
@@ -86,6 +88,11 @@ struct IpLocationSnapshot {
 enum LookupOutcome {
     Success(Box<IpLocationResult>),
     Failure(String),
+}
+
+enum ProcessOneOutcome {
+    Processed,
+    LockBusy(Duration),
 }
 
 pub fn ip_location_routes() -> OpenApiRouter<AppState> {
@@ -427,31 +434,44 @@ async fn process_queue(state: &AppState) -> anyhow::Result<usize> {
     for ip in due_ips {
         let task_state = state.clone();
         state.spawn_background("ip-location-lookup", async move {
-            tokio::select! {
-                _ = task_state.shutdown.cancelled() => {}
-                result = process_one(&task_state, &ip) => {
-                    if let Err(error) = result {
+            let (retry_after, processed) = tokio::select! {
+                _ = task_state.shutdown.cancelled() => return,
+                result = process_one(&task_state, &ip) => match result {
+                    Ok(ProcessOneOutcome::Processed) => (None, true),
+                    Ok(ProcessOneOutcome::LockBusy(delay)) => (Some(delay), false),
+                    Err(error) => {
                         tracing::warn!(%error, %ip, "failed to process IP location lookup");
+                        (Some(QUEUE_ERROR_RETRY_DELAY), false)
                     }
+                }
+            };
+            if processed {
+                task_state.request_notification_dispatch();
+            }
+            if let Some(delay) = retry_after {
+                tokio::select! {
+                    _ = task_state.shutdown.cancelled() => return,
+                    _ = tokio::time::sleep(delay) => {}
                 }
             }
             task_state.request_ip_location_processing();
-            task_state.request_notification_dispatch();
         });
     }
     Ok(count)
 }
 
-async fn process_one(state: &AppState, ip: &str) -> anyhow::Result<()> {
+async fn process_one(state: &AppState, ip: &str) -> anyhow::Result<ProcessOneOutcome> {
     let lookup_timeout = lookup_timeout();
     let lock_ttl_seconds = (lookup_timeout.as_secs() + 5).max(10) as usize;
+    let lock_owner = Uuid::new_v4().simple().to_string();
     let locked = state
         .storage
         .store
-        .acquire_ip_location_lock(ip, time_utils::now_ms(), lock_ttl_seconds)
+        .acquire_ip_location_lock(ip, &lock_owner, lock_ttl_seconds)
         .await?;
     if !locked {
-        return Ok(());
+        let ttl_ms = state.storage.store.ip_location_lock_ttl_ms(ip).await?;
+        return Ok(ProcessOneOutcome::LockBusy(lock_retry_delay(ttl_ms)));
     }
 
     let result = async {
@@ -572,11 +592,23 @@ async fn process_one(state: &AppState, ip: &str) -> anyhow::Result<()> {
     }
     .await;
 
-    let release_result = state.storage.store.release_ip_location_lock(ip).await;
+    let release_result = state
+        .storage
+        .store
+        .release_ip_location_lock(ip, &lock_owner)
+        .await;
     if let Err(error) = release_result {
         tracing::warn!(%error, %ip, "failed to release IP location lock");
     }
-    result
+    result?;
+    Ok(ProcessOneOutcome::Processed)
+}
+
+fn lock_retry_delay(ttl_ms: i64) -> Duration {
+    if ttl_ms <= 0 {
+        return QUEUE_ERROR_RETRY_DELAY;
+    }
+    Duration::from_millis(ttl_ms as u64).saturating_add(QUEUE_LOCK_RETRY_FLOOR)
 }
 
 async fn lookup_remote(state: &AppState, ip: &str, timeout: Duration) -> LookupOutcome {
@@ -1106,6 +1138,15 @@ fn value_object(value: Value) -> Map<String, Value> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn lock_contention_waits_for_the_lease_instead_of_hot_looping() {
+        assert_eq!(lock_retry_delay(-2), QUEUE_ERROR_RETRY_DELAY);
+        assert_eq!(
+            lock_retry_delay(1_000),
+            Duration::from_millis(1_000) + QUEUE_LOCK_RETRY_FLOOR
+        );
+    }
 
     #[test]
     fn formats_china_locations_like_node() {

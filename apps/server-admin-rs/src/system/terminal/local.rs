@@ -431,11 +431,13 @@ mod unix_shell {
 
     const EVENT_QUEUE_CAPACITY: usize = 128;
     const CONTROL_QUEUE_CAPACITY: usize = 128;
-    const CHILD_POLL_INTERVAL: Duration = Duration::from_millis(25);
+    const CHILD_STATUS_POLL_INTERVAL: Duration = Duration::from_millis(250);
+    const TERMINATION_POLL_INTERVAL: Duration = Duration::from_millis(25);
     const SIGNAL_GRACE: Duration = Duration::from_millis(750);
 
     enum InputCommand {
         Input(Vec<u8>, oneshot::Sender<TerminalResult<()>>),
+        Shutdown,
     }
 
     enum ControlCommand {
@@ -634,6 +636,7 @@ mod unix_shell {
             }
             self.closed = true;
             self.writer_shutdown.store(true, Ordering::Release);
+            let _ = self.inputs.try_send(InputCommand::Shutdown);
             // This signal is deliberately issued by the caller rather than the
             // writer thread. A full PTY input buffer must never make shutdown
             // unreachable.
@@ -656,6 +659,7 @@ mod unix_shell {
         fn drop(&mut self) {
             if !self.closed {
                 self.writer_shutdown.store(true, Ordering::Release);
+                let _ = self.inputs.try_send(InputCommand::Shutdown);
                 self.session.signal_primary(libc::SIGHUP);
                 let (sender, _) = oneshot::channel();
                 if self
@@ -677,17 +681,20 @@ mod unix_shell {
         inputs: std_mpsc::Receiver<InputCommand>,
         shutdown: Arc<AtomicBool>,
     ) {
-        while !shutdown.load(Ordering::Acquire) {
-            match inputs.recv_timeout(CHILD_POLL_INTERVAL) {
+        loop {
+            match inputs.recv() {
                 Ok(InputCommand::Input(data, response)) => {
+                    if shutdown.load(Ordering::Acquire) {
+                        let _ = response.send(Err(disconnected()));
+                        return;
+                    }
                     let result = writer
                         .write_all(&data)
                         .and_then(|()| writer.flush())
                         .map_err(|_| disconnected());
                     let _ = response.send(result);
                 }
-                Err(std_mpsc::RecvTimeoutError::Timeout) => {}
-                Err(std_mpsc::RecvTimeoutError::Disconnected) => return,
+                Ok(InputCommand::Shutdown) | Err(_) => return,
             }
         }
     }
@@ -722,7 +729,7 @@ mod unix_shell {
                     return;
                 }
             }
-            match controls.recv_timeout(CHILD_POLL_INTERVAL) {
+            match controls.recv_timeout(CHILD_STATUS_POLL_INTERVAL) {
                 Ok(ControlCommand::Resize(cols, rows, response)) => {
                     let result = master
                         .resize(PtySize {
@@ -796,7 +803,7 @@ mod unix_shell {
             if Instant::now() >= deadline {
                 return false;
             }
-            thread::sleep(CHILD_POLL_INTERVAL);
+            thread::sleep(TERMINATION_POLL_INTERVAL);
         }
     }
 
@@ -806,7 +813,7 @@ mod unix_shell {
             if Instant::now() >= deadline {
                 return false;
             }
-            thread::sleep(CHILD_POLL_INTERVAL);
+            thread::sleep(TERMINATION_POLL_INTERVAL);
         }
         true
     }

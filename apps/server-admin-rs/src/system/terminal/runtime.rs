@@ -833,6 +833,7 @@ impl TerminalRuntime {
         if state.controller_id.as_deref() == Some(attachment_id) {
             state.controller_id = None;
         }
+        state.reclaim_acknowledged_output();
         Ok(())
     }
 
@@ -1156,6 +1157,23 @@ impl SessionState {
         {
             self.controller_id = None;
         }
+        self.reclaim_acknowledged_output();
+    }
+
+    fn reclaim_acknowledged_output(&mut self) {
+        let Some(cursor) = self
+            .attachments
+            .values()
+            .map(|attachment| attachment.output_cursor)
+            .min()
+        else {
+            // Browser attachments are observers of the PTY, not owners of it.
+            // Keep the parser (and therefore reconnect scrollback) alive while
+            // releasing the redundant incremental delivery buffer.
+            self.output.clear_retained();
+            return;
+        };
+        self.output.discard_through(cursor);
     }
 
     fn validate_controller(&mut self, attachment_id: &str, generation: u64) -> TerminalResult<()> {
@@ -1217,12 +1235,16 @@ impl SessionState {
                 attachment.control_dirty = true;
             }
         }
-        self.output.push_status(
-            phase,
-            self.session.error_code,
-            self.session.error_message.clone(),
-            self.session.exit_code,
-        );
+        if self.attachments.is_empty() {
+            self.output.discard_status();
+        } else {
+            self.output.push_status(
+                phase,
+                self.session.error_code,
+                self.session.error_message.clone(),
+                self.session.exit_code,
+            );
+        }
     }
 }
 
@@ -1255,6 +1277,16 @@ impl OutputBuffer {
         }
     }
 
+    fn discard_output(&mut self, data: &[u8]) {
+        if data.is_empty() {
+            return;
+        }
+        self.clear_retained();
+        for _ in data.chunks(OUTPUT_RESPONSE_BYTES) {
+            self.allocate_cursor();
+        }
+    }
+
     fn push_status(
         &mut self,
         phase: SessionPhase,
@@ -1273,6 +1305,30 @@ impl OutputBuffer {
             exit_code,
         });
         self.trim();
+    }
+
+    fn discard_status(&mut self) {
+        self.clear_retained();
+        self.allocate_cursor();
+    }
+
+    fn discard_through(&mut self, cursor: u64) {
+        while self
+            .events
+            .front()
+            .is_some_and(|event| event.cursor <= cursor)
+        {
+            let event = self.events.pop_front().expect("front event exists");
+            self.retained_bytes = self
+                .retained_bytes
+                .saturating_sub(event.data.as_ref().map_or(0, Vec::len));
+        }
+    }
+
+    fn clear_retained(&mut self) {
+        self.events.clear();
+        self.events.shrink_to_fit();
+        self.retained_bytes = 0;
     }
 
     fn allocate_cursor(&mut self) -> u64 {
@@ -1365,6 +1421,7 @@ async fn read_events(
             attachment.output_cursor,
         )
     };
+    state.reclaim_acknowledged_output();
     if snapshot_pending {
         return build_snapshot_events(&mut state, attachment_id, after, control_update).map(Some);
     }
@@ -1729,7 +1786,11 @@ async fn run_session_actor(
                     ShellEvent::Data(data) => {
                         let mut state = runtime.state.lock().await;
                         state.terminal.process(&data);
-                        state.output.push_output(data);
+                        if state.attachments.is_empty() {
+                            state.output.discard_output(&data);
+                        } else {
+                            state.output.push_output(data);
+                        }
                         state.session.updated_at = now_iso();
                         drop(state);
                         runtime.output_notify.notify_waiters();
@@ -2051,6 +2112,26 @@ mod unit {
                 .is_none_or(|data| data.len() <= OUTPUT_RESPONSE_BYTES)
         }));
         assert_eq!(output.latest_cursor(), 17);
+    }
+
+    #[test]
+    fn output_buffer_releases_acknowledged_and_unobserved_data() {
+        let mut output = OutputBuffer::new();
+        output.push_output(vec![1; OUTPUT_RESPONSE_BYTES + 1]);
+        let latest = output.latest_cursor();
+        assert_eq!(output.events.len(), 2);
+
+        output.discard_through(latest);
+        assert!(output.events.is_empty());
+        assert_eq!(output.retained_bytes, 0);
+        assert_eq!(output.latest_cursor(), latest);
+
+        output.push_output(vec![2; OUTPUT_RESPONSE_BYTES + 1]);
+        let before_discard = output.latest_cursor();
+        output.discard_output(&vec![3; OUTPUT_RESPONSE_BYTES + 1]);
+        assert!(output.events.is_empty());
+        assert_eq!(output.retained_bytes, 0);
+        assert_eq!(output.latest_cursor(), before_discard + 2);
     }
 
     #[test]
@@ -2426,12 +2507,28 @@ mod unit {
             .create_attachment(&session.id, None, None)
             .await
             .unwrap();
+        let initial = runtime
+            .events(&attachment.id, 0, Duration::from_millis(1))
+            .await
+            .unwrap();
+        runtime
+            .events(
+                &attachment.id,
+                initial.next_cursor,
+                Duration::from_millis(1),
+            )
+            .await
+            .unwrap();
         events_tx
             .send(ShellEvent::Data(b"hello\r\n".to_vec()))
             .unwrap();
         tokio::time::sleep(Duration::from_millis(5)).await;
         let events = runtime
-            .events(&attachment.id, 0, Duration::from_millis(10))
+            .events(
+                &attachment.id,
+                initial.next_cursor,
+                Duration::from_millis(10),
+            )
             .await
             .unwrap();
         assert!(events.events.iter().any(|event| {
@@ -2443,6 +2540,15 @@ mod unit {
                     .is_some_and(|data| data == b"hello\r\n")
                 && !event.reset
         }));
+        runtime
+            .events(&attachment.id, events.next_cursor, Duration::from_millis(1))
+            .await
+            .unwrap();
+        let retained = runtime.session(&session.id).await.unwrap();
+        let retained = retained.state.lock().await;
+        assert_eq!(retained.output.retained_bytes, 0);
+        assert!(retained.output.events.is_empty());
+        drop(retained);
 
         events_tx.send(ShellEvent::Exited(7)).unwrap();
         tokio::time::sleep(Duration::from_millis(10)).await;
@@ -2471,6 +2577,13 @@ mod unit {
             .send(ShellEvent::Data(b"still-running\r\n".to_vec()))
             .unwrap();
         tokio::time::sleep(Duration::from_millis(5)).await;
+
+        let runtime_session = runtime.session(&session.id).await.unwrap();
+        let state = runtime_session.state.lock().await;
+        assert!(state.attachments.is_empty());
+        assert_eq!(state.output.retained_bytes, 0);
+        assert!(state.output.events.is_empty());
+        drop(state);
 
         let snapshot = runtime
             .list()

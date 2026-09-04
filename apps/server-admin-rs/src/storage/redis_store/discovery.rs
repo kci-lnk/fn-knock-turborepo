@@ -376,13 +376,13 @@ impl Store {
     pub async fn acquire_ip_location_lock(
         &self,
         ip: &str,
-        now_ms: i64,
+        owner_token: &str,
         ttl_seconds: usize,
     ) -> crate::storage::StorageResult<bool> {
         let mut conn = self.conn();
         let result: Option<String> = redis::cmd("SET")
             .arg(ip_location_lock_key(ip))
-            .arg(now_ms)
+            .arg(owner_token)
             .arg("EX")
             .arg(ttl_seconds.max(1))
             .arg("NX")
@@ -391,9 +391,21 @@ impl Store {
         Ok(result.as_deref() == Some("OK"))
     }
 
-    pub async fn release_ip_location_lock(&self, ip: &str) -> crate::storage::StorageResult<()> {
+    pub async fn ip_location_lock_ttl_ms(&self, ip: &str) -> crate::storage::StorageResult<i64> {
         let mut conn = self.conn();
-        conn.del(ip_location_lock_key(ip)).await
+        redis::cmd("PTTL")
+            .arg(ip_location_lock_key(ip))
+            .query_async(&mut conn)
+            .await
+    }
+
+    pub async fn release_ip_location_lock(
+        &self,
+        ip: &str,
+        owner_token: &str,
+    ) -> crate::storage::StorageResult<()> {
+        self.delete_key_if_value(&ip_location_lock_key(ip), owner_token)
+            .await
     }
 
     pub async fn remove_ip_location_queue_entry(

@@ -95,7 +95,7 @@
                 {{ t("admin.sessions.mobilityPage.currentSession") }}
               </div>
               <div class="mt-3 break-words text-sm font-medium text-foreground">
-                {{ session.credentialName }}
+                <SessionCredentialName :session="session" />
               </div>
               <div class="mt-3 break-all font-mono text-sm text-foreground">
                 {{ session.ip }}
@@ -349,6 +349,7 @@ import {
 } from "@/components/ui/card";
 import LiveStatusBadge from "@/components/LiveStatusBadge.vue";
 import HumanFriendlyTime from "@admin-shared/components/common/HumanFriendlyTime.vue";
+import SessionCredentialName from "../SessionCredentialName.vue";
 import { useSessionMobilityPage } from "./useSessionMobilityPage";
 
 const {

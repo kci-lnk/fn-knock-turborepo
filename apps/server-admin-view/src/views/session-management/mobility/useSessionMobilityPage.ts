@@ -14,6 +14,7 @@ import {
   getSessionMobilityTimelineSpan,
   middleEllipsis,
 } from "./sessionMobilityModel";
+import { getSessionCredentialDisplayName } from "../sessionCredentialPresentation";
 
 type SortOrder = "asc" | "desc";
 
@@ -36,6 +37,9 @@ export const useSessionMobilityPage = () => {
   });
 
   const sessionId = computed(() => String(route.params.id || ""));
+  const credentialDisplayName = computed(() =>
+    session.value ? getSessionCredentialDisplayName(session.value) : "-",
+  );
   const mobilitySummary = computed(
     () => mobility.value?.summary ?? session.value?.mobility ?? null,
   );
@@ -49,7 +53,7 @@ export const useSessionMobilityPage = () => {
       return t("admin.sessions.mobilityPage.defaultDescription");
     }
     return t("admin.sessions.mobilityPage.sessionDescription", {
-      name: session.value.credentialName,
+      name: credentialDisplayName.value,
       id: middleEllipsis(session.value.id, 20),
     });
   });

@@ -35,10 +35,17 @@ import {
 import { buildDetailFields } from "@admin-shared/utils/buildDetailFields";
 import { formatDateTimeSafe } from "@admin-shared/utils/formatDateTimeSafe";
 import FnosAttachmentIndicator from "./FnosAttachmentIndicator.vue";
+import SessionCredentialName from "./SessionCredentialName.vue";
+import {
+  formatSessionCredentialLoginDetail,
+  getSessionCredentialDisplayName,
+} from "./sessionCredentialPresentation";
 import trimMediaLogoUrl from "@/assets/trim-media-logo.png";
 
 const router = useRouter();
 const { t, locale } = useI18n();
+const translate = (key: string, params?: Record<string, string>) =>
+  params ? t(key, params) : t(key);
 const sessions = ref<SessionRecord[]>([]);
 const showDetail = ref(false);
 const detailSession = ref<SessionRecord | null>(null);
@@ -95,6 +102,15 @@ const detailItems = computed(() => {
     localizedDetailFieldDefinitions.value,
     {
       format: (key, value) => {
+        if (key === "method" && detailSession.value) {
+          return formatSessionCredentialLoginDetail(
+            detailSession.value,
+            translate,
+          );
+        }
+        if (key === "credentialName" && detailSession.value) {
+          return getSessionCredentialDisplayName(detailSession.value);
+        }
         if (key === "loginTime" || key === "expiresAt") {
           return formatDateTimeSafe(
             value as string | number | Date | null | undefined,
@@ -234,7 +250,9 @@ watch(
 
               <TableCell>
                 <div class="flex items-center gap-2">
-                  <div class="text-sm">{{ session.credentialName }}</div>
+                  <div class="text-sm">
+                    <SessionCredentialName :session="session" />
+                  </div>
                   <FnosAttachmentIndicator
                     v-if="session.fnosAttachments?.length"
                     :attachments="session.fnosAttachments"

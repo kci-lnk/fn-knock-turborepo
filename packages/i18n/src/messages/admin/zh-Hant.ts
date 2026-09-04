@@ -5753,6 +5753,17 @@ export const zhHantAdmin = {
       expiresAt: "過期時間",
       actions: "操作",
     },
+    credentialMethods: {
+      totp: "TOTP",
+      passkey: "Passkey",
+      password: "密碼",
+      oidc: "OIDC",
+      ldap: "LDAP",
+    },
+    credentialDisplay: {
+      methodWithCredential: "{method}：{name}",
+      relation: "{parent} / {child}",
+    },
     mobility: "軌跡",
     detail: "詳情",
     kick: "踢出",

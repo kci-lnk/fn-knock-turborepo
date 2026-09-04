@@ -6304,6 +6304,17 @@ export const enAdmin = {
       expiresAt: "Expires at",
       actions: "Actions",
     },
+    credentialMethods: {
+      totp: "TOTP",
+      passkey: "Passkey",
+      password: "Password",
+      oidc: "OIDC",
+      ldap: "LDAP",
+    },
+    credentialDisplay: {
+      methodWithCredential: "{method}: {name}",
+      relation: "{parent} / {child}",
+    },
     mobility: "Trace",
     detail: "Details",
     kick: "Kick",

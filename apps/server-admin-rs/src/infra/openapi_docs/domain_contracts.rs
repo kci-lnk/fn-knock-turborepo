@@ -363,6 +363,7 @@ struct SessionRecordData {
     method: Option<String>,
     credential_id: Option<String>,
     credential_name: Option<String>,
+    linked_totp_name: Option<String>,
     comment: Option<String>,
     ip: Option<String>,
     user_agent: Option<String>,

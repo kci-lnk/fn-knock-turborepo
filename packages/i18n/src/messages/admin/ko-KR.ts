@@ -6250,6 +6250,17 @@ export const koKRAdmin = {
       expiresAt: "만료 시간",
       actions: "작업",
     },
+    credentialMethods: {
+      totp: "TOTP",
+      passkey: "Passkey",
+      password: "비밀번호",
+      oidc: "OIDC",
+      ldap: "LDAP",
+    },
+    credentialDisplay: {
+      methodWithCredential: "{method}: {name}",
+      relation: "{parent} / {child}",
+    },
     mobility: "IP 변경 이력",
     detail: "세부정보",
     kick: "세션 종료",

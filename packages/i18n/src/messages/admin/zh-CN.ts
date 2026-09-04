@@ -5836,6 +5836,17 @@ export const zhCNAdmin = {
       expiresAt: "过期时间",
       actions: "操作",
     },
+    credentialMethods: {
+      totp: "TOTP",
+      passkey: "Passkey",
+      password: "密码",
+      oidc: "OIDC",
+      ldap: "LDAP",
+    },
+    credentialDisplay: {
+      methodWithCredential: "{method}：{name}",
+      relation: "{parent} / {child}",
+    },
     mobility: "轨迹",
     detail: "详情",
     kick: "踢出",

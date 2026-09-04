@@ -6297,6 +6297,17 @@ export const jaJPAdmin = {
       expiresAt: "有効期限",
       actions: "操作",
     },
+    credentialMethods: {
+      totp: "TOTP",
+      passkey: "Passkey",
+      password: "パスワード",
+      oidc: "OIDC",
+      ldap: "LDAP",
+    },
+    credentialDisplay: {
+      methodWithCredential: "{method}: {name}",
+      relation: "{parent} / {child}",
+    },
     mobility: "追跡",
     detail: "詳細",
     kick: "強制終了",

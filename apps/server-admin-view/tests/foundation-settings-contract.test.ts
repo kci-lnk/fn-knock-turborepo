@@ -191,6 +191,12 @@ describe("foundation settings API contract", () => {
         `${method.toUpperCase()} ${path}`,
       );
     }
+
+    assert.deepEqual(
+      contract.components.schemas.SessionRecordData.properties?.linkedTotpName
+        ?.type,
+      ["string", "null"],
+    );
   });
 
   it("keeps backup export, import, and automatic backup routes bound to typed routers", () => {

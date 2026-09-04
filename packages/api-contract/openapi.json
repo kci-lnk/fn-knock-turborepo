@@ -19237,6 +19237,12 @@
               "null"
             ]
           },
+          "linkedTotpName": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
           "loginTime": {
             "type": [
               "string",

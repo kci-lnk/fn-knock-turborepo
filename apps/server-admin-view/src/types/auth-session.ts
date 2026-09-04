@@ -85,6 +85,7 @@ export type LoginSession = {
   method: "TOTP" | "PASSWORD" | "PASSKEY" | "OIDC" | "LDAP";
   credentialId: string;
   credentialName: string;
+  linkedTotpName?: string | null;
   comment?: string;
   ip: string;
   userAgent: string;

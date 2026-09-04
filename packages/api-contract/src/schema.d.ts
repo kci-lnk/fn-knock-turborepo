@@ -11877,6 +11877,7 @@ export interface components {
             id: string;
             ip?: string | null;
             ipLocation?: string | null;
+            linkedTotpName?: string | null;
             loginTime?: string | null;
             method?: string | null;
             mobility?: null | components["schemas"]["SessionMobilitySummaryData"];

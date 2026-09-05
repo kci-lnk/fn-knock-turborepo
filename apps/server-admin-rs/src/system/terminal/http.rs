@@ -3,7 +3,7 @@ use std::time::Duration;
 use axum::{
     Json,
     extract::{FromRequest, FromRequestParts, Path, Query, State},
-    http::{StatusCode, request::Parts},
+    http::{HeaderMap, StatusCode, Uri, header, request::Parts},
     response::{IntoResponse, Response},
 };
 use base64::{Engine as _, engine::general_purpose::STANDARD};
@@ -14,7 +14,14 @@ use uuid::Uuid;
 
 use crate::{response, state::AppState};
 
-use super::{domain::*, service};
+use super::{
+    access::{
+        self, TerminalAccess, WebTerminalAccessStatus, WebTerminalSettings,
+        WebTerminalSettingsInput, WebTerminalVerifyInput,
+    },
+    domain::*,
+    service,
+};
 
 const MAX_INPUT_BASE64_BYTES: usize = 87_384;
 
@@ -78,6 +85,9 @@ where
 
 pub fn routes() -> OpenApiRouter<AppState> {
     OpenApiRouter::new()
+        .routes(routes!(get_feature_settings, update_feature_settings))
+        .routes(routes!(get_access_status))
+        .routes(routes!(verify_access))
         .routes(routes!(get_local_terminal, update_local_terminal))
         .routes(routes!(create_local_session))
         .routes(routes!(list_targets, create_target))
@@ -96,12 +106,13 @@ pub fn routes() -> OpenApiRouter<AppState> {
 }
 
 #[utoipa::path(get, path = "/api/admin/terminal/local", tag = "terminal", responses((status = 200, body = LocalTerminalStatus)))]
-async fn get_local_terminal(State(state): State<AppState>) -> Response {
+async fn get_local_terminal(_access: TerminalAccess, State(state): State<AppState>) -> Response {
     result(service::local_terminal_status(&state).await)
 }
 
 #[utoipa::path(patch, path = "/api/admin/terminal/local", tag = "terminal", params(ForceQuery), request_body = LocalTerminalSettingsInput, responses((status = 200, body = LocalTerminalStatus), (status = 400, body = TerminalErrorEnvelope), (status = 409, body = TerminalErrorEnvelope), (status = 503, body = TerminalErrorEnvelope)))]
 async fn update_local_terminal(
+    _access: TerminalAccess,
     State(state): State<AppState>,
     TerminalQuery(query): TerminalQuery<ForceQuery>,
     TerminalJson(input): TerminalJson<LocalTerminalSettingsInput>,
@@ -119,6 +130,7 @@ async fn update_local_terminal(
 
 #[utoipa::path(post, path = "/api/admin/terminal/local/sessions", tag = "terminal", request_body = CreateSessionInput, responses((status = 200, body = TerminalSession), (status = 409, body = TerminalErrorEnvelope), (status = 502, body = TerminalErrorEnvelope), (status = 503, body = TerminalErrorEnvelope)))]
 async fn create_local_session(
+    _access: TerminalAccess,
     State(state): State<AppState>,
     TerminalJson(input): TerminalJson<CreateSessionInput>,
 ) -> Response {
@@ -126,12 +138,13 @@ async fn create_local_session(
 }
 
 #[utoipa::path(get, path = "/api/admin/terminal/targets", tag = "terminal", responses((status = 200, body = [TerminalTarget])))]
-async fn list_targets(State(state): State<AppState>) -> Response {
+async fn list_targets(_access: TerminalAccess, State(state): State<AppState>) -> Response {
     result(service::targets(&state).await)
 }
 
 #[utoipa::path(post, path = "/api/admin/terminal/targets", tag = "terminal", request_body = TargetCreateInput, responses((status = 200, body = TerminalTarget), (status = 400, body = TerminalErrorEnvelope)))]
 async fn create_target(
+    _access: TerminalAccess,
     State(state): State<AppState>,
     TerminalJson(input): TerminalJson<TargetCreateInput>,
 ) -> Response {
@@ -139,12 +152,17 @@ async fn create_target(
 }
 
 #[utoipa::path(get, path = "/api/admin/terminal/targets/{id}", tag = "terminal", params(("id" = String, Path)), responses((status = 200, body = TerminalTarget), (status = 404, body = TerminalErrorEnvelope)))]
-async fn get_target(State(state): State<AppState>, TerminalId(id): TerminalId) -> Response {
+async fn get_target(
+    _access: TerminalAccess,
+    State(state): State<AppState>,
+    TerminalId(id): TerminalId,
+) -> Response {
     result(service::target(&state, &id).await)
 }
 
 #[utoipa::path(patch, path = "/api/admin/terminal/targets/{id}", tag = "terminal", params(("id" = String, Path), ForceQuery), request_body = TargetUpdateInput, responses((status = 200, body = TerminalTarget), (status = 409, body = TerminalErrorEnvelope)))]
 async fn update_target(
+    _access: TerminalAccess,
     State(state): State<AppState>,
     TerminalId(id): TerminalId,
     TerminalQuery(query): TerminalQuery<ForceQuery>,
@@ -164,6 +182,7 @@ async fn update_target(
 
 #[utoipa::path(delete, path = "/api/admin/terminal/targets/{id}", tag = "terminal", params(("id" = String, Path), TargetDeleteQuery), responses((status = 200), (status = 409, body = TerminalErrorEnvelope)))]
 async fn delete_target(
+    _access: TerminalAccess,
     State(state): State<AppState>,
     TerminalId(id): TerminalId,
     TerminalQuery(query): TerminalQuery<TargetDeleteQuery>,
@@ -181,12 +200,16 @@ async fn delete_target(
 }
 
 #[utoipa::path(post, path = "/api/admin/terminal/targets/probe-host-key", tag = "terminal", request_body = ProbeHostKeyInput, responses((status = 200, body = HostKeyProbeResult), (status = 400, body = TerminalErrorEnvelope)))]
-async fn probe_host_key(TerminalJson(input): TerminalJson<ProbeHostKeyInput>) -> Response {
+async fn probe_host_key(
+    _access: TerminalAccess,
+    TerminalJson(input): TerminalJson<ProbeHostKeyInput>,
+) -> Response {
     result(service::probe_host_key(input).await)
 }
 
 #[utoipa::path(post, path = "/api/admin/terminal/targets/test-connection", tag = "terminal", request_body = TerminalTestConnectionInput, responses((status = 200, body = ConnectionTestResult), (status = 400, body = TerminalErrorEnvelope)))]
 async fn test_connection(
+    _access: TerminalAccess,
     State(state): State<AppState>,
     TerminalJson(input): TerminalJson<TerminalTestConnectionInput>,
 ) -> Response {
@@ -194,12 +217,13 @@ async fn test_connection(
 }
 
 #[utoipa::path(get, path = "/api/admin/terminal/sessions", tag = "terminal", responses((status = 200, body = SessionListResult)))]
-async fn list_sessions(State(state): State<AppState>) -> Response {
+async fn list_sessions(_access: TerminalAccess, State(state): State<AppState>) -> Response {
     response::ok(service::sessions(&state).await).into_response()
 }
 
 #[utoipa::path(post, path = "/api/admin/terminal/targets/{id}/sessions", tag = "terminal", params(("id" = String, Path)), request_body = CreateSessionInput, responses((status = 200, body = TerminalSession), (status = 502, body = TerminalErrorEnvelope)))]
 async fn create_session(
+    _access: TerminalAccess,
     State(state): State<AppState>,
     TerminalId(id): TerminalId,
     TerminalJson(input): TerminalJson<CreateSessionInput>,
@@ -209,6 +233,7 @@ async fn create_session(
 
 #[utoipa::path(patch, path = "/api/admin/terminal/sessions/{id}", tag = "terminal", params(("id" = String, Path)), request_body = RenameSessionInput, responses((status = 200, body = TerminalSession), (status = 404, body = TerminalErrorEnvelope)))]
 async fn rename_session(
+    _access: TerminalAccess,
     State(state): State<AppState>,
     TerminalId(id): TerminalId,
     TerminalJson(input): TerminalJson<RenameSessionInput>,
@@ -217,12 +242,17 @@ async fn rename_session(
 }
 
 #[utoipa::path(delete, path = "/api/admin/terminal/sessions/{id}", tag = "terminal", params(("id" = String, Path)), responses((status = 200), (status = 404, body = TerminalErrorEnvelope)))]
-async fn delete_session(State(state): State<AppState>, TerminalId(id): TerminalId) -> Response {
+async fn delete_session(
+    _access: TerminalAccess,
+    State(state): State<AppState>,
+    TerminalId(id): TerminalId,
+) -> Response {
     empty(service::terminate_session(&state, &id).await)
 }
 
 #[utoipa::path(post, path = "/api/admin/terminal/sessions/{id}/attachments", tag = "terminal", params(("id" = String, Path)), request_body = CreateAttachmentInput, responses((status = 200, body = TerminalAttachment), (status = 404, body = TerminalErrorEnvelope)))]
 async fn create_attachment(
+    _access: TerminalAccess,
     State(state): State<AppState>,
     TerminalId(id): TerminalId,
     TerminalJson(input): TerminalJson<CreateAttachmentInput>,
@@ -237,6 +267,7 @@ async fn create_attachment(
 
 #[utoipa::path(get, path = "/api/admin/terminal/attachments/{id}/events", tag = "terminal", params(("id" = String, Path), EventsQuery), responses((status = 200, body = EventsResult), (status = 410, body = TerminalErrorEnvelope)))]
 async fn attachment_events(
+    _access: TerminalAccess,
     State(state): State<AppState>,
     TerminalId(id): TerminalId,
     TerminalQuery(query): TerminalQuery<EventsQuery>,
@@ -255,6 +286,7 @@ async fn attachment_events(
 
 #[utoipa::path(post, path = "/api/admin/terminal/attachments/{id}/input", tag = "terminal", params(("id" = String, Path)), request_body = InputRequest, responses((status = 200), (status = 409, body = TerminalErrorEnvelope)))]
 async fn send_input(
+    _access: TerminalAccess,
     State(state): State<AppState>,
     TerminalId(id): TerminalId,
     TerminalJson(input): TerminalJson<InputRequest>,
@@ -280,6 +312,7 @@ async fn send_input(
 
 #[utoipa::path(post, path = "/api/admin/terminal/attachments/{id}/resize", tag = "terminal", params(("id" = String, Path)), request_body = ResizeRequest, responses((status = 200, body = TerminalSession), (status = 409, body = TerminalErrorEnvelope)))]
 async fn resize(
+    _access: TerminalAccess,
     State(state): State<AppState>,
     TerminalId(id): TerminalId,
     TerminalJson(input): TerminalJson<ResizeRequest>,
@@ -300,6 +333,7 @@ async fn resize(
 
 #[utoipa::path(post, path = "/api/admin/terminal/attachments/{id}/control", tag = "terminal", params(("id" = String, Path)), request_body = ClaimControlRequest, responses((status = 200, body = TerminalAttachment), (status = 409, body = TerminalErrorEnvelope)))]
 async fn claim_control(
+    _access: TerminalAccess,
     State(state): State<AppState>,
     TerminalId(id): TerminalId,
     TerminalJson(input): TerminalJson<ClaimControlRequest>,
@@ -308,7 +342,11 @@ async fn claim_control(
 }
 
 #[utoipa::path(delete, path = "/api/admin/terminal/attachments/{id}", tag = "terminal", params(("id" = String, Path)), responses((status = 200), (status = 410, body = TerminalErrorEnvelope)))]
-async fn delete_attachment(State(state): State<AppState>, TerminalId(id): TerminalId) -> Response {
+async fn delete_attachment(
+    _access: TerminalAccess,
+    State(state): State<AppState>,
+    TerminalId(id): TerminalId,
+) -> Response {
     empty(state.terminal.detach(&id).await)
 }
 
@@ -338,8 +376,12 @@ pub struct TerminalErrorEnvelope {
     pub confirmation_token: Option<String>,
 }
 
-fn terminal_error(error: TerminalError) -> Response {
+pub(super) fn terminal_error(error: TerminalError) -> Response {
     let status = match error.code {
+        TerminalErrorCode::FeatureDisabled | TerminalErrorCode::AccessPasswordRequired => {
+            StatusCode::FORBIDDEN
+        }
+        TerminalErrorCode::AccessRateLimited => StatusCode::TOO_MANY_REQUESTS,
         TerminalErrorCode::InvalidRequest
         | TerminalErrorCode::HostKeyRequired
         | TerminalErrorCode::LocalTerminalUnsupported
@@ -436,6 +478,49 @@ mod tests {
                 terminal_error(TerminalError::new(code, "test")).status(),
                 expected
             );
+        }
+    }
+}
+
+#[utoipa::path(get, path = "/api/admin/terminal/settings", tag = "terminal", responses((status = 200, body = WebTerminalSettings)))]
+async fn get_feature_settings(State(state): State<AppState>) -> Response {
+    result(access::settings(&state).await)
+}
+
+#[utoipa::path(patch, path = "/api/admin/terminal/settings", tag = "terminal", request_body = WebTerminalSettingsInput, responses((status = 200, body = WebTerminalSettings), (status = 409, body = TerminalErrorEnvelope)))]
+async fn update_feature_settings(
+    State(state): State<AppState>,
+    TerminalJson(input): TerminalJson<WebTerminalSettingsInput>,
+) -> Response {
+    result(access::update(&state, input).await)
+}
+
+#[utoipa::path(get, path = "/api/admin/terminal/access", tag = "terminal", responses((status = 200, body = WebTerminalAccessStatus)))]
+async fn get_access_status(State(state): State<AppState>, headers: HeaderMap) -> Response {
+    result(access::status(&state, &headers).await)
+}
+
+#[utoipa::path(post, path = "/api/admin/terminal/access/verify", tag = "terminal", request_body = WebTerminalVerifyInput, responses((status = 200), (status = 403, body = TerminalErrorEnvelope), (status = 429, body = TerminalErrorEnvelope)))]
+async fn verify_access(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    uri: Uri,
+    TerminalJson(input): TerminalJson<WebTerminalVerifyInput>,
+) -> Response {
+    match access::verify(&state, &headers, input).await {
+        Err(error) => terminal_error(error),
+        Ok(token) => {
+            let mut response = response::success_empty().into_response();
+            if let Some(token) = token {
+                let cookie = access::browser_cookie(
+                    &token,
+                    crate::http_utils::is_secure_request(&headers, &uri),
+                );
+                if let Ok(value) = cookie.parse() {
+                    response.headers_mut().append(header::SET_COOKIE, value);
+                }
+            }
+            response
         }
     }
 }

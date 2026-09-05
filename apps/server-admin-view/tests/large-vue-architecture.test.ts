@@ -772,9 +772,13 @@ describe("large Vue architecture", () => {
     assert.match(ddnsTargetDialogSource, /DDNSTargetAddressFields/u);
     assert.match(ddnsTargetDialogSource, /DDNSTargetProviderFields/u);
     assert.doesNotMatch(ddnsTargetDialogSource, /ALLOW_PRIVATE_ADDRESSES_KEY/u);
-    assert.match(terminalSource, /useWebTerminalPage/u);
-    assert.match(terminalSource, /WebTerminalWorkspace/u);
-    assert.match(terminalSource, /WebTerminalDialogs/u);
+    assert.match(terminalSource, /WebTerminalAccessGate/u);
+    const authorizedTerminalSource = readSource(
+      "../src/views/web-terminal/WebTerminalAuthorized.vue",
+    );
+    assert.match(authorizedTerminalSource, /useWebTerminalPage/u);
+    assert.match(authorizedTerminalSource, /WebTerminalWorkspace/u);
+    assert.match(authorizedTerminalSource, /WebTerminalDialogs/u);
     assert.doesNotMatch(terminalSource, /TerminalAPI|onMounted/u);
     assert.match(terminalControllerSource, /useTerminalTargets/u);
     assert.match(terminalControllerSource, /useTerminalTargetEditor/u);

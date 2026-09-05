@@ -22585,6 +22585,9 @@
       },
       "TerminalErrorCode": {
         "enum": [
+          "feature_disabled",
+          "access_password_required",
+          "access_rate_limited",
           "invalid_request",
           "target_not_found",
           "session_not_found",
@@ -24402,6 +24405,84 @@
         "required": [
           "filename",
           "content_base64"
+        ],
+        "type": "object"
+      },
+      "WebTerminalAccessStatus": {
+        "properties": {
+          "authorized": {
+            "type": "boolean"
+          },
+          "enabled": {
+            "type": "boolean"
+          },
+          "passwordConfigured": {
+            "type": "boolean"
+          },
+          "revision": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "enabled",
+          "passwordConfigured",
+          "authorized",
+          "revision"
+        ],
+        "type": "object"
+      },
+      "WebTerminalSettings": {
+        "properties": {
+          "enabled": {
+            "type": "boolean"
+          },
+          "passwordConfigured": {
+            "type": "boolean"
+          },
+          "revision": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "enabled",
+          "passwordConfigured",
+          "revision"
+        ],
+        "type": "object"
+      },
+      "WebTerminalSettingsInput": {
+        "properties": {
+          "clearPassword": {
+            "type": "boolean"
+          },
+          "enabled": {
+            "type": "boolean"
+          },
+          "password": {
+            "description": "Missing or empty means keep the existing password.",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "revision": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "enabled",
+          "revision"
+        ],
+        "type": "object"
+      },
+      "WebTerminalVerifyInput": {
+        "properties": {
+          "password": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "password"
         ],
         "type": "object"
       },
@@ -48716,6 +48797,102 @@
         "x-fn-knock-contract-source": "utoipa"
       }
     },
+    "/api/admin/terminal/access": {
+      "get": {
+        "description": "管理 Web 终端运行时能力和交互会话。。`GET /api/admin/terminal/access` 用于读取当前状态、配置或导出内容，不会主动修改服务配置。 该操作不要求 JSON 请求体。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。",
+        "operationId": "get_access_status",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "properties": {
+                    "data": {
+                      "$ref": "#/components/schemas/WebTerminalAccessStatus"
+                    },
+                    "message": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "success": {
+                      "const": true,
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "success",
+                    "data"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "「查看Web 终端access」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TerminalErrorEnvelope"
+                }
+              }
+            },
+            "description": "接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。"
+          }
+        },
+        "summary": "查看Web 终端access",
+        "tags": [
+          "terminal"
+        ],
+        "x-fn-knock-contract-source": "utoipa"
+      }
+    },
+    "/api/admin/terminal/access/verify": {
+      "post": {
+        "description": "管理 Web 终端运行时能力和交互会话。。`POST /api/admin/terminal/access/verify` 用于提交操作或创建、更新服务状态；执行结果以响应中的数据和消息为准。 请求体字段、必填项和可选值请以 Swagger 展开的 schema 为准。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。",
+        "operationId": "verify_access",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/WebTerminalVerifyInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiSuccessEnvelope"
+                }
+              }
+            },
+            "description": "「提交Web 终端verify」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TerminalErrorEnvelope"
+                }
+              }
+            },
+            "description": "接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。"
+          }
+        },
+        "summary": "提交Web 终端verify",
+        "tags": [
+          "terminal"
+        ],
+        "x-fn-knock-contract-source": "utoipa"
+      }
+    },
     "/api/admin/terminal/attachments/{id}": {
       "delete": {
         "description": "管理 Web 终端运行时能力和交互会话。。`DELETE /api/admin/terminal/attachments/{id}` 用于删除、清理或撤销资源。执行前请确认目标和可能不可恢复的影响。 该操作不要求 JSON 请求体。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。",
@@ -49471,6 +49648,120 @@
           }
         },
         "summary": "提交Web 终端附件",
+        "tags": [
+          "terminal"
+        ],
+        "x-fn-knock-contract-source": "utoipa"
+      }
+    },
+    "/api/admin/terminal/settings": {
+      "get": {
+        "description": "管理 Web 终端运行时能力和交互会话。。`GET /api/admin/terminal/settings` 用于读取当前状态、配置或导出内容，不会主动修改服务配置。 该操作不要求 JSON 请求体。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。",
+        "operationId": "get_feature_settings",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "properties": {
+                    "data": {
+                      "$ref": "#/components/schemas/WebTerminalSettings"
+                    },
+                    "message": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "success": {
+                      "const": true,
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "success",
+                    "data"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "「查看Web 终端设置」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TerminalErrorEnvelope"
+                }
+              }
+            },
+            "description": "接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。"
+          }
+        },
+        "summary": "查看Web 终端设置",
+        "tags": [
+          "terminal"
+        ],
+        "x-fn-knock-contract-source": "utoipa"
+      },
+      "patch": {
+        "description": "管理 Web 终端运行时能力和交互会话。。`PATCH /api/admin/terminal/settings` 用于对已有资源进行局部更新；仅提交需要变更的字段。 请求体字段、必填项和可选值请以 Swagger 展开的 schema 为准。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。",
+        "operationId": "update_feature_settings",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/WebTerminalSettingsInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "properties": {
+                    "data": {
+                      "$ref": "#/components/schemas/WebTerminalSettings"
+                    },
+                    "message": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "success": {
+                      "const": true,
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "success",
+                    "data"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "「修改Web 终端设置」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TerminalErrorEnvelope"
+                }
+              }
+            },
+            "description": "接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。"
+          }
+        },
+        "summary": "修改Web 终端设置",
         "tags": [
           "terminal"
         ],

@@ -19,6 +19,10 @@ const contract = JSON.parse(
 describe("Web terminal API contract", () => {
   it("publishes local, SSH target, session, and attachment operations", () => {
     for (const [method, path] of [
+      ["get", "/api/admin/terminal/settings"],
+      ["patch", "/api/admin/terminal/settings"],
+      ["get", "/api/admin/terminal/access"],
+      ["post", "/api/admin/terminal/access/verify"],
       ["get", "/api/admin/terminal/local"],
       ["patch", "/api/admin/terminal/local"],
       ["post", "/api/admin/terminal/local/sessions"],

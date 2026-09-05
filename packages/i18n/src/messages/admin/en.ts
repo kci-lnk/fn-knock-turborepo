@@ -1,4 +1,33 @@
 export const enAdmin = {
+  webTerminalSettings: {
+    description: "Manage Web Terminal availability and its access password.",
+    enabled: "Enable Web Terminal",
+    enabledHint:
+      "Disabling and saving immediately ends all SSH and local terminal sessions.",
+    password: "Access password",
+    passwordHint:
+      "Optional. Once set, verification is required on first use during each admin login.",
+    configured: "Configured",
+    notConfigured: "Not configured",
+    clearPending: "The access password will be cleared when you save",
+    passwordPlaceholder:
+      "Enter a new password; leave blank to keep the current one",
+    clear: "Clear password",
+    cancel: "Cancel",
+    save: "Save",
+    saving: "Saving…",
+    saved: "Web Terminal settings saved",
+    loading: "Loading…",
+    verifyHint: "Enter the Web Terminal access password to continue.",
+    verify: "Verify",
+    retry: "Retry",
+    wrongPassword: "Incorrect password. Please try again.",
+    rateLimited: "Too many attempts. Please retry in one minute.",
+    disabled: "Web Terminal is disabled.",
+    conflict: "Settings have changed. Refresh and try again.",
+    requestFailed: "Request failed. Please try again.",
+    passwordTooLong: "Password must not exceed 128 bytes.",
+  },
   trace: {
     label: "Trace ID",
     title: "End-to-end trace",

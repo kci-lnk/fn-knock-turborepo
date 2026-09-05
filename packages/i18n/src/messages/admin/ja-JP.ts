@@ -1,6 +1,34 @@
 import { zhCNAdmin } from "./zh-CN";
 
 export const jaJPAdmin = {
+  webTerminalSettings: {
+    description: "Web ターミナルの有効状態とアクセスパスワードを管理します。",
+    enabled: "Web ターミナルを有効にする",
+    enabledHint:
+      "無効にして保存すると、すべての SSH とローカルターミナルのセッションが直ちに終了します。",
+    password: "アクセスパスワード",
+    passwordHint:
+      "任意。設定すると、管理画面へのログインごとに初回利用時の認証が必要です。",
+    configured: "設定済み",
+    notConfigured: "未設定",
+    clearPending: "保存するとアクセスパスワードが削除されます",
+    passwordPlaceholder: "新しいパスワードを入力。空欄の場合は変更しません",
+    clear: "パスワードを削除",
+    cancel: "キャンセル",
+    save: "保存",
+    saving: "保存中…",
+    saved: "Web ターミナルの設定を保存しました",
+    loading: "読み込み中…",
+    verifyHint: "Web ターミナルのアクセスパスワードを入力してください。",
+    verify: "認証",
+    retry: "再試行",
+    wrongPassword: "パスワードが正しくありません。もう一度入力してください。",
+    rateLimited: "試行回数が多すぎます。1 分後に再試行してください。",
+    disabled: "Web ターミナルは無効です。",
+    conflict: "設定が変更されました。更新して再試行してください。",
+    requestFailed: "リクエストに失敗しました。再試行してください。",
+    passwordTooLong: "パスワードは 128 バイト以内にしてください。",
+  },
   trace: {
     label: "Trace ID",
     title: "エンドツーエンド追跡",

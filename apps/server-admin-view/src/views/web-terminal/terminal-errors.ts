@@ -5,6 +5,9 @@ import type {
 } from "@/lib/api/terminal";
 
 const terminalErrorCodes = new Set<TerminalErrorCode>([
+  "feature_disabled",
+  "access_password_required",
+  "access_rate_limited",
   "invalid_request",
   "target_not_found",
   "session_not_found",
@@ -38,6 +41,9 @@ export type TerminalRequestError = {
 
 const terminalErrorTranslationKeys: Partial<Record<TerminalErrorCode, string>> =
   {
+    feature_disabled: "admin.webTerminalSettings.disabled",
+    access_password_required: "admin.webTerminalSettings.verifyHint",
+    access_rate_limited: "admin.webTerminalSettings.rateLimited",
     local_terminal_unsupported:
       "admin.webTerminal.terminalError.localTerminalUnsupported",
     local_terminal_disabled:

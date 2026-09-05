@@ -4,6 +4,7 @@
 //! the runtime. Shells, attachments and their output buffers intentionally
 //! exist only for the lifetime of this process.
 
+mod access;
 mod backup;
 pub(crate) mod domain;
 mod http;
@@ -51,7 +52,12 @@ pub fn start_terminal_tasks(state: AppState) {
                     task_state.terminal.shutdown_all().await;
                     break;
                 }
-                _ = interval.tick() => task_state.terminal.expire_attachments().await,
+                _ = interval.tick() => {
+                    task_state.terminal.expire_attachments().await;
+                    if let Err(error) = access::expire_grants(&task_state).await {
+                        tracing::warn!(%error, "failed to expire terminal access grants");
+                    }
+                },
             }
         }
     });

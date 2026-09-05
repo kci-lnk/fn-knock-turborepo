@@ -116,6 +116,7 @@ const BACKUP_EXCLUDED_KEY_PREFIXES: &[&str] = &[
     // feature switch is host-specific and also defaults off after a restore.
     // SSH target metadata remains included.
     "fn_knock:terminal:local-settings",
+    "fn_knock:terminal:access-grant:",
     "fn_knock:terminal:session:",
     "fn_knock:terminal:attachment:",
     "fn_knock:traffic:",

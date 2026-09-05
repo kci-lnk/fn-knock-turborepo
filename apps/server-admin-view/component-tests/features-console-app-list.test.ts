@@ -91,7 +91,7 @@ const mountFeatureView = (config: AppConfig) => {
       stubs: {
         DateTimeDisplaySettingRow: true,
         FeatureSwitchRow: FeatureSwitchRowStub,
-        SmartConnectSettingRow: true,
+        FeaturePageSettingRow: true,
       },
     },
   });

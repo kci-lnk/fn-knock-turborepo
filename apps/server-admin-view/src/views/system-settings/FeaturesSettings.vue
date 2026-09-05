@@ -10,7 +10,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { ChevronRight } from "lucide-vue-next";
 import DateTimeDisplaySettingRow from "./DateTimeDisplaySettingRow.vue";
 import FeatureSwitchRow from "./FeatureSwitchRow.vue";
-import SmartConnectSettingRow from "./SmartConnectSettingRow.vue";
+import FeaturePageSettingRow from "./FeaturePageSettingRow.vue";
 import { useFeaturesSettings } from "./useFeaturesSettings";
 
 const {
@@ -24,6 +24,7 @@ const {
   isSmartConnectAvailable,
   isSSHSecurityAvailable,
   openSmartConnect,
+  openWebTerminal,
   openSidebarMenuOrder,
   passkeyBindPromptEnabled,
   protocolMappingDisabledReason,
@@ -157,7 +158,15 @@ const {
         <ChevronRight class="h-5 w-5 shrink-0 text-muted-foreground" />
       </button>
 
-      <SmartConnectSettingRow
+      <FeaturePageSettingRow
+        :title="t('admin.nav.webTerminal')"
+        :description="t('admin.webTerminalSettings.description')"
+        :available="true"
+        disabled-reason=""
+        @open="openWebTerminal"
+      />
+
+      <FeaturePageSettingRow
         v-if="showSmartConnectEntry"
         :title="t('admin.featuresSettings.smartConnect')"
         :description="t('admin.featuresSettings.smartConnectHint')"

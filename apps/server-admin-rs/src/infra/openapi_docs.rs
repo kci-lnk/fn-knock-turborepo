@@ -2098,6 +2098,44 @@ pub(crate) fn build_openapi_document() -> Value {
         None,
         None,
     );
+    for (path, method, response_schema, request_schema) in [
+        (
+            "/api/admin/terminal/settings",
+            "get",
+            "WebTerminalSettings",
+            None,
+        ),
+        (
+            "/api/admin/terminal/settings",
+            "patch",
+            "WebTerminalSettings",
+            Some("WebTerminalSettingsInput"),
+        ),
+        (
+            "/api/admin/terminal/access",
+            "get",
+            "WebTerminalAccessStatus",
+            None,
+        ),
+    ] {
+        insert_typed_enveloped_operation(
+            &mut paths,
+            &typed_terminal_runtime,
+            path,
+            method,
+            response_schema,
+            None,
+            request_schema,
+        );
+    }
+    insert_typed_empty_enveloped_operation(
+        &mut paths,
+        &typed_terminal_runtime,
+        "/api/admin/terminal/access/verify",
+        "post",
+        Some("WebTerminalVerifyInput"),
+        None,
+    );
     insert_typed_array_enveloped_operation(
         &mut paths,
         &typed_terminal_runtime,
@@ -2293,6 +2331,10 @@ pub(crate) fn build_openapi_document() -> Value {
         None,
     );
     for (method, path) in [
+        ("get", "/api/admin/terminal/settings"),
+        ("patch", "/api/admin/terminal/settings"),
+        ("get", "/api/admin/terminal/access"),
+        ("post", "/api/admin/terminal/access/verify"),
         ("get", "/api/admin/terminal/local"),
         ("patch", "/api/admin/terminal/local"),
         ("post", "/api/admin/terminal/local/sessions"),

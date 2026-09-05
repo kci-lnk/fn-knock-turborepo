@@ -45,6 +45,7 @@ const MAX_FORCE_CONFIRMATION_GRANTS: usize = 1_024;
 const SHELL_COMMAND_TIMEOUT: Duration = Duration::from_secs(5);
 
 pub struct TerminalRuntime {
+    pub(super) access: super::access::AccessRuntime,
     runtime_id: String,
     sessions: Arc<RwLock<HashMap<String, Arc<RuntimeSession>>>>,
     actor_tasks: Mutex<HashMap<String, JoinHandle<()>>>,
@@ -183,6 +184,7 @@ impl TerminalRuntime {
 
     fn with_connector(connector: Arc<dyn SshConnector>) -> Self {
         Self {
+            access: super::access::AccessRuntime::default(),
             runtime_id: Uuid::new_v4().to_string(),
             sessions: Arc::new(RwLock::new(HashMap::new())),
             actor_tasks: Mutex::new(HashMap::new()),

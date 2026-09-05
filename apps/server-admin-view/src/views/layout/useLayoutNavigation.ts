@@ -1,4 +1,5 @@
-import { computed } from "vue";
+import { useTerminalAccessStore } from "@/store/terminal-access";
+import { computed, onMounted, onUnmounted } from "vue";
 import { useI18n } from "vue-i18n";
 import { useRoute } from "vue-router";
 import {
@@ -29,6 +30,30 @@ import { privilegedNavigationVisibility } from "./runtime-navigation";
 
 export const useLayoutNavigation = () => {
   const route = useRoute();
+  const terminalAccess = useTerminalAccessStore();
+  let accessTimer: ReturnType<typeof setInterval> | undefined;
+  const refreshTerminalAccess = () => {
+    void terminalAccess.refresh().catch(() => undefined);
+  };
+  const invalidateTerminalAccess = () => {
+    terminalAccess.invalidate();
+    refreshTerminalAccess();
+  };
+  onMounted(() => {
+    refreshTerminalAccess();
+    accessTimer = setInterval(refreshTerminalAccess, 10000);
+    window.addEventListener(
+      "fn-knock:terminal-access-changed",
+      invalidateTerminalAccess,
+    );
+  });
+  onUnmounted(() => {
+    clearInterval(accessTimer);
+    window.removeEventListener(
+      "fn-knock:terminal-access-changed",
+      invalidateTerminalAccess,
+    );
+  });
   const configStore = useConfigStore();
   const updateStore = useUpdateStore();
   const { t } = useI18n();
@@ -145,12 +170,13 @@ export const useLayoutNavigation = () => {
       path: "/request-analysis",
       icon: ChartNoAxesCombined,
     });
-    items.push({
-      id: "web_terminal",
-      name: t("admin.nav.webTerminal"),
-      path: "/terminal",
-      icon: SquareTerminal,
-    });
+    if (terminalAccess.status?.enabled === true)
+      items.push({
+        id: "web_terminal",
+        name: t("admin.nav.webTerminal"),
+        path: "/terminal",
+        icon: SquareTerminal,
+      });
     items.push({
       id: "system_settings",
       name: t("admin.nav.systemSettings"),

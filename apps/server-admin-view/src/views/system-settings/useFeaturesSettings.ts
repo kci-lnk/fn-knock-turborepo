@@ -403,6 +403,10 @@ export function useFeaturesSettings() {
     if (!result) sshSecurityEnabled.value = previousValue;
   };
 
+  const openWebTerminal = () => {
+    void router.push("/system/web-terminal");
+  };
+
   const openSmartConnect = () => {
     if (isSmartConnectAvailable.value)
       void router.push("/system/smart-connect");
@@ -445,6 +449,7 @@ export function useFeaturesSettings() {
     isSmartConnectAvailable,
     isSSHSecurityAvailable,
     openSmartConnect,
+    openWebTerminal,
     openSidebarMenuOrder,
     passkeyBindPromptEnabled,
     protocolMappingDisabledReason,

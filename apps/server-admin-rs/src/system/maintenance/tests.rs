@@ -151,6 +151,8 @@ fn filters_backup_keys_like_node() {
         "fn_knock:auth:subdomain_rule_grant_active:app.example.com"
     ));
     assert!(should_export_backup_key("fn_knock:terminal:targets"));
+    assert!(should_export_backup_key("fn_knock:terminal:feature-settings-v2"));
+    assert!(!should_export_backup_key("fn_knock:terminal:access-grant:browser"));
     assert!(!should_export_backup_key(
         "fn_knock:terminal:local-settings"
     ));

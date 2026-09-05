@@ -1,3 +1,4 @@
+import { useTerminalAccessStore } from "@/store/terminal-access";
 import NProgress from "nprogress";
 import { createRouter, createWebHashHistory } from "vue-router";
 import Layout from "../views/Layout.vue";
@@ -224,6 +225,12 @@ const router = createRouter({
             import("../views/system-settings/GatewayHostResponseSettings.vue"),
         },
         {
+          path: "system/web-terminal",
+          name: "WebTerminalSettings",
+          component: () =>
+            import("../views/system-settings/WebTerminalSettings.vue"),
+        },
+        {
           path: "system/smart-connect",
           name: "SmartConnectSettings",
           component: () =>
@@ -312,6 +319,17 @@ router.beforeEach(async (to, from) => {
 
   if (dockerAdminAuthStore.isEnabled && !dockerAdminAuthStore.isAuthenticated) {
     return true;
+  }
+
+  if (to.path === "/terminal") {
+    try {
+      const status = await useTerminalAccessStore(pinia).refresh();
+      if (!status.enabled)
+        return { path: "/system", query: { tab: "features" } };
+    } catch {
+      // The page stays locked and offers retry when the status cannot be loaded.
+      useTerminalAccessStore(pinia).invalidate();
+    }
   }
 
   if (

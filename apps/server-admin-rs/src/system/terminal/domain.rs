@@ -408,6 +408,9 @@ pub struct EventsResult {
 #[derive(Clone, Copy, Debug, Serialize, ToSchema, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
 pub enum TerminalErrorCode {
+    FeatureDisabled,
+    AccessPasswordRequired,
+    AccessRateLimited,
     InvalidRequest,
     TargetNotFound,
     SessionNotFound,

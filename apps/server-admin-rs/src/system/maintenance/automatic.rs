@@ -454,7 +454,9 @@ async fn write_automatic_backup_archive(state: &AppState) -> anyhow::Result<Valu
     ));
     let write_result = async {
         let mut file = fs::File::create(&temp_path).await?;
-        file.write_all(&archive.buffer).await?;
+        for chunk in archive.buffer.chunks() {
+            file.write_all(chunk).await?;
+        }
         file.sync_all().await?;
         drop(file);
         fs::rename(&temp_path, &final_path).await?;

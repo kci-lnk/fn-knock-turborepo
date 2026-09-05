@@ -91,6 +91,178 @@ impl Store {
         .await
     }
 
+    /// Persist an account creation and its password only if the projection's
+    /// source accounts are still current. All writes, including stale
+    /// projection credential cleanup, roll back together on failure.
+    pub async fn compare_and_set_auth_accounts_with_password(
+        &self,
+        expected: &[AuthAccount],
+        replacement: &[AuthAccount],
+        credential: &AuthPasswordCredential,
+    ) -> crate::storage::StorageResult<bool> {
+        const ACCOUNTS_KEY: &str = "fn_knock:auth:accounts:v1";
+        let expected = normalize_auth_accounts(expected);
+        let expected_json = serde_json::to_string(&expected)?;
+        let replacement = normalize_auth_accounts(replacement);
+        if !replacement
+            .iter()
+            .any(|account| account.id == credential.account_id)
+        {
+            return Err(crate::storage::storage_error(
+                "password account is missing from the replacement projection",
+            ));
+        }
+        let replacement_json = serde_json::to_string(&replacement)?;
+        let credential_key = auth_password_credential_key(&credential.account_id);
+        let credential_json = serde_json::to_string(credential)?;
+        let replacement_ids = replacement
+            .iter()
+            .map(|account| account.id.as_str())
+            .collect::<HashSet<_>>();
+        let stale_credential_keys = expected
+            .iter()
+            .filter(|account| !replacement_ids.contains(account.id.as_str()))
+            .map(|account| auth_password_credential_key(&account.id))
+            .collect::<Vec<_>>();
+        self.manager
+            .call(move |conn| {
+                let tx = conn.transaction_with_behavior(
+                    tokio_rusqlite::rusqlite::TransactionBehavior::Immediate,
+                )?;
+                let raw = crate::storage::redis_compat::string_get_tx(&tx, ACCOUNTS_KEY)?;
+                let current = match raw.as_deref().filter(|raw| !raw.trim().is_empty()) {
+                    Some(raw) => normalize_auth_accounts_for_comparison(
+                        &serde_json::from_str(raw)?,
+                        &expected,
+                    ),
+                    None => Vec::new(),
+                };
+                if serde_json::to_string(&current)? != expected_json {
+                    return Ok(false);
+                }
+                crate::storage::redis_compat::execute_command_in_transaction(
+                    &tx,
+                    "SET",
+                    vec![ACCOUNTS_KEY.to_string(), replacement_json],
+                )?;
+                crate::storage::redis_compat::execute_command_in_transaction(
+                    &tx,
+                    "SET",
+                    vec![credential_key, credential_json],
+                )?;
+                if !stale_credential_keys.is_empty() {
+                    crate::storage::redis_compat::execute_command_in_transaction(
+                        &tx,
+                        "DEL",
+                        stale_credential_keys,
+                    )?;
+                }
+                tx.commit()?;
+                Ok(true)
+            })
+            .await
+    }
+
+    /// Read all inputs to an account mutation from one SQLite snapshot. Legacy
+    /// missing timestamps reuse the earlier read's presentation defaults.
+    pub(crate) async fn get_auth_account_mutation_snapshot(
+        &self,
+        account_id: &str,
+        defaults: Option<&AuthAccountMutationSnapshot>,
+    ) -> crate::storage::StorageResult<AuthAccountMutationSnapshot> {
+        // Preserve the existing lazy migration from the legacy single TOTP key.
+        self.get_totps().await?;
+        let account_id = account_id.to_string();
+        let defaults = defaults.cloned().unwrap_or_default();
+        self.manager
+            .call(move |conn| {
+                let tx = conn.transaction()?;
+                load_auth_account_mutation_snapshot_tx(&tx, &account_id, &defaults)
+            })
+            .await
+    }
+
+    /// Account/password/TOTP writes and their rollback use the same CAS. A
+    /// competing writer (including another Store) makes this a no-op; any
+    /// storage or typed-shadow failure rolls every write back together.
+    pub(crate) async fn compare_and_set_auth_account_mutation(
+        &self,
+        account_id: &str,
+        expected: &AuthAccountMutationSnapshot,
+        replacement: &AuthAccountMutationSnapshot,
+    ) -> crate::storage::StorageResult<bool> {
+        if replacement
+            .password
+            .as_ref()
+            .is_some_and(|password| password.account_id != account_id)
+        {
+            return Err(crate::storage::storage_error(
+                "password account does not match mutation",
+            ));
+        }
+        let account_id = account_id.to_string();
+        // A replacement can subsequently be the expected state of a rollback.
+        // Compare the same canonical account/TOTP representation that SET writes
+        // (for example its default streams array), rather than the caller's
+        // pre-normalization representation.
+        let mut expected = expected.clone();
+        expected.accounts = normalize_auth_accounts(&expected.accounts);
+        expected.totps = normalize_totp_credentials(&expected.totps);
+        let replacement = replacement.clone();
+        self.manager
+            .call(move |conn| {
+                let tx = conn.transaction_with_behavior(
+                    tokio_rusqlite::rusqlite::TransactionBehavior::Immediate,
+                )?;
+                let current = load_auth_account_mutation_snapshot_tx(&tx, &account_id, &expected)?;
+                if serde_json::to_value(&current.accounts)?
+                    != serde_json::to_value(&expected.accounts)?
+                    || serde_json::to_value(&current.totps)?
+                        != serde_json::to_value(&expected.totps)?
+                    || serde_json::to_value(&current.password)?
+                        != serde_json::to_value(&expected.password)?
+                {
+                    return Ok(false);
+                }
+                for (key, value) in [
+                    (
+                        "fn_knock:auth:accounts:v1",
+                        serde_json::to_string(&normalize_auth_accounts(&replacement.accounts))?,
+                    ),
+                    (
+                        "fn_knock:totps",
+                        serde_json::to_string(&normalize_totp_credentials(&replacement.totps))?,
+                    ),
+                ] {
+                    crate::storage::redis_compat::execute_command_in_transaction(
+                        &tx,
+                        "SET",
+                        vec![key.to_string(), value],
+                    )?;
+                }
+                let credential_key = auth_password_credential_key(&account_id);
+                match replacement.password.as_ref() {
+                    Some(password) => {
+                        crate::storage::redis_compat::execute_command_in_transaction(
+                            &tx,
+                            "SET",
+                            vec![credential_key, serde_json::to_string(password)?],
+                        )?;
+                    }
+                    None => {
+                        crate::storage::redis_compat::execute_command_in_transaction(
+                            &tx,
+                            "DEL",
+                            vec![credential_key],
+                        )?;
+                    }
+                }
+                tx.commit()?;
+                Ok(true)
+            })
+            .await
+    }
+
     pub async fn get_auth_account(
         &self,
         id: &str,
@@ -314,4 +486,50 @@ impl Store {
         }
         Ok(true)
     }
+}
+
+fn load_auth_account_mutation_snapshot_tx(
+    tx: &tokio_rusqlite::rusqlite::Transaction<'_>,
+    account_id: &str,
+    defaults: &AuthAccountMutationSnapshot,
+) -> crate::storage::StorageResult<AuthAccountMutationSnapshot> {
+    let accounts = crate::storage::redis_compat::string_get_tx(tx, "fn_knock:auth:accounts:v1")?;
+    let accounts = match accounts.as_deref().filter(|raw| !raw.trim().is_empty()) {
+        Some(raw) => {
+            normalize_auth_accounts_for_comparison(&serde_json::from_str(raw)?, &defaults.accounts)
+        }
+        None => Vec::new(),
+    };
+    let totps = crate::storage::redis_compat::string_get_tx(tx, "fn_knock:totps")?;
+    let mut totps = totps
+        .as_deref()
+        .and_then(|raw| serde_json::from_str::<Value>(raw).ok())
+        .unwrap_or(Value::Null);
+    if let Some(items) = totps.as_array_mut() {
+        for item in items {
+            if item
+                .get("createdAt")
+                .map(js_string)
+                .unwrap_or_default()
+                .trim()
+                .is_empty()
+                && let Some(previous) = defaults.totps.iter().find(|previous| {
+                    item.get("id").map(js_string).unwrap_or_default().trim() == previous.id
+                })
+                && let Some(object) = item.as_object_mut()
+            {
+                object.insert("createdAt".to_string(), json!(previous.created_at));
+            }
+        }
+    }
+    let totps = normalize_totp_credentials_value(&totps);
+    let password =
+        crate::storage::redis_compat::string_get_tx(tx, &auth_password_credential_key(account_id))?
+            .map(|raw| serde_json::from_str(&raw))
+            .transpose()?;
+    Ok(AuthAccountMutationSnapshot {
+        accounts,
+        totps,
+        password,
+    })
 }

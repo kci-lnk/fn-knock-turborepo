@@ -17,6 +17,157 @@ async fn notification_test_state() -> (tempfile::TempDir, AppState) {
     (directory, state)
 }
 
+#[tokio::test]
+async fn notification_dispatch_drains_burst_after_coalesced_wakeups() {
+    let (_directory, state) = notification_test_state().await;
+    state
+        .storage
+        .store
+        .set_notification_last_stream_id("0-0")
+        .await
+        .unwrap();
+    save_rule_raw(
+        &state,
+        &json!({
+            "id": "burst-rule", "enabled": true, "event_type": "FN_EVENT_RUNTIME_STARTED",
+            "threshold_count": 1, "window_seconds": 60, "cooldown_seconds": 0,
+            "targets": [{"id": "disabled-target", "enabled": false}]
+        }),
+    )
+    .await
+    .unwrap();
+    let count = STREAM_BATCH_SIZE * 2 + 7;
+    for index in 0..count {
+        state.storage.store.append_system_event(&json!({
+            "id": format!("burst-{index}"), "type": "FN_EVENT_RUNTIME_STARTED",
+            "source": "RUNTIME_MONITOR", "level": "INFO", "happened_at": time_utils::now_iso(),
+            "subject": {"kind": "COMPONENT", "id": "management"},
+            "payload": {"component": "management"}
+        }), 30, 1000).await.unwrap();
+        state.request_notification_dispatch();
+    }
+    let tail = state
+        .storage
+        .store
+        .latest_system_event_stream_id()
+        .await
+        .unwrap();
+    // No publication/IP-location work runs after this point. All notify calls
+    // above collapse to one permit, so progress requires draining full batches.
+    let dispatch = notification_dispatch_loop(state.clone());
+    let observe = async {
+        let result = tokio::time::timeout(Duration::from_secs(10), async {
+            loop {
+                if state
+                    .storage
+                    .store
+                    .get_notification_last_stream_id()
+                    .await
+                    .unwrap()
+                    == tail
+                {
+                    break;
+                }
+                tokio::time::sleep(Duration::from_millis(5)).await;
+            }
+        })
+        .await;
+        state.shutdown.cancel();
+        assert!(
+            result.is_ok(),
+            "dispatcher left a burst waiting for an external wakeup"
+        );
+    };
+    tokio::join!(dispatch, observe);
+    for index in 0..count {
+        let event_id = format!("burst-{index}");
+        let trigger_id = create_stable_id("ntftrig", &["burst-rule", &event_id]);
+        let delivery_id = create_stable_id("ntfdel", &[&trigger_id, "disabled-target"]);
+        assert_eq!(
+            load_delivery(&state, &delivery_id).await.unwrap().unwrap()["status"],
+            "skipped"
+        );
+    }
+}
+
+#[tokio::test]
+async fn notification_dispatch_waits_for_busy_lease_and_retries_without_new_events() {
+    let (_directory, state) = notification_test_state().await;
+    assert!(
+        state
+            .storage
+            .store
+            .acquire_notification_runtime_lease("dispatch", "other-worker", 15)
+            .await
+            .unwrap()
+    );
+    assert_eq!(
+        notification_dispatch_tick(&state).await.unwrap(),
+        DispatchSchedule::RetryAfter(DISPATCH_ERROR_RETRY_DELAY)
+    );
+    let started = std::time::Instant::now();
+    assert!(
+        tokio::time::timeout(
+            Duration::from_secs(1),
+            wait_for_notification_dispatch(
+                &state,
+                DispatchSchedule::RetryAfter(Duration::from_millis(20))
+            )
+        )
+        .await
+        .unwrap()
+    );
+    assert!(started.elapsed() >= Duration::from_millis(20));
+}
+
+#[tokio::test]
+async fn notification_dispatch_schedules_ip_location_deadline_without_advancing_cursor() {
+    let (_directory, state) = notification_test_state().await;
+    state
+        .storage
+        .store
+        .set_notification_last_stream_id("0-0")
+        .await
+        .unwrap();
+    save_rule_raw(
+        &state,
+        &json!({
+            "id": "ip-rule", "enabled": true, "event_type": "FN_EVENT_AUTH_LOGIN_FAILURE",
+            "targets": []
+        }),
+    )
+    .await
+    .unwrap();
+    state
+        .storage
+        .store
+        .append_system_event(
+            &json!({
+                "id": "await-ip", "type": "FN_EVENT_AUTH_LOGIN_FAILURE", "source": "AUTH",
+                "level": "WARN", "happened_at": time_utils::now_iso(), "payload": {"ip": "8.8.4.4"}
+            }),
+            30,
+            1000,
+        )
+        .await
+        .unwrap();
+    let schedule = notification_dispatch_tick(&state).await.unwrap();
+    assert!(
+        matches!(schedule, DispatchSchedule::RetryAfter(delay) if !delay.is_zero()
+        && delay <= Duration::from_millis(IP_LOCATION_NOTIFICATION_WAIT_MS as u64))
+    );
+    assert_eq!(
+        state
+            .storage
+            .store
+            .get_notification_last_stream_id()
+            .await
+            .unwrap()
+            .as_deref(),
+        Some("0-0")
+    );
+}
+
 async fn receive_webhook_request(mut stream: tokio::net::TcpStream) -> String {
     use tokio::io::{AsyncReadExt, AsyncWriteExt};
 

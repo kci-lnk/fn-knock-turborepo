@@ -5,6 +5,25 @@ pub(super) async fn import_backup_archive(
     body: ImportBackupBody,
     translator: &Translator,
 ) -> Result<Value, BackupImportError> {
+    let archive_work_guard = state
+        .maintenance
+        .backup_archive_work_lock
+        .clone()
+        .lock_owned()
+        .await;
+    let payload = run_backup_archive_work(archive_work_guard, move || {
+        let buffer = decode_backup_archive_body(body, MAX_BACKUP_ARCHIVE_SIZE)?;
+        parse_backup_payload_from_archive_native(&buffer)
+    })
+    .await
+    .map_err(|error| BackupImportError::internal(error.to_string()))??;
+    import_backup_payload(state, payload, translator).await
+}
+
+pub(super) fn decode_backup_archive_body(
+    body: ImportBackupBody,
+    limit: usize,
+) -> Result<Vec<u8>, BackupImportError> {
     let archive_base64 = body.archive_base64.trim();
     if archive_base64.is_empty() {
         return Err(BackupImportError::bad_request(
@@ -19,15 +38,29 @@ pub(super) async fn import_backup_archive(
             "Backup archive filename must end with {KNOCK_BACKUP_EXTENSION}"
         )));
     }
+    // Reject oversized encoded input before either validating every byte or
+    // allocating its decoded copy. Padding is included in the exact bound.
+    let padding = archive_base64
+        .as_bytes()
+        .iter()
+        .rev()
+        .take(2)
+        .take_while(|byte| **byte == b'=')
+        .count();
+    let decoded_len = (archive_base64.len() / 4 * 3).saturating_sub(padding);
+    if decoded_len > limit {
+        return Err(BackupImportError::bad_request(
+            "Backup archive is too large",
+        ));
+    }
     if !is_node_base64(archive_base64) {
         return Err(BackupImportError::bad_request(
             "Backup archive base64 is invalid",
         ));
     }
-    let buffer = STANDARD
+    STANDARD
         .decode(archive_base64.as_bytes())
-        .map_err(|_| BackupImportError::bad_request("Backup archive base64 is invalid"))?;
-    import_backup_archive_buffer(state, buffer, translator).await
+        .map_err(|_| BackupImportError::bad_request("Backup archive base64 is invalid"))
 }
 
 pub(super) async fn import_backup_archive_from_directory(
@@ -112,10 +145,23 @@ pub(super) async fn import_backup_archive_buffer(
         ));
     }
 
-    let mut payload = {
-        let _archive_work_guard = state.maintenance.backup_archive_work_lock.lock().await;
-        extract_backup_payload_from_archive(buffer).await?
+    let payload = {
+        let archive_work_guard = state
+            .maintenance
+            .backup_archive_work_lock
+            .clone()
+            .lock_owned()
+            .await;
+        extract_backup_payload_from_archive(buffer, archive_work_guard).await?
     };
+    import_backup_payload(state, payload, translator).await
+}
+
+async fn import_backup_payload(
+    state: &AppState,
+    mut payload: Value,
+    translator: &Translator,
+) -> Result<Value, BackupImportError> {
     let restored_credentials = import_protected_credentials(
         payload
             .as_object_mut()
@@ -384,10 +430,13 @@ async fn migrate_compiled_ipsets_after_import(state: &AppState) -> Result<(), St
 
 pub(super) async fn extract_backup_payload_from_archive(
     buffer: Vec<u8>,
+    guard: tokio::sync::OwnedMutexGuard<()>,
 ) -> Result<Value, BackupImportError> {
-    tokio::task::spawn_blocking(move || parse_backup_payload_from_archive_native(&buffer))
-        .await
-        .map_err(|error| BackupImportError::internal(error.to_string()))?
+    run_backup_archive_work(guard, move || {
+        parse_backup_payload_from_archive_native(&buffer)
+    })
+    .await
+    .map_err(|error| BackupImportError::internal(error.to_string()))?
 }
 
 pub(super) fn parse_backup_payload_from_archive_native(

@@ -1,5 +1,24 @@
 use super::*;
 
+struct BackupSerializedSize {
+    bytes: usize,
+    limit: usize,
+}
+
+impl std::io::Write for BackupSerializedSize {
+    fn write(&mut self, bytes: &[u8]) -> std::io::Result<usize> {
+        if bytes.len() > self.limit.saturating_sub(self.bytes) {
+            return Err(std::io::Error::other("Backup export is too large"));
+        }
+        self.bytes += bytes.len();
+        Ok(bytes.len())
+    }
+
+    fn flush(&mut self) -> std::io::Result<()> {
+        Ok(())
+    }
+}
+
 impl ConnectionManager {
     pub(crate) async fn get<K: IntoKey, T: FromOptionalString>(
         &mut self,
@@ -641,17 +660,17 @@ impl ConnectionManager {
                 let Some(value) = value else {
                     continue;
                 };
-                let entry = json!({
-                    "key": key,
-                    "type": value_type,
-                    "ttl_ms": ttl_ms,
-                    "value": value,
-                });
-                serialized_bytes =
-                    serialized_bytes.saturating_add(serde_json::to_vec(&entry)?.len());
-                if serialized_bytes > max_serialized_bytes {
-                    return Err(storage_error("Backup export is too large"));
-                }
+                let mut object = serde_json::Map::new();
+                object.insert("key".to_string(), Value::String(key));
+                object.insert("type".to_string(), Value::String(value_type));
+                object.insert("ttl_ms".to_string(), ttl_ms);
+                object.insert("value".to_string(), value);
+                let entry = Value::Object(object);
+                // Count escaped JSON bytes without allocating another copy of
+                // each value just to measure it. Preserve the total limit.
+                let mut size = BackupSerializedSize { bytes: serialized_bytes, limit: max_serialized_bytes };
+                serde_json::to_writer(&mut size, &entry)?;
+                serialized_bytes = size.bytes;
                 entries.push(entry);
             }
 

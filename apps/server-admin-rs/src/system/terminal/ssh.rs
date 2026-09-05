@@ -26,6 +26,8 @@ const CONNECT_TIMEOUT: Duration = Duration::from_secs(10);
 const AUTH_TIMEOUT: Duration = Duration::from_secs(10);
 const CHANNEL_TIMEOUT: Duration = Duration::from_secs(10);
 const CLEANUP_TIMEOUT: Duration = Duration::from_secs(5);
+const MAX_STARTUP_OUTPUT_BYTES: usize = 4 * 1024 * 1024;
+const MAX_STARTUP_EVENTS: usize = 8_192;
 const PRIVATE_KEY_DECODE_TIMEOUT: Duration = Duration::from_secs(10);
 const MAX_PRIVATE_KEY_BYTES: usize = 256 * 1024;
 const MAX_PASSPHRASE_BYTES: usize = 4 * 1024;
@@ -410,11 +412,13 @@ pub(super) async fn open_shell(
             "SSH server rejected the terminal request",
         )
     })?;
-    let mut pending_events = await_request_reply_until(
+    let mut pending = StartupOutput::default();
+    await_request_reply_until(
         &mut channel,
         TerminalErrorCode::PtyRejected,
         "PTY",
         pty_deadline,
+        &mut pending,
     )
     .await?;
     let shell_deadline = time::Instant::now() + CHANNEL_TIMEOUT;
@@ -432,21 +436,46 @@ pub(super) async fn open_shell(
                 "SSH server rejected the interactive shell",
             )
         })?;
-    pending_events.extend(
-        await_request_reply_until(
-            &mut channel,
-            TerminalErrorCode::PtyRejected,
-            "interactive shell",
-            shell_deadline,
-        )
-        .await?,
-    );
+    await_request_reply_until(
+        &mut channel,
+        TerminalErrorCode::PtyRejected,
+        "interactive shell",
+        shell_deadline,
+        &mut pending,
+    )
+    .await?;
 
     Ok(Box::new(ConnectedShell {
         session,
         channel,
-        pending_events,
+        pending_events: pending.events,
     }))
+}
+
+#[derive(Default)]
+struct StartupOutput {
+    events: VecDeque<ShellEvent>,
+    bytes: usize,
+}
+
+impl StartupOutput {
+    fn push(&mut self, event: ShellEvent) -> TerminalResult<()> {
+        let size = match &event {
+            ShellEvent::Data(data) => data.len(),
+            ShellEvent::Signaled(message) => message.len(),
+            _ => 0,
+        };
+        let bytes = self.bytes.saturating_add(size);
+        if bytes > MAX_STARTUP_OUTPUT_BYTES || self.events.len() >= MAX_STARTUP_EVENTS {
+            return Err(TerminalError::new(
+                TerminalErrorCode::PtyRejected,
+                "SSH terminal startup output exceeded its buffer limit",
+            ));
+        }
+        self.bytes = bytes;
+        self.events.push_back(event);
+        Ok(())
+    }
 }
 
 async fn await_request_reply_until(
@@ -454,12 +483,12 @@ async fn await_request_reply_until(
     code: TerminalErrorCode,
     request: &str,
     deadline: time::Instant,
-) -> TerminalResult<VecDeque<ShellEvent>> {
+    pending: &mut StartupOutput,
+) -> TerminalResult<()> {
     time::timeout_at(deadline, async {
-        let mut pending_events = VecDeque::new();
         loop {
             match channel.wait().await {
-                Some(ChannelMsg::Success) => return Ok(pending_events),
+                Some(ChannelMsg::Success) => return Ok(()),
                 Some(ChannelMsg::Failure) | Some(ChannelMsg::Close) | None => {
                     return Err(TerminalError::new(
                         code,
@@ -467,16 +496,16 @@ async fn await_request_reply_until(
                     ));
                 }
                 Some(ChannelMsg::Data { data }) => {
-                    pending_events.push_back(ShellEvent::Data(data.to_vec()));
+                    pending.push(ShellEvent::Data(data.to_vec()))?;
                 }
                 Some(ChannelMsg::ExtendedData { data, .. }) => {
-                    pending_events.push_back(ShellEvent::Data(data.to_vec()));
+                    pending.push(ShellEvent::Data(data.to_vec()))?;
                 }
                 Some(ChannelMsg::ExitStatus { exit_status }) => {
-                    pending_events.push_back(ShellEvent::Exited(exit_status));
+                    pending.push(ShellEvent::Exited(exit_status))?;
                 }
                 Some(ChannelMsg::ExitSignal { error_message, .. }) => {
-                    pending_events.push_back(ShellEvent::Signaled(error_message));
+                    pending.push(ShellEvent::Signaled(error_message))?;
                 }
                 Some(_) => {}
             }
@@ -698,6 +727,26 @@ N7MHSUzlkX4adBrga3f7GS4uv4ChOoxC4XsE5HsxtGsq1X8jzqLlZTmOcxkcEneYQexrUc\n\
 bQP0o+gL5aKK8cQgiIlXeDbRjqhc4+h4EF6lY=\n\
 -----END OPENSSH PRIVATE KEY-----";
 
+    #[test]
+    fn ssh_startup_output_limits_bytes_and_small_events() {
+        let mut pending = StartupOutput::default();
+        pending
+            .push(ShellEvent::Data(vec![1; MAX_STARTUP_OUTPUT_BYTES / 2]))
+            .unwrap();
+        // The same accumulator crosses the PTY and shell reply boundaries.
+        pending
+            .push(ShellEvent::Data(vec![2; MAX_STARTUP_OUTPUT_BYTES / 2]))
+            .unwrap();
+        assert!(pending.push(ShellEvent::Data(vec![3])).is_err());
+        assert_eq!(pending.bytes, MAX_STARTUP_OUTPUT_BYTES);
+        assert_eq!(pending.events.len(), 2);
+        let mut pending = StartupOutput::default();
+        for _ in 0..MAX_STARTUP_EVENTS {
+            pending.push(ShellEvent::Exited(0)).unwrap();
+        }
+        assert!(pending.push(ShellEvent::Exited(0)).is_err());
+    }
+
     #[derive(Default)]
     struct Observed {
         password_auth_attempts: usize,
@@ -712,6 +761,8 @@ bQP0o+gL5aKK8cQgiIlXeDbRjqhc4+h4EF6lY=\n\
     struct MockServer {
         observed: Arc<StdMutex<Observed>>,
         accept_pty: bool,
+        startup_output_bytes: usize,
+        pending_startup_success: bool,
     }
 
     impl server::Server for MockServer {
@@ -774,7 +825,12 @@ bQP0o+gL5aKK8cQgiIlXeDbRjqhc4+h4EF6lY=\n\
                 .pty
                 .push((term.to_string(), col_width, row_height));
             if self.accept_pty {
-                session.channel_success(channel)?;
+                if self.startup_output_bytes > 0 {
+                    session.data(channel, vec![b'P'; self.startup_output_bytes])?;
+                    self.pending_startup_success = true;
+                } else {
+                    session.channel_success(channel)?;
+                }
             } else {
                 session.channel_failure(channel)?;
             }
@@ -791,7 +847,29 @@ bQP0o+gL5aKK8cQgiIlXeDbRjqhc4+h4EF6lY=\n\
             // before acknowledging the shell request. The client must retain
             // those bytes while it waits for the request reply.
             session.data(channel, b"ready\r\n".to_vec())?;
-            session.channel_success(channel)?;
+            if self.startup_output_bytes > 0 {
+                session.data(channel, vec![b'S'; self.startup_output_bytes])?;
+                self.pending_startup_success = true;
+            } else {
+                session.channel_success(channel)?;
+            }
+            Ok(())
+        }
+
+        async fn window_adjusted(
+            &mut self,
+            channel: ChannelId,
+            new_size: u32,
+            session: &mut Session,
+        ) -> Result<(), Self::Error> {
+            // Russh queues data beyond the receive window but control replies
+            // bypass it. Acknowledge only after the pending data has drained;
+            // otherwise the fixture accidentally turns startup data into
+            // ordinary post-Success output before exercising the shared cap.
+            if new_size > 0 && self.pending_startup_success {
+                self.pending_startup_success = false;
+                session.channel_success(channel)?;
+            }
             Ok(())
         }
 
@@ -831,6 +909,18 @@ bQP0o+gL5aKK8cQgiIlXeDbRjqhc4+h4EF6lY=\n\
         Arc<StdMutex<Observed>>,
         JoinHandle<()>,
     ) {
+        start_server_with_startup_output(accept_pty, 0).await
+    }
+
+    async fn start_server_with_startup_output(
+        accept_pty: bool,
+        startup_output_bytes: usize,
+    ) -> (
+        SocketAddr,
+        TargetRecord,
+        Arc<StdMutex<Observed>>,
+        JoinHandle<()>,
+    ) {
         let listener = TcpListener::bind(("127.0.0.1", 0)).await.unwrap();
         let endpoint = listener.local_addr().unwrap();
         let host_key = decode_secret_key(TEST_PRIVATE_KEY, None).unwrap();
@@ -839,6 +929,8 @@ bQP0o+gL5aKK8cQgiIlXeDbRjqhc4+h4EF6lY=\n\
         let mut server = MockServer {
             observed: Arc::clone(&observed),
             accept_pty,
+            startup_output_bytes,
+            pending_startup_success: false,
         };
         let config = Arc::new(server::Config {
             auth_rejection_time: Duration::ZERO,
@@ -866,6 +958,33 @@ bQP0o+gL5aKK8cQgiIlXeDbRjqhc4+h4EF6lY=\n\
             updated_at: String::new(),
         };
         (endpoint, target, observed, task)
+    }
+
+    #[tokio::test]
+    async fn russh_startup_output_budget_spans_pty_and_shell_replies() {
+        let (_, target, observed, task) =
+            start_server_with_startup_output(true, MAX_STARTUP_OUTPUT_BYTES / 2 + 1).await;
+        let result = RusshConnector
+            .open_shell(
+                &target,
+                SshCredential::Password("secret".to_string()),
+                120,
+                32,
+                None,
+            )
+            .await;
+        match result {
+            Err(error) => {
+                assert_eq!(error.code, TerminalErrorCode::PtyRejected);
+                assert!(error.message.contains("buffer limit"));
+            }
+            Ok(mut shell) => {
+                shell.disconnect().await;
+                panic!("combined PTY and shell startup output exceeded the budget");
+            }
+        }
+        assert_eq!(observed.lock().unwrap().shells, 1);
+        task.abort();
     }
 
     #[tokio::test]

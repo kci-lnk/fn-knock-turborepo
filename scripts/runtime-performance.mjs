@@ -1,8 +1,9 @@
-import { startRuntime } from "./runtime-test-harness.mjs";
+import { fetchRuntime, startRuntime } from "./runtime-test-harness.mjs";
 import { summarizeRuntimeSamples } from "./runtime-performance-lib.mjs";
+import { maxCheckpoint, runLoadScenario } from "./runtime-load.mjs";
 
 const parseRunCount = (value, fallback, label, maximum = 15) => {
-  const count = Number.parseInt(value ?? String(fallback), 10);
+  const count = Number(value ?? fallback);
   if (!Number.isInteger(count) || count < 0 || count > maximum) {
     throw new Error(`${label} must be an integer from 0 to ${maximum}`);
   }
@@ -12,81 +13,11 @@ const parseRunCount = (value, fallback, label, maximum = 15) => {
 const delay = (milliseconds) =>
   new Promise((resolve) => setTimeout(resolve, milliseconds));
 
-const maxCheckpoint = (samples) => {
-  const fields = new Set(samples.flatMap((sample) => Object.keys(sample)));
-  const result = { captured_at: samples.at(-1)?.captured_at ?? null };
-  for (const field of fields) {
-    if (field === "captured_at") continue;
-    const values = samples
-      .map((sample) => sample[field])
-      .filter((value) => typeof value === "number" && Number.isFinite(value));
-    result[field] = values.length > 0 ? Math.max(...values) : null;
-  }
-  return result;
-};
-
-const runLoadScenario = async ({
-  collectCheckpoint,
-  concurrency,
-  durationMs,
-  expectedResponseBytes,
-  name,
-  url,
-}) => {
-  let requests = 0;
-  let responseBytes = 0;
-  const startedAt = performance.now();
-  const deadline = startedAt + durationMs;
-  const checkpointSamples = [];
-  let sampling = true;
-  const sampler = (async () => {
-    while (sampling) {
-      checkpointSamples.push(await collectCheckpoint());
-      await delay(500);
-    }
-  })();
-  const worker = async () => {
-    while (performance.now() < deadline) {
-      const response = await fetch(url, {
-        headers: { "accept-encoding": "identity" },
-      });
-      if (!response.ok) {
-        throw new Error(`${name} load returned HTTP ${response.status}`);
-      }
-      const body = await response.arrayBuffer();
-      if (body.byteLength !== expectedResponseBytes) {
-        throw new Error(
-          `${name} response length ${body.byteLength} != ${expectedResponseBytes}`,
-        );
-      }
-      responseBytes += body.byteLength;
-      requests += 1;
-    }
-  };
-  try {
-    await Promise.all(Array.from({ length: concurrency }, worker));
-  } finally {
-    sampling = false;
-    await sampler;
-  }
-  checkpointSamples.push(await collectCheckpoint());
-  const elapsedMs = Math.round(performance.now() - startedAt);
-  return {
-    name,
-    concurrency,
-    elapsed_ms: elapsedMs,
-    requests,
-    response_bytes: responseBytes,
-    requests_per_second: Number((requests / (elapsedMs / 1000)).toFixed(2)),
-    peak: maxCheckpoint(checkpointSamples),
-  };
-};
-
 const enableWaf = async (backendUrl) => {
   const rule =
     'SecRule REQUEST_HEADERS:User-Agent "@contains fn-knock-runtime-waf-probe" ' +
     '"id:990001,phase:1,pass,nolog"\n';
-  const uploadResponse = await fetch(
+  const uploadResponse = await fetchRuntime(
     `${backendUrl}/api/admin/waf/custom/upload`,
     {
       method: "POST",
@@ -106,7 +37,7 @@ const enableWaf = async (backendUrl) => {
       `failed to install WAF load rule: HTTP ${uploadResponse.status} ${await uploadResponse.text()}`,
     );
   }
-  const response = await fetch(`${backendUrl}/api/admin/waf/config`, {
+  const response = await fetchRuntime(`${backendUrl}/api/admin/waf/config`, {
     method: "POST",
     headers: { "content-type": "application/json" },
     body: JSON.stringify({
@@ -123,7 +54,7 @@ const enableWaf = async (backendUrl) => {
 };
 
 const verifyStaticServing = async (adminUrl, authUrl) => {
-  const indexResponse = await fetch(adminUrl, {
+  const indexResponse = await fetchRuntime(adminUrl, {
     headers: { "accept-encoding": "identity" },
   });
   if (!indexResponse.ok) {
@@ -147,7 +78,7 @@ const verifyStaticServing = async (adminUrl, authUrl) => {
   if (!assetPath) throw new Error("admin index has no module script asset");
   const assetUrl = new URL(assetPath, adminUrl);
   const head = async (encoding) =>
-    fetch(assetUrl, {
+    fetchRuntime(assetUrl, {
       method: "HEAD",
       headers: { "accept-encoding": encoding },
     });
@@ -174,7 +105,7 @@ const verifyStaticServing = async (adminUrl, authUrl) => {
   ) {
     throw new Error("static compression did not honor Accept-Encoding quality");
   }
-  const conditional = await fetch(assetUrl, {
+  const conditional = await fetchRuntime(assetUrl, {
     headers: { "accept-encoding": "br", "if-none-match": etag },
   });
   if (
@@ -183,7 +114,7 @@ const verifyStaticServing = async (adminUrl, authUrl) => {
   ) {
     throw new Error("static asset If-None-Match did not return an empty 304");
   }
-  const spaFallback = await fetch(
+  const spaFallback = await fetchRuntime(
     new URL("/__runtime_static_spa_probe__", adminUrl),
   );
   if (
@@ -194,7 +125,7 @@ const verifyStaticServing = async (adminUrl, authUrl) => {
   ) {
     throw new Error("admin SPA fallback failed the index cache contract");
   }
-  const rejectedSpaMutation = await fetch(
+  const rejectedSpaMutation = await fetchRuntime(
     new URL("/__runtime_static_spa_probe__", adminUrl),
     { method: "POST" },
   );
@@ -204,11 +135,11 @@ const verifyStaticServing = async (adminUrl, authUrl) => {
   ) {
     throw new Error("admin SPA fallback accepted a non-read method");
   }
-  const apiRoot = await fetch(new URL("/api", adminUrl));
+  const apiRoot = await fetchRuntime(new URL("/api", adminUrl));
   if (apiRoot.status !== 404) {
     throw new Error("exact API root escaped the JSON not-found boundary");
   }
-  const authIndex = await fetch(authUrl);
+  const authIndex = await fetchRuntime(authUrl);
   if (
     !authIndex.ok ||
     !authIndex.headers
@@ -221,7 +152,7 @@ const verifyStaticServing = async (adminUrl, authUrl) => {
 
 const exerciseGatewayMemoryConfig = async (backendUrl) => {
   const endpoint = `${backendUrl}/api/admin/runtime-health/gateway-memory`;
-  const currentResponse = await fetch(endpoint);
+  const currentResponse = await fetchRuntime(endpoint);
   if (!currentResponse.ok) {
     throw new Error(
       `failed to read gateway memory config: HTTP ${currentResponse.status}`,
@@ -235,7 +166,7 @@ const exerciseGatewayMemoryConfig = async (backendUrl) => {
     );
   }
   const update = async (body) => {
-    const response = await fetch(endpoint, {
+    const response = await fetchRuntime(endpoint, {
       method: "PUT",
       headers: { "content-type": "application/json" },
       body: JSON.stringify(body),
@@ -252,7 +183,7 @@ const exerciseGatewayMemoryConfig = async (backendUrl) => {
     10,
   );
   if (Number.isInteger(rejectedLimitMib)) {
-    const rejected = await fetch(endpoint, {
+    const rejected = await fetchRuntime(endpoint, {
       method: "PUT",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ memory_limit_mib: rejectedLimitMib }),
@@ -262,7 +193,7 @@ const exerciseGatewayMemoryConfig = async (backendUrl) => {
         `out-of-policy memory limit ${rejectedLimitMib} MiB returned HTTP ${rejected.status}`,
       );
     }
-    const afterRejectedResponse = await fetch(endpoint);
+    const afterRejectedResponse = await fetchRuntime(endpoint);
     const afterRejected = (await afterRejectedResponse.json()).data;
     if (
       afterRejected.memory_limit_mib !== current.memory_limit_mib ||
@@ -310,6 +241,12 @@ const loadDurationMs =
     300,
   ) * 1000;
 
+if (loadRunCount > 0 && loadDurationMs === 0) {
+  throw new Error(
+    "FN_KNOCK_RUNTIME_PERF_LOAD_SECONDS must be positive when load runs are enabled",
+  );
+}
+
 const samples = [];
 for (let index = 0; index < runCount; index += 1) {
   let runtime;
@@ -340,6 +277,7 @@ for (let index = 0; index < runCount; index += 1) {
       loads.push(
         await runLoadScenario({
           collectCheckpoint: runtime.collectCheckpoint,
+          collectMemorySample: runtime.collectMemorySample,
           concurrency: 64,
           durationMs: loadDurationMs,
           expectedResponseBytes: 2 * 1024 * 1024,
@@ -350,6 +288,7 @@ for (let index = 0; index < runCount; index += 1) {
       loads.push(
         await runLoadScenario({
           collectCheckpoint: runtime.collectCheckpoint,
+          collectMemorySample: runtime.collectMemorySample,
           concurrency: 32,
           durationMs: loadDurationMs,
           expectedResponseBytes: 2 * 1024 * 1024,
@@ -361,11 +300,23 @@ for (let index = 0; index < runCount; index += 1) {
       loads.push(
         await runLoadScenario({
           collectCheckpoint: runtime.collectCheckpoint,
+          collectMemorySample: runtime.collectMemorySample,
           concurrency: 32,
           durationMs: loadDurationMs,
           expectedResponseBytes: 1024,
           name: "waf_1kib",
           url: `${runtime.gatewayProxyUrl}/perf/waf`,
+        }),
+      );
+      loads.push(
+        await runLoadScenario({
+          collectCheckpoint: runtime.collectCheckpoint,
+          collectMemorySample: runtime.collectMemorySample,
+          concurrency: 16,
+          durationMs: loadDurationMs,
+          name: "management_locale",
+          url: `${runtime.backendUrl}/api/admin/config/locale`,
+          responseValidation: "locale",
         }),
       );
       checkpoints.load_peak = maxCheckpoint(loads.map((load) => load.peak));
@@ -383,6 +334,20 @@ for (let index = 0; index < runCount; index += 1) {
       checkpoints,
       loads,
     });
+  } catch (error) {
+    if (error.samples) {
+      // Keep invalid trials inspectable in the CI log without presenting them
+      // as successful measurements or silently retrying them.
+      console.error(
+        JSON.stringify({
+          failed_run: index + 1,
+          error: error.message,
+          measurement: error.measurement ?? null,
+          samples: error.samples,
+        }),
+      );
+    }
+    throw error;
   } finally {
     await runtime?.stop();
   }
@@ -392,6 +357,9 @@ process.stdout.write(
   `${JSON.stringify(
     {
       schema_version: 2,
+      management_rss_sampling: ["linux", "darwin"].includes(process.platform)
+        ? { source: "operating_system", interval_ms: 100 }
+        : { source: "runtime_health_snapshot", interval_ms: 100 },
       idle_sample_count: samples.length,
       load_sample_count: samples.filter((sample) => sample.loads.length > 0)
         .length,

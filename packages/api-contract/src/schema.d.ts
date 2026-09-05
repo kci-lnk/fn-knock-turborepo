@@ -5974,7 +5974,7 @@ export interface paths {
             cookie?: never;
         };
         /**
-         * 查看Web 终端access
+         * 查看Web 终端访问权限
          * @description 管理 Web 终端运行时能力和交互会话。。`GET /api/admin/terminal/access` 用于读取当前状态、配置或导出内容，不会主动修改服务配置。 该操作不要求 JSON 请求体。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
          */
         get: operations["get_access_status"];
@@ -5996,7 +5996,7 @@ export interface paths {
         get?: never;
         put?: never;
         /**
-         * 提交Web 终端verify
+         * 验证Web 终端访问权限
          * @description 管理 Web 终端运行时能力和交互会话。。`POST /api/admin/terminal/access/verify` 用于提交操作或创建、更新服务状态；执行结果以响应中的数据和消息为准。 请求体字段、必填项和可选值请以 Swagger 展开的 schema 为准。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
          */
         post: operations["verify_access"];
@@ -12799,7 +12799,7 @@ export interface components {
             transport: components["schemas"]["TerminalTransport"];
         };
         /** @enum {string} */
-        TerminalErrorCode: "feature_disabled" | "access_password_required" | "access_rate_limited" | "invalid_request" | "target_not_found" | "session_not_found" | "host_key_required" | "host_key_mismatch" | "authentication_failed" | "pty_rejected" | "session_limit_reached" | "session_lost" | "attachment_expired" | "controller_conflict" | "target_revision_conflict" | "local_terminal_unsupported" | "local_terminal_disabled" | "local_terminal_risk_acknowledgement_required" | "local_terminal_revision_conflict" | "local_shell_unavailable" | "local_pty_start_failed" | "connect_timeout" | "conflict" | "upstream_unavailable" | "internal_error";
+        TerminalErrorCode: "feature_disabled" | "access_password_required" | "access_rate_limited" | "resource_busy" | "invalid_request" | "target_not_found" | "session_not_found" | "host_key_required" | "host_key_mismatch" | "authentication_failed" | "pty_rejected" | "session_limit_reached" | "session_lost" | "attachment_expired" | "controller_conflict" | "target_revision_conflict" | "local_terminal_unsupported" | "local_terminal_disabled" | "local_terminal_risk_acknowledgement_required" | "local_terminal_revision_conflict" | "local_shell_unavailable" | "local_pty_start_failed" | "connect_timeout" | "conflict" | "upstream_unavailable" | "internal_error";
         TerminalErrorEnvelope: {
             activeSessionCount?: number | null;
             confirmationToken?: string | null;
@@ -14974,6 +14974,17 @@ export interface operations {
                     };
                 };
             };
+            /** @description 密码处理资源繁忙，请根据 Retry-After 稍后重试 */
+            503: {
+                headers: {
+                    /** @description 密码处理资源繁忙时建议等待的秒数 */
+                    "Retry-After"?: number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorEnvelope"];
+                };
+            };
             /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
             default: {
                 headers: {
@@ -15131,6 +15142,17 @@ export interface operations {
                     };
                 };
             };
+            /** @description 密码处理资源繁忙，请根据 Retry-After 稍后重试 */
+            503: {
+                headers: {
+                    /** @description 密码处理资源繁忙时建议等待的秒数 */
+                    "Retry-After"?: number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorEnvelope"];
+                };
+            };
             /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
             default: {
                 headers: {
@@ -15171,6 +15193,17 @@ export interface operations {
                     } & {
                         [key: string]: unknown;
                     };
+                };
+            };
+            /** @description 密码处理资源繁忙，请根据 Retry-After 稍后重试 */
+            503: {
+                headers: {
+                    /** @description 密码处理资源繁忙时建议等待的秒数 */
+                    "Retry-After"?: number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorEnvelope"];
                 };
             };
             /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
@@ -22982,6 +23015,17 @@ export interface operations {
                     "application/octet-stream": string;
                 };
             };
+            /** @description 备份任务正在进行，请根据 Retry-After 稍后重试 */
+            503: {
+                headers: {
+                    /** @description 建议等待的秒数 */
+                    "Retry-After"?: number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorEnvelope"];
+                };
+            };
             /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
             default: {
                 headers: {
@@ -23016,6 +23060,17 @@ export interface operations {
                     } & {
                         [key: string]: unknown;
                     };
+                };
+            };
+            /** @description 备份任务正在进行，请根据 Retry-After 稍后重试 */
+            503: {
+                headers: {
+                    /** @description 建议等待的秒数 */
+                    "Retry-After"?: number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorEnvelope"];
                 };
             };
             /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
@@ -23094,6 +23149,17 @@ export interface operations {
                     };
                 };
             };
+            /** @description 备份任务正在进行，请根据 Retry-After 稍后重试 */
+            503: {
+                headers: {
+                    /** @description 建议等待的秒数 */
+                    "Retry-After"?: number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorEnvelope"];
+                };
+            };
             /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
             default: {
                 headers: {
@@ -23134,6 +23200,17 @@ export interface operations {
                     };
                 };
             };
+            /** @description 备份任务正在进行，请根据 Retry-After 稍后重试 */
+            503: {
+                headers: {
+                    /** @description 建议等待的秒数 */
+                    "Retry-After"?: number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorEnvelope"];
+                };
+            };
             /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
             default: {
                 headers: {
@@ -23172,6 +23249,17 @@ export interface operations {
                     } & {
                         [key: string]: unknown;
                     };
+                };
+            };
+            /** @description 备份任务正在进行，请根据 Retry-After 稍后重试 */
+            503: {
+                headers: {
+                    /** @description 建议等待的秒数 */
+                    "Retry-After"?: number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorEnvelope"];
                 };
             };
             /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
@@ -24309,6 +24397,17 @@ export interface operations {
                     "application/json": components["schemas"]["PanelLoginRateLimitErrorData"];
                 };
             };
+            /** @description 密码处理资源繁忙，请根据 Retry-After 稍后重试 */
+            503: {
+                headers: {
+                    /** @description 密码处理资源繁忙时建议等待的秒数 */
+                    "Retry-After"?: number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorEnvelope"];
+                };
+            };
             /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
             default: {
                 headers: {
@@ -24385,6 +24484,17 @@ export interface operations {
                     };
                 };
             };
+            /** @description 密码处理资源繁忙，请根据 Retry-After 稍后重试 */
+            503: {
+                headers: {
+                    /** @description 密码处理资源繁忙时建议等待的秒数 */
+                    "Retry-After"?: number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorEnvelope"];
+                };
+            };
             /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
             default: {
                 headers: {
@@ -24423,6 +24533,17 @@ export interface operations {
                     } & {
                         [key: string]: unknown;
                     };
+                };
+            };
+            /** @description 密码处理资源繁忙，请根据 Retry-After 稍后重试 */
+            503: {
+                headers: {
+                    /** @description 密码处理资源繁忙时建议等待的秒数 */
+                    "Retry-After"?: number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorEnvelope"];
                 };
             };
             /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
@@ -28182,7 +28303,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description 「查看Web 终端access」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
+            /** @description 「查看Web 终端访问权限」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -28222,13 +28343,24 @@ export interface operations {
             };
         };
         responses: {
-            /** @description 「提交Web 终端verify」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
+            /** @description 「验证Web 终端访问权限」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
             200: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
                     "application/json": components["schemas"]["ApiSuccessEnvelope"];
+                };
+            };
+            /** @description 服务处理失败；请检查依赖服务和运行日志后重试。 */
+            503: {
+                headers: {
+                    /** @description 密码处理资源繁忙时建议等待的秒数 */
+                    "Retry-After"?: number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TerminalErrorEnvelope"];
                 };
             };
             /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
@@ -28766,6 +28898,17 @@ export interface operations {
                     } & {
                         [key: string]: unknown;
                     };
+                };
+            };
+            /** @description 服务处理失败；请检查依赖服务和运行日志后重试。 */
+            503: {
+                headers: {
+                    /** @description 密码处理资源繁忙时建议等待的秒数 */
+                    "Retry-After"?: number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TerminalErrorEnvelope"];
                 };
             };
             /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */

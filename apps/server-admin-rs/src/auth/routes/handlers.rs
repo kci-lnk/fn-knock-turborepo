@@ -688,6 +688,11 @@ async fn login_session_cookie_header(
     }
 }
 
+#[cfg(test)]
+tokio::task_local! {
+    static PASSWORD_LOGIN_HASH_BARRIER: (std::sync::Arc<tokio::sync::Notify>, std::sync::Arc<tokio::sync::Notify>);
+}
+
 async fn password_login(
     state: &AppState,
     headers: &HeaderMap,
@@ -699,6 +704,11 @@ async fn password_login(
 ) -> Response {
     let username = body.username.as_deref().unwrap_or("").trim();
     let password = body.password.as_deref().unwrap_or("");
+    // Account creation accepts at most 128 UTF-8 bytes. Reject oversized login
+    // input uniformly before account lookup or a real/dummy hash allocation.
+    if password.len() > crate::auth::password::MAX_AUTH_PASSWORD_BYTES {
+        return register_password_login_failure(state, headers, tracking_ip, translator).await;
+    }
     let account = if username.is_empty() || password.is_empty() {
         None
     } else {
@@ -718,6 +728,7 @@ async fn password_login(
             }
         }
     };
+    let mut verified_credential = None;
     let verified = if let Some(account) = account.as_ref() {
         match state
             .storage
@@ -725,20 +736,33 @@ async fn password_login(
             .get_auth_password_credential(&account.id)
             .await
         {
-            Ok(Some(record)) => {
-                match crate::auth::password::verify_auth_password(password, &record) {
-                    Ok(value) => value,
+            Ok(Some(record)) if record.account_id == account.id => {
+                #[cfg(test)]
+                if let Ok((hashing, resume)) = PASSWORD_LOGIN_HASH_BARRIER.try_with(Clone::clone) {
+                    hashing.notify_one();
+                    resume.notified().await;
+                }
+                match crate::auth::password::verify_auth_password(password, &record).await {
+                    Ok(value) => {
+                        if value {
+                            verified_credential = Some(record);
+                        }
+                        Ok(value)
+                    }
+                    Err(error) if crate::auth::password::is_password_hash_busy(&error) => {
+                        Err(error)
+                    }
                     Err(error) => {
                         tracing::warn!(%error, account_id = %account.id, "failed to verify auth account password");
-                        consume_dummy_auth_password_hash(password);
-                        false
+                        consume_dummy_auth_password_hash(password)
+                            .await
+                            .map(|()| false)
                     }
                 }
             }
-            Ok(None) => {
-                consume_dummy_auth_password_hash(password);
-                false
-            }
+            Ok(Some(_)) | Ok(None) => consume_dummy_auth_password_hash(password)
+                .await
+                .map(|()| false),
             Err(error) => {
                 tracing::warn!(%error, account_id = %account.id, "failed to load auth account password credential");
                 return with_auth_headers(response::error(
@@ -748,11 +772,54 @@ async fn password_login(
             }
         }
     } else {
-        consume_dummy_auth_password_hash(password);
-        false
+        consume_dummy_auth_password_hash(password)
+            .await
+            .map(|()| false)
+    };
+    let verified = match verified {
+        Ok(verified) => verified,
+        Err(error) => {
+            // Real and unknown accounts share the same bounded hash service.
+            // Overload must not turn into an account-dependent failure/backoff.
+            tracing::warn!(%error, "password login hashing unavailable");
+            let mut response = with_auth_headers(response::error(
+                StatusCode::SERVICE_UNAVAILABLE,
+                auth_route_text(translator, "verifyFailed"),
+            ));
+            response
+                .headers_mut()
+                .insert(header::RETRY_AFTER, HeaderValue::from_static("3"));
+            return response;
+        }
     };
     let Some(account) = account.filter(|_| verified) else {
         return register_password_login_failure(state, headers, tracking_ip, translator).await;
+    };
+
+    // Password verification can wait in the hash pool while a management
+    // request changes/deletes this account or switches login mode. Serialize
+    // only session publication, then validate against the current credential.
+    let _mutation = state.storage.store.auth_account_mutation_lock.lock().await;
+    let account = match revalidate_password_login(
+        state,
+        &account,
+        verified_credential
+            .as_ref()
+            .expect("verified password has a credential"),
+    )
+    .await
+    {
+        Ok(Some(account)) => account,
+        Ok(None) => {
+            return register_password_login_failure(state, headers, tracking_ip, translator).await;
+        }
+        Err(error) => {
+            tracing::warn!(%error, account_id = %account.id, "failed to revalidate password login before session publication");
+            return with_auth_headers(response::error(
+                StatusCode::INTERNAL_SERVER_ERROR,
+                auth_route_text(translator, "loadLoginCredentialsFailed"),
+            ));
+        }
     };
 
     let totp_credential = match state.storage.store.get_totps().await {
@@ -874,10 +941,37 @@ async fn password_login(
     response
 }
 
-fn consume_dummy_auth_password_hash(password: &str) {
-    if let Err(error) = crate::auth::password::consume_dummy_auth_password_hash(password) {
-        tracing::warn!(%error, "failed to consume dummy auth password hash");
+/// Called while the account mutation lock is held, and the caller retains it
+/// until session creation completes. Use current account permissions, never
+/// the projection read before the expensive password verification.
+async fn revalidate_password_login(
+    state: &AppState,
+    looked_up_account: &crate::store::AuthAccount,
+    verified: &crate::store::AuthPasswordCredential,
+) -> anyhow::Result<Option<crate::store::AuthAccount>> {
+    if verified.account_id != looked_up_account.id
+        || state.storage.store.get_auth_login_mode().await? != AuthLoginMode::Password
+    {
+        return Ok(None);
     }
+    let snapshot = state
+        .storage
+        .store
+        .get_auth_account_mutation_snapshot(&looked_up_account.id, None)
+        .await?;
+    if serde_json::to_value(snapshot.password.as_ref())? != serde_json::to_value(Some(verified))? {
+        return Ok(None);
+    }
+    Ok(snapshot.accounts.into_iter().find(|account| {
+        account.id == looked_up_account.id
+            && account
+                .username
+                .eq_ignore_ascii_case(&looked_up_account.username)
+    }))
+}
+
+async fn consume_dummy_auth_password_hash(password: &str) -> anyhow::Result<()> {
+    crate::auth::password::consume_dummy_auth_password_hash(password).await
 }
 
 async fn register_password_login_failure(
@@ -1061,6 +1155,199 @@ fn append_set_cookie_header(headers: &mut HeaderMap, cookie: String, context: &'
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn password_test_account() -> crate::store::AuthAccount {
+        crate::store::AuthAccount {
+            id: "password-account".to_string(),
+            username: "alice".to_string(),
+            display_name: "alice".to_string(),
+            source_totp_id: String::new(),
+            created_at: "2026-01-01T00:00:00Z".to_string(),
+            updated_at: "2026-01-01T00:00:00Z".to_string(),
+            access_scopes: json!([]),
+            subdomain_access: json!({"mode":"all", "hosts":[]}),
+        }
+    }
+
+    #[tokio::test]
+    async fn password_login_hash_wait_rejects_changed_password_account_and_mode() {
+        let (_directory, state) =
+            super::super::tests::auth_route_test_state("password-hash-revalidation").await;
+        let account = password_test_account();
+        let credential = crate::auth::password::make_auth_password_credential(
+            &account.id,
+            "original-password123",
+            None,
+        )
+        .await
+        .unwrap();
+        for changed in ["password", "delete", "rename", "mode"] {
+            state
+                .storage
+                .store
+                .set_auth_accounts(std::slice::from_ref(&account))
+                .await
+                .unwrap();
+            state
+                .storage
+                .store
+                .set_auth_password_credential(&credential)
+                .await
+                .unwrap();
+            state
+                .storage
+                .store
+                .set_auth_login_mode(AuthLoginMode::Password)
+                .await
+                .unwrap();
+            state
+                .storage
+                .store
+                .reset_login_backoff("203.0.113.10")
+                .await
+                .unwrap();
+            let hashing = std::sync::Arc::new(tokio::sync::Notify::new());
+            let resume = std::sync::Arc::new(tokio::sync::Notify::new());
+            let body = login_body(
+                Some("password"),
+                Some("alice"),
+                Some("original-password123"),
+            );
+            let headers = HeaderMap::new();
+            let config = state.storage.store.get_config().await.unwrap();
+            let translator = Translator::from_state(&state).await;
+            let login = PASSWORD_LOGIN_HASH_BARRIER.scope(
+                (hashing.clone(), resume.clone()),
+                password_login(
+                    &state,
+                    &headers,
+                    &config,
+                    &translator,
+                    &body,
+                    "203.0.113.10",
+                    "203.0.113.10",
+                ),
+            );
+            let mutation = async {
+                hashing.notified().await;
+                {
+                    let _guard = state.storage.store.auth_account_mutation_lock.lock().await;
+                    match changed {
+                        "password" => {
+                            let mut replacement = credential.clone();
+                            replacement.hash = "changed-password".to_string();
+                            state
+                                .storage
+                                .store
+                                .set_auth_password_credential(&replacement)
+                                .await
+                                .unwrap();
+                        }
+                        "delete" => {
+                            state.storage.store.set_auth_accounts(&[]).await.unwrap();
+                        }
+                        "rename" => {
+                            let mut replacement = account.clone();
+                            replacement.username = "renamed".to_string();
+                            state
+                                .storage
+                                .store
+                                .set_auth_accounts(&[replacement])
+                                .await
+                                .unwrap();
+                        }
+                        "mode" => {
+                            state
+                                .storage
+                                .store
+                                .set_auth_login_mode(AuthLoginMode::Totp)
+                                .await
+                                .unwrap();
+                        }
+                        _ => unreachable!(),
+                    }
+                }
+                resume.notify_one();
+            };
+            let (response, ()) = tokio::time::timeout(std::time::Duration::from_secs(30), async {
+                tokio::join!(login, mutation)
+            })
+            .await
+            .unwrap();
+            assert!(
+                !response.status().is_success(),
+                "accepted concurrent {changed}"
+            );
+            assert!(response.headers().get(header::SET_COOKIE).is_none());
+            assert!(
+                state
+                    .storage
+                    .store
+                    .list_login_sessions()
+                    .await
+                    .unwrap()
+                    .is_empty()
+            );
+        }
+    }
+
+    #[tokio::test]
+    async fn password_login_revalidation_uses_current_permissions_and_checks_credential_identity() {
+        let (_directory, state) =
+            super::super::tests::auth_route_test_state("password-current-permissions").await;
+        let account = password_test_account();
+        let credential = crate::auth::password::make_auth_password_credential(
+            &account.id,
+            "original-password123",
+            None,
+        )
+        .await
+        .unwrap();
+        state
+            .storage
+            .store
+            .set_auth_accounts(std::slice::from_ref(&account))
+            .await
+            .unwrap();
+        state
+            .storage
+            .store
+            .set_auth_password_credential(&credential)
+            .await
+            .unwrap();
+        state
+            .storage
+            .store
+            .set_auth_login_mode(AuthLoginMode::Password)
+            .await
+            .unwrap();
+        let _guard = state.storage.store.auth_account_mutation_lock.lock().await;
+        let mut updated = account.clone();
+        updated.access_scopes = json!(["docker_admin_panel"]);
+        updated.subdomain_access = crate::store::normalize_totp_subdomain_access(
+            json!({"mode":"custom", "hosts":["app.example.com"]}),
+        );
+        state
+            .storage
+            .store
+            .set_auth_accounts(std::slice::from_ref(&updated))
+            .await
+            .unwrap();
+        let current = revalidate_password_login(&state, &account, &credential)
+            .await
+            .unwrap()
+            .unwrap();
+        assert_eq!(current.access_scopes, updated.access_scopes);
+        assert_eq!(current.subdomain_access, updated.subdomain_access);
+        let mut mismatched = credential.clone();
+        mismatched.account_id = "other-id".to_string();
+        assert!(
+            revalidate_password_login(&state, &account, &mismatched)
+                .await
+                .unwrap()
+                .is_none()
+        );
+    }
 
     fn login_body(
         method: Option<&str>,

@@ -94,3 +94,50 @@ impl std::io::Write for Parser {
         Ok(())
     }
 }
+
+#[cfg(test)]
+mod tests {
+    #[derive(Default)]
+    struct Observed {
+        clipboard_bytes: usize,
+        titles: Vec<Vec<u8>>,
+    }
+
+    impl crate::Callbacks for Observed {
+        fn copy_to_clipboard(
+            &mut self,
+            _: &mut crate::Screen,
+            _: &[u8],
+            data: &[u8],
+        ) {
+            self.clipboard_bytes = data.len();
+        }
+        fn set_window_title(&mut self, _: &mut crate::Screen, title: &[u8]) {
+            self.titles.push(title.to_vec());
+        }
+    }
+
+    #[test]
+    fn long_osc_is_bounded_and_recovers_across_chunk_boundaries() {
+        let mut parser =
+            super::Parser::new_with_callbacks(4, 40, 8, Observed::default());
+        parser.process(b"before\r\n\x1b]52;c;");
+        for _ in 0..64 {
+            parser.process(&[b'A'; 16 * 1024]);
+        }
+        parser.process(b"\x07after-bel\r\n\x1b]2;");
+        assert!(parser.callbacks().clipboard_bytes > 0);
+        assert!(
+            parser.callbacks().clipboard_bytes <= 1024,
+            "vte std feature must not re-enable an unbounded OSC buffer"
+        );
+        for _ in 0..64 {
+            parser.process(&[b'B'; 16 * 1024]);
+        }
+        parser.process(b"\x1b");
+        parser.process(b"\\after-st\x1b]2;normal-title\x07");
+        assert!(parser.callbacks().titles[0].len() <= 1024);
+        assert_eq!(parser.callbacks().titles[1], b"normal-title");
+        assert_eq!(parser.screen().contents(), "before\nafter-bel\nafter-st");
+    }
+}

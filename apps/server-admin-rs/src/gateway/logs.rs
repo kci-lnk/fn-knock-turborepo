@@ -267,21 +267,26 @@ async fn analytics(
     Query(query): Query<GatewayLogAnalyticsQuery>,
 ) -> Response {
     let translator = Translator::from_state(&state).await;
-    let result = state
-        .gateway
-        .client
-        .analyze_log_entries_with_timeout(
-            crate::grpc_proto::GatewayLogAnalyticsQuery {
-                from_date: query.from.unwrap_or_default(),
-                to_date: query.to.unwrap_or_default(),
-            },
-            GATEWAY_LOG_ANALYTICS_TIMEOUT,
-        )
-        .await
-        .and_then(go_backend_data);
+    let result = tokio::time::timeout(GATEWAY_LOG_ANALYTICS_TIMEOUT, async {
+        let data = state
+            .gateway
+            .client
+            .analyze_log_entries_with_timeout(
+                crate::grpc_proto::GatewayLogAnalyticsQuery {
+                    from_date: query.from.unwrap_or_default(),
+                    to_date: query.to.unwrap_or_default(),
+                },
+                GATEWAY_LOG_ANALYTICS_TIMEOUT,
+            )
+            .await
+            .and_then(go_backend_data)?;
+        Ok::<_, anyhow::Error>(hydrate_analytics_response(&state, data).await)
+    })
+    .await
+    .unwrap_or_else(|error| Err(error.into()));
 
     match result {
-        Ok(data) => response::ok(hydrate_analytics_response(&state, data).await).into_response(),
+        Ok(data) => response::ok(data).into_response(),
         Err(error) => {
             tracing::warn!(%error, "failed to analyze gateway log entries");
             response::error(
@@ -557,7 +562,7 @@ async fn go_log_entries(
         .and_then(go_backend_data)
 }
 
-fn go_backend_data(value: Value) -> anyhow::Result<Value> {
+fn go_backend_data(mut value: Value) -> anyhow::Result<Value> {
     if !value
         .get("success")
         .and_then(Value::as_bool)
@@ -571,7 +576,10 @@ fn go_backend_data(value: Value) -> anyhow::Result<Value> {
                 .unwrap_or("Go backend request failed")
         );
     }
-    Ok(value.get("data").cloned().unwrap_or(Value::Null))
+    Ok(value
+        .get_mut("data")
+        .map(Value::take)
+        .unwrap_or(Value::Null))
 }
 
 fn parse_gateway_log_positive_i32(

@@ -1,3 +1,4 @@
+use crate::auth::password::derive_password_hash;
 use axum::{
     Extension, Json, Router,
     body::Body,
@@ -6,7 +7,6 @@ use axum::{
     middleware::Next,
     response::{IntoResponse, Response},
 };
-use scrypt::{Params as ScryptParams, scrypt};
 use serde::Deserialize;
 use serde_json::{Value, json};
 use std::env;
@@ -604,27 +604,36 @@ async fn set_password(
         }
     }
 
-    let record = match make_password_record(&body.password, None) {
+    let record = match make_password_record(&body.password, None).await {
         Ok(record) => record,
         Err(error) => {
             tracing::warn!(%error, "failed to derive docker admin password hash");
+            return crate::auth::password::password_hash_error_response(
+                &error,
+                admin_panel_text(&translator, "dockerPanel.setPasswordFailed"),
+            );
+        }
+    };
+    match state
+        .storage
+        .store
+        .install_docker_admin_password_if_absent_and_clear_security_state(&record)
+        .await
+    {
+        Ok(true) => {}
+        Ok(false) => {
+            return response::error(
+                StatusCode::BAD_REQUEST,
+                docker_admin_panel_text(&translator, "passwordAlreadyConfigured"),
+            );
+        }
+        Err(error) => {
+            tracing::warn!(%error, "failed to store docker admin password");
             return response::error(
                 StatusCode::INTERNAL_SERVER_ERROR,
                 admin_panel_text(&translator, "dockerPanel.setPasswordFailed"),
             );
         }
-    };
-    if let Err(error) = state
-        .storage
-        .store
-        .replace_docker_admin_password_and_clear_security_state(&record)
-        .await
-    {
-        tracing::warn!(%error, "failed to store docker admin password");
-        return response::error(
-            StatusCode::INTERNAL_SERVER_ERROR,
-            admin_panel_text(&translator, "dockerPanel.setPasswordFailed"),
-        );
     }
 
     let session_ttl_seconds = session_ttl_seconds();
@@ -707,7 +716,7 @@ async fn change_password(
         }
     };
 
-    match verify_password(&body.password, &existing) {
+    match verify_password(&body.password, &existing).await {
         Ok(true) => {
             return response::error(
                 StatusCode::BAD_REQUEST,
@@ -717,19 +726,19 @@ async fn change_password(
         Ok(false) => {}
         Err(error) => {
             tracing::warn!(%error, "failed to verify docker admin password");
-            return response::error(
-                StatusCode::INTERNAL_SERVER_ERROR,
+            return crate::auth::password::password_hash_error_response(
+                &error,
                 admin_panel_route_text(&translator, "verifyPasswordFailed"),
             );
         }
     }
 
-    let record = match make_password_record(&body.password, Some(existing.created_at)) {
+    let record = match make_password_record(&body.password, Some(existing.created_at)).await {
         Ok(record) => record,
         Err(error) => {
             tracing::warn!(%error, "failed to derive docker admin password hash");
-            return response::error(
-                StatusCode::INTERNAL_SERVER_ERROR,
+            return crate::auth::password::password_hash_error_response(
+                &error,
                 admin_panel_text(&translator, "dockerPanel.changePasswordFailed"),
             );
         }
@@ -851,7 +860,7 @@ async fn login(
         );
     };
 
-    match verify_password(&body.password, &password_record) {
+    match verify_password(&body.password, &password_record).await {
         Ok(true) => {}
         Ok(false) => {
             let (retry_after, blocked_until) =
@@ -884,8 +893,8 @@ async fn login(
         }
         Err(error) => {
             tracing::warn!(%error, "failed to verify docker admin password");
-            return response::error(
-                StatusCode::INTERNAL_SERVER_ERROR,
+            return crate::auth::password::password_hash_error_response(
+                &error,
                 admin_panel_route_text(&translator, "verifyPasswordFailed"),
             );
         }
@@ -1359,7 +1368,7 @@ fn normalize_session_record_ttl(ttl_seconds: i64) -> i64 {
     }
 }
 
-fn make_password_record(
+async fn make_password_record(
     password: &str,
     created_at: Option<String>,
 ) -> anyhow::Result<DockerAdminPasswordRecord> {
@@ -1372,7 +1381,8 @@ fn make_password_record(
         SCRYPT_R,
         SCRYPT_P,
         SCRYPT_KEY_LENGTH,
-    )?;
+    )
+    .await?;
     Ok(DockerAdminPasswordRecord {
         algorithm: "scrypt".to_string(),
         salt,
@@ -1386,8 +1396,13 @@ fn make_password_record(
     })
 }
 
-fn verify_password(password: &str, record: &DockerAdminPasswordRecord) -> anyhow::Result<bool> {
-    if record.algorithm != "scrypt" {
+async fn verify_password(
+    password: &str,
+    record: &DockerAdminPasswordRecord,
+) -> anyhow::Result<bool> {
+    if password.len() > crate::auth::password::MAX_AUTH_PASSWORD_BYTES
+        || record.algorithm != "scrypt"
+    {
         return Ok(false);
     }
     let expected = derive_password_hash(
@@ -1397,28 +1412,13 @@ fn verify_password(password: &str, record: &DockerAdminPasswordRecord) -> anyhow
         record.r.max(1),
         record.p.max(1),
         record.key_length.max(1),
-    )?;
+    )
+    .await?;
     Ok(expected
         .as_bytes()
         .ct_eq(record.hash.as_bytes())
         .unwrap_u8()
         == 1)
-}
-
-fn derive_password_hash(
-    password: &str,
-    salt_hex: &str,
-    n: u32,
-    r: u32,
-    p: u32,
-    key_length: usize,
-) -> anyhow::Result<String> {
-    let salt = hex::decode(salt_hex)?;
-    let log_n = n.ilog2() as u8;
-    let params = ScryptParams::new(log_n, r, p)?;
-    let mut output = vec![0u8; key_length];
-    scrypt(password.as_bytes(), &salt, &params, &mut output)?;
-    Ok(hex::encode(output))
 }
 
 fn validate_password(password: &str) -> Result<(), &'static str> {
@@ -1578,15 +1578,76 @@ mod tests {
         );
     }
 
-    #[test]
-    fn verifies_scrypt_password_record() {
-        let record = make_password_record("abc123", None).expect("make record");
-        assert!(verify_password("abc123", &record).expect("verify password"));
-        assert!(!verify_password("wrong123", &record).expect("verify wrong password"));
+    #[tokio::test]
+    async fn verifies_scrypt_password_record() {
+        let record = make_password_record("abc123", None)
+            .await
+            .expect("make record");
+        assert!(
+            verify_password("abc123", &record)
+                .await
+                .expect("verify password")
+        );
+        assert!(
+            !verify_password("wrong123", &record)
+                .await
+                .expect("verify wrong password")
+        );
         assert_eq!(record.n, 16_384);
         assert_eq!(record.r, 8);
         assert_eq!(record.p, 1);
         assert_eq!(record.key_length, 64);
+    }
+
+    #[tokio::test]
+    async fn concurrent_panel_bootstrap_installs_only_one_password() {
+        let (_directory, state) = panel_test_state("concurrent-bootstrap").await;
+        let first_password = "first-password123";
+        let second_password = "second-password456";
+        let setup = |password: &str| {
+            set_password(
+                State(state.clone()),
+                Extension(PanelRuntime { enabled: true }),
+                HeaderMap::new(),
+                Uri::from_static("/api/admin/panel/password"),
+                Json(PasswordBody {
+                    password: password.to_string(),
+                }),
+            )
+        };
+        let (first, second) = tokio::join!(setup(first_password), setup(second_password));
+        let (winner, winner_password, loser, loser_password) = if first.status() == StatusCode::OK {
+            (first, first_password, second, second_password)
+        } else {
+            (second, second_password, first, first_password)
+        };
+        assert_eq!(winner.status(), StatusCode::OK);
+        assert!(winner.headers().contains_key(header::SET_COOKIE));
+        assert_eq!(loser.status(), StatusCode::BAD_REQUEST);
+        assert!(!loser.headers().contains_key(header::SET_COOKIE));
+        let record = state
+            .storage
+            .store
+            .docker_admin_password()
+            .await
+            .expect("read installed password")
+            .expect("one bootstrap won");
+        assert!(verify_password(winner_password, &record).await.unwrap());
+        assert!(!verify_password(loser_password, &record).await.unwrap());
+    }
+
+    #[tokio::test]
+    async fn oversized_panel_password_fails_before_hash_validation() {
+        let mut record = test_password_record("2026-01-01T00:00:00Z");
+        record.n = 3;
+        assert!(
+            !verify_password(
+                &"x".repeat(crate::auth::password::MAX_AUTH_PASSWORD_BYTES + 1),
+                &record,
+            )
+            .await
+            .expect("oversized input is an ordinary failed verification")
+        );
     }
 
     #[test]

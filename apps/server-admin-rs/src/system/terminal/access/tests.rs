@@ -62,6 +62,42 @@ async fn unlock(
 }
 
 #[tokio::test]
+async fn busy_password_admission_refunds_attempt_and_returns_retryable_response() {
+    let mut attempts = HashMap::new();
+    for _ in 0..8 {
+        let result = password_attempt(&mut attempts, "client", async {
+            Err(TerminalError::new(TerminalErrorCode::ResourceBusy, "busy"))
+        })
+        .await;
+        let response = terminal_error(result.unwrap_err());
+        assert_eq!(response.status(), StatusCode::SERVICE_UNAVAILABLE);
+        assert_eq!(response.headers()[header::RETRY_AFTER], "3");
+        let body = to_bytes(response.into_body(), 1024).await.unwrap();
+        let body: serde_json::Value = serde_json::from_slice(&body).unwrap();
+        assert_eq!(body["errorCode"], "resource_busy");
+        assert!(!attempts.contains_key("client"));
+    }
+    assert!(
+        !password_attempt(&mut attempts, "client", async { Ok(false) })
+            .await
+            .unwrap()
+    );
+    let started = attempts["client"].1;
+    assert!(
+        password_attempt(&mut attempts, "client", async {
+            Err(TerminalError::new(TerminalErrorCode::ResourceBusy, "busy"))
+        })
+        .await
+        .is_err()
+    );
+    assert_eq!(
+        attempts["client"],
+        (1, started),
+        "busy preserves earlier failed attempts"
+    );
+}
+
+#[tokio::test]
 async fn defaults_persist_without_secrets_and_preserve_password_when_disabled() {
     let (_directory, state) = test_state().await;
     let initial = settings(&state).await.unwrap();

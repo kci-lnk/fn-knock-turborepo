@@ -2358,6 +2358,25 @@ pub(crate) fn build_openapi_document() -> Value {
     ] {
         set_operation_error_schema(&mut paths, path, method, "TerminalErrorEnvelope");
     }
+    for (method, path) in [
+        ("patch", "/api/admin/terminal/settings"),
+        ("post", "/api/admin/terminal/access/verify"),
+    ] {
+        let Some(mut response) = typed_operation(&typed_terminal_runtime, path, method)
+            .and_then(|operation| operation["responses"].get("503").cloned())
+        else {
+            continue;
+        };
+        response["headers"] = json!({
+            "Retry-After": {
+                "description": "密码处理资源繁忙时建议等待的秒数",
+                "schema": { "type": "integer", "minimum": 1 }
+            }
+        });
+        // The envelope helpers replace typed responses. Restore the explicit
+        // overload response so callers can distinguish it from bad passwords.
+        paths.get_mut(path).expect("typed terminal path")[method]["responses"]["503"] = response;
+    }
     insert_typed_enveloped_operation(
         &mut paths,
         &typed_dnsmasq_assets,
@@ -3713,6 +3732,34 @@ pub(crate) fn build_openapi_document() -> Value {
         None,
         Some("ImportBackupFromDirectoryBody"),
     );
+    for (method, path) in [
+        ("get", "/api/admin/maintenance/backup/export"),
+        ("post", "/api/admin/maintenance/backup/export/fnos"),
+        ("post", "/api/admin/maintenance/backup/import"),
+        ("post", "/api/admin/maintenance/backup/import/fnos"),
+        ("post", "/api/admin/maintenance/backup/import/automatic"),
+    ] {
+        add_standard_error_response(
+            &mut paths,
+            path,
+            method,
+            "503",
+            "备份任务正在进行，请根据 Retry-After 稍后重试",
+        );
+        if let Some(response) = paths
+            .get_mut(path)
+            .and_then(|item| item.get_mut(method))
+            .and_then(|operation| operation.get_mut("responses"))
+            .and_then(|responses| responses.get_mut("503"))
+        {
+            response["headers"] = json!({
+                "Retry-After": {
+                    "description": "建议等待的秒数",
+                    "schema": { "type": "integer", "minimum": 1 }
+                }
+            });
+        }
+    }
     insert_typed_empty_enveloped_operation(
         &mut paths,
         &typed_sessions,
@@ -3794,6 +3841,35 @@ pub(crate) fn build_openapi_document() -> Value {
         Some("PanelLoginBodyData"),
     );
     add_panel_login_rate_limit_response(&mut paths);
+    for path in [
+        "/api/admin/auth/accounts",
+        "/api/admin/auth/accounts/{id}/password",
+        "/api/admin/auth/accounts/{id}/setup",
+        "/api/admin/panel/password",
+        "/api/admin/panel/password/change",
+        "/api/admin/panel/login",
+    ] {
+        add_standard_error_response(
+            &mut paths,
+            path,
+            "post",
+            "503",
+            "密码处理资源繁忙，请根据 Retry-After 稍后重试",
+        );
+        if let Some(response) = paths
+            .get_mut(path)
+            .and_then(|item| item.get_mut("post"))
+            .and_then(|operation| operation.get_mut("responses"))
+            .and_then(|responses| responses.get_mut("503"))
+        {
+            response["headers"] = json!({
+                "Retry-After": {
+                    "description": "密码处理资源繁忙时建议等待的秒数",
+                    "schema": { "type": "integer", "minimum": 1 }
+                }
+            });
+        }
+    }
     insert_typed_enveloped_operation(
         &mut paths,
         &typed_totp_bootstrap,
@@ -4950,7 +5026,7 @@ mod tests {
                 }
             }
         }
-        assert_eq!(operations, 452);
+        assert_eq!(operations, 456);
         assert_eq!(documented_tags, operation_tags);
         assert!(documented_tags.iter().all(|tag| {
             tags.iter().any(|item| {
@@ -4960,6 +5036,102 @@ mod tests {
                         .is_some_and(|description| !description.is_ascii())
             })
         }));
+    }
+
+    #[test]
+    fn terminal_feature_and_access_operations_have_typed_chinese_contracts() {
+        let document = document_value();
+        for (path, method, summary, request_schema) in [
+            (
+                "/api/admin/terminal/settings",
+                "get",
+                "查看Web 终端设置",
+                None,
+            ),
+            (
+                "/api/admin/terminal/settings",
+                "patch",
+                "修改Web 终端设置",
+                Some("WebTerminalSettingsInput"),
+            ),
+            (
+                "/api/admin/terminal/access",
+                "get",
+                "查看Web 终端访问权限",
+                None,
+            ),
+            (
+                "/api/admin/terminal/access/verify",
+                "post",
+                "验证Web 终端访问权限",
+                Some("WebTerminalVerifyInput"),
+            ),
+        ] {
+            let operation = &document["paths"][path][method];
+            assert_eq!(operation["summary"], summary, "{method} {path}");
+            assert_eq!(
+                operation["x-fn-knock-contract-source"], "utoipa",
+                "{method} {path} must use its registered typed route"
+            );
+            if let Some(schema) = request_schema {
+                assert_eq!(
+                    operation["requestBody"]["content"]["application/json"]["schema"]["$ref"],
+                    format!("#/components/schemas/{schema}"),
+                    "{method} {path} request schema"
+                );
+                let overloaded = &operation["responses"]["503"];
+                assert_eq!(
+                    overloaded["content"]["application/json"]["schema"]["$ref"],
+                    "#/components/schemas/TerminalErrorEnvelope",
+                    "{method} {path} overload response schema"
+                );
+                assert_eq!(
+                    overloaded["headers"]["Retry-After"]["schema"]["minimum"], 1,
+                    "{method} {path} overload retry hint"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn password_hash_operations_document_retryable_overload() {
+        let document = document_value();
+        for path in [
+            "/api/admin/auth/accounts",
+            "/api/admin/auth/accounts/{id}/password",
+            "/api/admin/auth/accounts/{id}/setup",
+            "/api/admin/panel/password",
+            "/api/admin/panel/password/change",
+            "/api/admin/panel/login",
+        ] {
+            let response = &document["paths"][path]["post"]["responses"]["503"];
+            assert_eq!(
+                response["content"]["application/json"]["schema"]["$ref"],
+                "#/components/schemas/ApiErrorEnvelope",
+                "POST {path}"
+            );
+            assert_eq!(response["headers"]["Retry-After"]["schema"]["minimum"], 1);
+        }
+    }
+
+    #[test]
+    fn manual_backup_operations_document_admission_overload() {
+        let document = document_value();
+        for (method, path) in [
+            ("get", "/api/admin/maintenance/backup/export"),
+            ("post", "/api/admin/maintenance/backup/export/fnos"),
+            ("post", "/api/admin/maintenance/backup/import"),
+            ("post", "/api/admin/maintenance/backup/import/fnos"),
+            ("post", "/api/admin/maintenance/backup/import/automatic"),
+        ] {
+            let response = &document["paths"][path][method]["responses"]["503"];
+            assert_eq!(
+                response["content"]["application/json"]["schema"]["$ref"],
+                "#/components/schemas/ApiErrorEnvelope",
+                "{method} {path}"
+            );
+            assert_eq!(response["headers"]["Retry-After"]["schema"]["minimum"], 1);
+        }
     }
 
     #[test]
@@ -5621,7 +5793,7 @@ mod tests {
             .filter_map(Value::as_object)
             .flat_map(|path| path.values())
             .collect::<Vec<_>>();
-        assert_eq!(operations.len(), 452);
+        assert_eq!(operations.len(), 456);
         assert!(
             operations
                 .iter()

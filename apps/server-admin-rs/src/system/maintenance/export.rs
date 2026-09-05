@@ -1,28 +1,51 @@
 use super::*;
 
 pub(super) async fn export_backup_archive(state: &AppState) -> anyhow::Result<BackupArchive> {
-    let _archive_work_guard = state.maintenance.backup_archive_work_lock.lock().await;
+    let archive_work_guard = state
+        .maintenance
+        .backup_archive_work_lock
+        .clone()
+        .lock_owned()
+        .await;
     let payload = export_backup_payload(state).await?;
-    let exported_at = payload
-        .get("exported_at")
-        .and_then(Value::as_str)
-        .unwrap_or("")
-        .to_string();
-    let filename = build_backup_filename(&exported_at);
-    let payload_bytes = serde_json::to_vec_pretty(&payload)?;
-    ensure_backup_export_size(payload_bytes.len())?;
-    let buffer = create_password_protected_zip(
-        KNOCK_BACKUP_JSON_FILENAME,
-        &payload_bytes,
-        KNOCK_BACKUP_PASSWORD,
-        time_utils::parse_iso_ms(&exported_at).unwrap_or_else(time_utils::now_ms),
-    )?;
-    ensure_backup_export_size(buffer.len())?;
-    Ok(BackupArchive {
-        buffer,
-        exported_at,
-        filename,
+    run_backup_archive_work(archive_work_guard, move || {
+        let exported_at = payload
+            .get("exported_at")
+            .and_then(Value::as_str)
+            .unwrap_or("")
+            .to_string();
+        let filename = build_backup_filename(&exported_at);
+        let buffer = create_password_protected_json_zip(
+            KNOCK_BACKUP_JSON_FILENAME,
+            &payload,
+            KNOCK_BACKUP_PASSWORD,
+            time_utils::parse_iso_ms(&exported_at).unwrap_or_else(time_utils::now_ms),
+        )?;
+        ensure_backup_export_size(buffer.len())?;
+        Ok(BackupArchive {
+            buffer,
+            exported_at,
+            filename,
+        })
     })
+    .await?
+}
+
+pub(super) async fn run_backup_archive_work<T, F>(
+    guard: tokio::sync::OwnedMutexGuard<()>,
+    work: F,
+) -> Result<T, tokio::task::JoinError>
+where
+    T: Send + 'static,
+    F: FnOnce() -> T + Send + 'static,
+{
+    tokio::task::spawn_blocking(move || {
+        // Blocking work outlives a cancelled caller. Its archive permit must
+        // do so too, including while queued in Tokio's blocking pool.
+        let _guard = guard;
+        work()
+    })
+    .await
 }
 
 pub(super) fn ensure_backup_export_size(size: usize) -> anyhow::Result<()> {
@@ -65,15 +88,18 @@ pub(super) async fn export_backup_payload(state: &AppState) -> anyhow::Result<Va
         )
     });
     let protected_credentials = export_protected_credentials(state).await?;
-    Ok(json!({
+    let mut payload = json!({
         "version": APP_BACKUP_SCHEMA_VERSION,
         "app_version": APP_LOCAL_VERSION,
         "prefix": KNOCK_BACKUP_PREFIX,
         "exported_at": exported_at,
         "entry_count": entries.len(),
-        "entries": entries,
-        "protected_credentials": protected_credentials,
-    }))
+    });
+    // json! serializes its expressions by reference, which would copy every
+    // string in the snapshot. Transfer the already-owned values instead.
+    payload["entries"] = Value::Array(entries);
+    payload["protected_credentials"] = protected_credentials;
+    Ok(payload)
 }
 
 pub(super) async fn export_backup_archive_to_directory(
@@ -89,7 +115,9 @@ pub(super) async fn export_backup_archive_to_directory(
         let mut options = fs::OpenOptions::new();
         options.write(true).create_new(true);
         let mut file = options.open(&temp_path).await?;
-        file.write_all(&archive.buffer).await?;
+        for chunk in archive.buffer.chunks() {
+            file.write_all(chunk).await?;
+        }
         file.sync_all().await?;
         drop(file);
         fs::rename(&temp_path, &file_path).await?;
@@ -151,16 +179,42 @@ pub(super) async fn sync_backup_directory(directory: &Path) -> io::Result<()> {
     }
 }
 
-pub(super) fn binary_archive_response(archive: BackupArchive, translator: &Translator) -> Response {
+struct AdmittedBackupBytes {
+    buffer: Vec<u8>,
+    _admission: routes::BackupAdmission,
+}
+
+impl AsRef<[u8]> for AdmittedBackupBytes {
+    fn as_ref(&self) -> &[u8] {
+        &self.buffer
+    }
+}
+
+pub(super) fn binary_archive_response(
+    archive: BackupArchive,
+    admission: routes::BackupAdmission,
+    translator: &Translator,
+) -> Response {
     Response::builder()
         .status(StatusCode::OK)
         .header(header::CONTENT_TYPE, "application/octet-stream")
+        .header(header::CONTENT_LENGTH, archive.buffer.len())
         .header(
             header::CONTENT_DISPOSITION,
             format!("attachment; filename=\"{}\"", archive.filename),
         )
         .header(header::CACHE_CONTROL, "no-store")
-        .body(Body::from(archive.buffer))
+        // The iterator owns admission until the body is dropped, and each
+        // yielded allocation retains its own clone. A slow body or any cloned
+        // frame therefore keeps the same single-operation limit in force.
+        .body(Body::from_stream(tokio_stream::iter(
+            archive.buffer.into_chunks().into_iter().map(move |buffer| {
+                Ok::<_, io::Error>(bytes::Bytes::from_owner(AdmittedBackupBytes {
+                    buffer,
+                    _admission: admission.clone(),
+                }))
+            }),
+        )))
         .unwrap_or_else(|_| {
             response::error(
                 StatusCode::INTERNAL_SERVER_ERROR,

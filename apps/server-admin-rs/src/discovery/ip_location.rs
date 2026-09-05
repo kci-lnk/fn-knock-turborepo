@@ -17,6 +17,7 @@ use crate::{http_body, http_utils, i18n::Translator, response, state::AppState, 
 use super::ip_location_config::IP_LOCATION_API_SETTINGS_KEY;
 
 const IP_LOCATION_BATCH_LIMIT: usize = 20;
+pub(crate) const IP_LOCATION_ANALYTICS_BATCH_SIZE: usize = 128;
 const LOOKUP_SUCCESS_CACHE_TTL_SECONDS: usize = 7 * 24 * 60 * 60;
 const LOOKUP_FAILED_STATE_TTL_SECONDS: usize = 300;
 const MAX_ATTEMPTS: i64 = 5;
@@ -195,6 +196,53 @@ pub async fn get_ip_location_snapshot(
         &get_state(state, &normalized_ip).await?,
     ))
     .unwrap_or_else(|_| json!({})))
+}
+
+/// A bounded batch for read-only analytics; never enqueues work or performs
+/// compatibility TTL cleanup on the primary storage executor.
+pub(crate) async fn get_ip_location_snapshots_analytics(
+    state: &AppState,
+    ips: &[String],
+) -> crate::storage::StorageResult<Vec<Value>> {
+    let mut snapshots = Vec::with_capacity(ips.len());
+    for batch in ips.chunks(IP_LOCATION_ANALYTICS_BATCH_SIZE) {
+        let normalized = batch
+            .iter()
+            .map(|ip| http_utils::normalize_ip(ip))
+            .collect::<Vec<_>>();
+        let records = state
+            .storage
+            .store
+            .get_ip_location_records_analytics(&normalized)
+            .await?;
+        for ((ip, normalized_ip), (cached, raw_state)) in batch.iter().zip(normalized).zip(records)
+        {
+            snapshots.push(ip_location_snapshot_from_records(
+                ip,
+                &normalized_ip,
+                cached,
+                raw_state,
+            ));
+        }
+    }
+    Ok(snapshots)
+}
+
+fn ip_location_snapshot_from_records(
+    ip: &str,
+    normalized_ip: &str,
+    cached: Option<Value>,
+    raw_state: Option<Value>,
+) -> Value {
+    if normalized_ip.is_empty() {
+        return json!({ "status": "skipped", "result": null });
+    }
+    let state =
+        match cached.and_then(|value| serde_json::from_value::<IpLocationResult>(value).ok()) {
+            Some(result) => build_success_state(normalize_location_result(result), 0),
+            None => location_state_from_raw(raw_state),
+        };
+    serde_json::to_value(build_snapshot(ip, normalized_ip, &state)).unwrap_or_else(|_| json!({}))
 }
 
 pub async fn register_usage(
@@ -845,8 +893,11 @@ fn js_array_item_string(value: &Value) -> String {
 
 async fn get_state(state: &AppState, ip: &str) -> crate::storage::StorageResult<IpLocationState> {
     let raw = state.storage.store.get_ip_location_state(ip).await?;
-    Ok(raw
-        .and_then(|value| serde_json::from_value::<IpLocationState>(value).ok())
+    Ok(location_state_from_raw(raw))
+}
+
+fn location_state_from_raw(raw: Option<Value>) -> IpLocationState {
+    raw.and_then(|value| serde_json::from_value::<IpLocationState>(value).ok())
         .map(normalize_location_state)
         .unwrap_or_else(|| IpLocationState {
             status: "idle".to_string(),
@@ -856,7 +907,7 @@ async fn get_state(state: &AppState, ip: &str) -> crate::storage::StorageResult<
             error: None,
             next_attempt_at: None,
             result: None,
-        }))
+        })
 }
 
 fn build_success_state(result: IpLocationResult, attempts: i64) -> IpLocationState {
@@ -1138,6 +1189,49 @@ fn value_object(value: Value) -> Map<String, Value> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn analytics_location_snapshot_preserves_cache_precedence_and_state_fallbacks() {
+        let ip = "8.8.8.8";
+        let result = to_location_result(
+            ip,
+            &json!({
+                "code": 0,
+                "result": {
+                    "version": "ipv4", "country": "美国", "country_code": "US",
+                    "province": "California", "city": "Mountain View", "isp": "Google"
+                }
+            }),
+        )
+        .unwrap();
+        let pending = json!({
+            "status": "queued", "attempts": 2, "maxAttempts": 5, "updatedAt": 123
+        });
+        let cached = ip_location_snapshot_from_records(
+            ip,
+            ip,
+            Some(serde_json::to_value(result).unwrap()),
+            Some(pending.clone()),
+        );
+        assert_eq!(cached["status"], "success");
+        assert_eq!(cached["result"]["countryCode"], "US");
+        let fallback = ip_location_snapshot_from_records(
+            ip,
+            ip,
+            Some(json!({ "invalid": "cache" })),
+            Some(pending),
+        );
+        assert_eq!(fallback["status"], "queued");
+        assert_eq!(fallback["attempts"], 2);
+        assert_eq!(
+            ip_location_snapshot_from_records(ip, ip, None, Some(json!({})))["status"],
+            "idle"
+        );
+        assert_eq!(
+            ip_location_snapshot_from_records("", "", None, None)["status"],
+            "skipped"
+        );
+    }
 
     #[test]
     fn lock_contention_waits_for_the_lease_instead_of_hot_looping() {

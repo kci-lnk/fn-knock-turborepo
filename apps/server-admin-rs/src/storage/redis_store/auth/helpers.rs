@@ -30,6 +30,35 @@ pub(super) fn normalize_auth_accounts_value(value: &Value) -> Vec<AuthAccount> {
     }
 }
 
+pub(super) fn normalize_auth_accounts_for_comparison(
+    value: &Value,
+    expected: &[AuthAccount],
+) -> Vec<AuthAccount> {
+    let Some(items) = value.as_array() else {
+        return Vec::new();
+    };
+    items
+        .iter()
+        .filter_map(|value| serde_json::from_value::<AuthAccount>(value.clone()).ok())
+        .filter(|account| !account.id.trim().is_empty() && !account.username.trim().is_empty())
+        .map(|mut account| {
+            if let Some(expected) = expected.iter().find(|item| item.id == account.id.trim()) {
+                // Legacy records can omit these timestamps. Reads synthesize
+                // them, so reusing that read's defaults avoids a false conflict
+                // caused only by the clock advancing before the CAS. Persisted
+                // timestamps and every other account field still compare exactly.
+                if account.created_at.trim().is_empty() {
+                    account.created_at = expected.created_at.clone();
+                }
+                if account.updated_at.trim().is_empty() {
+                    account.updated_at = expected.updated_at.clone();
+                }
+            }
+            normalize_auth_account(account)
+        })
+        .collect()
+}
+
 pub(super) fn normalize_auth_account_value(value: &Value) -> Option<AuthAccount> {
     serde_json::from_value::<AuthAccount>(value.clone())
         .ok()

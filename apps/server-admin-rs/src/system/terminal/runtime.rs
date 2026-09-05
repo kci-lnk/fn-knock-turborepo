@@ -1,15 +1,18 @@
 use std::{
     collections::{HashMap, VecDeque},
-    sync::{Arc, Weak},
+    io::{Read, Write},
+    sync::{Arc, LazyLock, Weak},
     time::{Duration, Instant},
 };
 
 use base64::{Engine as _, engine::general_purpose::STANDARD};
+use bytes::Bytes;
+use flate2::{Compression, read::GzDecoder, write::GzEncoder};
 use tokio::{
-    sync::{Mutex, Notify, RwLock, mpsc, oneshot},
+    sync::{Mutex, Notify, RwLock, Semaphore, mpsc, oneshot},
     task::JoinHandle,
 };
-use tokio_util::sync::CancellationToken;
+use tokio_util::{sync::CancellationToken, task::AbortOnDropHandle};
 use uuid::Uuid;
 
 use crate::state::AppState;
@@ -35,6 +38,11 @@ const OUTPUT_CAPACITY_BYTES: usize = 4 * 1024 * 1024;
 const OUTPUT_RESPONSE_BYTES: usize = 256 * 1024;
 const MAX_INPUT_BYTES: usize = 64 * 1024;
 const SCROLLBACK_ROWS: usize = 2_000;
+const CLOSED_TERMINAL_COMPACT_AFTER: Duration = Duration::from_secs(120);
+const MAX_ARCHIVED_TERMINAL_BYTES: usize = 64 * 1024 * 1024;
+const MAX_TERMINAL_SNAPSHOT_BYTES: usize = 128 * 1024 * 1024;
+static TERMINAL_ARCHIVE_WORK: LazyLock<Arc<Semaphore>> =
+    LazyLock::new(|| Arc::new(Semaphore::new(2)));
 const ATTACHMENT_TTL_SECONDS: i64 = 120;
 const MAX_POLL_TIMEOUT: Duration = Duration::from_secs(5);
 const COMMAND_QUEUE_CAPACITY: usize = 128;
@@ -43,6 +51,7 @@ const MAX_VERIFICATION_GRANTS: usize = 1_024;
 const FORCE_CONFIRMATION_TTL: Duration = Duration::from_secs(2 * 60);
 const MAX_FORCE_CONFIRMATION_GRANTS: usize = 1_024;
 const SHELL_COMMAND_TIMEOUT: Duration = Duration::from_secs(5);
+const SESSION_SHUTDOWN_TIMEOUT: Duration = Duration::from_secs(3);
 
 pub struct TerminalRuntime {
     pub(super) access: super::access::AccessRuntime,
@@ -80,7 +89,8 @@ struct RuntimeSession {
 struct SessionState {
     session: TerminalSession,
     output: OutputBuffer,
-    terminal: vt100::Parser,
+    terminal: RuntimeTerminal,
+    closed_at: Option<Instant>,
     attachments: HashMap<String, AttachmentState>,
     controller_id: Option<String>,
     controller_generation: u64,
@@ -102,9 +112,15 @@ struct AttachmentState {
 }
 
 struct SnapshotTransfer {
-    chunks: Vec<Vec<u8>>,
+    data: Arc<Bytes>,
     cursor: u64,
     index: usize,
+}
+
+impl SnapshotTransfer {
+    fn chunk_count(&self) -> usize {
+        self.data.len().div_ceil(OUTPUT_RESPONSE_BYTES).max(1)
+    }
 }
 
 struct PendingPoll {
@@ -408,11 +424,12 @@ impl TerminalRuntime {
             state: Mutex::new(SessionState {
                 session: snapshot.clone(),
                 output: OutputBuffer::new(),
-                terminal: vt100::Parser::new(
+                terminal: RuntimeTerminal::Live(Box::new(vt100::Parser::new(
                     rows.min(u16::MAX.into()) as u16,
                     cols.min(u16::MAX.into()) as u16,
                     SCROLLBACK_ROWS,
-                ),
+                ))),
+                closed_at: None,
                 attachments: HashMap::new(),
                 controller_id: None,
                 controller_generation: 1,
@@ -456,33 +473,48 @@ impl TerminalRuntime {
             }
         }
         candidates.sort();
-        let remove_count = current_len
-            .saturating_add(1)
-            .saturating_sub(MAX_RETAINED_SESSIONS);
-        if candidates.len() < remove_count {
+        for (_, id) in candidates {
+            if self.sessions.read().await.len() < MAX_RETAINED_SESSIONS {
+                return Ok(());
+            }
+            self.evict_unattached_session(&id, MAX_RETAINED_SESSIONS)
+                .await;
+        }
+        if self.sessions.read().await.len() >= MAX_RETAINED_SESSIONS {
             return Err(TerminalError::new(
                 TerminalErrorCode::SessionLimitReached,
                 "terminal retained-session limit reached",
             ));
         }
-        let ids = candidates
-            .into_iter()
-            .take(remove_count)
-            .map(|(_, id)| id)
-            .collect::<Vec<_>>();
+        Ok(())
+    }
+
+    // Candidate selection races with reconnects. Recheck under the same
+    // operation lock as attachment creation before removing the session.
+    async fn evict_unattached_session(&self, id: &str, minimum_count: usize) -> Option<usize> {
+        let session = self.session(id).await.ok()?;
+        let api = session.api_operation.lock().await;
+        let mut state = session.state.lock().await;
+        state.expire_attachments();
+        if state.session.phase.is_active() || !state.attachments.is_empty() {
+            return None;
+        }
+        let size = state.terminal.archived_bytes();
         {
             let mut sessions = self.sessions.write().await;
-            for id in &ids {
-                sessions.remove(id);
+            if sessions.len() < minimum_count {
+                return None;
             }
+            sessions.remove(id)?;
         }
-        let mut tasks = self.actor_tasks.lock().await;
-        for id in ids {
-            if let Some(task) = tasks.remove(&id) {
-                task.abort();
-            }
+        drop(state);
+        drop(api);
+        let task = self.actor_tasks.lock().await.remove(id);
+        if let Some(task) = task {
+            task.abort();
+            let _ = task.await;
         }
-        Ok(())
+        Some(size)
     }
 
     #[cfg(test)]
@@ -720,6 +752,9 @@ impl TerminalRuntime {
         }
         let session = self.session(session_id).await?;
         let _guard = session.api_operation.lock().await;
+        // An archive-budget eviction may have won the operation lock after
+        // the lookup; do not create an attachment on an evicted session.
+        self.session(session_id).await?;
         let mut state = session.state.lock().await;
         state.expire_attachments();
         if state.attachments.len() >= MAX_ATTACHMENTS {
@@ -784,10 +819,7 @@ impl TerminalRuntime {
                 state.session.cols = cols;
                 state.session.rows = rows;
                 state.session.updated_at = now_iso();
-                state
-                    .terminal
-                    .screen_mut()
-                    .set_size(rows as u16, cols as u16);
+                state.terminal.resize(rows as u16, cols as u16);
             }
             (changed && state.session.phase == SessionPhase::Running).then_some((cols, rows))
         } else {
@@ -1001,14 +1033,14 @@ impl TerminalRuntime {
         let session = self.session(id).await?;
         let _guard = session.api_operation.lock().await;
         session.cancel.cancel();
-        if let Some(mut task) = self.actor_tasks.lock().await.remove(id)
-            && tokio::time::timeout(Duration::from_secs(3), &mut task)
-                .await
-                .is_err()
-        {
-            task.abort();
-        }
+        // Remove the directory entry before taking ownership of the actor.
+        // If this request is cancelled while joining/aborting it, an inert
+        // session must not remain marked running and consume an active slot.
         self.sessions.write().await.remove(id);
+        let task = self.actor_tasks.lock().await.remove(id);
+        if let Some(task) = task {
+            finish_session_task(AbortOnDropHandle::new(task), SESSION_SHUTDOWN_TIMEOUT).await;
+        }
         tracing::info!(session_id = id, "terminal session terminated");
         Ok(())
     }
@@ -1036,16 +1068,17 @@ impl TerminalRuntime {
         for session in sessions {
             session.cancel.cancel();
         }
-        let tasks = std::mem::take(&mut *self.actor_tasks.lock().await);
-        for (_, mut task) in tasks {
-            if tokio::time::timeout(Duration::from_secs(3), &mut task)
-                .await
-                .is_err()
-            {
-                task.abort();
-            }
-        }
         self.sessions.write().await.clear();
+        let tasks = std::mem::take(&mut *self.actor_tasks.lock().await);
+        // Own every removed task before awaiting any one of them. Cancellation
+        // must abort the remaining actors instead of detaching their handles.
+        let tasks = tasks
+            .into_values()
+            .map(AbortOnDropHandle::new)
+            .collect::<Vec<_>>();
+        for task in tasks {
+            finish_session_task(task, SESSION_SHUTDOWN_TIMEOUT).await;
+        }
     }
 
     pub async fn expire_attachments(&self) {
@@ -1057,9 +1090,38 @@ impl TerminalRuntime {
             .cloned()
             .collect::<Vec<_>>();
         for session in sessions {
-            let mut state = session.state.lock().await;
-            state.expire_attachments();
+            let should_compact = {
+                let mut state = session.state.lock().await;
+                state.expire_attachments();
+                state.should_compact_terminal()
+            };
+            if should_compact {
+                // Run one compaction at a time. The guard lives in the blocking
+                // task, so cancellation cannot leave a parser half archived.
+                let permit = Arc::clone(&TERMINAL_ARCHIVE_WORK)
+                    .acquire_owned()
+                    .await
+                    .expect("terminal archive semaphore is never closed");
+                let result = tokio::task::spawn_blocking(move || {
+                    let _permit = permit;
+                    let mut state = session.state.blocking_lock();
+                    if state.should_compact_terminal() {
+                        state.terminal.compact()?;
+                    }
+                    Ok::<_, TerminalError>(())
+                })
+                .await;
+                if !matches!(result, Ok(Ok(()))) {
+                    tracing::warn!(?result, "failed to compact closed terminal");
+                }
+                // Do not accumulate every compressed session before enforcing
+                // the global history budget during a maintenance sweep.
+                self.enforce_archive_budget(MAX_ARCHIVED_TERMINAL_BYTES)
+                    .await;
+            }
         }
+        self.enforce_archive_budget(MAX_ARCHIVED_TERMINAL_BYTES)
+            .await;
         let finished_ids = {
             let tasks = self.actor_tasks.lock().await;
             tasks
@@ -1071,6 +1133,39 @@ impl TerminalRuntime {
         for id in finished_ids {
             if let Some(task) = self.actor_tasks.lock().await.remove(&id) {
                 let _ = task.await;
+            }
+        }
+    }
+
+    async fn enforce_archive_budget(&self, budget: usize) {
+        let sessions = self
+            .sessions
+            .read()
+            .await
+            .values()
+            .cloned()
+            .collect::<Vec<_>>();
+        let mut bytes = 0_usize;
+        let mut candidates = Vec::new();
+        for session in sessions {
+            let state = session.state.lock().await;
+            let size = state.terminal.archived_bytes();
+            bytes = bytes.saturating_add(size);
+            if size > 0 && !state.session.phase.is_active() && state.attachments.is_empty() {
+                candidates.push((
+                    state.session.updated_at.clone(),
+                    state.session.id.clone(),
+                    size,
+                ));
+            }
+        }
+        candidates.sort();
+        for (_, id, _) in candidates {
+            if bytes <= budget {
+                break;
+            }
+            if let Some(size) = self.evict_unattached_session(&id, 0).await {
+                bytes = bytes.saturating_sub(size);
             }
         }
     }
@@ -1145,7 +1240,25 @@ impl Drop for PendingSession {
     }
 }
 
+async fn finish_session_task(mut task: AbortOnDropHandle<()>, grace: Duration) {
+    if tokio::time::timeout(grace, &mut task).await.is_err() {
+        task.abort();
+        // A successful termination response includes dropping the shell and
+        // its queues; abort alone only schedules that cleanup for a later poll.
+        let _ = task.await;
+    }
+}
+
 impl SessionState {
+    fn should_compact_terminal(&self) -> bool {
+        !self.session.phase.is_active()
+            && self.attachments.is_empty()
+            && matches!(self.terminal, RuntimeTerminal::Live(_))
+            && self
+                .closed_at
+                .is_some_and(|closed| closed.elapsed() >= CLOSED_TERMINAL_COMPACT_AFTER)
+    }
+
     fn expire_attachments(&mut self) {
         let now = Instant::now();
         self.attachments.retain(|_, attachment| {
@@ -1215,6 +1328,11 @@ impl SessionState {
             return;
         }
         self.session.phase = phase;
+        if phase.is_active() {
+            self.closed_at = None;
+        } else {
+            self.closed_at.get_or_insert_with(Instant::now);
+        }
         self.session.updated_at = now_iso();
         self.session.error_code = error.as_ref().map(|value| value.0);
         self.session.error_message = error.map(|value| value.1);
@@ -1393,7 +1511,7 @@ async fn read_events(
                 && let Some(snapshot) = attachment.snapshot.as_mut()
             {
                 snapshot.index = snapshot.index.saturating_add(1);
-                if snapshot.index >= snapshot.chunks.len() {
+                if snapshot.index >= snapshot.chunk_count() {
                     attachment.output_cursor = snapshot.cursor;
                     attachment.snapshot = None;
                 }
@@ -1431,21 +1549,13 @@ async fn read_events(
     let cursor_gap =
         output_after > latest || output_after.saturating_add(1) < state.output.first_cursor();
     if cursor_gap || (needs_snapshot && state.output.first_cursor() > 1) {
-        let snapshot = terminal_snapshot(&mut state.terminal);
-        let chunks = if snapshot.is_empty() {
-            vec![Vec::new()]
-        } else {
-            snapshot
-                .chunks(OUTPUT_RESPONSE_BYTES)
-                .map(<[u8]>::to_vec)
-                .collect()
-        };
+        let snapshot = state.terminal.snapshot().await?;
         state
             .attachments
             .get_mut(attachment_id)
             .ok_or_else(attachment_expired)?
             .snapshot = Some(SnapshotTransfer {
-            chunks,
+            data: snapshot,
             cursor: latest,
             index: 0,
         });
@@ -1513,14 +1623,17 @@ fn build_snapshot_events(
             .snapshot
             .as_ref()
             .ok_or_else(|| TerminalError::internal("terminal snapshot transfer is missing"))?;
-        let chunk = transfer
-            .chunks
-            .get(transfer.index)
-            .cloned()
-            .unwrap_or_default();
+        let start = transfer
+            .index
+            .saturating_mul(OUTPUT_RESPONSE_BYTES)
+            .min(transfer.data.len());
+        let end = start
+            .saturating_add(OUTPUT_RESPONSE_BYTES)
+            .min(transfer.data.len());
+        let chunk = transfer.data.slice(start..end);
         let cursor = transfer.cursor;
         let reset = transfer.index == 0;
-        let complete = transfer.index.saturating_add(1) >= transfer.chunks.len();
+        let complete = transfer.index.saturating_add(1) >= transfer.chunk_count();
         (chunk, cursor, reset, complete)
     };
     let mut events = vec![TerminalEvent {
@@ -1610,26 +1723,138 @@ fn cache_poll_result(
 /// hidden main-screen history while an alternate screen is active would
 /// corrupt full-screen programs.
 fn terminal_snapshot(parser: &mut vt100::Parser) -> Vec<u8> {
-    if parser.screen().alternate_screen() {
-        return parser.screen().state_formatted();
-    }
+    let mut snapshot = Vec::new();
+    write_terminal_snapshot(parser, &mut snapshot).expect("writing to Vec cannot fail");
+    snapshot
+}
 
+fn write_terminal_snapshot(
+    parser: &mut vt100::Parser,
+    output: &mut impl Write,
+) -> std::io::Result<()> {
+    if parser.screen().alternate_screen() {
+        return output.write_all(&parser.screen().state_formatted());
+    }
     let (screen_rows, cols) = parser.screen().size();
     parser.screen_mut().set_scrollback(usize::MAX);
     let mut remaining = parser.screen().scrollback();
-    let mut snapshot = Vec::new();
-    while remaining > 0 {
-        parser.screen_mut().set_scrollback(remaining);
-        let take = remaining.min(usize::from(screen_rows));
-        for row in parser.screen().rows_formatted(0, cols).take(take) {
-            snapshot.extend_from_slice(&row);
-            snapshot.extend_from_slice(b"\x1b[0m\r\n");
+    let result: std::io::Result<()> = (|| {
+        while remaining > 0 {
+            parser.screen_mut().set_scrollback(remaining);
+            let take = remaining.min(usize::from(screen_rows));
+            for row in parser.screen().rows_formatted(0, cols).take(take) {
+                output.write_all(&row)?;
+                output.write_all(b"\x1b[0m\r\n")?;
+            }
+            remaining = remaining.saturating_sub(take);
         }
-        remaining = remaining.saturating_sub(take);
-    }
+        Ok(())
+    })();
     parser.screen_mut().set_scrollback(0);
-    snapshot.extend_from_slice(&parser.screen().state_formatted());
-    snapshot
+    result?;
+    output.write_all(&parser.screen().state_formatted())
+}
+
+enum RuntimeTerminal {
+    Live(Box<vt100::Parser>),
+    Archived(ArchivedTerminal),
+}
+
+struct ArchivedTerminal {
+    compressed: Bytes,
+    // Decoded replay is shared only while a transfer still owns it. Keeping a
+    // weak reference avoids turning a reconnect into permanent decoded RSS.
+    replay: Weak<Bytes>,
+}
+
+impl From<Bytes> for ArchivedTerminal {
+    fn from(compressed: Bytes) -> Self {
+        Self {
+            compressed,
+            replay: Weak::new(),
+        }
+    }
+}
+
+impl RuntimeTerminal {
+    fn process(&mut self, data: &[u8]) {
+        if let Self::Live(parser) = self {
+            parser.process(data);
+        }
+    }
+
+    fn resize(&mut self, rows: u16, cols: u16) {
+        if let Self::Live(parser) = self {
+            parser.screen_mut().set_size(rows, cols);
+        }
+    }
+
+    fn archived_bytes(&self) -> usize {
+        match self {
+            Self::Live(_) => 0,
+            Self::Archived(archive) => archive.compressed.len(),
+        }
+    }
+
+    async fn snapshot(&mut self) -> TerminalResult<Arc<Bytes>> {
+        match self {
+            Self::Live(parser) => Ok(Arc::new(Bytes::from(
+                terminal_snapshot(parser).into_boxed_slice(),
+            ))),
+            Self::Archived(archive) => {
+                if let Some(replay) = archive.replay.upgrade() {
+                    return Ok(replay);
+                }
+                let compressed = archive.compressed.clone();
+                let permit = Arc::clone(&TERMINAL_ARCHIVE_WORK)
+                    .acquire_owned()
+                    .await
+                    .map_err(|_| {
+                        TerminalError::internal("terminal archive worker is unavailable")
+                    })?;
+                let replay = tokio::task::spawn_blocking(move || {
+                    let _permit = permit;
+                    decode_terminal_archive(&compressed, MAX_TERMINAL_SNAPSHOT_BYTES)
+                })
+                .await
+                .map_err(|error| {
+                    TerminalError::internal(format!("terminal replay failed: {error}"))
+                })??;
+                let replay = Arc::new(replay);
+                archive.replay = Arc::downgrade(&replay);
+                Ok(replay)
+            }
+        }
+    }
+
+    fn compact(&mut self) -> TerminalResult<()> {
+        let Self::Live(parser) = self else {
+            return Ok(());
+        };
+        let mut encoder = GzEncoder::new(Vec::new(), Compression::fast());
+        write_terminal_snapshot(parser, &mut encoder).map_err(|error| {
+            TerminalError::internal(format!("failed to archive terminal: {error}"))
+        })?;
+        let compressed = encoder.finish().map_err(|error| {
+            TerminalError::internal(format!("failed to finish terminal archive: {error}"))
+        })?;
+        *self = Self::Archived(Bytes::from(compressed.into_boxed_slice()).into());
+        Ok(())
+    }
+}
+
+fn decode_terminal_archive(compressed: &[u8], limit: usize) -> TerminalResult<Bytes> {
+    let mut snapshot = Vec::new();
+    GzDecoder::new(compressed)
+        .take(limit as u64 + 1)
+        .read_to_end(&mut snapshot)
+        .map_err(|error| TerminalError::internal(format!("invalid terminal archive: {error}")))?;
+    if snapshot.len() > limit {
+        return Err(TerminalError::internal(
+            "terminal archive exceeds replay limit",
+        ));
+    }
+    Ok(Bytes::from(snapshot.into_boxed_slice()))
 }
 
 fn control_event(cursor: u64, role: AttachmentRole, generation: u64) -> TerminalEvent {
@@ -1763,7 +1988,7 @@ async fn run_session_actor(
                                     state.session.cols = cols;
                                     state.session.rows = rows;
                                     state.session.updated_at = now_iso();
-                                    state.terminal.screen_mut().set_size(rows as u16, cols as u16);
+                                    state.terminal.resize(rows as u16, cols as u16);
                                 }
                                 if let Some(error) = failure {
                                     set_phase(
@@ -1955,6 +2180,31 @@ mod unit {
     };
 
     #[test]
+    fn terminal_osc_callback_buffer_stays_bounded_in_application_feature_graph() {
+        #[derive(Default)]
+        struct Observed(Vec<usize>);
+        impl vt100::Callbacks for Observed {
+            fn set_window_title(&mut self, _: &mut vt100::Screen, title: &[u8]) {
+                self.0.push(title.len());
+            }
+        }
+        let mut parser = vt100::Parser::new_with_callbacks(4, 40, 8, Observed::default());
+        parser.process(b"\x1b]2;");
+        for _ in 0..4 {
+            parser.process(&[b'A'; 16 * 1024]);
+        }
+        parser.process(b"\x1b");
+        parser.process(b"\\visible\x1b]2;normal\x07");
+        assert!(parser.callbacks().0[0] > 0);
+        assert!(
+            parser.callbacks().0[0] <= 1024,
+            "dependency feature unification must not enable unbounded vte OSC storage"
+        );
+        assert_eq!(parser.callbacks().0[1], 6);
+        assert_eq!(parser.screen().contents(), "visible");
+    }
+
+    #[test]
     fn terminal_parser_survives_resize_that_truncates_a_wide_character() {
         let mut parser = vt100::Parser::new(2, 40, 0);
         parser.process(format!("{}你", "x".repeat(38)).as_bytes());
@@ -2100,6 +2350,74 @@ mod unit {
         (session, events_tx, inputs, resizes)
     }
 
+    #[tokio::test]
+    async fn session_task_cleanup_joins_abort_and_owns_cancelled_waits() {
+        struct Dropped(Option<oneshot::Sender<()>>);
+        impl Drop for Dropped {
+            fn drop(&mut self) {
+                let _ = self.0.take().unwrap().send(());
+            }
+        }
+
+        for cancel_wait in [false, true] {
+            let (dropped_tx, mut dropped_rx) = oneshot::channel();
+            let resource = Dropped(Some(dropped_tx));
+            let task = tokio::spawn(async move {
+                let _resource = resource;
+                std::future::pending::<()>().await;
+            });
+            let task = AbortOnDropHandle::new(task);
+            if cancel_wait {
+                let wait = finish_session_task(task, Duration::from_secs(60));
+                assert!(
+                    tokio::time::timeout(Duration::from_millis(20), wait)
+                        .await
+                        .is_err()
+                );
+                tokio::time::timeout(Duration::from_secs(1), dropped_rx)
+                    .await
+                    .expect("cancelling cleanup must still abort its actor")
+                    .unwrap();
+            } else {
+                finish_session_task(task, Duration::from_millis(20)).await;
+                dropped_rx
+                    .try_recv()
+                    .expect("cleanup must join the abort before returning");
+            }
+        }
+    }
+
+    #[tokio::test]
+    async fn cancelled_termination_does_not_leave_an_actorless_running_session() {
+        for shutdown_all in [false, true] {
+            let runtime = TerminalRuntime::new();
+            let (session, events, _, _) = running_mock_session(&runtime).await;
+            let retained = runtime.session(&session.id).await.unwrap();
+            // Prevent the actor from completing its normal Closing transition,
+            // then cancel the API future while it waits for actor cleanup.
+            let state = retained.state.lock().await;
+            assert_eq!(state.session.phase, SessionPhase::Running);
+            let cleanup = async {
+                if shutdown_all {
+                    runtime.shutdown_all().await;
+                } else {
+                    runtime.terminate(&session.id).await.unwrap();
+                }
+            };
+            assert!(
+                tokio::time::timeout(Duration::from_millis(20), cleanup)
+                    .await
+                    .is_err()
+            );
+            assert!(runtime.session(&session.id).await.is_err());
+            assert!(runtime.actor_tasks.lock().await.is_empty());
+            drop(state);
+            tokio::time::timeout(Duration::from_secs(1), events.closed())
+                .await
+                .expect("cancelled cleanup must release the shell event receiver");
+        }
+    }
+
     #[test]
     fn output_buffer_is_bounded_and_detects_cursor_gaps() {
         let mut output = OutputBuffer::new();
@@ -2150,6 +2468,292 @@ mod unit {
         let alternate = String::from_utf8_lossy(&alternate_snapshot);
         assert!(alternate.contains("ALT-SCREEN"));
         assert!(!alternate.contains("one"));
+    }
+
+    #[tokio::test]
+    async fn terminal_archives_preserve_replay_and_bound_decoding() {
+        for alternate in [false, true] {
+            let mut parser = vt100::Parser::new(3, 40, SCROLLBACK_ROWS);
+            parser.process(b"one\r\ntwo\r\nthree\r\nfour\r\nfive");
+            if alternate {
+                parser.process(b"\x1b[?1049hALT\x1b[31m-red");
+            }
+            let expected = terminal_snapshot(&mut parser);
+            let mut terminal = RuntimeTerminal::Live(Box::new(parser));
+            terminal.compact().unwrap();
+            assert_eq!(
+                terminal.snapshot().await.unwrap().as_ref().as_ref(),
+                expected
+            );
+            let RuntimeTerminal::Archived(compressed) = &terminal else {
+                panic!("not archived");
+            };
+            assert!(decode_terminal_archive(&compressed.compressed, expected.len() - 1).is_err());
+            assert_eq!(
+                decode_terminal_archive(&compressed.compressed, expected.len())
+                    .unwrap()
+                    .as_ref(),
+                expected
+            );
+        }
+    }
+
+    #[tokio::test]
+    async fn archived_replay_is_shared_between_viewers_and_released_after_acknowledgement() {
+        let runtime = TerminalRuntime::new();
+        let mut pending = runtime
+            .begin_session("archived".into(), "archived".into(), 80, 24)
+            .await
+            .unwrap();
+        let id = pending.id.clone();
+        let payload = vec![b'x'; OUTPUT_RESPONSE_BYTES * 2 + 17];
+        let mut encoder = GzEncoder::new(Vec::new(), Compression::fast());
+        encoder.write_all(&payload).unwrap();
+        {
+            let mut state = pending.runtime.state.lock().await;
+            state.set_phase(SessionPhase::Failed, None, None);
+            state.terminal =
+                RuntimeTerminal::Archived(Bytes::from(encoder.finish().unwrap()).into());
+        }
+        pending.activated = true;
+        let mut viewers = Vec::new();
+        let mut last_response = None;
+        for _ in 0..MAX_ATTACHMENTS {
+            let viewer = runtime.create_attachment(&id, None, None).await.unwrap();
+            last_response = Some(runtime.events(&viewer.id, 0, Duration::ZERO).await.unwrap());
+            viewers.push(viewer);
+        }
+        let replay = {
+            let state = pending.runtime.state.lock().await;
+            let transfers = state
+                .attachments
+                .values()
+                .map(|attachment| attachment.snapshot.as_ref().unwrap())
+                .collect::<Vec<_>>();
+            assert_eq!(Arc::strong_count(&transfers[0].data), MAX_ATTACHMENTS);
+            assert!(
+                transfers
+                    .iter()
+                    .all(|transfer| Arc::ptr_eq(&transfers[0].data, &transfer.data))
+            );
+            Arc::downgrade(&transfers[0].data)
+        };
+        for viewer in &viewers[..MAX_ATTACHMENTS - 1] {
+            runtime.detach(&viewer.id).await.unwrap();
+        }
+        assert_eq!(replay.strong_count(), 1);
+        let viewer = viewers.last().unwrap();
+        let mut response = last_response.unwrap();
+        let mut received = Vec::new();
+        loop {
+            for event in &response.events {
+                if let Some(data) = &event.data_base64 {
+                    received.extend(STANDARD.decode(data).unwrap());
+                }
+            }
+            response = runtime
+                .events(&viewer.id, response.next_cursor, Duration::ZERO)
+                .await
+                .unwrap();
+            if response.events.is_empty() {
+                break;
+            }
+        }
+        assert_eq!(received, payload);
+        assert!(
+            replay.upgrade().is_none(),
+            "the last acknowledgement must release decoded history"
+        );
+        runtime.shutdown_all().await;
+    }
+
+    #[tokio::test]
+    async fn ended_terminal_compacts_after_grace_and_reconnects_without_losing_output() {
+        let runtime = TerminalRuntime::new();
+        let (session, events_tx, _, _) = running_mock_session(&runtime).await;
+        let attachment = runtime
+            .create_attachment(&session.id, None, None)
+            .await
+            .unwrap();
+        let mut output = Vec::new();
+        for line in 0..2_100 {
+            output.extend_from_slice(format!("{line:04} replay-history\r\n").as_bytes());
+        }
+        events_tx.send(ShellEvent::Data(output)).unwrap();
+        events_tx.send(ShellEvent::Exited(7)).unwrap();
+        let task = runtime
+            .actor_tasks
+            .lock()
+            .await
+            .remove(&session.id)
+            .unwrap();
+        tokio::time::timeout(Duration::from_secs(2), task)
+            .await
+            .unwrap()
+            .unwrap();
+        let retained = runtime.session(&session.id).await.unwrap();
+        let expected = {
+            let mut state = retained.state.lock().await;
+            let expected = state.terminal.snapshot().await.unwrap();
+            state.closed_at = Some(Instant::now() - CLOSED_TERMINAL_COMPACT_AFTER);
+            expected
+        };
+        runtime.expire_attachments().await;
+        assert!(
+            matches!(
+                retained.state.lock().await.terminal,
+                RuntimeTerminal::Live(_)
+            ),
+            "a present viewer keeps the parser until it detaches"
+        );
+        runtime.detach(&attachment.id).await.unwrap();
+        {
+            let mut state = retained.state.lock().await;
+            state.closed_at = Some(Instant::now());
+        }
+        runtime.expire_attachments().await;
+        assert!(
+            matches!(
+                retained.state.lock().await.terminal,
+                RuntimeTerminal::Live(_)
+            ),
+            "recently ended sessions keep their grace period"
+        );
+        retained.state.lock().await.closed_at =
+            Some(Instant::now() - CLOSED_TERMINAL_COMPACT_AFTER);
+        runtime.expire_attachments().await;
+        {
+            let state = retained.state.lock().await;
+            assert!(matches!(state.terminal, RuntimeTerminal::Archived(_)));
+            assert!(state.terminal.archived_bytes() < expected.len());
+            assert_eq!(state.session.phase, SessionPhase::Exited);
+            assert_eq!(state.session.exit_code, Some(7));
+        }
+        let viewer = runtime
+            .create_attachment(&session.id, None, None)
+            .await
+            .unwrap();
+        assert_eq!(viewer.role, AttachmentRole::Viewer);
+        let replay = runtime.events(&viewer.id, 0, Duration::ZERO).await.unwrap();
+        let retry = runtime.events(&viewer.id, 0, Duration::ZERO).await.unwrap();
+        assert_eq!(
+            serde_json::to_value(&replay).unwrap(),
+            serde_json::to_value(&retry).unwrap()
+        );
+        let bytes = replay
+            .events
+            .iter()
+            .filter_map(|event| event.data_base64.as_ref())
+            .flat_map(|value| STANDARD.decode(value).unwrap())
+            .collect::<Vec<_>>();
+        assert_eq!(bytes.as_slice(), expected.as_ref().as_ref());
+        assert!(replay.events.iter().any(|event| event.reset));
+        assert!(replay.events.iter().any(|event| event.exit_code == Some(7)));
+        runtime.shutdown_all().await;
+    }
+
+    #[tokio::test]
+    async fn archive_budget_evicts_oldest_unattached_and_preserves_live_sessions() {
+        let runtime = TerminalRuntime::new();
+        let mut ids = Vec::new();
+        for index in 0..3 {
+            let (session, events, _, _) = running_mock_session(&runtime).await;
+            events.send(ShellEvent::Exited(0)).unwrap();
+            let task = runtime
+                .actor_tasks
+                .lock()
+                .await
+                .remove(&session.id)
+                .unwrap();
+            tokio::time::timeout(Duration::from_secs(2), task)
+                .await
+                .unwrap()
+                .unwrap();
+            let retained = runtime.session(&session.id).await.unwrap();
+            let mut state = retained.state.lock().await;
+            state.terminal = RuntimeTerminal::Archived(Bytes::from(vec![0; 128]).into());
+            state.session.updated_at = index.to_string();
+            ids.push(session.id);
+        }
+        let _viewer = runtime
+            .create_attachment(&ids[2], None, None)
+            .await
+            .unwrap();
+        let (live, events, _, _) = running_mock_session(&runtime).await;
+        let retained = runtime.session(&live.id).await.unwrap();
+        retained.state.lock().await.closed_at =
+            Some(Instant::now() - CLOSED_TERMINAL_COMPACT_AFTER);
+        runtime.expire_attachments().await;
+        assert!(matches!(
+            retained.state.lock().await.terminal,
+            RuntimeTerminal::Live(_)
+        ));
+        assert!(
+            !events.is_closed(),
+            "detached live shell must remain running"
+        );
+        runtime.enforce_archive_budget(256).await;
+        assert!(runtime.session(&ids[0]).await.is_err());
+        assert!(runtime.session(&ids[1]).await.is_ok());
+        runtime.enforce_archive_budget(0).await;
+        assert!(runtime.session(&ids[1]).await.is_err());
+        assert!(
+            runtime.session(&ids[2]).await.is_ok(),
+            "attached history cannot be evicted"
+        );
+        assert!(runtime.session(&live.id).await.is_ok());
+        runtime.shutdown_all().await;
+    }
+
+    #[tokio::test]
+    async fn long_osc_output_is_forwarded_unchanged_while_parser_recovers() {
+        let runtime = TerminalRuntime::new();
+        let (session, events_tx, _, _) = running_mock_session(&runtime).await;
+        let attachment = runtime
+            .create_attachment(&session.id, None, None)
+            .await
+            .unwrap();
+        let initial = runtime
+            .events(&attachment.id, 0, Duration::ZERO)
+            .await
+            .unwrap();
+        runtime
+            .events(&attachment.id, initial.next_cursor, Duration::ZERO)
+            .await
+            .unwrap();
+        let mut raw = b"\x1b]52;c;".to_vec();
+        raw.extend(vec![b'A'; 64 * 1024]);
+        raw.extend_from_slice(b"\x1b\\visible-after-osc");
+        for chunk in raw.chunks(1024) {
+            events_tx.send(ShellEvent::Data(chunk.to_vec())).unwrap();
+        }
+        let mut collected = Vec::new();
+        let mut cursor = initial.next_cursor;
+        tokio::time::timeout(Duration::from_secs(2), async {
+            while collected.len() < raw.len() {
+                let result = runtime
+                    .events(&attachment.id, cursor, Duration::from_millis(50))
+                    .await
+                    .unwrap();
+                cursor = result.next_cursor;
+                for event in result.events {
+                    if let Some(data) = event.data_base64 {
+                        collected.extend(STANDARD.decode(data).unwrap());
+                    }
+                }
+            }
+        })
+        .await
+        .unwrap();
+        assert_eq!(collected, raw);
+        let retained = runtime.session(&session.id).await.unwrap();
+        let state = retained.state.lock().await;
+        let RuntimeTerminal::Live(parser) = &state.terminal else {
+            panic!("live terminal archived");
+        };
+        assert_eq!(parser.screen().contents(), "visible-after-osc");
+        drop(state);
+        runtime.shutdown_all().await;
     }
 
     #[tokio::test]
@@ -2266,6 +2870,59 @@ mod unit {
             sessions
                 .iter()
                 .any(|session| session.target_id == "replacement")
+        );
+        runtime.shutdown_all().await;
+    }
+
+    #[tokio::test]
+    async fn retained_session_eviction_rechecks_a_reconnected_viewer() {
+        let runtime = TerminalRuntime::new();
+        for index in 0..MAX_RETAINED_SESSIONS {
+            let mut pending = runtime
+                .begin_session(format!("failed-{index}"), "failed".into(), 80, 24)
+                .await
+                .unwrap();
+            pending
+                .runtime
+                .state
+                .lock()
+                .await
+                .set_phase(SessionPhase::Failed, None, None);
+            pending.activated = true;
+        }
+        // Freeze the last candidate scan after the first candidate was read,
+        // then reconnect to that first (oldest) session before eviction.
+        let sessions = runtime
+            .sessions
+            .read()
+            .await
+            .values()
+            .cloned()
+            .collect::<Vec<_>>();
+        let victim = &sessions[0];
+        let id = {
+            let mut state = victim.state.lock().await;
+            state.session.updated_at = "0000".into();
+            state.session.id.clone()
+        };
+        let blocked = sessions.last().unwrap().state.lock().await;
+        let mut eviction = Box::pin(runtime.make_room_for_session());
+        assert!(
+            tokio::time::timeout(Duration::from_millis(20), &mut eviction)
+                .await
+                .is_err()
+        );
+        let viewer = runtime.create_attachment(&id, None, None).await.unwrap();
+        drop(blocked);
+        eviction.await.unwrap();
+        assert!(
+            runtime.session(&id).await.is_ok(),
+            "a reconnected viewer must not be evicted"
+        );
+        assert!(runtime.events(&viewer.id, 0, Duration::ZERO).await.is_ok());
+        assert_eq!(
+            runtime.sessions.read().await.len(),
+            MAX_RETAINED_SESSIONS - 1
         );
         runtime.shutdown_all().await;
     }
@@ -2674,7 +3331,7 @@ mod unit {
         let runtime_session = runtime.session(&session.id).await.unwrap();
         {
             let mut state = runtime_session.state.lock().await;
-            state.terminal.screen_mut().set_size(12, 400);
+            state.terminal.resize(12, 400);
             let mut flood = Vec::new();
             for row in 0..2_050 {
                 flood.extend_from_slice(format!("{row:04}{}\r\n", "x".repeat(390)).as_bytes());

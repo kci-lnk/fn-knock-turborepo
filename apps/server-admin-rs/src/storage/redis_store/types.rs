@@ -47,6 +47,14 @@ pub struct AuthPasswordCredential {
     pub updated_at: String,
 }
 
+/// The three records updated together by account setup/password changes.
+#[derive(Clone, Default)]
+pub(crate) struct AuthAccountMutationSnapshot {
+    pub accounts: Vec<AuthAccount>,
+    pub totps: Vec<TotpCredential>,
+    pub password: Option<AuthPasswordCredential>,
+}
+
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct LoginSession {
     #[serde(rename = "totpId")]

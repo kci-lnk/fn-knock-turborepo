@@ -220,33 +220,41 @@ pub fn start_notification_tasks(state: AppState) {
 }
 
 async fn notification_dispatch_loop(state: AppState) {
-    let mut retry_after = None;
-    let mut first_pass = true;
+    let mut schedule = DispatchSchedule::Continue;
     loop {
-        if !first_pass {
-            if let Some(delay) = retry_after.take() {
-                tokio::select! {
-                    _ = state.shutdown.cancelled() => break,
-                    _ = state.notification_dispatch_notify.notified() => {}
-                    _ = time::sleep(delay) => {}
-                }
-            } else {
-                tokio::select! {
-                    _ = state.shutdown.cancelled() => break,
-                    _ = state.notification_dispatch_notify.notified() => {}
-                }
-            }
+        if !wait_for_notification_dispatch(&state, schedule).await {
+            break;
         }
-        first_pass = false;
         tokio::select! {
             _ = state.shutdown.cancelled() => break,
             result = notification_dispatch_tick(&state) => {
-                if let Err(error) = result {
-                    tracing::warn!(%error, "notification dispatch tick failed");
-                    retry_after = Some(DISPATCH_ERROR_RETRY_DELAY);
-                }
+                schedule = match result {
+                    Ok(schedule) => schedule,
+                    Err(error) => {
+                        tracing::warn!(%error, "notification dispatch tick failed");
+                        DispatchSchedule::RetryAfter(DISPATCH_ERROR_RETRY_DELAY)
+                    }
+                };
             }
         }
+    }
+}
+
+async fn wait_for_notification_dispatch(state: &AppState, schedule: DispatchSchedule) -> bool {
+    match schedule {
+        DispatchSchedule::Continue => {
+            tokio::task::yield_now().await;
+            !state.shutdown.is_cancelled()
+        }
+        DispatchSchedule::RetryAfter(delay) => tokio::select! {
+            _ = state.shutdown.cancelled() => false,
+            _ = state.notification_dispatch_notify.notified() => true,
+            _ = time::sleep(delay) => true,
+        },
+        DispatchSchedule::Idle => tokio::select! {
+            _ = state.shutdown.cancelled() => false,
+            _ = state.notification_dispatch_notify.notified() => true,
+        },
     }
 }
 

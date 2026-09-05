@@ -308,6 +308,25 @@ impl Store {
         self.get_json_value(&ip_location_state_key(ip)).await
     }
 
+    /// Cache and pending state in input order, including duplicate IPs.
+    /// The analytics reader filters expired documents without deleting them.
+    pub(crate) async fn get_ip_location_records_analytics(
+        &self,
+        ips: &[String],
+    ) -> crate::storage::StorageResult<Vec<(Option<Value>, Option<Value>)>> {
+        let keys = ips
+            .iter()
+            .flat_map(|ip| [ip_location_cache_key(ip), ip_location_state_key(ip)])
+            .collect();
+        let raw = self.manager.get_live_strings_analytics(keys).await?;
+        let mut values = raw
+            .into_iter()
+            .map(|raw| raw.and_then(|raw| serde_json::from_str(&raw).ok()));
+        Ok((0..ips.len())
+            .map(|_| (values.next().flatten(), values.next().flatten()))
+            .collect())
+    }
+
     pub async fn set_ip_location_state(
         &self,
         ip: &str,

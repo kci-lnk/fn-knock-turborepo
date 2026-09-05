@@ -176,3 +176,46 @@ async fn empty_collections_remove_their_redis_keys() {
         .expect("empty list");
     assert_eq!(conn.exists("fn_knock:test:empty-list").await.unwrap(), 0);
 }
+
+#[tokio::test]
+async fn analytics_batch_excludes_keys_that_expire_while_waiting_for_admission() {
+    let conn = temp_manager().await;
+    let key = "fn_knock:test:analytics-queued-expiry";
+    let expires_at = now_ms() + 100;
+    conn.call(move |connection| {
+        let tx = immediate_transaction(connection)?;
+        set_string_tx(&tx, key, "cached", Some(expires_at))?;
+        tx.commit()?;
+        Ok(())
+    })
+    .await
+    .unwrap();
+    let permit = conn
+        .analytics_admission
+        .clone()
+        .acquire_owned()
+        .await
+        .unwrap();
+    let read = conn.get_live_strings_analytics(vec![key.to_string()]);
+    tokio::pin!(read);
+    tokio::select! {
+        _ = &mut read => panic!("analytics admission should still be occupied"),
+        _ = tokio::time::sleep(std::time::Duration::from_millis(150)) => {}
+    }
+    assert!(now_ms() >= expires_at);
+    drop(permit);
+    assert_eq!(read.await.unwrap(), vec![None]);
+    let still_exists = conn
+        .call(move |connection| {
+            connection
+                .query_row(
+                    "SELECT EXISTS(SELECT 1 FROM kv_keys WHERE key = ?1)",
+                    [key],
+                    |row| row.get::<_, bool>(0),
+                )
+                .map_err(Into::into)
+        })
+        .await
+        .unwrap();
+    assert!(still_exists, "analytics reads must remain read-only");
+}

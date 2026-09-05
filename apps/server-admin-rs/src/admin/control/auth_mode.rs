@@ -21,7 +21,7 @@ use crate::{
     oidc_admin::oidc_delete_bindings_by_totp,
     response,
     state::AppState,
-    store::{AuthAccount, AuthPasswordCredential, TotpCredential},
+    store::{AuthAccount, AuthAccountMutationSnapshot, AuthPasswordCredential, TotpCredential},
     time_utils,
 };
 
@@ -188,6 +188,7 @@ pub(super) async fn auth_account_update(
     Path(id): Path<String>,
     Json(body): Json<AuthAccountPatchBody>,
 ) -> Response {
+    let _mutation = state.storage.store.auth_account_mutation_lock.lock().await;
     let translator = Translator::from_state(&state).await;
     let (stored_accounts, mut accounts) = match projected_auth_accounts(&state).await {
         Ok(value) => value,
@@ -298,7 +299,7 @@ pub(super) async fn auth_account_create(
         );
     }
 
-    let (stored_accounts, mut projected_accounts) = match projected_auth_accounts(&state).await {
+    let (_, projected_accounts) = match projected_auth_accounts(&state).await {
         Ok(value) => value,
         Err(error) => {
             tracing::warn!(%error, "failed to load projected auth accounts before create");
@@ -329,49 +330,80 @@ pub(super) async fn auth_account_create(
         access_scopes: Value::Array(Vec::new()),
         subdomain_access: json!({ "mode": "all", "hosts": [] }),
     };
-    let record = match make_auth_password_credential(&account.id, &body.password, None) {
+    let record = match make_auth_password_credential(&account.id, &body.password, None).await {
         Ok(value) => value,
         Err(error) => {
             tracing::warn!(%error, account_id = %account.id, "failed to hash created auth account password");
-            return response::error(
-                StatusCode::INTERNAL_SERVER_ERROR,
+            return crate::auth::password::password_hash_error_response(
+                &error,
                 admin_control_text(&translator, "authAccounts.passwordSaveFailed"),
             );
         }
     };
-    projected_accounts.push(account.clone());
-
-    if let Err(error) =
-        persist_auth_accounts_projection(&state, &stored_accounts, &projected_accounts).await
-    {
-        tracing::warn!(%error, account_id = %account.id, "failed to save created auth account");
-        return response::error(
-            StatusCode::INTERNAL_SERVER_ERROR,
-            admin_control_text(&translator, "authAccounts.saveFailed"),
-        );
-    }
-    if let Err(error) = state
-        .storage
-        .store
-        .set_auth_password_credential(&record)
-        .await
-    {
-        if let Err(rollback_error) = state
-            .storage
-            .store
-            .set_auth_accounts(&stored_accounts)
-            .await
+    let _mutation = state.storage.store.auth_account_mutation_lock.lock().await;
+    // Hashing can wait in the shared pool. Rebuild the projection afterwards,
+    // then compare and install the account plus its credential atomically.
+    // Retry only storage conflicts; reuse the completed hash on every attempt.
+    let mut installed = false;
+    for _ in 0..3 {
+        let (stored_accounts, mut projected_accounts) = match projected_auth_accounts(&state).await
         {
-            tracing::warn!(
-                %rollback_error,
-                account_id = %account.id,
-                "failed to roll back auth account after password save failure"
+            Ok(value) => value,
+            Err(error) => {
+                tracing::warn!(%error, "failed to reload auth accounts after password hashing");
+                return response::error(
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    admin_control_text(&translator, "authAccounts.loadFailed"),
+                );
+            }
+        };
+        if projected_accounts
+            .iter()
+            .any(|existing| existing.username.eq_ignore_ascii_case(username.as_str()))
+        {
+            return response::error(
+                StatusCode::CONFLICT,
+                admin_control_text(&translator, "authAccounts.usernameExists"),
             );
         }
-        tracing::warn!(%error, account_id = %account.id, "failed to save created auth account password");
+        if projected_accounts
+            .iter()
+            .any(|existing| existing.id == account.id)
+        {
+            return response::error(
+                StatusCode::CONFLICT,
+                admin_control_text(&translator, "authAccounts.saveFailed"),
+            );
+        }
+        projected_accounts.push(account.clone());
+        match state
+            .storage
+            .store
+            .compare_and_set_auth_accounts_with_password(
+                &stored_accounts,
+                &projected_accounts,
+                &record,
+            )
+            .await
+        {
+            Ok(true) => {
+                installed = true;
+                break;
+            }
+            Ok(false) => {}
+            Err(error) => {
+                tracing::warn!(%error, account_id = %account.id, "failed to atomically save created auth account and password");
+                return response::error(
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    admin_control_text(&translator, "authAccounts.saveFailed"),
+                );
+            }
+        }
+    }
+    if !installed {
         return response::error(
-            StatusCode::INTERNAL_SERVER_ERROR,
-            admin_control_text(&translator, "authAccounts.passwordSaveFailed"),
+            StatusCode::CONFLICT,
+            admin_control_text(&translator, "authAccounts.saveFailed"),
         );
     }
     match account_payload(&state, &account).await {
@@ -509,6 +541,7 @@ pub(super) async fn auth_account_totp_bind(
         }
     }
 
+    let _mutation = state.storage.store.auth_account_mutation_lock.lock().await;
     let mut totps = match state.storage.store.get_totps().await {
         Ok(value) => value,
         Err(error) => {
@@ -611,92 +644,10 @@ pub(super) async fn auth_account_set_password(
             admin_control_text(&translator, auth_account_password_error_key(key)),
         );
     }
-    let (stored_accounts, projected_accounts) = match projected_auth_accounts(&state).await {
-        Ok(value) => value,
-        Err(error) => {
-            tracing::warn!(%error, account_id = %id, "failed to load projected auth accounts before password update");
-            return response::error(
-                StatusCode::INTERNAL_SERVER_ERROR,
-                admin_control_text(&translator, "authAccounts.loadFailed"),
-            );
-        }
-    };
-    let Some(account) = projected_accounts
-        .iter()
-        .find(|account| account.id == id)
-        .cloned()
-    else {
-        return response::error(
-            StatusCode::NOT_FOUND,
-            admin_control_text(&translator, "authAccounts.notFound"),
-        );
-    };
-    let rollback = match capture_auth_account_rollback(&state, &stored_accounts, &id).await {
-        Ok(snapshot) => snapshot,
-        Err(error) => {
-            tracing::warn!(%error, account_id = %id, "failed to capture auth account rollback before password update");
-            return response::error(
-                StatusCode::INTERNAL_SERVER_ERROR,
-                admin_control_text(&translator, "authAccounts.loadFailed"),
-            );
-        }
-    };
-    let created_at = rollback
-        .password
-        .as_ref()
-        .map(|credential| credential.created_at.clone());
-    let record = match make_auth_password_credential(&id, &body.password, created_at) {
-        Ok(record) => record,
-        Err(error) => {
-            tracing::warn!(%error, account_id = %id, "failed to hash auth account password");
-            return response::error(
-                StatusCode::INTERNAL_SERVER_ERROR,
-                admin_control_text(&translator, "authAccounts.passwordSaveFailed"),
-            );
-        }
-    };
-    if let Err(error) =
-        persist_auth_accounts_projection(&state, &stored_accounts, &projected_accounts).await
-    {
-        tracing::warn!(%error, account_id = %id, "failed to persist projected auth account before password update");
-        return response::error(
-            StatusCode::INTERNAL_SERVER_ERROR,
-            admin_control_text(&translator, "authAccounts.saveFailed"),
-        );
-    }
-    if let Err(error) = state
-        .storage
-        .store
-        .set_auth_password_credential(&record)
-        .await
-    {
-        rollback_auth_account_mutation(&state, &rollback, &id, "auth account password update")
-            .await;
-        tracing::warn!(%error, account_id = %id, "failed to save auth account password");
-        return response::error(
-            StatusCode::INTERNAL_SERVER_ERROR,
-            admin_control_text(&translator, "authAccounts.passwordSaveFailed"),
-        );
-    }
-    if let Err(error) = auth_mobility::destroy_sessions_for_auth_credential(&state, &id).await {
-        rollback_auth_account_mutation(&state, &rollback, &id, "auth account password update")
-            .await;
-        tracing::warn!(%error, account_id = %id, "failed to destroy auth account sessions after password update");
-        return response::error(
-            StatusCode::INTERNAL_SERVER_ERROR,
-            admin_control_text(&translator, "authAccounts.passwordSaveFailed"),
-        );
-    }
-    match account_payload(&state, &account).await {
-        Ok(value) => response::ok(value).into_response(),
-        Err(error) => {
-            tracing::warn!(%error, account_id = %id, "failed to build auth account after password update");
-            response::error(
-                StatusCode::INTERNAL_SERVER_ERROR,
-                admin_control_text(&translator, "authAccounts.loadFailed"),
-            )
-        }
-    }
+    update_auth_account_password(&state, &id, None, |created_at| {
+        make_auth_password_credential(&id, &body.password, created_at)
+    })
+    .await
 }
 
 #[utoipa::path(
@@ -730,113 +681,264 @@ pub(super) async fn auth_account_setup(
         );
     }
 
-    let (stored_accounts, mut projected_accounts) = match projected_auth_accounts(&state).await {
-        Ok(value) => value,
-        Err(error) => {
-            tracing::warn!(%error, account_id = %id, "failed to load projected auth accounts before account setup");
-            return response::error(
-                StatusCode::INTERNAL_SERVER_ERROR,
-                admin_control_text(&translator, "authAccounts.loadFailed"),
-            );
+    update_auth_account_password(&state, &id, Some(&username), |created_at| {
+        make_auth_password_credential(&id, &body.password, created_at)
+    })
+    .await
+}
+
+/// Hash outside the account mutation lock. Re-read the latest projection and
+/// require that the target's account, password and linked TOTP still match the
+/// original request before applying its changes. Other accounts are preserved.
+async fn update_auth_account_password<F, Fut>(
+    state: &AppState,
+    id: &str,
+    username: Option<&str>,
+    hash: F,
+) -> Response
+where
+    F: FnOnce(Option<String>) -> Fut,
+    Fut: std::future::Future<Output = anyhow::Result<AuthPasswordCredential>>,
+{
+    update_auth_account_password_with_commit_hook(state, id, username, hash, std::future::ready(()))
+        .await
+}
+
+async fn update_auth_account_password_with_commit_hook<F, Fut, AfterCommit>(
+    state: &AppState,
+    id: &str,
+    username: Option<&str>,
+    hash: F,
+    after_commit: AfterCommit,
+) -> Response
+where
+    F: FnOnce(Option<String>) -> Fut,
+    Fut: std::future::Future<Output = anyhow::Result<AuthPasswordCredential>>,
+    AfterCommit: std::future::Future<Output = ()> + Send + 'static,
+{
+    let translator = Translator::from_state(state).await;
+    let failure = |status, key| response::error(status, admin_control_text(&translator, key));
+    let initial = {
+        let _mutation = state.storage.store.auth_account_mutation_lock.lock().await;
+        match state
+            .storage
+            .store
+            .get_auth_account_mutation_snapshot(id, None)
+            .await
+        {
+            Ok(snapshot) => snapshot,
+            Err(error) => {
+                tracing::warn!(%error, account_id = %id, "failed to load account before password hashing");
+                return failure(StatusCode::INTERNAL_SERVER_ERROR, "authAccounts.loadFailed");
+            }
         }
     };
-    let Some(index) = projected_accounts
-        .iter()
-        .position(|account| account.id == id)
-    else {
-        return response::error(
-            StatusCode::NOT_FOUND,
-            admin_control_text(&translator, "authAccounts.notFound"),
-        );
+    let initial_projection = project_totps_to_accounts(&initial.totps, &initial.accounts);
+    let Some(original) = initial_projection.iter().find(|account| account.id == id) else {
+        return failure(StatusCode::NOT_FOUND, "authAccounts.notFound");
     };
-    if projected_accounts
-        .iter()
-        .any(|account| account.id != id && account.username.eq_ignore_ascii_case(username.as_str()))
-    {
-        return response::error(
-            StatusCode::CONFLICT,
-            admin_control_text(&translator, "authAccounts.usernameExists"),
-        );
-    }
-
-    projected_accounts[index].username = username;
-    projected_accounts[index].display_name = projected_accounts[index].username.clone();
-    projected_accounts[index].updated_at = time_utils::now_iso();
-    let updated = projected_accounts[index].clone();
-
-    let rollback = match capture_auth_account_rollback(&state, &stored_accounts, &id).await {
-        Ok(snapshot) => snapshot,
-        Err(error) => {
-            tracing::warn!(%error, account_id = %id, "failed to capture auth account rollback before account setup");
-            return response::error(
-                StatusCode::INTERNAL_SERVER_ERROR,
-                admin_control_text(&translator, "authAccounts.loadFailed"),
-            );
-        }
-    };
-    let created_at = rollback
+    let created_at = initial
         .password
         .as_ref()
         .map(|credential| credential.created_at.clone());
-    let record = match make_auth_password_credential(&id, &body.password, created_at) {
+    let record = match hash(created_at).await {
         Ok(record) => record,
         Err(error) => {
-            tracing::warn!(%error, account_id = %id, "failed to hash auth account setup password");
-            return response::error(
-                StatusCode::INTERNAL_SERVER_ERROR,
+            tracing::warn!(%error, account_id = %id, "failed to hash auth account password");
+            return crate::auth::password::password_hash_error_response(
+                &error,
                 admin_control_text(&translator, "authAccounts.passwordSaveFailed"),
             );
         }
     };
-
-    if let Err(error) =
-        persist_auth_accounts_projection(&state, &stored_accounts, &projected_accounts).await
-    {
-        tracing::warn!(%error, account_id = %id, "failed to save auth account setup");
-        return response::error(
-            StatusCode::INTERNAL_SERVER_ERROR,
-            admin_control_text(&translator, "authAccounts.saveFailed"),
-        );
-    }
-    if let Err(error) = sync_account_to_source_totp(&state, &updated).await {
-        rollback_auth_account_mutation(&state, &rollback, &id, "auth account setup").await;
-        tracing::warn!(%error, account_id = %id, "failed to sync auth account setup to TOTP");
-        return response::error(
-            StatusCode::INTERNAL_SERVER_ERROR,
-            admin_control_text(&translator, "authAccounts.syncFailed"),
-        );
-    }
-    if let Err(error) = state
+    // Admission happens before spawning, so at most one completion task owns
+    // this Store's account mutation lock. HTTP cancellation drops only the
+    // response receiver; the registry owns commit, revocation and rollback.
+    let guard = state
         .storage
         .store
-        .set_auth_password_credential(&record)
-        .await
+        .auth_account_mutation_lock
+        .clone()
+        .lock_owned()
+        .await;
+    let mutation = AuthAccountPasswordMutation {
+        id: id.to_string(),
+        username: username.map(str::to_string),
+        original: original.clone(),
+        initial,
+        record,
+    };
+    let (result_tx, result_rx) = tokio::sync::oneshot::channel();
+    let task_state = state.clone();
+    if state
+        .background_tasks
+        .spawn_abortable("auth-account-password-mutation", async move {
+            let response =
+                finish_auth_account_password_mutation(&task_state, mutation, guard, after_commit)
+                    .await;
+            let _ = result_tx.send(response);
+        })
+        .is_none()
     {
-        rollback_auth_account_mutation(&state, &rollback, &id, "auth account setup").await;
-        tracing::warn!(%error, account_id = %id, "failed to save auth account setup password");
-        return response::error(
-            StatusCode::INTERNAL_SERVER_ERROR,
-            admin_control_text(&translator, "authAccounts.passwordSaveFailed"),
+        return failure(
+            StatusCode::SERVICE_UNAVAILABLE,
+            "authAccounts.passwordSaveFailed",
         );
     }
-    if let Err(error) = auth_mobility::destroy_sessions_for_auth_credential(&state, &id).await {
-        rollback_auth_account_mutation(&state, &rollback, &id, "auth account setup").await;
-        tracing::warn!(%error, account_id = %id, "failed to destroy auth account sessions after account setup");
-        return response::error(
+    result_rx.await.unwrap_or_else(|_| {
+        failure(
             StatusCode::INTERNAL_SERVER_ERROR,
-            admin_control_text(&translator, "authAccounts.passwordSaveFailed"),
-        );
-    }
-    match account_payload(&state, &updated).await {
-        Ok(value) => response::ok(value).into_response(),
-        Err(error) => {
-            tracing::warn!(%error, account_id = %id, "failed to build auth account setup payload");
-            response::error(
-                StatusCode::INTERNAL_SERVER_ERROR,
-                admin_control_text(&translator, "authAccounts.loadFailed"),
-            )
+            "authAccounts.passwordSaveFailed",
+        )
+    })
+}
+
+struct AuthAccountPasswordMutation {
+    id: String,
+    username: Option<String>,
+    original: AuthAccount,
+    initial: AuthAccountMutationSnapshot,
+    record: AuthPasswordCredential,
+}
+
+async fn finish_auth_account_password_mutation(
+    state: &AppState,
+    mutation: AuthAccountPasswordMutation,
+    _guard: tokio::sync::OwnedMutexGuard<()>,
+    after_commit: impl std::future::Future<Output = ()>,
+) -> Response {
+    let AuthAccountPasswordMutation {
+        id,
+        username,
+        original,
+        initial,
+        record,
+    } = mutation;
+    let id = id.as_str();
+    let username = username.as_deref();
+    let translator = Translator::from_state(state).await;
+    let failure = |status, key| response::error(status, admin_control_text(&translator, key));
+    for _ in 0..3 {
+        let current = match state
+            .storage
+            .store
+            .get_auth_account_mutation_snapshot(id, Some(&initial))
+            .await
+        {
+            Ok(snapshot) => snapshot,
+            Err(error) => {
+                tracing::warn!(%error, account_id = %id, "failed to reload account after password hashing");
+                return failure(StatusCode::INTERNAL_SERVER_ERROR, "authAccounts.loadFailed");
+            }
+        };
+        let mut projected = project_totps_to_accounts(&current.totps, &current.accounts);
+        let Some(index) = projected.iter().position(|account| account.id == id) else {
+            return failure(StatusCode::NOT_FOUND, "authAccounts.notFound");
+        };
+        if !auth_account_password_target_unchanged(&initial, &current, &original) {
+            return failure(StatusCode::CONFLICT, "authAccounts.saveFailed");
         }
+        if let Some(username) = username {
+            if projected
+                .iter()
+                .any(|account| account.id != id && account.username.eq_ignore_ascii_case(username))
+            {
+                return failure(StatusCode::CONFLICT, "authAccounts.usernameExists");
+            }
+            projected[index].username = username.to_string();
+            projected[index].display_name = username.to_string();
+            projected[index].updated_at = time_utils::now_iso();
+        }
+        let updated = projected[index].clone();
+        let mut replacement = current.clone();
+        replacement.accounts = projected;
+        replacement.password = Some(record.clone());
+        if username.is_some()
+            && let Some(totp) = replacement
+                .totps
+                .iter_mut()
+                .find(|totp| totp.id == updated.source_totp_id)
+        {
+            sync_totp_metadata_from_account(totp, &updated);
+        }
+        match state
+            .storage
+            .store
+            .compare_and_set_auth_account_mutation(id, &current, &replacement)
+            .await
+        {
+            Ok(false) => continue,
+            Err(error) => {
+                tracing::warn!(%error, account_id = %id, "failed to atomically save account password/setup");
+                return failure(
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    "authAccounts.passwordSaveFailed",
+                );
+            }
+            Ok(true) => {}
+        }
+        after_commit.await;
+        if let Err(error) = auth_mobility::destroy_sessions_for_auth_credential(state, id).await {
+            // Only undo this exact write. A concurrent Store or cancelled HTTP
+            // operation must never have its subsequent changes overwritten.
+            match state
+                .storage
+                .store
+                .compare_and_set_auth_account_mutation(id, &replacement, &current)
+                .await
+            {
+                Ok(true) => {}
+                Ok(false) => {
+                    tracing::warn!(account_id = %id, "account password rollback skipped after concurrent change")
+                }
+                Err(rollback_error) => {
+                    tracing::warn!(%rollback_error, account_id = %id, "failed to roll back account password/setup")
+                }
+            }
+            tracing::warn!(%error, account_id = %id, "failed to revoke sessions after account password/setup");
+            return failure(
+                StatusCode::INTERNAL_SERVER_ERROR,
+                "authAccounts.passwordSaveFailed",
+            );
+        }
+        return match account_payload(state, &updated).await {
+            Ok(value) => response::ok(value).into_response(),
+            Err(error) => {
+                tracing::warn!(%error, account_id = %id, "failed to build account after password/setup");
+                failure(StatusCode::INTERNAL_SERVER_ERROR, "authAccounts.loadFailed")
+            }
+        };
     }
+    failure(StatusCode::CONFLICT, "authAccounts.saveFailed")
+}
+
+fn auth_account_password_target_unchanged(
+    initial: &AuthAccountMutationSnapshot,
+    current: &AuthAccountMutationSnapshot,
+    original: &AuthAccount,
+) -> bool {
+    let account = |snapshot: &AuthAccountMutationSnapshot| {
+        serde_json::to_value(
+            snapshot
+                .accounts
+                .iter()
+                .find(|account| account.id == original.id),
+        )
+        .ok()
+    };
+    let totp = |snapshot: &AuthAccountMutationSnapshot| {
+        serde_json::to_value(
+            snapshot
+                .totps
+                .iter()
+                .find(|totp| totp.id == original.source_totp_id),
+        )
+        .ok()
+    };
+    account(initial) == account(current)
+        && totp(initial) == totp(current)
+        && serde_json::to_value(&initial.password).ok()
+            == serde_json::to_value(&current.password).ok()
 }
 
 #[utoipa::path(
@@ -877,6 +979,7 @@ async fn update_account_permissions(
     access_scopes: Option<Value>,
     subdomain_access: Option<Value>,
 ) -> Response {
+    let _mutation = state.storage.store.auth_account_mutation_lock.lock().await;
     let translator = Translator::from_state(state).await;
     let mut account = match state.storage.store.get_auth_account(id).await {
         Ok(Some(account)) => account,
@@ -1132,6 +1235,7 @@ async fn switch_auth_login_mode(
     state: &AppState,
     target_mode: AuthLoginMode,
 ) -> anyhow::Result<Value> {
+    let _mutation = state.storage.store.auth_account_mutation_lock.lock().await;
     if target_mode == AuthLoginMode::Password {
         let (accounts, projected) = projected_auth_accounts(state).await?;
         let password_configured = count_configured_passwords(state, &projected).await?;
@@ -1215,6 +1319,7 @@ async fn build_accounts_payload(state: &AppState) -> anyhow::Result<Value> {
 }
 
 async fn delete_auth_account_and_linked_totp(state: &AppState, id: &str) -> anyhow::Result<bool> {
+    let _mutation = state.storage.store.auth_account_mutation_lock.lock().await;
     let (stored_accounts, projected_accounts) = projected_auth_accounts(state).await?;
     let Some(target) = projected_accounts
         .iter()
@@ -1758,6 +1863,450 @@ fn auth_account_password_error_key(key: &'static str) -> &'static str {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    async fn account_test_state() -> (tempfile::TempDir, AppState) {
+        let directory = tempfile::tempdir().expect("temporary account database");
+        let mut settings = {
+            let _environment = crate::test_support::EnvGuard::new(&[]);
+            crate::settings::Settings::from_env()
+        };
+        settings.data_dir = directory.path().join("data");
+        settings.gateway_config_dir = directory.path().join("gateway");
+        settings.sqlite_path = directory.path().join("fn-knock.sqlite3");
+        settings.legacy_redis_url = String::new();
+        settings.go_backend_grpc_addr = "127.0.0.1:1".to_string();
+        settings.internal_rpc_token = "auth-account-create-test".to_string();
+        let state = AppState::new(settings).await.expect("account test state");
+        (directory, state)
+    }
+
+    #[tokio::test]
+    async fn concurrent_auth_account_creation_preserves_accounts_and_passwords() {
+        let (_directory, state) = account_test_state().await;
+        let create = |username: &str, password: &str| {
+            auth_account_create(
+                State(state.clone()),
+                Json(AuthAccountCreateBody {
+                    username: username.to_string(),
+                    password: password.to_string(),
+                }),
+            )
+        };
+        let (first, second) = tokio::join!(
+            create("first", "first-password123"),
+            create("second", "second-password456"),
+        );
+        assert_eq!(first.status(), StatusCode::OK);
+        assert_eq!(second.status(), StatusCode::OK);
+        let accounts = state.storage.store.get_auth_accounts().await.unwrap();
+        assert_eq!(accounts.len(), 2);
+        for (username, password) in [
+            ("first", "first-password123"),
+            ("second", "second-password456"),
+        ] {
+            let account = accounts
+                .iter()
+                .find(|item| item.username == username)
+                .unwrap();
+            let credential = state
+                .storage
+                .store
+                .get_auth_password_credential(&account.id)
+                .await
+                .unwrap()
+                .expect("every successfully created account has its password");
+            assert!(
+                crate::auth::password::verify_auth_password(password, &credential)
+                    .await
+                    .unwrap()
+            );
+        }
+    }
+
+    #[tokio::test]
+    async fn concurrent_duplicate_auth_account_creation_keeps_only_winner_password() {
+        let (_directory, state) = account_test_state().await;
+        let create = |username: &str, password: &str| {
+            auth_account_create(
+                State(state.clone()),
+                Json(AuthAccountCreateBody {
+                    username: username.to_string(),
+                    password: password.to_string(),
+                }),
+            )
+        };
+        let (first, second) = tokio::join!(
+            create("Shared-User", "first-password123"),
+            create("shared-user", "second-password456"),
+        );
+        let (winner, winner_password, loser, loser_password) = if first.status() == StatusCode::OK {
+            (first, "first-password123", second, "second-password456")
+        } else {
+            (second, "second-password456", first, "first-password123")
+        };
+        assert_eq!(winner.status(), StatusCode::OK);
+        assert_eq!(loser.status(), StatusCode::CONFLICT);
+        let accounts = state.storage.store.get_auth_accounts().await.unwrap();
+        assert_eq!(accounts.len(), 1);
+        assert_eq!(accounts[0].username, "shared-user");
+        let credential = state
+            .storage
+            .store
+            .get_auth_password_credential(&accounts[0].id)
+            .await
+            .unwrap()
+            .unwrap();
+        assert!(
+            crate::auth::password::verify_auth_password(winner_password, &credential)
+                .await
+                .unwrap()
+        );
+        assert!(
+            !crate::auth::password::verify_auth_password(loser_password, &credential)
+                .await
+                .unwrap()
+        );
+    }
+
+    fn fake_password(account_id: &str, hash: &str) -> AuthPasswordCredential {
+        AuthPasswordCredential {
+            account_id: account_id.to_string(),
+            algorithm: "scrypt".to_string(),
+            salt: "00".repeat(16),
+            hash: hash.to_string(),
+            n: 16_384,
+            r: 8,
+            p: 1,
+            key_length: 64,
+            created_at: "2026-01-01T00:00:00Z".to_string(),
+            updated_at: "2026-01-01T00:00:00Z".to_string(),
+        }
+    }
+
+    #[tokio::test]
+    async fn auth_account_password_hash_wait_preserves_concurrent_create() {
+        let (_directory, state) = account_test_state().await;
+        for username in [None, Some("renamed-alice")] {
+            let account = auth_account("original-id", "");
+            state
+                .storage
+                .store
+                .set_auth_accounts(&[account])
+                .await
+                .unwrap();
+            state
+                .storage
+                .store
+                .set_auth_password_credential(&fake_password("original-id", "old"))
+                .await
+                .unwrap();
+            let hashing = tokio::sync::Notify::new();
+            let resume = tokio::sync::Notify::new();
+            // A controlled hash boundary proves create can complete while the
+            // first request hashes, and its account survives the subsequent write.
+            let update = update_auth_account_password(&state, "original-id", username, |_| async {
+                hashing.notify_one();
+                resume.notified().await;
+                Ok(fake_password("original-id", "new"))
+            });
+            let create = async {
+                hashing.notified().await;
+                let result = auth_account_create(
+                    State(state.clone()),
+                    Json(AuthAccountCreateBody {
+                        username: "concurrent".to_string(),
+                        password: "concurrent-password123".to_string(),
+                    }),
+                )
+                .await;
+                resume.notify_one();
+                result
+            };
+            let (updated, created) =
+                tokio::time::timeout(std::time::Duration::from_secs(30), async {
+                    tokio::join!(update, create)
+                })
+                .await
+                .expect("hash wait must not hold the mutation lock");
+            assert_eq!(created.status(), StatusCode::OK);
+            assert_eq!(updated.status(), StatusCode::OK);
+            let accounts = state.storage.store.get_auth_accounts().await.unwrap();
+            assert_eq!(accounts.len(), 2);
+            let original = accounts
+                .iter()
+                .find(|item| item.id == "original-id")
+                .unwrap();
+            assert_eq!(original.username, username.unwrap_or("alice"));
+            assert!(accounts.iter().any(|item| item.username == "concurrent"));
+            assert_eq!(
+                state
+                    .storage
+                    .store
+                    .get_auth_password_credential("original-id")
+                    .await
+                    .unwrap()
+                    .unwrap()
+                    .hash,
+                "new"
+            );
+        }
+    }
+
+    #[tokio::test]
+    async fn auth_account_password_hash_wait_rejects_target_changes_without_reviving_it() {
+        let (_directory, state) = account_test_state().await;
+        for changed in ["delete", "rename", "password", "totp"] {
+            let account = auth_account("original-id", "source");
+            state
+                .storage
+                .store
+                .set_auth_accounts(&[account])
+                .await
+                .unwrap();
+            state
+                .storage
+                .store
+                .set_auth_password_credential(&fake_password("original-id", "old"))
+                .await
+                .unwrap();
+            state
+                .storage
+                .store
+                .set_totps(&[TotpCredential {
+                    id: "source".to_string(),
+                    secret: "SECRET".to_string(),
+                    comment: "alice".to_string(),
+                    created_at: "2026-01-01T00:00:00Z".to_string(),
+                    access_scopes: json!([]),
+                    subdomain_access: json!({"mode":"all", "hosts":[]}),
+                }])
+                .await
+                .unwrap();
+            let hashing = tokio::sync::Notify::new();
+            let resume = tokio::sync::Notify::new();
+            let update = update_auth_account_password(
+                &state,
+                "original-id",
+                Some("requested-name"),
+                |_| async {
+                    hashing.notify_one();
+                    resume.notified().await;
+                    Ok(fake_password("original-id", "requested-password"))
+                },
+            );
+            let concurrent = async {
+                hashing.notified().await;
+                {
+                    let _mutation = state.storage.store.auth_account_mutation_lock.lock().await;
+                    match changed {
+                        "delete" => {
+                            state.storage.store.set_auth_accounts(&[]).await.unwrap();
+                            state.storage.store.set_totps(&[]).await.unwrap();
+                            state
+                                .storage
+                                .store
+                                .delete_auth_password_credential("original-id")
+                                .await
+                                .unwrap();
+                        }
+                        "rename" => {
+                            let mut accounts =
+                                state.storage.store.get_auth_accounts().await.unwrap();
+                            accounts[0].username = "concurrent-name".to_string();
+                            state
+                                .storage
+                                .store
+                                .set_auth_accounts(&accounts)
+                                .await
+                                .unwrap();
+                        }
+                        "password" => {
+                            state
+                                .storage
+                                .store
+                                .set_auth_password_credential(&fake_password(
+                                    "original-id",
+                                    "concurrent-password",
+                                ))
+                                .await
+                                .unwrap();
+                        }
+                        "totp" => {
+                            state.storage.store.set_totps(&[]).await.unwrap();
+                        }
+                        _ => unreachable!(),
+                    }
+                }
+                resume.notify_one();
+            };
+            let (response, ()) = tokio::time::timeout(std::time::Duration::from_secs(5), async {
+                tokio::join!(update, concurrent)
+            })
+            .await
+            .unwrap();
+            assert_eq!(
+                response.status(),
+                if changed == "delete" {
+                    StatusCode::NOT_FOUND
+                } else {
+                    StatusCode::CONFLICT
+                }
+            );
+            let accounts = state.storage.store.get_auth_accounts().await.unwrap();
+            if changed == "delete" {
+                assert!(accounts.is_empty());
+                assert!(
+                    state
+                        .storage
+                        .store
+                        .get_auth_password_credential("original-id")
+                        .await
+                        .unwrap()
+                        .is_none()
+                );
+            } else {
+                assert_ne!(accounts[0].username, "requested-name");
+                assert_ne!(
+                    state
+                        .storage
+                        .store
+                        .get_auth_password_credential("original-id")
+                        .await
+                        .unwrap()
+                        .unwrap()
+                        .hash,
+                    "requested-password"
+                );
+            }
+        }
+    }
+
+    #[tokio::test]
+    async fn cancelled_auth_account_password_request_finishes_revocation_and_rollback() {
+        let (_directory, state) = account_test_state().await;
+        for force_revoke_failure in [false, true] {
+            state
+                .storage
+                .store
+                .set_auth_accounts(&[auth_account("original-id", "")])
+                .await
+                .unwrap();
+            state
+                .storage
+                .store
+                .set_auth_password_credential(&fake_password("original-id", "old"))
+                .await
+                .unwrap();
+            if force_revoke_failure {
+                // Revocation removes this authoritative session, then the
+                // deliberately unavailable gateway causes its required trust
+                // sync to fail. The completion task must still roll back.
+                let mut session =
+                    crate::store::new_login_session("", "alice", "203.0.113.1", "test", 60);
+                session.method = "PASSWORD".to_string();
+                session.credential_id = "original-id".to_string();
+                state
+                    .storage
+                    .store
+                    .add_session("cancelled-update-session", &session, 60)
+                    .await
+                    .unwrap();
+            }
+            let committed = std::sync::Arc::new(tokio::sync::Notify::new());
+            let release = std::sync::Arc::new(tokio::sync::Notify::new());
+            let after_commit = {
+                let committed = committed.clone();
+                let release = release.clone();
+                async move {
+                    committed.notify_one();
+                    release.notified().await;
+                }
+            };
+            let mut request = Box::pin(update_auth_account_password_with_commit_hook(
+                &state,
+                "original-id",
+                Some("changed-name"),
+                |_| async { Ok(fake_password("original-id", "new")) },
+                after_commit,
+            ));
+            tokio::time::timeout(std::time::Duration::from_secs(5), async {
+                tokio::select! {
+                    _ = committed.notified() => {}
+                    _ = &mut request => panic!("request returned before the commit checkpoint was released"),
+                }
+            }).await.unwrap();
+            assert_eq!(
+                state
+                    .storage
+                    .store
+                    .get_auth_password_credential("original-id")
+                    .await
+                    .unwrap()
+                    .unwrap()
+                    .hash,
+                "new"
+            );
+            drop(request); // Simulate the HTTP client disappearing after commit.
+            assert!(
+                state
+                    .storage
+                    .store
+                    .auth_account_mutation_lock
+                    .try_lock()
+                    .is_err()
+            );
+            release.notify_one();
+            let finished = tokio::time::timeout(
+                std::time::Duration::from_secs(30),
+                state.storage.store.auth_account_mutation_lock.lock(),
+            )
+            .await
+            .expect("registry-owned mutation finishes after HTTP cancellation");
+            assert!(
+                state
+                    .storage
+                    .store
+                    .get_session("cancelled-update-session")
+                    .await
+                    .unwrap()
+                    .is_none()
+            );
+            assert_eq!(
+                state
+                    .storage
+                    .store
+                    .get_auth_password_credential("original-id")
+                    .await
+                    .unwrap()
+                    .unwrap()
+                    .hash,
+                if force_revoke_failure { "old" } else { "new" }
+            );
+            assert_eq!(
+                state
+                    .storage
+                    .store
+                    .get_auth_account("original-id")
+                    .await
+                    .unwrap()
+                    .unwrap()
+                    .username,
+                if force_revoke_failure {
+                    "alice"
+                } else {
+                    "changed-name"
+                }
+            );
+            drop(finished);
+        }
+        assert!(
+            state
+                .background_tasks
+                .shutdown(std::time::Duration::from_secs(1))
+                .await
+                .is_empty()
+        );
+    }
 
     #[test]
     fn derives_unique_usernames_from_totps() {

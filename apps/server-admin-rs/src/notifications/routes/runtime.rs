@@ -1,6 +1,15 @@
 use super::*;
 
-pub(super) async fn notification_dispatch_tick(state: &AppState) -> anyhow::Result<()> {
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(super) enum DispatchSchedule {
+    Idle,
+    Continue,
+    RetryAfter(Duration),
+}
+
+pub(super) async fn notification_dispatch_tick(
+    state: &AppState,
+) -> anyhow::Result<DispatchSchedule> {
     let token = create_runtime_token("dispatch");
     let acquired = state
         .storage
@@ -8,7 +17,9 @@ pub(super) async fn notification_dispatch_tick(state: &AppState) -> anyhow::Resu
         .acquire_notification_runtime_lease("dispatch", &token, DISPATCH_LEASE_TTL_SECONDS)
         .await?;
     if !acquired {
-        return Ok(());
+        // The lease holder may disappear without publishing another event.
+        // Retry on a timer, without busy-looping on a full unread batch.
+        return Ok(DispatchSchedule::RetryAfter(DISPATCH_ERROR_RETRY_DELAY));
     }
 
     let result = notification_dispatch_tick_locked(state).await;
@@ -23,7 +34,9 @@ pub(super) async fn notification_dispatch_tick(state: &AppState) -> anyhow::Resu
     result
 }
 
-pub(super) async fn notification_dispatch_tick_locked(state: &AppState) -> anyhow::Result<()> {
+pub(super) async fn notification_dispatch_tick_locked(
+    state: &AppState,
+) -> anyhow::Result<DispatchSchedule> {
     let mut last_stream_id = state
         .storage
         .store
@@ -44,7 +57,7 @@ pub(super) async fn notification_dispatch_tick_locked(state: &AppState) -> anyho
         last_stream_id = Some(latest);
     }
     let Some(last_stream_id) = last_stream_id else {
-        return Ok(());
+        return Ok(DispatchSchedule::Idle);
     };
 
     let items = state
@@ -53,13 +66,16 @@ pub(super) async fn notification_dispatch_tick_locked(state: &AppState) -> anyho
         .read_system_event_stream_after(&last_stream_id, STREAM_BATCH_SIZE)
         .await?;
     if items.is_empty() {
-        return Ok(());
+        return Ok(DispatchSchedule::Idle);
     }
+    let full_batch = items.len() == STREAM_BATCH_SIZE;
     let rules = load_rules(state).await?;
     for (stream_id, mut event) in items {
         match handle_notification_event(state, &mut event, &rules, &stream_id).await {
             Ok(NotificationEventDisposition::Completed) => {}
-            Ok(NotificationEventDisposition::WaitingForIpLocation) => break,
+            Ok(NotificationEventDisposition::WaitingForIpLocation(delay)) => {
+                return Ok(DispatchSchedule::RetryAfter(delay));
+            }
             Err(error) => {
                 // Stable trigger and delivery IDs make retrying safe. Keep the
                 // cursor on this event so a transient storage/provider setup
@@ -74,21 +90,33 @@ pub(super) async fn notification_dispatch_tick_locked(state: &AppState) -> anyho
             .set_notification_last_stream_id(&stream_id)
             .await?;
     }
-    Ok(())
+    Ok(if full_batch {
+        DispatchSchedule::Continue
+    } else {
+        DispatchSchedule::Idle
+    })
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 enum NotificationEventDisposition {
     Completed,
-    WaitingForIpLocation,
+    WaitingForIpLocation(Duration),
 }
 
+#[cfg(test)]
 pub(super) fn should_wait_for_ip_location(stream_id: &str, now_ms: i64) -> bool {
+    ip_location_notification_wait(stream_id, now_ms).is_some()
+}
+
+fn ip_location_notification_wait(stream_id: &str, now_ms: i64) -> Option<Duration> {
     stream_id
         .split_once('-')
         .and_then(|(milliseconds, _)| milliseconds.parse::<i64>().ok())
-        .is_some_and(|received_at| {
-            now_ms.saturating_sub(received_at) < IP_LOCATION_NOTIFICATION_WAIT_MS
+        .and_then(|received_at| {
+            let remaining = received_at
+                .saturating_add(IP_LOCATION_NOTIFICATION_WAIT_MS)
+                .saturating_sub(now_ms);
+            (remaining > 0).then(|| Duration::from_millis(remaining as u64))
         })
 }
 
@@ -109,8 +137,10 @@ async fn handle_notification_event(
 
     let hydration =
         crate::events::hydrate_system_event_ip_locations(state, std::slice::from_mut(event)).await;
-    if hydration.pending && should_wait_for_ip_location(stream_id, time_utils::now_ms()) {
-        return Ok(NotificationEventDisposition::WaitingForIpLocation);
+    if hydration.pending
+        && let Some(delay) = ip_location_notification_wait(stream_id, time_utils::now_ms())
+    {
+        return Ok(NotificationEventDisposition::WaitingForIpLocation(delay));
     }
 
     for rule in matching_rules {

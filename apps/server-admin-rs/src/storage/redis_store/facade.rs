@@ -50,6 +50,7 @@ pub struct Store {
     pub(super) path: PathBuf,
     pub(super) config_snapshot: Arc<ArcSwap<Value>>,
     pub(super) config_snapshot_revision: Arc<StdMutex<u64>>,
+    pub(crate) auth_account_mutation_lock: Arc<tokio::sync::Mutex<()>>,
     pub(super) typed: TypedRepositories,
     pub(super) typed_config_primary_bootstrapped: Arc<AtomicBool>,
     pub(super) typed_config_shadow: ShadowTracker,

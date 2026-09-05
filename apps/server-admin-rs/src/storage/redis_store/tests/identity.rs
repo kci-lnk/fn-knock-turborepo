@@ -1015,7 +1015,7 @@ async fn docker_admin_security_shadow_rebuilds_after_backup_restore_and_clear() 
 }
 
 #[tokio::test]
-async fn docker_admin_password_rotation_and_reset_are_atomic_with_security_state() {
+async fn docker_admin_password_initialization_and_reset_are_atomic_with_security_state() {
     let dir = tempfile::tempdir().expect("create temp dir");
     let path = dir.path().join("fn-knock.sqlite3");
     let store = Store::connect(&path).await.expect("open store");
@@ -1030,10 +1030,6 @@ async fn docker_admin_password_rotation_and_reset_are_atomic_with_security_state
         created_at: crate::time_utils::now_iso(),
         updated_at: crate::time_utils::now_iso(),
     };
-    store
-        .set_docker_admin_password(&old_password)
-        .await
-        .expect("seed old Docker password");
     let make_session = |id: &str, ip: &str| DockerAdminSessionRecord {
         id: id.to_string(),
         created_at: crate::time_utils::now_iso(),
@@ -1073,14 +1069,11 @@ async fn docker_admin_password_rotation_and_reset_are_atomic_with_security_state
     new_password.updated_at = crate::time_utils::iso_after_seconds(1);
     assert!(
         store
-            .replace_docker_admin_password_and_clear_security_state(&new_password)
+            .install_docker_admin_password_if_absent_and_clear_security_state(&new_password)
             .await
             .is_err()
     );
-    assert_eq!(
-        store.docker_admin_password().await.unwrap().unwrap().hash,
-        old_password.hash
-    );
+    assert!(store.docker_admin_password().await.unwrap().is_none());
     assert!(
         store
             .docker_admin_session(&first_session.id)
@@ -1088,8 +1081,15 @@ async fn docker_admin_password_rotation_and_reset_are_atomic_with_security_state
             .unwrap()
             .is_some()
     );
+    store
+        .set_docker_admin_password(&old_password)
+        .await
+        .expect("seed old Docker password");
     assert!(store.reset_docker_admin_password_state().await.is_err());
-    assert!(store.docker_admin_password().await.unwrap().is_some());
+    assert_eq!(
+        store.docker_admin_password().await.unwrap().unwrap().hash,
+        old_password.hash
+    );
 
     let connection = open_fixture_connection(&path);
     connection
@@ -1107,5 +1107,83 @@ async fn docker_admin_password_rotation_and_reset_are_atomic_with_security_state
     assert_eq!(
         store.typed.typed_docker_admin.counts().await.unwrap(),
         (0, 0)
+    );
+}
+
+#[tokio::test]
+async fn docker_admin_password_initialization_is_atomic_across_stores() {
+    let (_dir, first) = open_test_store().await;
+    let second = Store::connect(&first.path).await.unwrap();
+    let first_record = DockerAdminPasswordRecord {
+        algorithm: "scrypt".to_string(),
+        salt: "00".repeat(16),
+        hash: "first-password-hash".to_string(),
+        n: 16_384,
+        r: 8,
+        p: 1,
+        key_length: 32,
+        created_at: crate::time_utils::now_iso(),
+        updated_at: crate::time_utils::now_iso(),
+    };
+    let mut second_record = first_record.clone();
+    second_record.hash = "second-password-hash".to_string();
+    let (first_result, second_result) = tokio::join!(
+        first.install_docker_admin_password_if_absent_and_clear_security_state(&first_record),
+        second.install_docker_admin_password_if_absent_and_clear_security_state(&second_record),
+    );
+    let first_won = first_result.unwrap();
+    assert_ne!(first_won, second_result.unwrap());
+    let expected_hash = if first_won {
+        &first_record.hash
+    } else {
+        &second_record.hash
+    };
+    assert_eq!(
+        &first.docker_admin_password().await.unwrap().unwrap().hash,
+        expected_hash
+    );
+
+    let session = DockerAdminSessionRecord {
+        id: "initialized-session".to_string(),
+        created_at: crate::time_utils::now_iso(),
+        updated_at: crate::time_utils::now_iso(),
+        expires_at: crate::time_utils::iso_after_seconds(600),
+        ttl_seconds: 600,
+        password_revision: "winner-password-revision".to_string(),
+        ip: "192.0.2.177".to_string(),
+        user_agent: "test".to_string(),
+    };
+    first.set_docker_admin_session(&session).await.unwrap();
+    first
+        .register_docker_admin_login_failure(&session.ip)
+        .await
+        .unwrap();
+    assert!(
+        !second
+            .install_docker_admin_password_if_absent_and_clear_security_state(&second_record)
+            .await
+            .unwrap()
+    );
+    assert_eq!(
+        &first.docker_admin_password().await.unwrap().unwrap().hash,
+        expected_hash
+    );
+    assert!(
+        first
+            .docker_admin_session(&session.id)
+            .await
+            .unwrap()
+            .is_some()
+    );
+    assert!(
+        first
+            .docker_admin_login_attempt(&session.ip)
+            .await
+            .unwrap()
+            .is_some()
+    );
+    assert_eq!(
+        first.typed.typed_docker_admin.counts().await.unwrap(),
+        (1, 1)
     );
 }

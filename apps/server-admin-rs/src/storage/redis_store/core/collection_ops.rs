@@ -160,7 +160,14 @@ impl Store {
             return Ok(());
         }
         let mut conn = self.conn();
-        conn.del(keys).await
+        let _: () = conn.del(keys).await?;
+        if keys
+            .iter()
+            .any(|key| matches!(key.as_str(), CONFIG_KEY | HOST_MAPPINGS_GENERATION_KEY))
+        {
+            self.refresh_config_snapshot().await?;
+        }
+        Ok(())
     }
 
     pub async fn scan_keys(

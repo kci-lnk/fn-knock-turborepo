@@ -19,10 +19,15 @@ const parseArguments = (args) => {
   return values;
 };
 
-const parseTolerance = (raw, label, fallback) => {
+const parseTolerance = (raw, label, fallback, maximum = 10) => {
   const value = raw === undefined ? fallback : Number(raw);
-  if (!Number.isFinite(value) || value < 0 || value > 10) {
-    throw new Error(`${label} must be a fraction from 0 to 10`);
+  if (
+    raw?.trim() === "" ||
+    !Number.isFinite(value) ||
+    value < 0 ||
+    value > maximum
+  ) {
+    throw new Error(`${label} must be a fraction from 0 to ${maximum}`);
   }
   return value;
 };
@@ -55,7 +60,8 @@ const tolerances = {
   loadRssImprovement: parseTolerance(
     args.get("--min-load-rss-improvement"),
     "--min-load-rss-improvement",
-    0.2,
+    0,
+    1,
   ),
 };
 const [base, current] = await Promise.all([

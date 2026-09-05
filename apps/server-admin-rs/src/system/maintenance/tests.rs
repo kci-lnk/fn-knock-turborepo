@@ -22,6 +22,435 @@ async fn maintenance_test_state() -> (tempfile::TempDir, AppState) {
 }
 
 #[tokio::test]
+async fn backup_routes_reject_busy_requests_before_polling_upload_bodies() {
+    use std::sync::{
+        Arc,
+        atomic::{AtomicBool, Ordering},
+    };
+    use tokio_stream::StreamExt;
+
+    let (_directory, state) = maintenance_test_state().await;
+    let admission = routes::BackupAdmission::try_acquire(&state).unwrap();
+    let app = maintenance_routes().with_state(state.clone());
+    for (method, path) in [
+        ("POST", "/api/admin/maintenance/backup/export/fnos"),
+        ("POST", "/api/admin/maintenance/backup/import"),
+        ("POST", "/api/admin/maintenance/backup/import/fnos"),
+        ("POST", "/api/admin/maintenance/backup/import/automatic"),
+    ] {
+        let polled = Arc::new(AtomicBool::new(false));
+        let stream_polled = polled.clone();
+        let body = Body::from_stream(
+            tokio_stream::once(Ok::<_, io::Error>(bytes::Bytes::from_static(
+                b"invalid JSON",
+            )))
+            .map(move |chunk| {
+                stream_polled.store(true, Ordering::Release);
+                chunk
+            }),
+        );
+        let response = app
+            .clone()
+            .oneshot(
+                axum::http::Request::builder()
+                    .method(method)
+                    .uri(path)
+                    .header(header::CONTENT_TYPE, "application/json")
+                    .body(body)
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(
+            response.status(),
+            StatusCode::SERVICE_UNAVAILABLE,
+            "{method} {path}"
+        );
+        assert_eq!(response.headers()[header::RETRY_AFTER], "1");
+        assert!(
+            !polled.load(Ordering::Acquire),
+            "{method} {path} must reject before reading its body"
+        );
+    }
+    drop(admission);
+    assert!(routes::BackupAdmission::try_acquire(&state).is_ok());
+}
+
+async fn assert_backup_waiter_pending<F: Future>(mut future: std::pin::Pin<&mut F>) {
+    std::future::poll_fn(|cx| {
+        assert!(future.as_mut().poll(cx).is_pending());
+        std::task::Poll::Ready(())
+    })
+    .await;
+}
+
+#[tokio::test]
+async fn backup_export_queue_has_three_waiters_and_preserves_fifo() {
+    let (_directory, state) = maintenance_test_state().await;
+    let active = routes::BackupExportAdmission::acquire(&state)
+        .await
+        .unwrap();
+    assert_eq!(
+        state.maintenance.backup_export_waiters.available_permits(),
+        3
+    );
+    let mut waiters = (0..3)
+        .map(|_| Box::pin(routes::BackupExportAdmission::acquire(&state)))
+        .collect::<Vec<_>>();
+    for waiter in &mut waiters {
+        // Polling once establishes the exact FIFO order, without sleeps or
+        // scheduling assumptions about concurrently spawned tasks.
+        assert_backup_waiter_pending(waiter.as_mut()).await;
+    }
+    assert_eq!(
+        state.maintenance.backup_export_waiters.available_permits(),
+        0
+    );
+    let response = maintenance_routes()
+        .with_state(state.clone())
+        .oneshot(
+            axum::http::Request::builder()
+                .uri("/api/admin/maintenance/backup/export")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::SERVICE_UNAVAILABLE);
+    assert_eq!(response.headers()[header::RETRY_AFTER], "1");
+    assert_eq!(
+        state.maintenance.backup_export_waiters.available_permits(),
+        0
+    );
+
+    drop(active);
+    for expected_available in 1..=3 {
+        // A newly arriving immediate request cannot take the permit reserved
+        // for the oldest waiter, even before that waiter is polled again.
+        assert!(routes::BackupAdmission::try_acquire(&state).is_err());
+        for later in waiters.iter_mut().skip(1) {
+            assert_backup_waiter_pending(later.as_mut()).await;
+        }
+        let active = waiters.remove(0).await.unwrap();
+        assert_eq!(
+            state.maintenance.backup_export_waiters.available_permits(),
+            expected_available,
+        );
+        assert!(routes::BackupAdmission::try_acquire(&state).is_err());
+        drop(active);
+    }
+    assert!(routes::BackupAdmission::try_acquire(&state).is_ok());
+}
+
+#[tokio::test]
+async fn cancelled_or_timed_out_export_waiter_releases_capacity_without_starting_work() {
+    use std::sync::atomic::{AtomicBool, Ordering};
+
+    let (_directory, state) = maintenance_test_state().await;
+    let active = routes::BackupAdmission::try_acquire(&state).unwrap();
+    let started = AtomicBool::new(false);
+    let mut cancelled = Box::pin(async {
+        let admission = routes::BackupExportAdmission::acquire(&state).await?;
+        started.store(true, Ordering::Release);
+        Ok::<_, BackupImportError>(admission)
+    });
+    assert_backup_waiter_pending(cancelled.as_mut()).await;
+    assert_eq!(
+        state.maintenance.backup_export_waiters.available_permits(),
+        2
+    );
+    drop(cancelled);
+    assert!(!started.load(Ordering::Acquire));
+    assert_eq!(
+        state.maintenance.backup_export_waiters.available_permits(),
+        3
+    );
+
+    let error =
+        routes::BackupExportAdmission::acquire_with_timeout(&state, std::time::Duration::ZERO)
+            .await
+            .err()
+            .expect("busy zero-deadline waiter must time out");
+    assert_eq!(error.status, StatusCode::SERVICE_UNAVAILABLE);
+    assert_eq!(
+        state.maintenance.backup_export_waiters.available_permits(),
+        3
+    );
+    assert!(routes::BackupAdmission::try_acquire(&state).is_err());
+    drop(active);
+    assert!(!started.load(Ordering::Acquire));
+    assert!(routes::BackupExportAdmission::acquire(&state).await.is_ok());
+}
+
+#[tokio::test]
+async fn shutdown_cancels_export_waiters_without_releasing_an_active_backup() {
+    let (_directory, state) = maintenance_test_state().await;
+    let active = routes::BackupAdmission::try_acquire(&state).unwrap();
+    let mut waiting = Box::pin(routes::BackupExportAdmission::acquire(&state));
+    assert_backup_waiter_pending(waiting.as_mut()).await;
+    state.shutdown.cancel();
+    let error = waiting.await.err().expect("shutdown rejects the waiter");
+    assert_eq!(error.status, StatusCode::SERVICE_UNAVAILABLE);
+    assert_eq!(
+        state.maintenance.backup_export_waiters.available_permits(),
+        3
+    );
+    assert!(routes::BackupAdmission::try_acquire(&state).is_err());
+    drop(active);
+    assert!(
+        routes::BackupExportAdmission::acquire(&state)
+            .await
+            .is_err()
+    );
+}
+
+#[tokio::test]
+async fn queued_export_waits_for_the_response_body_and_last_bytes_owner() {
+    use http_body_util::BodyExt;
+
+    let (_directory, state) = maintenance_test_state().await;
+    let routes::BackupExportAdmission(admission) = routes::BackupExportAdmission::acquire(&state)
+        .await
+        .unwrap();
+    let response = binary_archive_response(
+        BackupArchive {
+            buffer: BackupArchiveBuffer::from_bytes(&[1, 2, 3]),
+            exported_at: "2026-09-05T00:00:00Z".to_string(),
+            filename: "test.knock".to_string(),
+        },
+        admission,
+        &Translator::new("en"),
+    );
+    let mut waiting = Box::pin(routes::BackupExportAdmission::acquire(&state));
+    assert_backup_waiter_pending(waiting.as_mut()).await;
+    let mut body = response.into_body();
+    let frame = body.frame().await.unwrap().unwrap().into_data().unwrap();
+    let retained = frame.clone();
+    drop(frame);
+    assert!(body.frame().await.is_none());
+    assert_backup_waiter_pending(waiting.as_mut()).await;
+    drop(body);
+    assert_backup_waiter_pending(waiting.as_mut()).await;
+    drop(retained);
+    let next = waiting.await.unwrap();
+    assert_eq!(
+        state.maintenance.backup_export_waiters.available_permits(),
+        3
+    );
+    assert!(routes::BackupAdmission::try_acquire(&state).is_err());
+    drop(next);
+    assert!(routes::BackupAdmission::try_acquire(&state).is_ok());
+}
+
+#[tokio::test]
+async fn queued_get_export_returns_an_archive_after_the_previous_download_drops() {
+    let (_directory, state) = maintenance_test_state().await;
+    let app = maintenance_routes().with_state(state.clone());
+    let request = || {
+        axum::http::Request::builder()
+            .uri("/api/admin/maintenance/backup/export")
+            .body(Body::empty())
+            .unwrap()
+    };
+    let first = app.clone().oneshot(request()).await.unwrap();
+    assert_eq!(first.status(), StatusCode::OK);
+    let mut second = Box::pin(app.oneshot(request()));
+    assert_backup_waiter_pending(second.as_mut()).await;
+    assert_eq!(
+        state.maintenance.backup_export_waiters.available_permits(),
+        2
+    );
+    drop(first);
+    let second = second.await.unwrap();
+    assert_eq!(second.status(), StatusCode::OK);
+    assert!(second.headers().contains_key(header::CONTENT_LENGTH));
+    let bytes = axum::body::to_bytes(second.into_body(), MAX_BACKUP_ARCHIVE_SIZE)
+        .await
+        .unwrap();
+    assert_eq!(&bytes[..4], b"PK\x03\x04");
+    assert_eq!(
+        state.maintenance.backup_export_waiters.available_permits(),
+        3
+    );
+    drop(bytes);
+    assert!(routes::BackupAdmission::try_acquire(&state).is_ok());
+}
+
+#[tokio::test]
+async fn cancelled_backup_upload_releases_admission_before_work_starts() {
+    let (_directory, state) = maintenance_test_state().await;
+    let body = Body::from_stream(tokio_stream::pending::<Result<bytes::Bytes, io::Error>>());
+    let request = axum::http::Request::builder()
+        .method("POST")
+        .uri("/api/admin/maintenance/backup/import")
+        .header(header::CONTENT_TYPE, "application/json")
+        .body(body)
+        .unwrap();
+    let mut request = Box::pin(
+        maintenance_routes()
+            .with_state(state.clone())
+            .oneshot(request),
+    );
+    std::future::poll_fn(|cx| {
+        assert!(request.as_mut().poll(cx).is_pending());
+        std::task::Poll::Ready(())
+    })
+    .await;
+    assert!(routes::BackupAdmission::try_acquire(&state).is_err());
+    drop(request);
+    assert!(routes::BackupAdmission::try_acquire(&state).is_ok());
+}
+
+#[tokio::test]
+async fn cancelled_manual_backup_finishes_work_before_releasing_admission() {
+    let (_directory, state) = maintenance_test_state().await;
+    let admission = routes::BackupAdmission::try_acquire(&state).unwrap();
+    let request_state = state.clone();
+    let work_state = state.clone();
+    let (started_tx, started_rx) = tokio::sync::oneshot::channel();
+    let (release_tx, release_rx) = tokio::sync::oneshot::channel();
+    let request = tokio::spawn(async move {
+        routes::run_backup_operation(&request_state, admission, async move {
+            started_tx.send(()).unwrap();
+            release_rx.await.unwrap();
+            work_state
+                .storage
+                .store
+                .set_string_value("fn_knock:test:completed-backup", "yes")
+                .await
+                .map_err(|error| BackupImportError::internal(error.to_string()))?;
+            Ok(())
+        })
+        .await
+    });
+    started_rx.await.unwrap();
+    request.abort();
+    let _ = request.await;
+    assert!(routes::BackupAdmission::try_acquire(&state).is_err());
+    release_tx.send(()).unwrap();
+    let _guard = tokio::time::timeout(
+        std::time::Duration::from_secs(2),
+        state.maintenance.backup_request_lock.lock(),
+    )
+    .await
+    .unwrap();
+    assert_eq!(
+        state
+            .storage
+            .store
+            .get_string_value("fn_knock:test:completed-backup")
+            .await
+            .unwrap()
+            .as_deref(),
+        Some("yes")
+    );
+}
+
+#[tokio::test]
+async fn backup_download_admission_follows_retained_response_bytes() {
+    let (_directory, state) = maintenance_test_state().await;
+    let admission = routes::BackupAdmission::try_acquire(&state).unwrap();
+    let response = binary_archive_response(
+        BackupArchive {
+            buffer: BackupArchiveBuffer::from_bytes(&[1, 2, 3]),
+            exported_at: "2026-09-05T00:00:00Z".to_string(),
+            filename: "test.knock".to_string(),
+        },
+        admission,
+        &Translator::new("en"),
+    );
+    assert_eq!(response.status(), StatusCode::OK);
+    assert!(routes::BackupAdmission::try_acquire(&state).is_err());
+    let bytes = axum::body::to_bytes(response.into_body(), 1024)
+        .await
+        .unwrap();
+    assert_eq!(&bytes[..], &[1, 2, 3]);
+    let retained = bytes.clone();
+    drop(bytes);
+    assert!(routes::BackupAdmission::try_acquire(&state).is_err());
+    drop(retained);
+    assert!(routes::BackupAdmission::try_acquire(&state).is_ok());
+}
+
+#[tokio::test]
+async fn backup_download_admission_follows_stream_body_and_last_chunk() {
+    use http_body_util::BodyExt;
+
+    let (_directory, state) = maintenance_test_state().await;
+    let content = vec![42; 2 * 64 * 1024 + 17];
+    for retain_body in [true, false] {
+        let admission = routes::BackupAdmission::try_acquire(&state).unwrap();
+        let response = binary_archive_response(
+            BackupArchive {
+                buffer: BackupArchiveBuffer::from_bytes(&content),
+                exported_at: "2026-09-05T00:00:00Z".to_string(),
+                filename: "test.knock".to_string(),
+            },
+            admission,
+            &Translator::new("en"),
+        );
+        assert_eq!(
+            response.headers()[header::CONTENT_LENGTH],
+            content.len().to_string()
+        );
+        let mut body = response.into_body();
+        let mut last = None;
+        let mut received = 0;
+        let mut chunks = 0;
+        while let Some(frame) = body.frame().await {
+            let data = frame.unwrap().into_data().unwrap();
+            assert!(data.len() <= 64 * 1024);
+            assert!(data.iter().all(|byte| *byte == 42));
+            received += data.len();
+            chunks += 1;
+            last = Some(data);
+        }
+        assert_eq!(received, content.len());
+        assert_eq!(chunks, 3);
+        assert!(routes::BackupAdmission::try_acquire(&state).is_err());
+        if retain_body {
+            drop(last);
+            assert!(routes::BackupAdmission::try_acquire(&state).is_err());
+            drop(body);
+        } else {
+            drop(body);
+            let last = last.unwrap();
+            let retained = last.clone();
+            drop(last);
+            assert!(routes::BackupAdmission::try_acquire(&state).is_err());
+            drop(retained);
+        }
+        assert!(routes::BackupAdmission::try_acquire(&state).is_ok());
+    }
+}
+
+#[test]
+fn backup_base64_decode_checks_padded_size_before_allocating() {
+    for data in [b"1".as_slice(), b"12", b"123", b"1234", b"12345"] {
+        let body = || ImportBackupBody {
+            filename: Some("test.knock".to_string()),
+            archive_base64: format!(" {} ", STANDARD.encode(data)),
+        };
+        assert_eq!(
+            decode_backup_archive_body(body(), data.len()).unwrap(),
+            data
+        );
+        let error = decode_backup_archive_body(body(), data.len() - 1).unwrap_err();
+        assert_eq!(error.status, StatusCode::BAD_REQUEST);
+        assert_eq!(error.message, "Backup archive is too large");
+    }
+    let error = decode_backup_archive_body(
+        ImportBackupBody {
+            filename: None,
+            archive_base64: "a===".to_string(),
+        },
+        128,
+    )
+    .unwrap_err();
+    assert_eq!(error.message, "Backup archive base64 is invalid");
+}
+
+#[tokio::test]
 async fn clear_all_data_requires_the_localized_confirmation_phrase() {
     let (_directory, state) = maintenance_test_state().await;
     let automatic_directory = automatic_backup_directory(&state);
@@ -151,8 +580,12 @@ fn filters_backup_keys_like_node() {
         "fn_knock:auth:subdomain_rule_grant_active:app.example.com"
     ));
     assert!(should_export_backup_key("fn_knock:terminal:targets"));
-    assert!(should_export_backup_key("fn_knock:terminal:feature-settings-v2"));
-    assert!(!should_export_backup_key("fn_knock:terminal:access-grant:browser"));
+    assert!(should_export_backup_key(
+        "fn_knock:terminal:feature-settings-v2"
+    ));
+    assert!(!should_export_backup_key(
+        "fn_knock:terminal:access-grant:browser"
+    ));
     assert!(!should_export_backup_key(
         "fn_knock:terminal:local-settings"
     ));
@@ -235,6 +668,43 @@ async fn excluded_runtime_data_does_not_consume_the_export_budget() {
     assert_eq!(entries[0]["key"], json!("fn_knock:config:test"));
 }
 
+#[tokio::test]
+async fn backup_export_budget_counts_escaped_json_exactly() {
+    let (_directory, state) = maintenance_test_state().await;
+    let key = "fn_knock:backup-budget-test";
+    let value = "\0\n\"\\\u{4e2d}\u{6587}";
+    state
+        .storage
+        .store
+        .set_string_value(key, value)
+        .await
+        .unwrap();
+    let entries = state
+        .storage
+        .store
+        .export_backup_entries_by_prefix_limited(key, 1024, |_| true)
+        .await
+        .unwrap();
+    assert_eq!(entries.len(), 1);
+    assert_eq!(entries[0]["value"], value);
+    let exact_size = serde_json::to_vec(&entries[0]).unwrap().len();
+    let exact = state
+        .storage
+        .store
+        .export_backup_entries_by_prefix_limited(key, exact_size, |_| true)
+        .await
+        .unwrap();
+    assert_eq!(exact, entries);
+    assert!(
+        state
+            .storage
+            .store
+            .export_backup_entries_by_prefix_limited(key, exact_size - 1, |_| true)
+            .await
+            .is_err()
+    );
+}
+
 #[test]
 fn restores_disabled_waf_before_other_runtime_steps() {
     assert!(should_restore_waf_before_other_runtime_steps(&json!({
@@ -297,6 +767,57 @@ fn writes_encrypted_zip_headers() {
             .as_bytes(),
         payload
     );
+}
+
+#[test]
+fn encrypted_zip_round_trips_incompressible_and_empty_payloads() {
+    let mut random = 0x1234_5678_9abc_def0_u64;
+    let payload = (0..256 * 1024)
+        .map(|_| {
+            random ^= random << 13;
+            random ^= random >> 7;
+            random ^= random << 17;
+            b' ' + (random % 95) as u8
+        })
+        .collect::<Vec<_>>();
+    for content in [payload.as_slice(), &[]] {
+        let archive = create_password_protected_zip(
+            KNOCK_BACKUP_JSON_FILENAME,
+            content,
+            KNOCK_BACKUP_PASSWORD,
+            1_704_067_200_000,
+        )
+        .unwrap();
+        assert_eq!(
+            read_backup_json_from_archive_native(&archive)
+                .unwrap()
+                .as_bytes(),
+            content
+        );
+    }
+}
+
+#[tokio::test]
+async fn cancelled_backup_request_keeps_archive_lock_until_work_finishes() {
+    let lock = std::sync::Arc::new(tokio::sync::Mutex::new(()));
+    let guard = lock.clone().lock_owned().await;
+    let (started_tx, started_rx) = tokio::sync::oneshot::channel();
+    let (release_tx, release_rx) = std::sync::mpsc::channel();
+    let task = tokio::spawn(run_backup_archive_work(guard, move || {
+        let _ = started_tx.send(());
+        release_rx.recv().unwrap();
+    }));
+    tokio::time::timeout(std::time::Duration::from_secs(1), started_rx)
+        .await
+        .unwrap()
+        .unwrap();
+    task.abort();
+    let _ = task.await;
+    assert!(lock.try_lock().is_err());
+    release_tx.send(()).unwrap();
+    let _guard = tokio::time::timeout(std::time::Duration::from_secs(1), lock.lock())
+        .await
+        .unwrap();
 }
 
 #[test]
@@ -1051,7 +1572,7 @@ async fn backup_restore_preserves_automatic_backup_settings_atomically() {
     .unwrap();
 
     let translator = Translator::from_state(&state).await;
-    let result = import_backup_archive_buffer(&state, archive.buffer, &translator)
+    let result = import_backup_archive_buffer(&state, archive.buffer.into_bytes(), &translator)
         .await
         .expect("restore backup");
     assert_eq!(result["imported_keys"], json!(1));
@@ -1212,7 +1733,8 @@ async fn backup_restore_round_trips_terminal_and_wol_credentials_without_plainte
     wol::write_backup_test_target_secrets(&state, wol_target_id, wol_secrets);
 
     let archive = export_backup_archive(&state).await.unwrap();
-    let backup_json = read_backup_json_from_archive_native(&archive.buffer).unwrap();
+    let archive_bytes = archive.buffer.into_bytes();
+    let backup_json = read_backup_json_from_archive_native(&archive_bytes).unwrap();
     for secret in [
         "terminal-password-secret",
         "terminal-key-secret",
@@ -1250,7 +1772,7 @@ async fn backup_restore_round_trips_terminal_and_wol_credentials_without_plainte
     wol::write_backup_test_target_secrets(&state, wol_target_id, [b"changed"; 5]);
 
     let translator = Translator::from_state(&state).await;
-    import_backup_archive_buffer(&state, archive.buffer, &translator)
+    import_backup_archive_buffer(&state, archive_bytes, &translator)
         .await
         .expect("restore credential-bearing backup");
 

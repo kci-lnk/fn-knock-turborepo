@@ -24,7 +24,7 @@ pub(super) async fn hydrate_analytics_response(state: &AppState, mut data: Value
         .unwrap_or(0);
     hydrate_dimension_shares(&mut data, requests);
 
-    let clients = take_internal_clients(&mut data);
+    let ips = take_internal_client_ips(&mut data);
     let total_clients = data
         .get("summary")
         .and_then(|value| value.get("unique_clients"))
@@ -38,30 +38,30 @@ pub(super) async fn hydrate_analytics_response(state: &AppState, mut data: Value
     let mut resolved_region_clients = 0_i64;
     let mut pending_clients = 0_i64;
 
-    for client in clients {
-        let Some(ip) = client.get("ip").and_then(Value::as_str) else {
-            continue;
-        };
-        match ip_location::get_ip_location_snapshot(state, ip).await {
-            Ok(snapshot) => {
-                let status = snapshot.get("status").and_then(Value::as_str).unwrap_or("");
-                if matches!(status, "queued" | "processing") {
-                    pending_clients += 1;
-                    continue;
-                }
-                if status != "success" {
-                    continue;
-                }
-                let country_code = analytics_country_code(&snapshot);
-                if let Some(country_code) = &country_code {
-                    resolved_clients += 1;
-                    *countries.entry(country_code.clone()).or_default() += 1;
-                }
+    for batch in ips.chunks(ip_location::IP_LOCATION_ANALYTICS_BATCH_SIZE) {
+        match ip_location::get_ip_location_snapshots_analytics(state, batch).await {
+            Ok(snapshots) => {
+                for snapshot in snapshots {
+                    let status = snapshot.get("status").and_then(Value::as_str).unwrap_or("");
+                    if matches!(status, "queued" | "processing") {
+                        pending_clients += 1;
+                        continue;
+                    }
+                    if status != "success" {
+                        continue;
+                    }
+                    let country_code = analytics_country_code(&snapshot);
+                    if let Some(country_code) = &country_code {
+                        resolved_clients += 1;
+                        *countries.entry(country_code.clone()).or_default() += 1;
+                    }
 
-                if let Some(region) = analytics_region(&snapshot, country_code.unwrap_or_default())
-                {
-                    resolved_region_clients += 1;
-                    *regions.entry(region).or_default() += 1;
+                    if let Some(region) =
+                        analytics_region(&snapshot, country_code.unwrap_or_default())
+                    {
+                        resolved_region_clients += 1;
+                        *regions.entry(region).or_default() += 1;
+                    }
                 }
             }
             Err(error) => {
@@ -187,17 +187,7 @@ pub(super) async fn with_geo_refresh_lease<T>(
 }
 
 pub(super) fn spawn_geo_refresh(state: &AppState, mut data: Value, lock_id: String) {
-    let ips = take_internal_clients(&mut data)
-        .into_iter()
-        .filter_map(|client| {
-            client
-                .get("ip")
-                .and_then(Value::as_str)
-                .map(str::trim)
-                .filter(|ip| !ip.is_empty())
-                .map(str::to_string)
-        })
-        .collect::<Vec<_>>();
+    let ips = take_internal_client_ips(&mut data);
     let task_state = state.clone();
     state.spawn_background("gateway-analytics-geo-refresh", async move {
         if let Err(error) = run_geo_refresh(&task_state, ips, &lock_id).await {
@@ -211,7 +201,7 @@ async fn is_geo_refresh_active(state: &AppState) -> crate::storage::StorageResul
     Ok(state
         .storage
         .store
-        .get_json_value(GEO_REFRESH_LOCK_KEY)
+        .get_json_value_analytics(GEO_REFRESH_LOCK_KEY)
         .await?
         .is_some())
 }
@@ -221,21 +211,40 @@ async fn run_geo_refresh(state: &AppState, ips: Vec<String>, lock_id: &str) -> a
 }
 
 async fn run_geo_refresh_work(state: &AppState, ips: Vec<String>) -> anyhow::Result<()> {
-    ip_location::ensure_ip_locations_enqueued(state, ips.clone()).await?;
+    for batch in ips.chunks(ip_location::IP_LOCATION_ANALYTICS_BATCH_SIZE) {
+        ip_location::ensure_ip_locations_enqueued(state, batch.to_vec()).await?;
+    }
     let deadline = tokio::time::Instant::now() + Duration::from_secs(GEO_REFRESH_WAIT_SECONDS);
+    let mut pending = ips;
     loop {
-        let mut active = false;
-        for ip in &ips {
-            let snapshot = ip_location::get_ip_location_snapshot(state, ip).await?;
-            let status = snapshot.get("status").and_then(Value::as_str).unwrap_or("");
-            if matches!(status, "queued" | "processing") {
-                active = true;
+        let mut remaining = Vec::new();
+        let mut ips = pending.into_iter();
+        loop {
+            if tokio::time::Instant::now() >= deadline {
+                return Ok(());
+            }
+            let batch = ips
+                .by_ref()
+                .take(ip_location::IP_LOCATION_ANALYTICS_BATCH_SIZE)
+                .collect::<Vec<_>>();
+            if batch.is_empty() {
                 break;
             }
+            let snapshots = ip_location::get_ip_location_snapshots_analytics(state, &batch).await?;
+            remaining.extend(
+                batch
+                    .into_iter()
+                    .zip(snapshots)
+                    .filter_map(|(ip, snapshot)| {
+                        let status = snapshot.get("status").and_then(Value::as_str).unwrap_or("");
+                        matches!(status, "queued" | "processing").then_some(ip)
+                    }),
+            );
         }
-        if !active || tokio::time::Instant::now() >= deadline {
+        if remaining.is_empty() || tokio::time::Instant::now() >= deadline {
             return Ok(());
         }
+        pending = remaining;
         tokio::time::sleep(Duration::from_secs(1)).await;
     }
 }
@@ -243,8 +252,21 @@ async fn run_geo_refresh_work(state: &AppState, ips: Vec<String>) -> anyhow::Res
 fn take_internal_clients(data: &mut Value) -> Vec<Value> {
     ensure_object(data)
         .remove("clients")
-        .and_then(|value| value.as_array().cloned())
+        .and_then(|value| match value {
+            Value::Array(clients) => Some(clients),
+            _ => None,
+        })
         .unwrap_or_default()
+}
+
+fn take_internal_client_ips(data: &mut Value) -> Vec<String> {
+    take_internal_clients(data)
+        .into_iter()
+        .filter_map(|mut client| match client.as_object_mut()?.remove("ip")? {
+            Value::String(ip) if !ip.trim().is_empty() => Some(ip),
+            _ => None,
+        })
+        .collect()
 }
 
 fn build_geo_summary(

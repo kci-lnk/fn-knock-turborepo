@@ -411,6 +411,7 @@ pub enum TerminalErrorCode {
     FeatureDisabled,
     AccessPasswordRequired,
     AccessRateLimited,
+    ResourceBusy,
     InvalidRequest,
     TargetNotFound,
     SessionNotFound,

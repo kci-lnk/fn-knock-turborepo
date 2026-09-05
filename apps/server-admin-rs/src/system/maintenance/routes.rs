@@ -1,8 +1,159 @@
 use super::*;
+use axum::extract::FromRequestParts;
+use std::sync::Arc;
 use utoipa_axum::{
     router::{OpenApiRouter, UtoipaMethodRouterExt},
     routes,
 };
+
+#[derive(Clone)]
+pub(super) struct BackupAdmission {
+    _guard: Arc<tokio::sync::OwnedMutexGuard<()>>,
+}
+
+impl BackupAdmission {
+    pub(super) fn try_acquire(state: &AppState) -> Result<Self, BackupImportError> {
+        state
+            .maintenance
+            .backup_request_lock
+            .clone()
+            .try_lock_owned()
+            .map(|guard| Self {
+                _guard: Arc::new(guard),
+            })
+            .map_err(|_| {
+                BackupImportError::new(StatusCode::SERVICE_UNAVAILABLE, "Backup operation is busy")
+            })
+    }
+}
+
+impl FromRequestParts<AppState> for BackupAdmission {
+    type Rejection = Response;
+
+    async fn from_request_parts(
+        _parts: &mut axum::http::request::Parts,
+        state: &AppState,
+    ) -> Result<Self, Self::Rejection> {
+        match Self::try_acquire(state) {
+            Ok(admission) => Ok(admission),
+            Err(error) => {
+                // This rejection runs before Json consumes any upload bytes.
+                let translator = Translator::from_state(state).await;
+                Err(backup_operation_error_response(error, &translator))
+            }
+        }
+    }
+}
+
+pub(super) struct BackupExportAdmission(pub(super) BackupAdmission);
+
+impl BackupExportAdmission {
+    pub(super) async fn acquire(state: &AppState) -> Result<Self, BackupImportError> {
+        Self::acquire_with_timeout(state, std::time::Duration::from_secs(5)).await
+    }
+
+    pub(super) async fn acquire_with_timeout(
+        state: &AppState,
+        wait_timeout: std::time::Duration,
+    ) -> Result<Self, BackupImportError> {
+        let shutting_down = || {
+            BackupImportError::new(
+                StatusCode::SERVICE_UNAVAILABLE,
+                "Backup service is shutting down",
+            )
+        };
+        if state.shutdown.is_cancelled() {
+            return Err(shutting_down());
+        }
+        if let Ok(admission) = BackupAdmission::try_acquire(state) {
+            return Ok(Self(admission));
+        }
+        let busy =
+            || BackupImportError::new(StatusCode::SERVICE_UNAVAILABLE, "Backup operation is busy");
+        // Only GET downloads may wait. Reserve a small waiting slot before
+        // joining the existing FIFO mutex; no storage or background work has
+        // started. Cancellation/timeout drops both queue positions by RAII.
+        let _waiting = state
+            .maintenance
+            .backup_export_waiters
+            .clone()
+            .try_acquire_owned()
+            .map_err(|_| busy())?;
+        let guard = tokio::select! {
+            biased;
+            _ = state.shutdown.cancelled() => return Err(shutting_down()),
+            result = tokio::time::timeout(
+                wait_timeout,
+                state.maintenance.backup_request_lock.clone().lock_owned(),
+            ) => result.map_err(|_| busy())?,
+        };
+        Ok(Self(BackupAdmission {
+            _guard: Arc::new(guard),
+        }))
+    }
+}
+
+impl FromRequestParts<AppState> for BackupExportAdmission {
+    type Rejection = Response;
+
+    async fn from_request_parts(
+        _parts: &mut axum::http::request::Parts,
+        state: &AppState,
+    ) -> Result<Self, Self::Rejection> {
+        match Self::acquire(state).await {
+            Ok(admission) => Ok(admission),
+            Err(error) => {
+                let translator = Translator::from_state(state).await;
+                Err(backup_operation_error_response(error, &translator))
+            }
+        }
+    }
+}
+
+fn backup_operation_error_response(error: BackupImportError, translator: &Translator) -> Response {
+    let mut response = response::error(
+        error.status,
+        localize_backup_error_message(translator, &error.message),
+    );
+    if error.status == StatusCode::SERVICE_UNAVAILABLE {
+        response.headers_mut().insert(
+            header::RETRY_AFTER,
+            axum::http::HeaderValue::from_static("1"),
+        );
+    }
+    response
+}
+
+pub(super) async fn run_backup_operation<T, F>(
+    state: &AppState,
+    admission: BackupAdmission,
+    work: F,
+) -> Result<T, BackupImportError>
+where
+    T: Send + 'static,
+    F: Future<Output = Result<T, BackupImportError>> + Send + 'static,
+{
+    let (result_tx, result_rx) = tokio::sync::oneshot::channel();
+    let task = state.spawn_abortable_background("manual-backup-operation", async move {
+        // An HTTP disconnect must not interrupt a restore between storage
+        // replacement and its migration/rollback/runtime synchronization.
+        let _admission = admission;
+        let result = work.await;
+        if let Err(error) = &result {
+            tracing::warn!(error = %error.message, "manual backup operation failed");
+        }
+        let _ = result_tx.send(result);
+    });
+    if task.is_none() {
+        return Err(BackupImportError::new(
+            StatusCode::SERVICE_UNAVAILABLE,
+            "Backup service is shutting down",
+        ));
+    }
+    result_rx
+        .await
+        .map_err(|_| BackupImportError::internal("Backup operation could not complete"))?
+}
 
 /// Backup endpoints use annotated handlers so the executable Axum router and
 /// the generated OpenAPI contract cannot diverge. The import body limit stays
@@ -109,19 +260,24 @@ pub(super) async fn list_automatic_backup_files(State(state): State<AppState>) -
     path = "/api/admin/maintenance/backup/export",
     tag = "maintenance",
     operation_id = "get_api_admin_maintenance_backup_export",
-    responses((status = 200, description = "Backup archive download"))
+    responses((status = 200, description = "Backup archive download"), (status = 503, description = "备份任务正在进行，请根据 Retry-After 稍后重试", body = Value))
 )]
-pub(super) async fn export_backup(State(state): State<AppState>) -> Response {
+pub(super) async fn export_backup(
+    State(state): State<AppState>,
+    admission: BackupExportAdmission,
+) -> Response {
+    let BackupExportAdmission(admission) = admission;
     let translator = Translator::from_state(&state).await;
-    match export_backup_archive(&state).await {
-        Ok(archive) => binary_archive_response(archive, &translator),
-        Err(error) => {
-            tracing::warn!(%error, "failed to export backup archive");
-            response::error(
-                StatusCode::INTERNAL_SERVER_ERROR,
-                localize_backup_error_message(&translator, &error.to_string()),
-            )
-        }
+    let work_state = state.clone();
+    match run_backup_operation(&state, admission.clone(), async move {
+        export_backup_archive(&work_state)
+            .await
+            .map_err(|error| BackupImportError::internal(error.to_string()))
+    })
+    .await
+    {
+        Ok(archive) => binary_archive_response(archive, admission, &translator),
+        Err(error) => backup_operation_error_response(error, &translator),
     }
 }
 
@@ -151,11 +307,19 @@ pub(super) async fn list_backup_files(State(state): State<AppState>) -> Response
     path = "/api/admin/maintenance/backup/export/fnos",
     tag = "maintenance",
     operation_id = "post_api_admin_maintenance_backup_export_fnos",
-    responses((status = 200, description = "Exported backup archive to shared directory"))
+    responses((status = 200, description = "Exported backup archive to shared directory"), (status = 503, description = "备份任务正在进行，请根据 Retry-After 稍后重试", body = Value))
 )]
-pub(super) async fn export_backup_to_directory(State(state): State<AppState>) -> Response {
+pub(super) async fn export_backup_to_directory(
+    State(state): State<AppState>,
+    admission: BackupAdmission,
+) -> Response {
     let translator = Translator::from_state(&state).await;
-    match export_backup_archive_to_directory(&state).await {
+    let work_state = state.clone();
+    match run_backup_operation(&state, admission, async move {
+        export_backup_archive_to_directory(&work_state).await
+    })
+    .await
+    {
         Ok(data) => Json(json!({
             "success": true,
             "data": data,
@@ -164,10 +328,7 @@ pub(super) async fn export_backup_to_directory(State(state): State<AppState>) ->
         .into_response(),
         Err(error) => {
             tracing::warn!(error = %error.message, "failed to export backup archive to share directory");
-            response::error(
-                error.status,
-                localize_backup_error_message(&translator, &error.message),
-            )
+            backup_operation_error_response(error, &translator)
         }
     }
 }
@@ -178,19 +339,23 @@ pub(super) async fn export_backup_to_directory(State(state): State<AppState>) ->
     tag = "maintenance",
     operation_id = "post_api_admin_maintenance_backup_import",
     request_body = ImportBackupBody,
-    responses((status = 200, description = "Backup import result"))
+    responses((status = 200, description = "Backup import result"), (status = 503, description = "备份任务正在进行，请根据 Retry-After 稍后重试", body = Value))
 )]
 pub(super) async fn import_backup(
     State(state): State<AppState>,
+    admission: BackupAdmission,
     Json(body): Json<ImportBackupBody>,
 ) -> Response {
     let translator = Translator::from_state(&state).await;
-    match import_backup_archive(&state, body, &translator).await {
+    let work_state = state.clone();
+    let work_translator = translator.clone();
+    match run_backup_operation(&state, admission, async move {
+        import_backup_archive(&work_state, body, &work_translator).await
+    })
+    .await
+    {
         Ok(data) => import_success_response(data, false, &translator),
-        Err(error) => response::error(
-            error.status,
-            localize_backup_error_message(&translator, &error.message),
-        ),
+        Err(error) => backup_operation_error_response(error, &translator),
     }
 }
 
@@ -200,19 +365,23 @@ pub(super) async fn import_backup(
     tag = "maintenance",
     operation_id = "post_api_admin_maintenance_backup_import_fnos",
     request_body = ImportBackupFromDirectoryBody,
-    responses((status = 200, description = "Shared-directory backup import result"))
+    responses((status = 200, description = "Shared-directory backup import result"), (status = 503, description = "备份任务正在进行，请根据 Retry-After 稍后重试", body = Value))
 )]
 pub(super) async fn import_backup_from_directory(
     State(state): State<AppState>,
+    admission: BackupAdmission,
     Json(body): Json<ImportBackupFromDirectoryBody>,
 ) -> Response {
     let translator = Translator::from_state(&state).await;
-    match import_backup_archive_from_directory(&state, &body.path, &translator).await {
+    let work_state = state.clone();
+    let work_translator = translator.clone();
+    match run_backup_operation(&state, admission, async move {
+        import_backup_archive_from_directory(&work_state, &body.path, &work_translator).await
+    })
+    .await
+    {
         Ok(data) => import_success_response(data, true, &translator),
-        Err(error) => response::error(
-            error.status,
-            localize_backup_error_message(&translator, &error.message),
-        ),
+        Err(error) => backup_operation_error_response(error, &translator),
     }
 }
 
@@ -222,19 +391,24 @@ pub(super) async fn import_backup_from_directory(
     tag = "maintenance",
     operation_id = "post_api_admin_maintenance_backup_import_automatic",
     request_body = ImportBackupFromDirectoryBody,
-    responses((status = 200, description = "Automatic backup import result"))
+    responses((status = 200, description = "Automatic backup import result"), (status = 503, description = "备份任务正在进行，请根据 Retry-After 稍后重试", body = Value))
 )]
 pub(super) async fn import_backup_from_automatic_directory(
     State(state): State<AppState>,
+    admission: BackupAdmission,
     Json(body): Json<ImportBackupFromDirectoryBody>,
 ) -> Response {
     let translator = Translator::from_state(&state).await;
-    match import_backup_archive_from_automatic_directory(&state, &body.path, &translator).await {
+    let work_state = state.clone();
+    let work_translator = translator.clone();
+    match run_backup_operation(&state, admission, async move {
+        import_backup_archive_from_automatic_directory(&work_state, &body.path, &work_translator)
+            .await
+    })
+    .await
+    {
         Ok(data) => import_success_response(data, false, &translator),
-        Err(error) => response::error(
-            error.status,
-            localize_backup_error_message(&translator, &error.message),
-        ),
+        Err(error) => backup_operation_error_response(error, &translator),
     }
 }
 

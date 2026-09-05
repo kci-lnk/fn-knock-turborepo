@@ -86,6 +86,16 @@ pub(super) fn localize_backup_error_message(translator: &Translator, message: &s
         return localized;
     }
     match normalized {
+        "Backup operation is busy" => match translator.locale() {
+            "zh-CN" => "备份任务正在进行，请稍后重试".to_string(),
+            "zh-TW" => "備份工作正在進行，請稍後重試".to_string(),
+            _ => "Another backup operation is in progress; retry shortly".to_string(),
+        },
+        "Backup service is shutting down" => match translator.locale() {
+            "zh-CN" => "备份服务正在关闭，请稍后重试".to_string(),
+            "zh-TW" => "備份服務正在關閉，請稍後重試".to_string(),
+            _ => "The backup service is shutting down; retry shortly".to_string(),
+        },
         "Backup share directory is not configured" => {
             maintenance_backup_text(translator, "shareDirectoryMissing")
         }

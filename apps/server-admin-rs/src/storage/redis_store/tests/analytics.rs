@@ -1,6 +1,71 @@
 use super::*;
 
 #[tokio::test]
+async fn traffic_cleanup_prunes_stale_series_in_batches_and_preserves_live_counters() {
+    let (_dir, store) = open_test_store().await;
+    let now = chrono_like_now_seconds();
+    let stale = (0..40)
+        .map(|index| TrafficSnapshotRecord {
+            host: Some(format!("stale-{index}.example.com")),
+            stream: None,
+            total_in: 10.0,
+            total_out: 20.0,
+            error_5xx: 0.0,
+        })
+        .collect::<Vec<_>>();
+    store
+        .record_traffic_snapshot("global", &stale, now - 120, 60)
+        .await
+        .unwrap();
+    let live = TrafficSnapshotRecord {
+        host: None,
+        stream: None,
+        total_in: 100.0,
+        total_out: 200.0,
+        error_5xx: 0.0,
+    };
+    store
+        .record_traffic_snapshot("global", &[live], now, 60)
+        .await
+        .unwrap();
+    assert_eq!(store.cleanup_traffic_metrics(60).await.unwrap(), 123);
+
+    let traffic_keys = store
+        .conn()
+        .smembers(super::super::traffic::TRAFFIC_KEY_INDEX)
+        .await
+        .unwrap();
+    assert_eq!(traffic_keys.len(), 2);
+    assert!(traffic_keys.iter().all(|key| !key.contains("stale")));
+    assert_eq!(
+        store
+            .get_string_value("fn_knock:traffic:last:global:in")
+            .await
+            .unwrap(),
+        Some("100".to_string())
+    );
+    assert_eq!(
+        store
+            .get_string_value("fn_knock:traffic:last:global:host:stale-0.example.com:in")
+            .await
+            .unwrap(),
+        None
+    );
+    assert_eq!(
+        store
+            .list_error5xx_points("global", now - 1, now, None, None)
+            .await
+            .unwrap(),
+        vec![TrafficDeltaPoint {
+            ts: now,
+            delta: 0.0
+        }],
+        "a zero-valued point still keeps its series and counter alive"
+    );
+    assert_eq!(store.cleanup_traffic_metrics(60).await.unwrap(), 3);
+}
+
+#[tokio::test]
 async fn sorted_set_record_cap_removes_oldest_members() {
     let (_dir, store) = open_test_store().await;
     for (member, score) in [("old", 1), ("middle", 2), ("new", 3)] {

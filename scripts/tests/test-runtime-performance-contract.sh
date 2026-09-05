@@ -77,6 +77,6 @@ assert_contains "${WORKFLOW}" 'FN_KNOCK_RUNTIME_PERF_REJECT_MEMORY_LIMIT_MIB=257
 assert_contains "${WORKFLOW}" '/artifacts/go-stream-tests -test.v' '512 MiB UDP and stream test suite'
 assert_contains "${WORKFLOW}" 'runtime-performance-pr-${{ github.event.pull_request.number }}' 'PR comparison artifact'
 
-node --test "${ROOT_DIR}/scripts/tests/runtime-performance.test.mjs"
+node --test "${ROOT_DIR}/scripts/tests/runtime-performance.test.mjs" "${ROOT_DIR}/scripts/tests/runtime-process-memory.test.mjs" "${ROOT_DIR}/scripts/tests/runtime-test-harness.test.mjs" "${ROOT_DIR}/scripts/tests/runtime-load.test.mjs"
 
 printf '[test-runtime-performance-contract] runtime readiness and RSS measurement contract passed\n'

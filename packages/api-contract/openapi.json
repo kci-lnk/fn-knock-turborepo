@@ -22588,6 +22588,7 @@
           "feature_disabled",
           "access_password_required",
           "access_rate_limited",
+          "resource_busy",
           "invalid_request",
           "target_not_found",
           "session_not_found",
@@ -28108,6 +28109,25 @@
             },
             "description": "「提交认证与账户账户」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。"
           },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorEnvelope"
+                }
+              }
+            },
+            "description": "密码处理资源繁忙，请根据 Retry-After 稍后重试",
+            "headers": {
+              "Retry-After": {
+                "description": "密码处理资源繁忙时建议等待的秒数",
+                "schema": {
+                  "minimum": 1,
+                  "type": "integer"
+                }
+              }
+            }
+          },
           "default": {
             "content": {
               "application/json": {
@@ -28368,6 +28388,25 @@
             },
             "description": "「提交认证与账户密码」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。"
           },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorEnvelope"
+                }
+              }
+            },
+            "description": "密码处理资源繁忙，请根据 Retry-After 稍后重试",
+            "headers": {
+              "Retry-After": {
+                "description": "密码处理资源繁忙时建议等待的秒数",
+                "schema": {
+                  "minimum": 1,
+                  "type": "integer"
+                }
+              }
+            }
+          },
           "default": {
             "content": {
               "application/json": {
@@ -28440,6 +28479,25 @@
               }
             },
             "description": "「设置认证与账户账户」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorEnvelope"
+                }
+              }
+            },
+            "description": "密码处理资源繁忙，请根据 Retry-After 稍后重试",
+            "headers": {
+              "Retry-After": {
+                "description": "密码处理资源繁忙时建议等待的秒数",
+                "schema": {
+                  "minimum": 1,
+                  "type": "integer"
+                }
+              }
+            }
           },
           "default": {
             "content": {
@@ -40816,6 +40874,25 @@
             },
             "description": "「导出备份与维护备份」成功，返回二进制下载附件；请从 Content-Disposition 获取文件名。"
           },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorEnvelope"
+                }
+              }
+            },
+            "description": "备份任务正在进行，请根据 Retry-After 稍后重试",
+            "headers": {
+              "Retry-After": {
+                "description": "建议等待的秒数",
+                "schema": {
+                  "minimum": 1,
+                  "type": "integer"
+                }
+              }
+            }
+          },
           "default": {
             "content": {
               "application/json": {
@@ -40868,6 +40945,25 @@
               }
             },
             "description": "「提交备份与维护飞牛 OS」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorEnvelope"
+                }
+              }
+            },
+            "description": "备份任务正在进行，请根据 Retry-After 稍后重试",
+            "headers": {
+              "Retry-After": {
+                "description": "建议等待的秒数",
+                "schema": {
+                  "minimum": 1,
+                  "type": "integer"
+                }
+              }
+            }
           },
           "default": {
             "content": {
@@ -40985,6 +41081,25 @@
             },
             "description": "「导入备份与维护备份」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。"
           },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorEnvelope"
+                }
+              }
+            },
+            "description": "备份任务正在进行，请根据 Retry-After 稍后重试",
+            "headers": {
+              "Retry-After": {
+                "description": "建议等待的秒数",
+                "schema": {
+                  "minimum": 1,
+                  "type": "integer"
+                }
+              }
+            }
+          },
           "default": {
             "content": {
               "application/json": {
@@ -41048,6 +41163,25 @@
             },
             "description": "「提交备份与维护自动备份」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。"
           },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorEnvelope"
+                }
+              }
+            },
+            "description": "备份任务正在进行，请根据 Retry-After 稍后重试",
+            "headers": {
+              "Retry-After": {
+                "description": "建议等待的秒数",
+                "schema": {
+                  "minimum": 1,
+                  "type": "integer"
+                }
+              }
+            }
+          },
           "default": {
             "content": {
               "application/json": {
@@ -41110,6 +41244,25 @@
               }
             },
             "description": "「提交备份与维护飞牛 OS」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorEnvelope"
+                }
+              }
+            },
+            "description": "备份任务正在进行，请根据 Retry-After 稍后重试",
+            "headers": {
+              "Retry-After": {
+                "description": "建议等待的秒数",
+                "schema": {
+                  "minimum": 1,
+                  "type": "integer"
+                }
+              }
+            }
           },
           "default": {
             "content": {
@@ -43033,6 +43186,25 @@
               }
             }
           },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorEnvelope"
+                }
+              }
+            },
+            "description": "密码处理资源繁忙，请根据 Retry-After 稍后重试",
+            "headers": {
+              "Retry-After": {
+                "description": "密码处理资源繁忙时建议等待的秒数",
+                "schema": {
+                  "minimum": 1,
+                  "type": "integer"
+                }
+              }
+            }
+          },
           "default": {
             "content": {
               "application/json": {
@@ -43149,6 +43321,25 @@
             },
             "description": "「提交管理面板会话密码」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。"
           },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorEnvelope"
+                }
+              }
+            },
+            "description": "密码处理资源繁忙，请根据 Retry-After 稍后重试",
+            "headers": {
+              "Retry-After": {
+                "description": "密码处理资源繁忙时建议等待的秒数",
+                "schema": {
+                  "minimum": 1,
+                  "type": "integer"
+                }
+              }
+            }
+          },
           "default": {
             "content": {
               "application/json": {
@@ -43211,6 +43402,25 @@
               }
             },
             "description": "「修改管理面板会话密码」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorEnvelope"
+                }
+              }
+            },
+            "description": "密码处理资源繁忙，请根据 Retry-After 稍后重试",
+            "headers": {
+              "Retry-After": {
+                "description": "密码处理资源繁忙时建议等待的秒数",
+                "schema": {
+                  "minimum": 1,
+                  "type": "integer"
+                }
+              }
+            }
           },
           "default": {
             "content": {
@@ -48830,7 +49040,7 @@
                 }
               }
             },
-            "description": "「查看Web 终端access」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。"
+            "description": "「查看Web 终端访问权限」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。"
           },
           "default": {
             "content": {
@@ -48843,7 +49053,7 @@
             "description": "接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。"
           }
         },
-        "summary": "查看Web 终端access",
+        "summary": "查看Web 终端访问权限",
         "tags": [
           "terminal"
         ],
@@ -48873,7 +49083,26 @@
                 }
               }
             },
-            "description": "「提交Web 终端verify」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。"
+            "description": "「验证Web 终端访问权限」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TerminalErrorEnvelope"
+                }
+              }
+            },
+            "description": "服务处理失败；请检查依赖服务和运行日志后重试。",
+            "headers": {
+              "Retry-After": {
+                "description": "密码处理资源繁忙时建议等待的秒数",
+                "schema": {
+                  "minimum": 1,
+                  "type": "integer"
+                }
+              }
+            }
           },
           "default": {
             "content": {
@@ -48886,7 +49115,7 @@
             "description": "接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。"
           }
         },
-        "summary": "提交Web 终端verify",
+        "summary": "验证Web 终端访问权限",
         "tags": [
           "terminal"
         ],
@@ -49749,6 +49978,25 @@
               }
             },
             "description": "「修改Web 终端设置」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TerminalErrorEnvelope"
+                }
+              }
+            },
+            "description": "服务处理失败；请检查依赖服务和运行日志后重试。",
+            "headers": {
+              "Retry-After": {
+                "description": "密码处理资源繁忙时建议等待的秒数",
+                "schema": {
+                  "minimum": 1,
+                  "type": "integer"
+                }
+              }
+            }
           },
           "default": {
             "content": {

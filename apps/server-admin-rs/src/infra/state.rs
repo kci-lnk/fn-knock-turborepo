@@ -192,7 +192,13 @@ pub struct MaintenanceState {
     /// Bounds memory-heavy backup archive encoding and decoding to one job per
     /// process. Import mutation locks are intentionally acquired only after
     /// this short-lived archive work lock has been released.
-    pub backup_archive_work_lock: Mutex<()>,
+    pub backup_archive_work_lock: Arc<Mutex<()>>,
+    /// Admits one manual backup request before its body is read. The permit
+    /// follows restores to completion and downloads until their bytes drop.
+    pub backup_request_lock: Arc<Mutex<()>>,
+    /// Bounds GET download requests waiting for the manual-backup permit.
+    /// Waiters retain no snapshot or archive and imports never use this queue.
+    pub backup_export_waiters: Arc<Semaphore>,
     /// Wakes the automatic-backup scheduler after settings or stored data
     /// change, avoiding a polling delay after the feature is enabled.
     pub automatic_backup_notify: Notify,
@@ -237,7 +243,9 @@ impl Default for MaintenanceState {
     fn default() -> Self {
         Self {
             automatic_backup_lock: Mutex::new(()),
-            backup_archive_work_lock: Mutex::new(()),
+            backup_archive_work_lock: Arc::new(Mutex::new(())),
+            backup_request_lock: Arc::new(Mutex::new(())),
+            backup_export_waiters: Arc::new(Semaphore::new(3)),
             automatic_backup_notify: Notify::new(),
         }
     }

@@ -402,11 +402,14 @@ pub(super) fn terminal_error(error: TerminalError) -> Response {
         TerminalErrorCode::PtyRejected
         | TerminalErrorCode::LocalPtyStartFailed
         | TerminalErrorCode::UpstreamUnavailable => StatusCode::BAD_GATEWAY,
-        TerminalErrorCode::LocalShellUnavailable => StatusCode::SERVICE_UNAVAILABLE,
+        TerminalErrorCode::LocalShellUnavailable | TerminalErrorCode::ResourceBusy => {
+            StatusCode::SERVICE_UNAVAILABLE
+        }
         TerminalErrorCode::ConnectTimeout => StatusCode::GATEWAY_TIMEOUT,
         TerminalErrorCode::InternalError => StatusCode::INTERNAL_SERVER_ERROR,
     };
-    (
+    let busy = error.code == TerminalErrorCode::ResourceBusy;
+    let mut response = (
         status,
         Json(TerminalErrorEnvelope {
             success: false,
@@ -416,7 +419,14 @@ pub(super) fn terminal_error(error: TerminalError) -> Response {
             confirmation_token: error.confirmation_token,
         }),
     )
-        .into_response()
+        .into_response();
+    if busy {
+        response.headers_mut().insert(
+            header::RETRY_AFTER,
+            axum::http::HeaderValue::from_static("3"),
+        );
+    }
+    response
 }
 
 #[cfg(test)]
@@ -487,7 +497,7 @@ async fn get_feature_settings(State(state): State<AppState>) -> Response {
     result(access::settings(&state).await)
 }
 
-#[utoipa::path(patch, path = "/api/admin/terminal/settings", tag = "terminal", request_body = WebTerminalSettingsInput, responses((status = 200, body = WebTerminalSettings), (status = 409, body = TerminalErrorEnvelope)))]
+#[utoipa::path(patch, path = "/api/admin/terminal/settings", tag = "terminal", request_body = WebTerminalSettingsInput, responses((status = 200, body = WebTerminalSettings), (status = 409, body = TerminalErrorEnvelope), (status = 503, body = TerminalErrorEnvelope)))]
 async fn update_feature_settings(
     State(state): State<AppState>,
     TerminalJson(input): TerminalJson<WebTerminalSettingsInput>,
@@ -500,7 +510,7 @@ async fn get_access_status(State(state): State<AppState>, headers: HeaderMap) ->
     result(access::status(&state, &headers).await)
 }
 
-#[utoipa::path(post, path = "/api/admin/terminal/access/verify", tag = "terminal", request_body = WebTerminalVerifyInput, responses((status = 200), (status = 403, body = TerminalErrorEnvelope), (status = 429, body = TerminalErrorEnvelope)))]
+#[utoipa::path(post, path = "/api/admin/terminal/access/verify", tag = "terminal", request_body = WebTerminalVerifyInput, responses((status = 200), (status = 403, body = TerminalErrorEnvelope), (status = 429, body = TerminalErrorEnvelope), (status = 503, body = TerminalErrorEnvelope)))]
 async fn verify_access(
     State(state): State<AppState>,
     headers: HeaderMap,

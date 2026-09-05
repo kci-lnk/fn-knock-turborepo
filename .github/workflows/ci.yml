@@ -268,7 +268,10 @@ jobs:
             .schema_version == 2 and
             .load_sample_count == 1 and
             .samples[0].checkpoints.stable_10s.gateway_memory_limit_bytes == 134217728 and
-            (.samples[0].loads | length) == 3
+            (.samples[0].loads | length) == 4 and
+            .summary.management_lifetime_peak_rss_p95_bytes > 0 and
+            .summary.management_load_peak_rss_p95_bytes > 0 and
+            .summary.management_locale_rps_p50 > 0
           ' "${RUNNER_TEMP}/runtime-performance-cgroup-512m.json" >/dev/null
 
       - name: Measure base and current runtime performance
@@ -282,7 +285,7 @@ jobs:
           FN_KNOCK_RUNTIME_PERF_GATEWAY_BIN="${RUNNER_TEMP}/go-reauth-proxy-current" \
             node scripts/runtime-performance.mjs > "${current}"
           # Frontend dist remains from the current checkout for both runs, so this
-          # comparison isolates Rust/Go runtime startup and idle-memory changes.
+          # comparison isolates Rust/Go startup, load and retained-memory changes.
           FN_KNOCK_RUNTIME_SERVER_BIN="${RUNNER_TEMP}/server-admin-rs-base" \
           FN_KNOCK_RUNTIME_PERF_GATEWAY_BIN="${RUNNER_TEMP}/go-reauth-proxy-base" \
           FN_KNOCK_RUNTIME_PERF_EXERCISE_MEMORY_CONFIG="0" \

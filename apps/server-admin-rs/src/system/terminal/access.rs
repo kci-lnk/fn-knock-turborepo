@@ -94,6 +94,45 @@ fn internal(error: impl std::fmt::Display) -> TerminalError {
     TerminalError::internal("terminal access operation failed")
 }
 
+fn password_hash_error(error: anyhow::Error) -> TerminalError {
+    if password::is_password_hash_busy(&error) {
+        TerminalError::new(
+            TerminalErrorCode::ResourceBusy,
+            "password verification is busy; retry shortly",
+        )
+    } else {
+        internal(error)
+    }
+}
+
+async fn password_attempt(
+    attempts: &mut HashMap<String, (u32, Instant)>,
+    ip: &str,
+    verification: impl std::future::Future<Output = TerminalResult<bool>>,
+) -> TerminalResult<bool> {
+    // Charge before awaiting so cancellation cannot grant a free attempt.
+    // The caller holds the attempts lock throughout; a rejected pool admission
+    // can safely refund exactly this attempt without racing another request.
+    attempts
+        .entry(ip.to_string())
+        .or_insert((0, Instant::now()))
+        .0 += 1;
+    let result = verification.await;
+    if result
+        .as_ref()
+        .is_err_and(|error| error.code == TerminalErrorCode::ResourceBusy)
+    {
+        let empty = attempts.get_mut(ip).is_some_and(|(count, _)| {
+            *count = count.saturating_sub(1);
+            *count == 0
+        });
+        if empty {
+            attempts.remove(ip);
+        }
+    }
+    result
+}
+
 async fn record(state: &AppState) -> TerminalResult<SettingsRecord> {
     let value = state
         .storage
@@ -171,12 +210,9 @@ async fn update_locked(
         next_password.is_some() || (input.clear_password && value.password.is_some());
     if let Some(secret) = next_password {
         value.password = Some(
-            tokio::task::spawn_blocking(move || {
-                password::make_auth_password_credential("web-terminal-access", &secret, None)
-            })
-            .await
-            .map_err(internal)?
-            .map_err(internal)?,
+            password::make_auth_password_credential("web-terminal-access", &secret, None)
+                .await
+                .map_err(password_hash_error)?,
         );
     } else if input.clear_password {
         value.password = None;
@@ -326,15 +362,12 @@ pub async fn verify(
             "too many password attempts; retry in one minute",
         ));
     }
-    // Charge admission, rather than completion: cancelling an HTTP request does
-    // not cancel spawn_blocking and must not grant a free password attempt.
-    attempts.entry(ip.clone()).or_insert((0, Instant::now())).0 += 1;
-    let valid = tokio::task::spawn_blocking(move || {
+    let valid = password_attempt(&mut attempts, &ip, async {
         password::verify_auth_password(&input.password, &credential)
+            .await
+            .map_err(password_hash_error)
     })
-    .await
-    .map_err(internal)?
-    .map_err(internal)?;
+    .await?;
     if !valid {
         return Err(required());
     }

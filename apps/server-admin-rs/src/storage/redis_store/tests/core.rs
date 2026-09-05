@@ -320,6 +320,88 @@ async fn stale_typed_revision_cannot_replace_a_newer_in_memory_config_snapshot()
 }
 
 #[tokio::test]
+async fn equal_typed_revision_cannot_replace_an_existing_snapshot() {
+    let (_dir, store) = open_test_store().await;
+    let expected = store.get_config().await.unwrap();
+    let revision = store
+        .typed
+        .typed_config
+        .load()
+        .await
+        .unwrap()
+        .unwrap()
+        .revision;
+    let mut stale = expected.clone();
+    stale["locale"] = json!({ "default_locale": "stale" });
+    store.publish_config_snapshot(stale, revision);
+    assert_eq!(store.config_snapshot().as_ref(), &expected);
+}
+
+#[tokio::test]
+async fn config_repair_detects_revision_reuse_by_an_older_store() {
+    let (_dir, older_store) = open_test_store().await;
+    let newer_store = Store::connect(&older_store.path).await.unwrap();
+    let mut expected = newer_store
+        .set_config_top_level_value("locale", json!({ "default_locale": "ja-JP" }))
+        .await
+        .unwrap();
+    let previous_revision = newer_store
+        .typed
+        .typed_config
+        .load()
+        .await
+        .unwrap()
+        .unwrap()
+        .revision;
+    strip_internal_config_metadata(&mut expected);
+    expected["locale"] = json!({ "default_locale": "en" });
+    let replacement_json = expected.to_string();
+    newer_store
+        .manager
+        .call(move |conn| {
+            conn.execute(
+                "UPDATE kv_strings SET value = ?2 WHERE key = ?1",
+                [CONFIG_KEY, replacement_json.as_str()],
+            )?;
+            conn.execute("DELETE FROM config_documents WHERE singleton = 1", [])?;
+            Ok(())
+        })
+        .await
+        .unwrap();
+
+    older_store.get_config().await.unwrap();
+    assert_eq!(
+        older_store
+            .typed
+            .typed_config
+            .load()
+            .await
+            .unwrap()
+            .unwrap()
+            .revision,
+        previous_revision,
+        "the older Store recreates the row at an already-published revision"
+    );
+    assert_eq!(
+        newer_store.locale().await.unwrap()["default_locale"],
+        "ja-JP"
+    );
+    newer_store.get_config().await.unwrap();
+    assert_eq!(newer_store.locale().await.unwrap(), expected["locale"]);
+    assert!(
+        newer_store
+            .typed
+            .typed_config
+            .load()
+            .await
+            .unwrap()
+            .unwrap()
+            .revision
+            > previous_revision
+    );
+}
+
+#[tokio::test]
 async fn typed_config_mismatch_falls_back_to_legacy_and_repairs_the_typed_primary() {
     let (_dir, store) = open_test_store().await;
     let mut expected = store
@@ -402,15 +484,33 @@ async fn corrupt_typed_config_falls_back_to_legacy_and_recovers_the_typed_primar
 #[tokio::test]
 async fn missing_typed_document_after_bootstrap_is_observable_and_repaired() {
     let (_dir, store) = open_test_store().await;
+    store
+        .set_config_top_level_value("locale", json!({ "default_locale": "en" }))
+        .await
+        .expect("seed presentation snapshot");
     let mut expected = store
         .set_config_top_level_value("typed_document_recovery", json!(true))
         .await
         .expect("seed config");
     strip_internal_config_metadata(&mut expected);
+    let previous_revision = store
+        .typed
+        .typed_config
+        .load()
+        .await
+        .unwrap()
+        .unwrap()
+        .revision;
+    expected["locale"] = json!({ "default_locale": "ja-JP" });
+    let replacement_json = expected.to_string();
 
     store
         .manager
-        .call(|conn| {
+        .call(move |conn| {
+            conn.execute(
+                "UPDATE kv_strings SET value = ?2 WHERE key = ?1",
+                [CONFIG_KEY, replacement_json.as_str()],
+            )?;
             conn.execute("DELETE FROM config_documents WHERE singleton = 1", [])?;
             Ok(())
         })
@@ -433,6 +533,82 @@ async fn missing_typed_document_after_bootstrap_is_observable_and_repaired() {
         .expect("load repaired typed document")
         .expect("typed document is restored");
     assert_eq!(repaired.document, expected);
+    assert!(repaired.revision > previous_revision);
+    assert_eq!(store.locale().await.unwrap(), expected["locale"]);
+    store
+        .set_config_top_level_value("locale", json!({ "default_locale": "ko-KR" }))
+        .await
+        .expect("update after typed repair");
+    assert_eq!(store.locale().await.unwrap()["default_locale"], "ko-KR");
+}
+
+#[tokio::test]
+async fn config_repair_by_an_older_store_preserves_newer_snapshot_progress() {
+    let (_dir, older_store) = open_test_store().await;
+    let newer_store = Store::connect(&older_store.path).await.unwrap();
+    for revision in 0..5 {
+        newer_store
+            .set_config_top_level_value("recovery_revision", json!(revision))
+            .await
+            .unwrap();
+    }
+    let previous_revision = newer_store
+        .typed
+        .typed_config
+        .load()
+        .await
+        .unwrap()
+        .unwrap()
+        .revision;
+    let mut expected = newer_store.get_config().await.unwrap();
+    strip_internal_config_metadata(&mut expected);
+    expected["locale"] = json!({ "default_locale": "ja-JP" });
+    let replacement_json = expected.to_string();
+    newer_store
+        .manager
+        .call(move |conn| {
+            conn.execute(
+                "UPDATE kv_strings SET value = ?2 WHERE key = ?1",
+                [CONFIG_KEY, replacement_json.as_str()],
+            )?;
+            conn.execute("DELETE FROM config_documents WHERE singleton = 1", [])?;
+            Ok(())
+        })
+        .await
+        .unwrap();
+
+    older_store.get_config().await.unwrap();
+    let first_repair = older_store
+        .typed
+        .typed_config
+        .load()
+        .await
+        .unwrap()
+        .unwrap();
+    assert!(first_repair.revision < previous_revision);
+    assert_eq!(first_repair.document, expected);
+
+    let mut loaded = newer_store.get_config().await.unwrap();
+    strip_internal_config_metadata(&mut loaded);
+    assert_eq!(loaded, expected);
+    assert_eq!(newer_store.locale().await.unwrap(), expected["locale"]);
+    let repaired = newer_store
+        .typed
+        .typed_config
+        .load()
+        .await
+        .unwrap()
+        .unwrap();
+    assert!(repaired.revision > previous_revision);
+    newer_store
+        .set_config_top_level_value("locale", json!({ "default_locale": "ko-KR" }))
+        .await
+        .unwrap();
+    older_store.get_config().await.unwrap();
+    assert_eq!(
+        older_store.locale().await.unwrap()["default_locale"],
+        "ko-KR"
+    );
 }
 
 #[tokio::test]

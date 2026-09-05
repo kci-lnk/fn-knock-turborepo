@@ -283,6 +283,7 @@ pub(super) async fn totp_bind(
     State(state): State<AppState>,
     Json(body): Json<TotpBindBody>,
 ) -> Response {
+    let _mutation = state.storage.store.auth_account_mutation_lock.lock().await;
     let translator = Translator::from_state(&state).await;
     match verify_totp_token(&body.secret, &body.token) {
         Ok(true) => {}
@@ -374,6 +375,7 @@ pub(super) async fn totp_import(
     State(state): State<AppState>,
     Json(body): Json<TotpImportBody>,
 ) -> Response {
+    let _mutation = state.storage.store.auth_account_mutation_lock.lock().await;
     let translator = Translator::from_state(&state).await;
     let existing_totps = match state.storage.store.get_totps().await {
         Ok(credentials) => credentials,
@@ -625,6 +627,7 @@ async fn rollback_password_credential_import(
     responses((status = 200, description = "Deleted TOTP credential"))
 )]
 pub(super) async fn totp_delete(State(state): State<AppState>, Path(id): Path<String>) -> Response {
+    let _mutation = state.storage.store.auth_account_mutation_lock.lock().await;
     let translator = Translator::from_state(&state).await;
     match state.storage.store.delete_totp(&id).await {
         Ok(true) => {
@@ -726,6 +729,7 @@ pub(super) async fn totp_update_access_scopes(
     Path(id): Path<String>,
     Json(body): Json<TotpAccessScopesBody>,
 ) -> Response {
+    let _mutation = state.storage.store.auth_account_mutation_lock.lock().await;
     let translator = Translator::from_state(&state).await;
     match state
         .storage
@@ -761,6 +765,7 @@ pub(super) async fn totp_update_subdomain_access(
     Path(id): Path<String>,
     Json(body): Json<TotpSubdomainAccessBody>,
 ) -> Response {
+    let _mutation = state.storage.store.auth_account_mutation_lock.lock().await;
     let translator = Translator::from_state(&state).await;
     let previous = match state.storage.store.get_totps().await {
         Ok(credentials) => credentials
@@ -874,6 +879,7 @@ pub(super) async fn totp_update_comment(
     Path(id): Path<String>,
     Json(body): Json<TotpCommentBody>,
 ) -> Response {
+    let _mutation = state.storage.store.auth_account_mutation_lock.lock().await;
     let translator = Translator::from_state(&state).await;
     match state
         .storage

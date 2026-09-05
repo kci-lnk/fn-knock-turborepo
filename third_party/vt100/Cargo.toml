@@ -17,7 +17,9 @@ include = ["src/**/*", "LICENSE", "README.md", "CHANGELOG.md"]
 [dependencies]
 itoa = "1.0.15"
 unicode-width = "0.2.1"
-vte = "0.15.0"
+# Keep OSC parsing bounded even for unterminated/large clipboard sequences.
+# Raw terminal passthrough is managed separately by the application.
+vte = { version = "0.15.0", default-features = false }
 
 [dev-dependencies]
 nix = { version = "0.30.1", features = ["term"] }

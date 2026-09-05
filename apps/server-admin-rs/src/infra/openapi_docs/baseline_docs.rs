@@ -510,6 +510,7 @@ fn action_label(segment: &str) -> Option<&'static str> {
         "test-connection" => Some("测试连接"),
         "toggle" => Some("切换"),
         "upload" => Some("上传"),
+        "verify" => Some("验证"),
         "wake" => Some("唤醒"),
         _ => None,
     }
@@ -517,6 +518,7 @@ fn action_label(segment: &str) -> Option<&'static str> {
 
 fn segment_label(segment: &str) -> String {
     match segment {
+        "access" => "访问权限".to_string(),
         "access-entry" => "访问入口".to_string(),
         "access-scopes" => "访问范围".to_string(),
         "accounts" => "账户".to_string(),

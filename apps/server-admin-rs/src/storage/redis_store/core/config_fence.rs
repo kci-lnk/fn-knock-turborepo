@@ -155,8 +155,9 @@ pub(super) fn config_host_mappings(config: &Value) -> Value {
 pub(super) fn config_host_mappings_fingerprint(
     config: &Value,
 ) -> crate::storage::StorageResult<String> {
+    let empty_mappings = Value::Array(Vec::new());
     Ok(crate::crypto_utils::sha256_hex_bytes(serde_json::to_vec(
-        &config_host_mappings(config),
+        config.get("host_mappings").unwrap_or(&empty_mappings),
     )?))
 }
 

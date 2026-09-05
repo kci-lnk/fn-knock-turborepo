@@ -59,13 +59,13 @@ impl Store {
         .await
     }
 
-    pub async fn replace_docker_admin_password_and_clear_security_state(
+    pub async fn install_docker_admin_password_if_absent_and_clear_security_state(
         &self,
         record: &DockerAdminPasswordRecord,
-    ) -> crate::storage::StorageResult<()> {
+    ) -> crate::storage::StorageResult<bool> {
         let password_json = serde_json::to_string(record)?;
         self.manager
-            .replace_password_and_delete_security_state_atomically(
+            .install_password_and_delete_security_state_atomically(
                 DOCKER_ADMIN_PASSWORD_KEY,
                 &password_json,
                 DOCKER_ADMIN_SESSION_PREFIX,

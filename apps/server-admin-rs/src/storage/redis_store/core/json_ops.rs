@@ -7,10 +7,9 @@ impl Store {
         key: &str,
         value: &Value,
     ) -> crate::storage::StorageResult<()> {
-        let mut conn = self.conn();
-        conn.set(
+        self.set_string_value(
             key,
-            serde_json::to_string(value).unwrap_or_else(|_| "{}".to_string()),
+            &serde_json::to_string(value).unwrap_or_else(|_| "{}".to_string()),
         )
         .await
     }
@@ -30,7 +29,14 @@ impl Store {
             )
             .ignore();
         }
-        pipe.query_async::<()>(&mut conn).await
+        pipe.query_async::<()>(&mut conn).await?;
+        if values
+            .iter()
+            .any(|(key, _)| matches!(*key, CONFIG_KEY | HOST_MAPPINGS_GENERATION_KEY))
+        {
+            self.refresh_config_snapshot().await?;
+        }
+        Ok(())
     }
 
     pub async fn set_json_value_ex(

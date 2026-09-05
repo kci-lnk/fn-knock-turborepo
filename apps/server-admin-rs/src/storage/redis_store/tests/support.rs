@@ -16,6 +16,28 @@ pub(super) fn open_fixture_connection(path: impl AsRef<Path>) -> Connection {
     Connection::open(path).expect("open fixture SQLite connection")
 }
 
+pub(super) async fn block_primary_executor(
+    store: &Store,
+) -> (std::sync::mpsc::Sender<()>, tokio::task::JoinHandle<()>) {
+    let manager = store.manager.clone();
+    let (started_tx, started_rx) = tokio::sync::oneshot::channel();
+    let (release_tx, release_rx) = std::sync::mpsc::channel();
+    let task = tokio::spawn(async move {
+        manager
+            .call(move |_| {
+                let _ = started_tx.send(());
+                release_rx
+                    .recv_timeout(std::time::Duration::from_secs(5))
+                    .map_err(|error| crate::storage::storage_error(error.to_string()))?;
+                Ok(())
+            })
+            .await
+            .expect("primary blocker");
+    });
+    started_rx.await.expect("primary started");
+    (release_tx, task)
+}
+
 pub(super) fn install_failure_trigger(path: impl AsRef<Path>, statement: &str) -> Connection {
     let connection = open_fixture_connection(path);
     connection

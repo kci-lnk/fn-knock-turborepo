@@ -110,6 +110,21 @@ impl Store {
         Ok(raw.and_then(|value| serde_json::from_str(&value).ok()))
     }
 
+    pub(crate) async fn get_json_value_analytics(
+        &self,
+        key: &str,
+    ) -> crate::storage::StorageResult<Option<Value>> {
+        let values = self
+            .manager
+            .get_live_strings_analytics(vec![key.to_string()])
+            .await?;
+        Ok(values
+            .into_iter()
+            .next()
+            .flatten()
+            .and_then(|raw| serde_json::from_str(&raw).ok()))
+    }
+
     pub async fn get_string_value(
         &self,
         key: &str,
@@ -262,7 +277,18 @@ return 1
         value: &str,
     ) -> crate::storage::StorageResult<()> {
         let mut conn = self.conn();
-        conn.set(key, value).await
+        conn.set(key, value).await?;
+        self.refresh_config_snapshot_after_key_change(key).await
+    }
+
+    pub(super) async fn refresh_config_snapshot_after_key_change(
+        &self,
+        key: &str,
+    ) -> crate::storage::StorageResult<()> {
+        if matches!(key, CONFIG_KEY | HOST_MAPPINGS_GENERATION_KEY) {
+            self.refresh_config_snapshot().await?;
+        }
+        Ok(())
     }
 
     pub async fn set_key_if_not_exists_with_ttl(
@@ -339,7 +365,8 @@ return 1
         self.verify_subdomain_grant_shadow_key(key).await?;
         self.verify_whitelist_runtime_shadow_key(key).await?;
         let mut conn = self.conn();
-        conn.del(key).await
+        let _: () = conn.del(key).await?;
+        self.refresh_config_snapshot_after_key_change(key).await
     }
 
     pub async fn mget_string_values(

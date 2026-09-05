@@ -3,7 +3,7 @@ import path from "node:path";
 import process from "node:process";
 
 const sourceRoot = path.resolve("apps/server-admin-rs/src");
-const maxDirectSpawnCallSites = 110;
+const maxDirectSpawnCallSites = 117;
 
 // Direct spawns are limited to explicitly audited owners, request-scoped
 // fan-out, subprocess pipe/wait tasks, platform entry points, and tests.
@@ -17,6 +17,8 @@ const auditedBudgets = new Map(
     "auth/mobility.rs": 1,
     // Cancellation and concurrency probes; every handle is aborted or awaited.
     "auth/mobility/tests.rs": 5,
+    // Cancellation and queue probes; every test-owned handle is aborted/awaited.
+    "auth/password.rs": 3,
     // One returned bridge owner plus three test-only waiters; every waiter is awaited.
     "auth/routes/bridge.rs": 4,
     "certificates/acme/jobs.rs": 5,
@@ -47,11 +49,15 @@ const auditedBudgets = new Map(
     "storage/redis_store/tests/mobility_reconcile.rs": 2,
     "storage/redis_store/tests/notification_runtime.rs": 3,
     "storage/redis_store/tests/security.rs": 3,
-    "system/maintenance/tests.rs": 3,
+    // Primary-executor blocker returned to each test and explicitly released/awaited.
+    "storage/redis_store/tests/support.rs": 1,
+    // Includes cancelled archive/HTTP callers, each aborted and awaited before releasing its worker.
+    "system/maintenance/tests.rs": 5,
     // One session owner retained by TerminalRuntime and joined on terminate/shutdown,
     // one initialization progress bridge returned to and awaited by that owner, and
-    // one test-only actor retained by the same runtime task registry.
-    "system/terminal/runtime.rs": 3,
+    // one test-only actor retained by the same runtime task registry, and one
+    // abort/join cancellation probe owned by AbortOnDropHandle until cleanup.
+    "system/terminal/runtime.rs": 4,
     // Test-only russh server fixture; every returned handle is explicitly aborted.
     "system/terminal/ssh.rs": 1,
     "system/update.rs": 1,

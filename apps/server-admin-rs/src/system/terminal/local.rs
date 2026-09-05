@@ -526,6 +526,7 @@ mod unix_shell {
 
     pub(super) struct LocalShell {
         events: mpsc::Receiver<ShellEvent>,
+        exit: Option<oneshot::Receiver<ShellEvent>>,
         inputs: SyncSender<InputCommand>,
         controls: SyncSender<ControlCommand>,
         session: ProcessSession,
@@ -536,36 +537,19 @@ mod unix_shell {
     impl LocalShell {
         pub(super) fn spawn(
             master: Box<dyn MasterPty + Send>,
-            mut reader: Box<dyn Read + Send>,
+            reader: Box<dyn Read + Send>,
             writer: Box<dyn Write + Send>,
             child: SpawnedChild,
         ) -> TerminalResult<Box<dyn InteractiveShell>> {
             let (event_tx, event_rx) = mpsc::channel(EVENT_QUEUE_CAPACITY);
+            let (exit_tx, exit_rx) = oneshot::channel();
             let (input_tx, input_rx) = std_mpsc::sync_channel(CONTROL_QUEUE_CAPACITY);
             let (control_tx, control_rx) = std_mpsc::sync_channel(CONTROL_QUEUE_CAPACITY);
             let session = child.session;
             let writer_shutdown = Arc::new(AtomicBool::new(false));
-            let reader_events = event_tx.clone();
             thread::Builder::new()
                 .name("fn-knock-local-pty-reader".to_string())
-                .spawn(move || {
-                    let mut buffer = vec![0_u8; 16 * 1024];
-                    loop {
-                        match reader.read(&mut buffer) {
-                            Ok(0) => break,
-                            Ok(read) => {
-                                if reader_events
-                                    .blocking_send(ShellEvent::Data(buffer[..read].to_vec()))
-                                    .is_err()
-                                {
-                                    break;
-                                }
-                            }
-                            Err(error) if error.kind() == std::io::ErrorKind::Interrupted => {}
-                            Err(_) => break,
-                        }
-                    }
-                })
+                .spawn(move || read_output(reader, event_tx))
                 .map_err(|error| {
                     super::local_pty_error("failed to start local PTY reader", error)
                 })?;
@@ -580,13 +564,14 @@ mod unix_shell {
             thread::Builder::new()
                 .name("fn-knock-local-pty-control".to_string())
                 .spawn(move || {
-                    control_loop(master, child, control_rx, event_tx, control_shutdown);
+                    control_loop(master, child, control_rx, exit_tx, control_shutdown);
                 })
                 .map_err(|error| {
                     super::local_pty_error("failed to start local PTY controller", error)
                 })?;
             Ok(Box::new(Self {
                 events: event_rx,
+                exit: Some(exit_rx),
                 inputs: input_tx,
                 controls: control_tx,
                 session,
@@ -618,7 +603,20 @@ mod unix_shell {
     #[async_trait]
     impl InteractiveShell for LocalShell {
         async fn next_event(&mut self) -> ShellEvent {
-            self.events.recv().await.unwrap_or(ShellEvent::Closed)
+            if let Some(event) = self.events.recv().await {
+                return event;
+            }
+            // Process status can arrive before the reader has drained the PTY.
+            // Only the reader owns the output sender, so channel EOF guarantees
+            // all final bytes were delivered before reporting the exit status.
+            let Some(exit) = self.exit.as_mut() else {
+                return ShellEvent::Closed;
+            };
+            let event = exit.await.unwrap_or(ShellEvent::Closed);
+            // Await by reference so an actor select cancellation does not drop
+            // the exit receiver and lose the status on the next poll.
+            self.exit = None;
+            event
         }
 
         async fn input(&mut self, data: Vec<u8>) -> TerminalResult<()> {
@@ -676,6 +674,30 @@ mod unix_shell {
         }
     }
 
+    fn read_output(mut reader: Box<dyn Read + Send>, events: mpsc::Sender<ShellEvent>) {
+        let mut buffer = vec![0_u8; 16 * 1024];
+        loop {
+            match reader.read(&mut buffer) {
+                Ok(0) => break,
+                Ok(read) => {
+                    if events
+                        .blocking_send(ShellEvent::Data(buffer[..read].to_vec()))
+                        .is_err()
+                    {
+                        break;
+                    }
+                }
+                Err(error) if error.kind() == std::io::ErrorKind::Interrupted => {}
+                // Linux PTYs report EIO when the last slave closes.
+                Err(error) if error.raw_os_error() == Some(libc::EIO) => break,
+                Err(_) => {
+                    let _ = events.blocking_send(ShellEvent::Closed);
+                    break;
+                }
+            }
+        }
+    }
+
     fn input_loop(
         mut writer: Box<dyn Write + Send>,
         inputs: std_mpsc::Receiver<InputCommand>,
@@ -703,7 +725,7 @@ mod unix_shell {
         master: Box<dyn MasterPty + Send>,
         child: SpawnedChild,
         controls: std_mpsc::Receiver<ControlCommand>,
-        events: mpsc::Sender<ShellEvent>,
+        exit: oneshot::Sender<ShellEvent>,
         writer_shutdown: Arc<AtomicBool>,
     ) {
         let (mut child, session) = child.into_parts();
@@ -716,14 +738,14 @@ mod unix_shell {
                         Some(signal) => ShellEvent::Signaled(signal.to_string()),
                         None => ShellEvent::Exited(status.exit_code()),
                     };
-                    let _ = events.blocking_send(event);
+                    let _ = exit.send(event);
                     return;
                 }
                 Ok(None) => {}
                 Err(error) => {
                     writer_shutdown.store(true, Ordering::Release);
                     terminate_process_session(session, child.as_mut());
-                    let _ = events.blocking_send(ShellEvent::Signaled(format!(
+                    let _ = exit.send(ShellEvent::Signaled(format!(
                         "local terminal process status failed: {error}"
                     )));
                     return;
@@ -869,6 +891,128 @@ mod unix_shell {
             TerminalErrorCode::SessionLost,
             "local terminal session is no longer connected",
         )
+    }
+
+    #[cfg(test)]
+    mod tests {
+        use super::*;
+
+        fn shell_with_event_channels() -> (
+            LocalShell,
+            mpsc::Sender<ShellEvent>,
+            oneshot::Sender<ShellEvent>,
+        ) {
+            let (events, receiver) = mpsc::channel(8);
+            let (exit, status) = oneshot::channel();
+            let (inputs, _) = std_mpsc::sync_channel(1);
+            let (controls, _) = std_mpsc::sync_channel(1);
+            (
+                LocalShell {
+                    events: receiver,
+                    exit: Some(status),
+                    inputs,
+                    controls,
+                    session: ProcessSession { id: None },
+                    writer_shutdown: Arc::new(AtomicBool::new(false)),
+                    closed: true,
+                },
+                events,
+                exit,
+            )
+        }
+
+        #[tokio::test]
+        async fn process_exit_waits_for_late_reader_output_and_eof() {
+            let (mut shell, events, exit) = shell_with_event_channels();
+            exit.send(ShellEvent::Exited(7)).unwrap();
+            events
+                .try_send(ShellEvent::Data(b"prefix".to_vec()))
+                .unwrap();
+            assert!(
+                matches!(shell.next_event().await, ShellEvent::Data(data) if data == b"prefix")
+            );
+            assert!(
+                tokio::time::timeout(Duration::from_millis(20), shell.next_event())
+                    .await
+                    .is_err(),
+                "known exit must not overtake the still-running reader"
+            );
+            events
+                .try_send(ShellEvent::Data(b"final bytes".to_vec()))
+                .unwrap();
+            drop(events);
+            assert!(
+                matches!(shell.next_event().await, ShellEvent::Data(data) if data == b"final bytes")
+            );
+            assert!(matches!(shell.next_event().await, ShellEvent::Exited(7)));
+            assert!(matches!(shell.next_event().await, ShellEvent::Closed));
+        }
+
+        #[tokio::test]
+        async fn cancelled_eof_wait_preserves_exit_status_and_allows_close() {
+            let (mut shell, events, exit) = shell_with_event_channels();
+            drop(events);
+            assert!(
+                tokio::time::timeout(Duration::from_millis(20), shell.next_event())
+                    .await
+                    .is_err()
+            );
+            exit.send(ShellEvent::Signaled("terminated".into()))
+                .unwrap();
+            assert!(
+                matches!(shell.next_event().await, ShellEvent::Signaled(message) if message == "terminated")
+            );
+
+            let (mut shell, events, _exit) = shell_with_event_channels();
+            drop(events);
+            assert!(
+                tokio::time::timeout(Duration::from_millis(20), shell.next_event())
+                    .await
+                    .is_err()
+            );
+            shell.closed = false;
+            tokio::time::timeout(Duration::from_secs(1), shell.close())
+                .await
+                .expect("close must not wait for the reader or exit status");
+        }
+
+        #[test]
+        fn reader_failure_delivers_prior_output_then_closes_without_child_status() {
+            struct FailingReader(bool);
+            impl Read for FailingReader {
+                fn read(&mut self, output: &mut [u8]) -> std::io::Result<usize> {
+                    if std::mem::replace(&mut self.0, false) {
+                        output[..4].copy_from_slice(b"tail");
+                        Ok(4)
+                    } else {
+                        Err(std::io::Error::other("reader failed"))
+                    }
+                }
+            }
+            let (mut shell, events, _exit) = shell_with_event_channels();
+            read_output(Box::new(FailingReader(true)), events);
+            let runtime = tokio::runtime::Builder::new_current_thread()
+                .enable_time()
+                .build()
+                .unwrap();
+            runtime.block_on(async {
+                assert!(
+                    matches!(shell.next_event().await, ShellEvent::Data(data) if data == b"tail")
+                );
+                let event = tokio::time::timeout(Duration::from_secs(1), shell.next_event())
+                    .await
+                    .expect("reader failure must not wait for the live child");
+                assert!(matches!(event, ShellEvent::Closed));
+            });
+        }
+
+        #[tokio::test]
+        async fn reader_eof_with_closed_status_channel_finishes() {
+            let (mut shell, events, exit) = shell_with_event_channels();
+            drop(events);
+            drop(exit);
+            assert!(matches!(shell.next_event().await, ShellEvent::Closed));
+        }
     }
 }
 

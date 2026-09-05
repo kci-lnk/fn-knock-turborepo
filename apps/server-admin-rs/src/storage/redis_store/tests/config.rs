@@ -1,6 +1,144 @@
 use super::*;
 
 #[tokio::test]
+async fn presentation_config_reads_use_snapshot_while_primary_is_busy() {
+    let (_dir, store) = open_test_store().await;
+    let mut config = (*store.config_snapshot()).clone();
+    config["locale"] = json!({ "default_locale": "en" });
+    config["appearance"] = json!({ "theme_color_preset": "forest" });
+    store.save_config(&config).await.unwrap();
+
+    let (release, blocker) = block_primary_executor(&store).await;
+    let result = tokio::time::timeout(std::time::Duration::from_secs(2), async {
+        tokio::try_join!(store.locale(), store.appearance())
+    })
+    .await;
+    release.send(()).unwrap();
+    blocker.await.unwrap();
+    let (locale, appearance) = result
+        .expect("presentation reads must not queue for SQLite")
+        .unwrap();
+    assert_eq!(locale, config["locale"]);
+    assert_eq!(appearance, config["appearance"]);
+}
+
+#[tokio::test]
+async fn presentation_config_snapshot_refreshes_after_another_store_writes() {
+    let (_dir, reader) = open_test_store().await;
+    let writer = Store::connect(&reader.path).await.unwrap();
+    let before = reader.config_snapshot();
+    let mut updated = writer.get_config().await.unwrap();
+    updated["locale"] = json!({ "default_locale": "ja-JP" });
+    updated["appearance"] = json!({ "theme_color_preset": "forest" });
+    writer.save_config(&updated).await.unwrap();
+
+    let observed = reader.get_config().await.unwrap();
+    assert_eq!(observed["locale"], updated["locale"]);
+    assert_eq!(reader.locale().await.unwrap(), updated["locale"]);
+    assert_eq!(reader.appearance().await.unwrap(), updated["appearance"]);
+    let refreshed = reader.config_snapshot();
+    assert!(!Arc::ptr_eq(&before, &refreshed));
+
+    reader.get_config().await.unwrap();
+    assert!(
+        Arc::ptr_eq(&refreshed, &reader.config_snapshot()),
+        "an unchanged revision must keep the existing snapshot allocation"
+    );
+}
+
+#[tokio::test]
+async fn presentation_config_snapshot_tracks_mutations_migrations_and_restore() {
+    let (_dir, store) = open_test_store().await;
+    store
+        .set_config_top_level_value("locale", json!({ "default_locale": "ja-JP" }))
+        .await
+        .unwrap();
+    store
+        .merge_config_object_fields(
+            "appearance",
+            Map::from_iter([("theme_color_preset".to_string(), json!("forest"))]),
+        )
+        .await
+        .unwrap();
+    assert_eq!(store.locale().await.unwrap()["default_locale"], "ja-JP");
+    assert_eq!(
+        store.appearance().await.unwrap()["theme_color_preset"],
+        "forest"
+    );
+
+    let expected = store.get_config().await.unwrap();
+    let mut migrated = expected.clone();
+    migrated["locale"] = json!({ "default_locale": "ko-KR" });
+    migrated["appearance"] = json!({ "theme_color_preset": "ocean" });
+    store
+        .compare_and_set_config_migration(&expected, &migrated)
+        .await
+        .unwrap()
+        .expect("migration CAS");
+    assert_eq!(store.locale().await.unwrap(), migrated["locale"]);
+    assert_eq!(store.appearance().await.unwrap(), migrated["appearance"]);
+
+    let restored = json!({
+        "locale": { "default_locale": "en" },
+        "appearance": { "theme_color_preset": "sunset" },
+        "host_mappings": []
+    });
+    store
+        .replace_backup_entries_by_prefix(
+            "fn_knock:",
+            &[json!({
+                "key": CONFIG_KEY,
+                "type": "string",
+                "ttl_ms": null,
+                "value": restored.to_string()
+            })],
+            200,
+        )
+        .await
+        .unwrap();
+    assert_eq!(store.locale().await.unwrap(), restored["locale"]);
+    assert_eq!(store.appearance().await.unwrap(), restored["appearance"]);
+
+    let reopened = Store::connect(&store.path).await.unwrap();
+    assert_eq!(reopened.locale().await.unwrap(), restored["locale"]);
+    assert_eq!(reopened.appearance().await.unwrap(), restored["appearance"]);
+    drop(reopened);
+
+    store.clear_all_keys().await.unwrap();
+    let defaults = default_config();
+    assert_eq!(store.locale().await.unwrap(), defaults["locale"]);
+    assert_eq!(store.appearance().await.unwrap(), defaults["appearance"]);
+}
+
+#[tokio::test]
+async fn presentation_config_snapshot_tracks_compatibility_writes_and_deletes() {
+    let (_dir, store) = open_test_store().await;
+    let config = json!({ "locale": { "default_locale": "en" } });
+    store.set_json_value(CONFIG_KEY, &config).await.unwrap();
+    assert_eq!(store.locale().await.unwrap(), config["locale"]);
+
+    let mut updated = config;
+    updated["locale"] = json!({ "default_locale": "ja-JP" });
+    store
+        .set_string_value(CONFIG_KEY, &updated.to_string())
+        .await
+        .unwrap();
+    assert_eq!(store.locale().await.unwrap(), updated["locale"]);
+
+    updated["locale"] = json!({ "default_locale": "ko-KR" });
+    store
+        .set_json_values_atomically(&[(CONFIG_KEY, &updated)])
+        .await
+        .unwrap();
+    assert_eq!(store.locale().await.unwrap(), updated["locale"]);
+    store.delete_key(CONFIG_KEY).await.unwrap();
+    assert_eq!(store.locale().await.unwrap(), default_config()["locale"]);
+    store.set_json_value(CONFIG_KEY, &updated).await.unwrap();
+    store.delete_keys(&[CONFIG_KEY.to_string()]).await.unwrap();
+    assert_eq!(store.locale().await.unwrap(), default_config()["locale"]);
+}
+
+#[tokio::test]
 async fn poll_log_buffer_recovers_when_sequence_lags_existing_items() {
     let (_dir, store) = open_test_store().await;
     let key = "fn_knock:test:logs";

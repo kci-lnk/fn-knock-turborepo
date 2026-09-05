@@ -1505,7 +1505,7 @@ fn shared_auth_test_config() -> Value {
     })
 }
 
-async fn auth_route_test_state(name: &str) -> (tempfile::TempDir, AppState) {
+pub(super) async fn auth_route_test_state(name: &str) -> (tempfile::TempDir, AppState) {
     let directory = tempfile::tempdir().expect("temporary auth route database");
     let mut settings = {
         let _environment = crate::test_support::EnvGuard::new(&[]);

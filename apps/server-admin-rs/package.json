@@ -5,6 +5,6 @@
     "build": "cargo build --locked --release",
     "check-types": "cargo check --locked",
     "dev": "cargo run",
-    "test": "cargo test --locked"
+    "test": "cargo test --locked -- --test-threads=1"
   }
 }

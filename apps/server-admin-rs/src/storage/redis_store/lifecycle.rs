@@ -43,6 +43,7 @@ impl Store {
             path,
             config_snapshot: Arc::new(ArcSwap::from_pointee(default_config())),
             config_snapshot_revision: Arc::new(StdMutex::new(0)),
+            auth_account_mutation_lock: Arc::new(tokio::sync::Mutex::new(())),
             typed: TypedRepositories {
                 typed_config,
                 typed_docker_admin,
@@ -178,7 +179,7 @@ impl Store {
             .config_snapshot_revision
             .lock()
             .unwrap_or_else(|error| error.into_inner());
-        if revision < *published_revision {
+        if revision <= *published_revision {
             tracing::debug!(
                 revision,
                 current_revision = *published_revision,

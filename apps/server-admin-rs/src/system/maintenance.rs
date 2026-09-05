@@ -178,7 +178,7 @@ struct ClearAllDataBody {
 }
 
 struct BackupArchive {
-    buffer: Vec<u8>,
+    buffer: BackupArchiveBuffer,
     exported_at: String,
     filename: String,
 }

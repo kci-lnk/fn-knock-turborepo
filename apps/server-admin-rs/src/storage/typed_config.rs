@@ -166,6 +166,7 @@ impl TypedConfigRepository {
         config_key: &str,
         generation_key: &str,
         default_document: &Value,
+        revision_floor: u64,
     ) -> StorageResult<ReconciledLegacyConfig> {
         let config_key = config_key.to_string();
         let generation_key = generation_key.to_string();
@@ -187,8 +188,12 @@ impl TypedConfigRepository {
                     .unwrap_or("0")
                     .parse::<u64>()
                     .map_err(|_| storage_error("host mappings generation is invalid"))?;
-                let typed_revision =
-                    upsert_config_document_tx(&tx, document_json, host_mappings_generation)?;
+                let typed_revision = upsert_config_document_with_revision_floor_tx(
+                    &tx,
+                    document_json,
+                    host_mappings_generation,
+                    revision_floor,
+                )?;
                 tx.commit()?;
                 Ok(ReconciledLegacyConfig {
                     legacy,
@@ -234,20 +239,32 @@ pub(crate) fn upsert_config_document_tx(
     document_json: &str,
     host_mappings_generation: u64,
 ) -> StorageResult<u64> {
+    upsert_config_document_with_revision_floor_tx(tx, document_json, host_mappings_generation, 1)
+}
+
+fn upsert_config_document_with_revision_floor_tx(
+    tx: &Transaction<'_>,
+    document_json: &str,
+    host_mappings_generation: u64,
+    revision_floor: u64,
+) -> StorageResult<u64> {
     let _: Value = serde_json::from_str(document_json)?;
     let generation = i64::try_from(host_mappings_generation)
         .map_err(|_| storage_error("typed config generation exceeds SQLite range"))?;
+    let revision_floor = i64::try_from(revision_floor.max(1))
+        .map_err(|_| storage_error("typed config revision exceeds SQLite range"))?;
     tx.execute(
         "INSERT INTO config_documents(singleton, document_json, host_mappings_generation, revision, updated_at_ms)
-         VALUES (1, ?1, ?2, 1, ?3)
+         VALUES (1, ?1, ?2, ?4, ?3)
          ON CONFLICT(singleton) DO UPDATE SET
            document_json = excluded.document_json,
            host_mappings_generation = excluded.host_mappings_generation,
-           revision = config_documents.revision + 1,
+           revision = max(config_documents.revision + 1, excluded.revision),
            updated_at_ms = excluded.updated_at_ms
          WHERE config_documents.document_json != excluded.document_json
-            OR config_documents.host_mappings_generation != excluded.host_mappings_generation",
-        params![document_json, generation, crate::time_utils::now_ms()],
+            OR config_documents.host_mappings_generation != excluded.host_mappings_generation
+            OR config_documents.revision < excluded.revision",
+        params![document_json, generation, crate::time_utils::now_ms(), revision_floor],
     )?;
     let revision = tx.query_row(
         "SELECT revision FROM config_documents WHERE singleton = 1",

@@ -22,61 +22,92 @@ impl Store {
             .await?;
         let legacy_snapshot =
             config_fence_snapshot_from_raw(shadow.legacy.config_raw, shadow.legacy.generation_raw)?;
-        match shadow.typed {
+        let published_revision = *self
+            .config_snapshot_revision
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
+        let healthy_candidate = match shadow.typed {
             Ok(Some(typed))
                 if typed.document == legacy_snapshot.config
-                    && typed.host_mappings_generation == legacy_snapshot.generation =>
+                    && typed.host_mappings_generation == legacy_snapshot.generation
+                    && typed.revision >= published_revision =>
             {
-                self.observe_typed_config_shadow(&legacy_snapshot, Ok(Some(typed.clone())));
-                self.typed_config_primary_bootstrapped
-                    .store(true, AtomicOrdering::Release);
-                let mut config = typed.document;
-                inject_config_generation_marker(&mut config, typed.host_mappings_generation)?;
-                Ok((config, typed.revision))
+                Some(typed)
             }
             typed => {
                 // A newly-created database has no typed document until this
-                // first read seeds it from the 2.x-compatible keyspace. That
-                // expected bootstrap is not a shadow inconsistency. Once a
-                // primary document has been established, missing data,
-                // corruption, and content divergence are counted and
-                // surfaced as fallbacks.
+                // first read seeds it from the 2.x-compatible keyspace.
                 let initial_bootstrap = matches!(&typed, Ok(None))
                     && !self
                         .typed_config_primary_bootstrapped
                         .load(AtomicOrdering::Acquire);
                 if !initial_bootstrap {
-                    self.observe_typed_config_shadow(&legacy_snapshot, typed);
+                    self.observe_typed_config_mismatch(&legacy_snapshot, typed);
                 }
-                let reconciled = self
-                    .typed
-                    .typed_config
-                    .reconcile_from_legacy(
-                        CONFIG_KEY,
-                        HOST_MAPPINGS_GENERATION_KEY,
-                        &default_config(),
-                    )
-                    .await?;
-                let repaired_snapshot = config_fence_snapshot_from_raw(
-                    reconciled.legacy.config_raw,
-                    reconciled.legacy.generation_raw,
-                )?;
-                self.typed_config_shadow.set_healthy();
+                None
+            }
+        };
+        if let Some(typed) = healthy_candidate {
+            let mut config = typed.document;
+            inject_config_generation_marker(&mut config, typed.host_mappings_generation)?;
+            // Repair can recreate a deleted typed row from another Store's
+            // older revision floor. Equal revisions are trustworthy only if
+            // they also describe the snapshot we already published.
+            if typed.revision > published_revision || config == **self.config_snapshot.load() {
+                if self.typed_config_shadow.mark_healthy() {
+                    tracing::info!(
+                        typed_revision = typed.revision,
+                        host_mappings_generation = typed.host_mappings_generation,
+                        "typed config shadow recovered"
+                    );
+                }
                 self.typed_config_primary_bootstrapped
                     .store(true, AtomicOrdering::Release);
-                tracing::info!(
-                    typed_revision = reconciled.typed_revision,
-                    host_mappings_generation = repaired_snapshot.generation,
-                    "repaired typed config from legacy fallback"
+                if typed.revision > published_revision {
+                    // Unchanged reads retain the existing snapshot allocation.
+                    self.publish_config_snapshot(config.clone(), typed.revision);
+                }
+                return Ok((config, typed.revision));
+            }
+            if self.typed_config_shadow.mark_mismatch() {
+                tracing::warn!(
+                    typed_revision = typed.revision,
+                    "typed config revision was reused for a different document"
                 );
-                let mut config = repaired_snapshot.config;
-                inject_config_generation_marker(&mut config, repaired_snapshot.generation)?;
-                Ok((config, reconciled.typed_revision))
             }
         }
+
+        // Re-read legacy inside the repair transaction: an out-of-order
+        // shadow read must not overwrite a newer committed document.
+        let reconciled = self
+            .typed
+            .typed_config
+            .reconcile_from_legacy(
+                CONFIG_KEY,
+                HOST_MAPPINGS_GENERATION_KEY,
+                &default_config(),
+                published_revision.saturating_add(1),
+            )
+            .await?;
+        let repaired_snapshot = config_fence_snapshot_from_raw(
+            reconciled.legacy.config_raw,
+            reconciled.legacy.generation_raw,
+        )?;
+        self.typed_config_shadow.set_healthy();
+        self.typed_config_primary_bootstrapped
+            .store(true, AtomicOrdering::Release);
+        tracing::info!(
+            typed_revision = reconciled.typed_revision,
+            host_mappings_generation = repaired_snapshot.generation,
+            "repaired typed config from legacy fallback"
+        );
+        let mut config = repaired_snapshot.config;
+        inject_config_generation_marker(&mut config, repaired_snapshot.generation)?;
+        self.publish_config_snapshot(config.clone(), reconciled.typed_revision);
+        Ok((config, reconciled.typed_revision))
     }
 
-    pub(super) fn observe_typed_config_shadow(
+    fn observe_typed_config_mismatch(
         &self,
         snapshot: &ConfigFenceSnapshot,
         typed: crate::storage::StorageResult<
@@ -84,18 +115,6 @@ impl Store {
         >,
     ) {
         match typed {
-            Ok(Some(typed))
-                if typed.document == snapshot.config
-                    && typed.host_mappings_generation == snapshot.generation =>
-            {
-                if self.typed_config_shadow.mark_healthy() {
-                    tracing::info!(
-                        typed_revision = typed.revision,
-                        host_mappings_generation = snapshot.generation,
-                        "typed config shadow recovered"
-                    );
-                }
-            }
             Ok(typed) => {
                 if self.typed_config_shadow.mark_mismatch() {
                     tracing::warn!(
@@ -725,7 +744,9 @@ impl Store {
     }
 
     pub async fn locale(&self) -> crate::storage::StorageResult<Value> {
-        let config = self.get_config().await?;
+        // Ordinary presentation reads use the revision-ordered snapshot.
+        // Config writes, migrations and restores publish before returning.
+        let config = self.config_snapshot.load();
         Ok(config
             .get("locale")
             .cloned()
@@ -733,7 +754,7 @@ impl Store {
     }
 
     pub async fn appearance(&self) -> crate::storage::StorageResult<Value> {
-        let config = self.get_config().await?;
+        let config = self.config_snapshot.load();
         Ok(config
             .get("appearance")
             .cloned()

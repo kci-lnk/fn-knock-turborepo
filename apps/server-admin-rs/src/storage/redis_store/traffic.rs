@@ -315,32 +315,44 @@ impl Store {
         keys: &[String],
         index_key: &str,
     ) -> crate::storage::StorageResult<()> {
-        let mut conn = self.conn();
-        for chunk in keys
-            .iter()
-            .filter(|key| !key.trim().is_empty())
-            .collect::<Vec<_>>()
-            .chunks(100)
-        {
-            let mut empty_keys = Vec::new();
-            for key in chunk {
-                let count: i64 = conn.zcard(key.as_str()).await?;
-                if count == 0 {
-                    empty_keys.push((*key).clone());
-                }
-            }
-            if empty_keys.is_empty() {
-                continue;
-            }
-            let mut pipe = redis::pipe();
-            pipe.srem(index_key, empty_keys.clone()).ignore();
-            for key in &empty_keys {
-                pipe.del(key).ignore();
-                if let Some(last_key) = traffic_last_total_key_for_metric_key(key) {
-                    pipe.del(last_key).ignore();
-                }
-            }
-            let _: () = pipe.query_async(&mut conn).await?;
+        for chunk in keys.chunks(100) {
+            let keys = chunk.to_vec();
+            let index_key = index_key.to_string();
+            self.manager
+                .call(move |conn| {
+                    let tx = conn.transaction_with_behavior(
+                        tokio_rusqlite::rusqlite::TransactionBehavior::Immediate,
+                    )?;
+                    {
+                        let mut exists = tx.prepare_cached(
+                            "SELECT EXISTS(SELECT 1 FROM kv_zset WHERE key = ?1)",
+                        )?;
+                        let mut remove_index =
+                            tx.prepare_cached("DELETE FROM kv_set WHERE key = ?1 AND member = ?2")?;
+                        let mut remove_key =
+                            tx.prepare_cached("DELETE FROM kv_keys WHERE key = ?1")?;
+                        for key in keys.iter().filter(|key| !key.trim().is_empty()) {
+                            if exists.query_row([key], |row| row.get::<_, bool>(0))? {
+                                continue;
+                            }
+                            // Check and removal share a transaction, so a new
+                            // sample cannot arrive between them and be deleted.
+                            remove_index.execute([&index_key, key])?;
+                            remove_key.execute([key])?;
+                            if let Some(last_key) = traffic_last_total_key_for_metric_key(key) {
+                                remove_key.execute([&last_key])?;
+                            }
+                        }
+                    }
+                    tx.execute(
+                        "DELETE FROM kv_keys WHERE key = ?1
+                         AND NOT EXISTS(SELECT 1 FROM kv_set WHERE key = ?1)",
+                        [&index_key],
+                    )?;
+                    tx.commit()?;
+                    Ok(())
+                })
+                .await?;
         }
         Ok(())
     }

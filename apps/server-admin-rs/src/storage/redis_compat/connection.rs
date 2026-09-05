@@ -237,19 +237,25 @@ impl ConnectionManager {
         .await
     }
 
-    pub(crate) async fn replace_password_and_delete_security_state_atomically(
+    pub(crate) async fn install_password_and_delete_security_state_atomically(
         &self,
         password_key: &str,
         password_json: &str,
         session_prefix: &str,
         backoff_prefix: &str,
-    ) -> RedisResult<()> {
+    ) -> RedisResult<bool> {
         let password_key = password_key.to_string();
         let password_json = password_json.to_string();
         let session_pattern = format!("{}%", escape_like_pattern(session_prefix));
         let backoff_pattern = format!("{}%", escape_like_pattern(backoff_prefix));
         self.call(move |conn| {
             let tx = immediate_transaction(conn)?;
+            purge_expired_tx(&tx, &password_key)?;
+            if key_kind_tx(&tx, &password_key)?.is_some() {
+                // A concurrent initializer won while the caller was hashing.
+                // In particular, do not invalidate sessions it has created.
+                return Ok(false);
+            }
             purge_expired_all_tx(&tx)?;
             let session_keys = keys_matching_pattern_tx(&tx, &session_pattern)?;
             let backoff_keys = keys_matching_pattern_tx(&tx, &backoff_pattern)?;
@@ -267,7 +273,7 @@ impl ConnectionManager {
                 TypedMobilitySyncScope::from_keys(session_keys.into_iter().chain(backoff_keys)),
             )?;
             tx.commit()?;
-            Ok(())
+            Ok(true)
         })
         .await
     }
@@ -394,6 +400,53 @@ impl ConnectionManager {
             .map_err(Into::into)
         })
         .await
+    }
+
+    /// Read cache documents without TTL cleanup or primary-writer admission.
+    /// Each submitted closure handles at most 256 keys and observes a single
+    /// read transaction. Cancellation can stop between batches.
+    pub(crate) async fn get_live_strings_analytics(
+        &self,
+        keys: Vec<String>,
+    ) -> RedisResult<Vec<Option<String>>> {
+        const BATCH_SIZE: usize = 256;
+        let mut values = Vec::with_capacity(keys.len());
+        let mut keys = keys.into_iter();
+        loop {
+            let batch = keys.by_ref().take(BATCH_SIZE).collect::<Vec<_>>();
+            if batch.is_empty() {
+                break;
+            }
+            let result = self
+                .call_analytics(move |conn| {
+                    let tx = conn.transaction()?;
+                    // Admission can wait behind a long analytics query. TTLs
+                    // must be evaluated when this batch actually executes.
+                    let now_ms = crate::time_utils::now_ms();
+                    let values = {
+                        let mut statement = tx.prepare_cached(
+                            "SELECT strings.value
+                             FROM kv_strings AS strings
+                             JOIN kv_keys AS keys ON keys.key = strings.key
+                             WHERE strings.key = ?1 AND keys.kind = 'string'
+                               AND (keys.expires_at_ms IS NULL OR keys.expires_at_ms > ?2)",
+                        )?;
+                        batch
+                            .iter()
+                            .map(|key| {
+                                statement
+                                    .query_row(params![key, now_ms], |row| row.get::<_, String>(0))
+                                    .optional()
+                            })
+                            .collect::<Result<Vec<_>, _>>()?
+                    };
+                    tx.commit()?;
+                    Ok(values)
+                })
+                .await?;
+            values.extend(result);
+        }
+        Ok(values)
     }
 
     pub(crate) fn primary_queue_status(&self) -> PrimaryQueueStatus {

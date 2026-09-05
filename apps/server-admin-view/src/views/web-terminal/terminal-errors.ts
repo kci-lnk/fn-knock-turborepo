@@ -29,6 +29,7 @@ const terminalErrorCodes = new Set<TerminalErrorCode>([
   "connect_timeout",
   "conflict",
   "upstream_unavailable",
+  "resource_busy",
   "internal_error",
 ]);
 

@@ -1,11 +1,20 @@
 import { execFile, spawn } from "node:child_process";
-import { access, mkdir, mkdtemp, readFile, readdir, rm } from "node:fs/promises";
+import {
+  access,
+  mkdir,
+  mkdtemp,
+  readFile,
+  readdir,
+  rm,
+} from "node:fs/promises";
 import http from "node:http";
 import net from "node:net";
 import os from "node:os";
 import path from "node:path";
 import { promisify } from "node:util";
 import { fileURLToPath } from "node:url";
+import { setTimeout as delay } from "node:timers/promises";
+import { readProcessMemory } from "./runtime-process-memory.mjs";
 
 const execFileAsync = promisify(execFile);
 const idleMeasurementDelayMs = 1_000;
@@ -16,6 +25,15 @@ export const rootDir = path.resolve(
   path.dirname(fileURLToPath(import.meta.url)),
   "..",
 );
+
+// Keep the deadline attached to the response so stalled body reads also abort.
+export const fetchRuntime = (url, options = {}, timeoutMs = 10_000) =>
+  fetch(url, {
+    ...options,
+    signal: options.signal
+      ? AbortSignal.any([options.signal, AbortSignal.timeout(timeoutMs)])
+      : AbortSignal.timeout(timeoutMs),
+  });
 
 const getFreePort = () =>
   new Promise((resolve, reject) => {
@@ -28,18 +46,31 @@ const getFreePort = () =>
     });
   });
 
-export const waitForHttp = async (url, timeoutMs = 60_000) => {
+export const waitForHttp = async (url, timeoutMs = 60_000, signal) => {
   const deadline = Date.now() + timeoutMs;
   let lastError;
   while (Date.now() < deadline) {
+    signal?.throwIfAborted();
     try {
-      const response = await fetch(url);
+      const response = await fetchRuntime(
+        url,
+        { signal },
+        Math.max(1, Math.min(2_000, deadline - Date.now())),
+      );
+      // Readiness only needs the status; release the connection immediately.
+      await response.body?.cancel();
       if (response.ok) return;
       lastError = new Error(`${url} returned ${response.status}`);
     } catch (error) {
       lastError = error;
     }
-    await new Promise((resolve) => setTimeout(resolve, 100));
+    signal?.throwIfAborted();
+    const remaining = deadline - Date.now();
+    if (remaining > 0) {
+      await new Promise((resolve) =>
+        setTimeout(resolve, Math.min(100, remaining)),
+      );
+    }
   }
   throw lastError || new Error(`Timed out waiting for ${url}`);
 };
@@ -159,14 +190,38 @@ const resolveGatewayBinary = async (explicitBinary, tempDir) => {
   );
 };
 
-const stopChild = async (child) => {
-  if (child.exitCode !== null) return;
-  child.kill("SIGTERM");
-  await Promise.race([
-    new Promise((resolve) => child.once("exit", resolve)),
-    new Promise((resolve) => setTimeout(resolve, 3_000)),
-  ]);
-  if (child.exitCode === null) child.kill("SIGKILL");
+const childHasExited = (child) =>
+  child.exitCode !== null ||
+  child.signalCode !== null ||
+  child.pid === undefined;
+
+const signalAndWaitForChild = (child, signal, timeoutMs) =>
+  new Promise((resolve, reject) => {
+    const finish = (error) => {
+      clearTimeout(timer);
+      child.removeListener("exit", onExit);
+      child.removeListener("error", onError);
+      if (error) reject(error);
+      else resolve(childHasExited(child));
+    };
+    const onExit = () => finish();
+    const onError = (error) => finish(error);
+    const timer = setTimeout(() => finish(), timeoutMs);
+    // Install listeners before signaling, including children that exit immediately.
+    child.once("exit", onExit);
+    child.once("error", onError);
+    if (childHasExited(child)) finish();
+    else child.kill(signal);
+  });
+
+export const stopChild = async (child, graceMs = 3_000) => {
+  if (childHasExited(child)) return;
+  if (await signalAndWaitForChild(child, "SIGTERM", graceMs)) return;
+  if (!(await signalAndWaitForChild(child, "SIGKILL", 3_000))) {
+    throw new Error(
+      `Timed out waiting for child ${child.pid} to exit after SIGKILL`,
+    );
+  }
 };
 
 const numberOrNull = (value) =>
@@ -174,38 +229,59 @@ const numberOrNull = (value) =>
     ? Math.round(value)
     : null;
 
-const countProcessFDs = async (pid) => {
+const countProcessFDs = async (pid, signal) => {
+  signal?.throwIfAborted();
   if (!Number.isInteger(pid) || pid <= 0) return null;
   if (process.platform === "linux") {
     try {
-      return (await readdir(`/proc/${pid}/fd`)).length;
+      const entries = await readdir(`/proc/${pid}/fd`);
+      signal?.throwIfAborted();
+      return entries.length;
     } catch {
+      signal?.throwIfAborted();
       return null;
     }
   }
   try {
-    const { stdout } = await execFileAsync("lsof", ["-a", "-p", String(pid), "-Fn"]);
+    const { stdout } = await execFileAsync(
+      "lsof",
+      ["-a", "-p", String(pid), "-Fn"],
+      { timeout: 2_000, signal },
+    );
     return stdout.split("\n").filter((line) => /^f\d+$/u.test(line)).length;
   } catch {
+    signal?.throwIfAborted();
     return null;
   }
 };
 
-const runtimeCheckpointFromPayload = async (payload, managementPid, gatewayPid) => {
+const runtimeCheckpointFromPayload = async (
+  payload,
+  managementPid,
+  gatewayPid,
+  signal,
+) => {
   const components = payload?.data?.components;
   const management = components?.management;
   const gateway = components?.gateway_process;
-  const managementRSS = numberOrNull(management?.rss_bytes);
-  const gatewayRSS = numberOrNull(gateway?.rss_bytes);
+  const [managementMemory, gatewayMemory] = await Promise.all([
+    readProcessMemory(managementPid, signal),
+    readProcessMemory(gatewayPid, signal),
+  ]);
+  const managementRSS =
+    managementMemory?.rss_bytes ?? numberOrNull(management?.rss_bytes);
+  const gatewayRSS =
+    gatewayMemory?.rss_bytes ?? numberOrNull(gateway?.rss_bytes);
   if (managementRSS === null || gatewayRSS === null) return null;
   const [managementFDs, gatewayFDs] = await Promise.all([
-    countProcessFDs(managementPid),
-    countProcessFDs(gatewayPid),
+    countProcessFDs(managementPid, signal),
+    countProcessFDs(gatewayPid, signal),
   ]);
   return {
     captured_at: new Date().toISOString(),
     management_rss_bytes: managementRSS,
     gateway_rss_bytes: gatewayRSS,
+    management_peak_rss_bytes: managementMemory?.peak_rss_bytes ?? null,
     gateway_heap_alloc_bytes: numberOrNull(gateway?.heap_alloc_bytes),
     gateway_heap_sys_bytes: numberOrNull(gateway?.heap_sys_bytes),
     gateway_managed_memory_bytes: numberOrNull(gateway?.managed_memory_bytes),
@@ -215,13 +291,9 @@ const runtimeCheckpointFromPayload = async (payload, managementPid, gatewayPid) 
     management_unix_fds: managementFDs,
     gateway_unix_fds: gatewayFDs,
     active_proxy_requests: numberOrNull(gateway?.active_proxy_requests),
-    active_client_connections: numberOrNull(
-      gateway?.active_client_connections,
-    ),
+    active_client_connections: numberOrNull(gateway?.active_client_connections),
     idle_client_connections: numberOrNull(gateway?.idle_client_connections),
-    open_upstream_connections: numberOrNull(
-      gateway?.open_upstream_connections,
-    ),
+    open_upstream_connections: numberOrNull(gateway?.open_upstream_connections),
     udp_sessions: numberOrNull(gateway?.udp_sessions),
     udp_queued_bytes: numberOrNull(gateway?.udp_queued_bytes),
     udp_queued_bytes_peak: numberOrNull(gateway?.udp_queued_bytes_peak),
@@ -229,31 +301,41 @@ const runtimeCheckpointFromPayload = async (payload, managementPid, gatewayPid) 
   };
 };
 
-const collectRuntimeCheckpoint = async (
+export const collectRuntimeCheckpoint = async (
   backendUrl,
   managementPid,
   gatewayPid,
+  signal,
 ) => {
+  signal?.throwIfAborted();
   const deadline = Date.now() + gatewayMetricTimeoutMs;
   let lastStatus = "no response";
   while (Date.now() < deadline) {
+    signal?.throwIfAborted();
     try {
-      const response = await fetch(`${backendUrl}/api/admin/runtime-health`);
+      const response = await fetchRuntime(
+        `${backendUrl}/api/admin/runtime-health`,
+        { signal },
+        Math.max(1, Math.min(2_000, deadline - Date.now())),
+      );
       if (response.ok) {
         const checkpoint = await runtimeCheckpointFromPayload(
           await response.json(),
           managementPid,
           gatewayPid,
+          signal,
         );
         if (checkpoint) return checkpoint;
         lastStatus = "RSS fields are not ready";
       } else {
         lastStatus = `HTTP ${response.status}`;
+        await response.body?.cancel();
       }
     } catch (error) {
+      signal?.throwIfAborted();
       lastStatus = error?.message ?? String(error);
     }
-    await new Promise((resolve) => setTimeout(resolve, runtimeMetricPollMs));
+    await delay(runtimeMetricPollMs, undefined, { signal });
   }
   throw new Error(`Runtime health metrics did not stabilize: ${lastStatus}`);
 };
@@ -306,32 +388,38 @@ const createLoadUpstream = async () => {
 };
 
 const configurePerformanceRoute = async (backendUrl, upstreamUrl) => {
-  const modeResponse = await fetch(`${backendUrl}/api/admin/config/run_type`, {
-    method: "POST",
-    headers: { "content-type": "application/json" },
-    body: JSON.stringify({ run_type: 1, reverse_proxy_submode: "path" }),
-  });
+  const modeResponse = await fetchRuntime(
+    `${backendUrl}/api/admin/config/run_type`,
+    {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ run_type: 1, reverse_proxy_submode: "path" }),
+    },
+  );
   if (!modeResponse.ok) {
     throw new Error(
       `failed to configure reverse-proxy runtime mode: HTTP ${modeResponse.status} ${await modeResponse.text()}`,
     );
   }
-  const response = await fetch(`${backendUrl}/api/admin/config/proxy_mappings`, {
-    method: "POST",
-    headers: { "content-type": "application/json" },
-    body: JSON.stringify({
-      mappings: [
-        {
-          path: "/perf",
-          target: upstreamUrl,
-          rewrite_html: false,
-          use_auth: false,
-          use_root_mode: false,
-          strip_path: true,
-        },
-      ],
-    }),
-  });
+  const response = await fetchRuntime(
+    `${backendUrl}/api/admin/config/proxy_mappings`,
+    {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        mappings: [
+          {
+            path: "/perf",
+            target: upstreamUrl,
+            rewrite_html: false,
+            use_auth: false,
+            use_root_mode: false,
+            strip_path: true,
+          },
+        ],
+      }),
+    },
+  );
   if (!response.ok) {
     throw new Error(
       `failed to configure performance proxy route: HTTP ${response.status} ${await response.text()}`,
@@ -458,6 +546,9 @@ export const startRuntime = async ({
     stdio: ["ignore", "pipe", "pipe"],
   });
 
+  const startup = new AbortController();
+  child.on("error", (error) => startup.abort(error));
+  gateway.on("error", (error) => startup.abort(error));
   let output = "";
   const appendOutput = (chunk) => {
     output = `${output}${chunk}`.slice(-12_000);
@@ -475,9 +566,9 @@ export const startRuntime = async ({
   const startedAt = performance.now();
   try {
     await Promise.all([
-      waitForHttp(`${backendUrl}/__fn-knock/readyz`),
-      waitForHttp(adminUrl),
-      waitForHttp(authUrl),
+      waitForHttp(`${backendUrl}/__fn-knock/readyz`, 60_000, startup.signal),
+      waitForHttp(adminUrl, 60_000, startup.signal),
+      waitForHttp(authUrl, 60_000, startup.signal),
     ]);
     const readinessMs = Math.round(performance.now() - startedAt);
     if (collectMetrics) {
@@ -497,15 +588,37 @@ export const startRuntime = async ({
       gatewayProxyUrl: `http://127.0.0.1:${goProxyPort}`,
       metrics,
       readinessMs,
-      collectCheckpoint: () =>
-        collectRuntimeCheckpoint(backendUrl, child.pid, gateway.pid),
+      collectCheckpoint: (signal) =>
+        collectRuntimeCheckpoint(backendUrl, child.pid, gateway.pid, signal),
+      // Keep fast RSS sampling independent of health RPCs, SQLite and lsof.
+      collectMemorySample: async (signal) => {
+        const memory = await readProcessMemory(child.pid, signal);
+        if (!memory)
+          return collectRuntimeCheckpoint(
+            backendUrl,
+            child.pid,
+            gateway.pid,
+            signal,
+          );
+        return {
+          captured_at: new Date().toISOString(),
+          management_rss_bytes: memory.rss_bytes,
+          management_peak_rss_bytes: memory.peak_rss_bytes,
+        };
+      },
       reclaimGatewayMemory: async () => {
-        const response = await fetch(
+        const response = await fetchRuntime(
           `${backendUrl}/api/admin/runtime-health/gateway-memory/reclaim`,
-          { method: "POST", headers: { "content-type": "application/json" }, body: "{}" },
+          {
+            method: "POST",
+            headers: { "content-type": "application/json" },
+            body: "{}",
+          },
         );
         if (!response.ok) {
-          throw new Error(`gateway memory reclaim failed: HTTP ${response.status}`);
+          throw new Error(
+            `gateway memory reclaim failed: HTTP ${response.status}`,
+          );
         }
         return response.json();
       },
@@ -516,6 +629,7 @@ export const startRuntime = async ({
       },
     };
   } catch (error) {
+    startup.abort(error);
     await Promise.all([stopChild(child), stopChild(gateway)]);
     await loadUpstream.stop();
     await rm(tempDir, { recursive: true, force: true });

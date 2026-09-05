@@ -1,14 +1,20 @@
 export const zhCNAdmin = {
   webTerminalSettings: {
+    undoClear: "撤销清除",
+    verifyPlaceholder: "输入访问密码",
+    verifying: "正在验证…",
+    sessionUnavailable:
+      "验证未能保持，请确认浏览器允许 Cookie，并重新加载页面后再试。",
+
     description: "管理 Web 终端的启用状态和访问密码。",
     enabled: "开启 Web 终端",
     enabledHint: "关闭并保存后，将立即结束所有 SSH 和本机终端会话。",
     password: "访问密码",
-    passwordHint: "可选。设置后，同一次后台登录首次使用 Web 终端时需要验证。",
+    passwordHint: "可选；同一次登录只需验证一次。",
     configured: "已设置",
     notConfigured: "未设置",
     clearPending: "保存后将清除访问密码",
-    passwordPlaceholder: "输入新密码，留空保持不变",
+    passwordPlaceholder: "输入新密码，留空不修改",
     clear: "清除密码",
     cancel: "取消",
     save: "保存",
@@ -16,7 +22,7 @@ export const zhCNAdmin = {
     saved: "Web 终端设置已保存",
     loading: "正在加载…",
     verifyHint: "请输入 Web 终端访问密码，验证后即可使用。",
-    verify: "验证",
+    verify: "进入终端",
     retry: "重试",
     wrongPassword: "密码错误，请重新输入。",
     rateLimited: "尝试次数过多，请一分钟后重试。",

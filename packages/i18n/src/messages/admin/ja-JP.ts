@@ -2,17 +2,22 @@ import { zhCNAdmin } from "./zh-CN";
 
 export const jaJPAdmin = {
   webTerminalSettings: {
+    undoClear: "クリアを取り消す",
+    verifyPlaceholder: "アクセスパスワードを入力",
+    verifying: "確認中…",
+    sessionUnavailable:
+      "認証状態を保持できませんでした。Cookie を許可し、ページを再読み込みしてからお試しください。",
+
     description: "Web ターミナルの有効状態とアクセスパスワードを管理します。",
     enabled: "Web ターミナルを有効にする",
     enabledHint:
       "無効にして保存すると、すべての SSH とローカルターミナルのセッションが直ちに終了します。",
     password: "アクセスパスワード",
-    passwordHint:
-      "任意。設定すると、管理画面へのログインごとに初回利用時の認証が必要です。",
+    passwordHint: "任意。ログインごとに一度だけ確認します。",
     configured: "設定済み",
     notConfigured: "未設定",
     clearPending: "保存するとアクセスパスワードが削除されます",
-    passwordPlaceholder: "新しいパスワードを入力。空欄の場合は変更しません",
+    passwordPlaceholder: "新しいパスワード（空欄なら変更なし）",
     clear: "パスワードを削除",
     cancel: "キャンセル",
     save: "保存",
@@ -20,7 +25,7 @@ export const jaJPAdmin = {
     saved: "Web ターミナルの設定を保存しました",
     loading: "読み込み中…",
     verifyHint: "Web ターミナルのアクセスパスワードを入力してください。",
-    verify: "認証",
+    verify: "ターミナルへ",
     retry: "再試行",
     wrongPassword: "パスワードが正しくありません。もう一度入力してください。",
     rateLimited: "試行回数が多すぎます。1 分後に再試行してください。",

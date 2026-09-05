@@ -447,3 +447,6 @@ fn cancelled_password_checks_still_consume_the_attempt_budget() {
         worker.await.unwrap();
     });
 }
+
+#[cfg(unix)]
+mod cgi;

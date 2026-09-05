@@ -17,12 +17,12 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import FloatingActionDock from "@admin-shared/components/common/FloatingActionDock.vue";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+import PasswordInput from "@/components/DockerAdminPasswordInput.vue";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import RefreshButton from "@/components/RefreshButton.vue";
-import FloatingActionDock from "@admin-shared/components/common/FloatingActionDock.vue";
 import { toast } from "@admin-shared/utils/toast";
 import {
   TerminalAccessAPI,
@@ -130,25 +130,26 @@ onUnmounted(() => {
       </BreadcrumbList></Breadcrumb
     >
     <Card class="border-border/50 shadow-none">
-      <CardHeader class="flex flex-row items-start justify-between gap-4">
-        <div class="space-y-1.5">
-          <CardTitle class="text-xl tracking-tight">{{
-            t("admin.nav.webTerminal")
-          }}</CardTitle>
-          <CardDescription>{{
-            t("admin.webTerminalSettings.description")
-          }}</CardDescription>
+      <CardHeader class="space-y-4">
+        <div
+          class="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between"
+        >
+          <div class="space-y-1.5">
+            <CardTitle class="text-xl tracking-tight">{{
+              t("admin.nav.webTerminal")
+            }}</CardTitle>
+            <CardDescription class="max-w-2xl leading-6">{{
+              t("admin.webTerminalSettings.description")
+            }}</CardDescription>
+          </div>
+          <RefreshButton
+            :loading="loading"
+            :disabled="saving || loading"
+            @click="load"
+          />
         </div>
-        <RefreshButton
-          :loading="loading"
-          :disabled="saving || loading"
-          @click="load"
-        />
       </CardHeader>
       <CardContent class="space-y-5">
-        <p v-if="error" role="alert" class="text-sm text-destructive">
-          {{ error }}
-        </p>
         <p
           v-if="loading && !settings"
           role="status"
@@ -156,68 +157,126 @@ onUnmounted(() => {
         >
           {{ t("admin.webTerminalSettings.loading") }}
         </p>
+        <div
+          v-if="error"
+          role="alert"
+          class="rounded-xl border border-destructive/25 bg-destructive/5 px-5 py-4 text-sm text-destructive"
+        >
+          {{ error }}
+        </div>
         <form v-if="settings" class="space-y-5" @submit.prevent="save">
-          <div class="rounded-2xl border border-border/60 bg-muted/10 p-4">
+          <div
+            class="rounded-2xl border border-border/60 bg-muted/10 px-4 py-4"
+          >
             <div class="flex items-start justify-between gap-4">
-              <div class="space-y-2">
-                <Label :for="`${id}-enabled`" class="text-base font-medium">{{
-                  t("admin.webTerminalSettings.enabled")
-                }}</Label>
-                <p class="text-sm text-muted-foreground">
-                  {{ t("admin.webTerminalSettings.enabledHint") }}
-                </p>
-              </div>
+              <Label :for="`${id}-enabled`" class="text-base font-medium">{{
+                t("admin.webTerminalSettings.enabled")
+              }}</Label>
               <Switch
                 :id="`${id}-enabled`"
                 v-model="enabled"
+                class="mt-0.5 shrink-0"
                 :disabled="saving || loading"
               />
             </div>
           </div>
-          <section
-            v-if="enabled"
-            class="space-y-4 rounded-xl border border-border/60 p-5"
-          >
-            <div class="space-y-1">
-              <Label :for="`${id}-password`">{{
-                t("admin.webTerminalSettings.password")
-              }}</Label>
-              <p class="text-sm text-muted-foreground">
-                {{ t("admin.webTerminalSettings.passwordHint") }}
-              </p>
-              <p class="text-sm" role="status">
-                {{
-                  t(
-                    clearPassword
-                      ? "admin.webTerminalSettings.clearPending"
-                      : settings.passwordConfigured
-                        ? "admin.webTerminalSettings.configured"
-                        : "admin.webTerminalSettings.notConfigured",
-                  )
-                }}
-              </p>
-            </div>
-            <Input
-              :id="`${id}-password`"
-              v-model="password"
-              type="password"
-              autocomplete="new-password"
-              :disabled="saving || loading"
-              :placeholder="t('admin.webTerminalSettings.passwordPlaceholder')"
-              @update:model-value="clearPassword = false"
-            />
-            <Button
-              v-if="settings.passwordConfigured"
-              type="button"
-              variant="outline"
-              :disabled="saving || loading || clearPassword"
-              @click="clear"
-              >{{ t("admin.webTerminalSettings.clear") }}</Button
+          <div class="overflow-hidden rounded-xl border border-border/60">
+            <section v-if="enabled" class="space-y-4 p-5">
+              <div class="grid gap-4 lg:grid-cols-2 lg:items-center lg:gap-6">
+                <div class="space-y-1">
+                  <div class="flex flex-wrap items-baseline gap-2">
+                    <Label :for="`${id}-password`" class="text-base">{{
+                      t("admin.webTerminalSettings.password")
+                    }}</Label>
+                    <span role="status" class="text-xs text-muted-foreground">{{
+                      t(
+                        clearPassword
+                          ? "admin.webTerminalSettings.clearPending"
+                          : settings.passwordConfigured
+                            ? "admin.webTerminalSettings.configured"
+                            : "admin.webTerminalSettings.notConfigured",
+                      )
+                    }}</span>
+                  </div>
+                  <p class="text-sm leading-6 text-muted-foreground">
+                    {{ t("admin.webTerminalSettings.passwordHint") }}
+                  </p>
+                </div>
+                <div
+                  class="flex min-w-0 flex-col gap-2 sm:flex-row sm:items-center"
+                >
+                  <div class="min-w-0 flex-1">
+                    <PasswordInput
+                      :id="`${id}-password`"
+                      v-model="password"
+                      autocomplete="new-password"
+                      input-class="h-10 w-full rounded-lg border-border/70 bg-background pl-3 pr-10 text-sm shadow-none"
+                      :disabled="saving || loading"
+                      :placeholder="
+                        t('admin.webTerminalSettings.passwordPlaceholder')
+                      "
+                      @update:model-value="clearPassword = false"
+                    />
+                  </div>
+                  <Button
+                    v-if="settings.passwordConfigured"
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    class="h-10 shrink-0 rounded-lg border-border/70 shadow-none"
+                    :disabled="saving || loading"
+                    @click="clearPassword ? (clearPassword = false) : clear()"
+                    >{{
+                      t(
+                        clearPassword
+                          ? "admin.webTerminalSettings.undoClear"
+                          : "admin.webTerminalSettings.clear",
+                      )
+                    }}</Button
+                  >
+                </div>
+              </div>
+            </section>
+            <FloatingActionDock
+              :active="Boolean(dirty)"
+              :inline-class="[
+                'space-y-4 p-5',
+                enabled ? 'border-t border-border/60' : '',
+              ]"
             >
-          </section>
-          <FloatingActionDock :active="Boolean(dirty)">
-            <template #inline
-              ><div class="flex justify-end gap-3">
+              <template #inline>
+                <div
+                  class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between"
+                >
+                  <p
+                    v-if="!enabled"
+                    class="text-sm leading-6 text-muted-foreground"
+                  >
+                    {{ t("admin.webTerminalSettings.enabledHint") }}
+                  </p>
+                  <div class="flex gap-3 sm:ml-auto">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      :disabled="saving"
+                      @click="back"
+                      >{{ t("admin.webTerminalSettings.cancel") }}</Button
+                    >
+                    <Button
+                      type="submit"
+                      :disabled="!dirty || saving || loading"
+                      >{{
+                        t(
+                          saving
+                            ? "admin.webTerminalSettings.saving"
+                            : "admin.webTerminalSettings.save",
+                        )
+                      }}</Button
+                    >
+                  </div>
+                </div>
+              </template>
+              <template #floating>
                 <Button
                   type="button"
                   variant="outline"
@@ -225,37 +284,21 @@ onUnmounted(() => {
                   @click="back"
                   >{{ t("admin.webTerminalSettings.cancel") }}</Button
                 >
-                <Button type="submit" :disabled="!dirty || saving || loading">{{
-                  t(
-                    saving
-                      ? "admin.webTerminalSettings.saving"
-                      : "admin.webTerminalSettings.save",
-                  )
-                }}</Button>
-              </div></template
-            >
-            <template #floating>
-              <Button
-                type="button"
-                variant="outline"
-                :disabled="saving"
-                @click="back"
-                >{{ t("admin.webTerminalSettings.cancel") }}</Button
-              >
-              <Button
-                type="button"
-                :disabled="!dirty || saving || loading"
-                @click="save"
-                >{{
-                  t(
-                    saving
-                      ? "admin.webTerminalSettings.saving"
-                      : "admin.webTerminalSettings.save",
-                  )
-                }}</Button
-              >
-            </template>
-          </FloatingActionDock>
+                <Button
+                  type="button"
+                  :disabled="!dirty || saving || loading"
+                  @click="save"
+                  >{{
+                    t(
+                      saving
+                        ? "admin.webTerminalSettings.saving"
+                        : "admin.webTerminalSettings.save",
+                    )
+                  }}</Button
+                >
+              </template>
+            </FloatingActionDock>
+          </div>
         </form>
       </CardContent>
     </Card>

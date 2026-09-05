@@ -296,3 +296,36 @@ it("does not publish an unmounted settings page's late save over newer state", a
   expect(access.status?.enabled).toBe(false);
   expect(access.status?.revision).toBe("latest");
 });
+
+it("keeps the password and explains a verification whose cookie was not retained", async () => {
+  const wrapper = mount(WebTerminal, options());
+  await flushPromises();
+  await wrapper.get("input").setValue("correct");
+  await wrapper.get("form").trigger("submit");
+  await flushPromises();
+  expect(wrapper.find('[data-test="workspace"]').exists()).toBe(false);
+  expect(wrapper.get('[role="alert"]').text()).toContain("Allow cookies");
+  expect((wrapper.get("input").element as HTMLInputElement).value).toBe(
+    "correct",
+  );
+  wrapper.unmount();
+});
+
+it.each([WebTerminal, WebTerminalSettings])(
+  "toggles password visibility without submitting or changing the draft",
+  async (component) => {
+    const wrapper = mount(component, options());
+    await flushPromises();
+    await wrapper.get("input").setValue("visible-secret");
+    await wrapper.get('button[aria-label="Show password"]').trigger("click");
+    expect(wrapper.get("input").attributes("type")).toBe("text");
+    expect((wrapper.get("input").element as HTMLInputElement).value).toBe(
+      "visible-secret",
+    );
+    await wrapper.get('button[aria-label="Hide password"]').trigger("click");
+    expect(wrapper.get("input").attributes("type")).toBe("password");
+    expect(api.verify).not.toHaveBeenCalled();
+    expect(api.update).not.toHaveBeenCalled();
+    wrapper.unmount();
+  },
+);

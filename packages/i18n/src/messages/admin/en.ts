@@ -1,17 +1,21 @@
 export const enAdmin = {
   webTerminalSettings: {
+    undoClear: "Undo clear",
+    verifyPlaceholder: "Enter access password",
+    verifying: "Verifying…",
+    sessionUnavailable:
+      "Your verification could not be retained. Allow cookies and reload the page, then try again.",
+
     description: "Manage Web Terminal availability and its access password.",
     enabled: "Enable Web Terminal",
     enabledHint:
       "Disabling and saving immediately ends all SSH and local terminal sessions.",
     password: "Access password",
-    passwordHint:
-      "Optional. Once set, verification is required on first use during each admin login.",
+    passwordHint: "Optional. Verify once per login.",
     configured: "Configured",
     notConfigured: "Not configured",
     clearPending: "The access password will be cleared when you save",
-    passwordPlaceholder:
-      "Enter a new password; leave blank to keep the current one",
+    passwordPlaceholder: "New password; leave blank to keep current",
     clear: "Clear password",
     cancel: "Cancel",
     save: "Save",
@@ -19,7 +23,7 @@ export const enAdmin = {
     saved: "Web Terminal settings saved",
     loading: "Loading…",
     verifyHint: "Enter the Web Terminal access password to continue.",
-    verify: "Verify",
+    verify: "Enter terminal",
     retry: "Retry",
     wrongPassword: "Incorrect password. Please try again.",
     rateLimited: "Too many attempts. Please retry in one minute.",

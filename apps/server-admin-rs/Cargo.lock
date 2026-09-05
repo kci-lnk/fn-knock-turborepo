@@ -4337,7 +4337,7 @@ dependencies = [
 
 [[package]]
 name = "server-admin-rs"
-version = "2.4.6"
+version = "2.4.9"
 dependencies = [
  "aes-gcm 0.10.3",
  "anyhow",

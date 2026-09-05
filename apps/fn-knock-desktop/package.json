@@ -1,7 +1,7 @@
 {
   "name": "fn-knock-desktop",
   "private": true,
-  "version": "2.4.6",
+  "version": "2.4.9",
   "type": "module",
   "scripts": {
     "dev": "cargo run --manifest-path native/Cargo.toml",

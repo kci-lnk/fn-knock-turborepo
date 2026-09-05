@@ -46,8 +46,6 @@ function validateContract(openapiPath) {
     ["get /api/admin/panel-sync/runs/{run_id}", null],
     ["get /api/admin/terminal/settings", null],
     ["patch /api/admin/terminal/settings", "WebTerminalSettingsInput"],
-    ["get /api/admin/terminal/access", null],
-    ["post /api/admin/terminal/access/verify", "WebTerminalVerifyInput"],
     ["get /api/admin/terminal/local", null],
     ["patch /api/admin/terminal/local", "LocalTerminalSettingsInput"],
     ["post /api/admin/terminal/local/sessions", "CreateSessionInput"],

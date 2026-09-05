@@ -2111,12 +2111,6 @@ pub(crate) fn build_openapi_document() -> Value {
             "WebTerminalSettings",
             Some("WebTerminalSettingsInput"),
         ),
-        (
-            "/api/admin/terminal/access",
-            "get",
-            "WebTerminalAccessStatus",
-            None,
-        ),
     ] {
         insert_typed_enveloped_operation(
             &mut paths,
@@ -2128,14 +2122,6 @@ pub(crate) fn build_openapi_document() -> Value {
             request_schema,
         );
     }
-    insert_typed_empty_enveloped_operation(
-        &mut paths,
-        &typed_terminal_runtime,
-        "/api/admin/terminal/access/verify",
-        "post",
-        Some("WebTerminalVerifyInput"),
-        None,
-    );
     insert_typed_array_enveloped_operation(
         &mut paths,
         &typed_terminal_runtime,
@@ -2333,8 +2319,6 @@ pub(crate) fn build_openapi_document() -> Value {
     for (method, path) in [
         ("get", "/api/admin/terminal/settings"),
         ("patch", "/api/admin/terminal/settings"),
-        ("get", "/api/admin/terminal/access"),
-        ("post", "/api/admin/terminal/access/verify"),
         ("get", "/api/admin/terminal/local"),
         ("patch", "/api/admin/terminal/local"),
         ("post", "/api/admin/terminal/local/sessions"),
@@ -2357,25 +2341,6 @@ pub(crate) fn build_openapi_document() -> Value {
         ("delete", "/api/admin/terminal/attachments/{id}"),
     ] {
         set_operation_error_schema(&mut paths, path, method, "TerminalErrorEnvelope");
-    }
-    for (method, path) in [
-        ("patch", "/api/admin/terminal/settings"),
-        ("post", "/api/admin/terminal/access/verify"),
-    ] {
-        let Some(mut response) = typed_operation(&typed_terminal_runtime, path, method)
-            .and_then(|operation| operation["responses"].get("503").cloned())
-        else {
-            continue;
-        };
-        response["headers"] = json!({
-            "Retry-After": {
-                "description": "密码处理资源繁忙时建议等待的秒数",
-                "schema": { "type": "integer", "minimum": 1 }
-            }
-        });
-        // The envelope helpers replace typed responses. Restore the explicit
-        // overload response so callers can distinguish it from bad passwords.
-        paths.get_mut(path).expect("typed terminal path")[method]["responses"]["503"] = response;
     }
     insert_typed_enveloped_operation(
         &mut paths,
@@ -5039,7 +5004,7 @@ mod tests {
     }
 
     #[test]
-    fn terminal_feature_and_access_operations_have_typed_chinese_contracts() {
+    fn terminal_feature_operations_have_typed_chinese_contracts() {
         let document = document_value();
         for (path, method, summary, request_schema) in [
             (
@@ -5054,18 +5019,6 @@ mod tests {
                 "修改Web 终端设置",
                 Some("WebTerminalSettingsInput"),
             ),
-            (
-                "/api/admin/terminal/access",
-                "get",
-                "查看Web 终端访问权限",
-                None,
-            ),
-            (
-                "/api/admin/terminal/access/verify",
-                "post",
-                "验证Web 终端访问权限",
-                Some("WebTerminalVerifyInput"),
-            ),
         ] {
             let operation = &document["paths"][path][method];
             assert_eq!(operation["summary"], summary, "{method} {path}");
@@ -5078,16 +5031,6 @@ mod tests {
                     operation["requestBody"]["content"]["application/json"]["schema"]["$ref"],
                     format!("#/components/schemas/{schema}"),
                     "{method} {path} request schema"
-                );
-                let overloaded = &operation["responses"]["503"];
-                assert_eq!(
-                    overloaded["content"]["application/json"]["schema"]["$ref"],
-                    "#/components/schemas/TerminalErrorEnvelope",
-                    "{method} {path} overload response schema"
-                );
-                assert_eq!(
-                    overloaded["headers"]["Retry-After"]["schema"]["minimum"], 1,
-                    "{method} {path} overload retry hint"
                 );
             }
         }

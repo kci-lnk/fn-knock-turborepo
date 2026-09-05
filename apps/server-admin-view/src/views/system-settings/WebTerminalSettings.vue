@@ -19,7 +19,6 @@ import {
 } from "@/components/ui/card";
 import FloatingActionDock from "@admin-shared/components/common/FloatingActionDock.vue";
 import { Button } from "@/components/ui/button";
-import PasswordInput from "@/components/DockerAdminPasswordInput.vue";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import RefreshButton from "@/components/RefreshButton.vue";
@@ -37,24 +36,17 @@ const access = useTerminalAccessStore();
 const id = useId();
 const settings = ref<WebTerminalSettings | null>(null);
 const enabled = ref(true);
-const password = ref("");
-const clearPassword = ref(false);
 const loading = ref(false);
 const saving = ref(false);
 const error = ref("");
 let disposed = false;
 const dirty = computed(
-  () =>
-    settings.value &&
-    (enabled.value !== settings.value.enabled ||
-      (enabled.value && (password.value !== "" || clearPassword.value))),
+  () => settings.value !== null && enabled.value !== settings.value.enabled,
 );
 const back = () => router.push({ path: "/system", query: { tab: "features" } });
 function apply(value: WebTerminalSettings) {
   settings.value = value;
   enabled.value = value.enabled;
-  password.value = "";
-  clearPassword.value = false;
   access.applySettings(value);
 }
 async function load() {
@@ -72,18 +64,12 @@ async function load() {
 }
 async function save() {
   if (!settings.value || loading.value || saving.value || !dirty.value) return;
-  if (enabled.value && new TextEncoder().encode(password.value).length > 128) {
-    error.value = t("admin.webTerminalSettings.passwordTooLong");
-    return;
-  }
   saving.value = true;
   error.value = "";
   try {
     const value = await TerminalAccessAPI.update({
       enabled: enabled.value,
       revision: settings.value.revision,
-      password: enabled.value && password.value ? password.value : undefined,
-      clearPassword: enabled.value && clearPassword.value,
     });
     if (!disposed) {
       apply(value);
@@ -95,14 +81,9 @@ async function save() {
     saving.value = false;
   }
 }
-function clear() {
-  password.value = "";
-  clearPassword.value = true;
-}
 onMounted(load);
 onUnmounted(() => {
   disposed = true;
-  password.value = "";
 });
 </script>
 
@@ -181,68 +162,9 @@ onUnmounted(() => {
             </div>
           </div>
           <div class="overflow-hidden rounded-xl border border-border/60">
-            <section v-if="enabled" class="space-y-4 p-5">
-              <div class="grid gap-4 lg:grid-cols-2 lg:items-center lg:gap-6">
-                <div class="space-y-1">
-                  <div class="flex flex-wrap items-baseline gap-2">
-                    <Label :for="`${id}-password`" class="text-base">{{
-                      t("admin.webTerminalSettings.password")
-                    }}</Label>
-                    <span role="status" class="text-xs text-muted-foreground">{{
-                      t(
-                        clearPassword
-                          ? "admin.webTerminalSettings.clearPending"
-                          : settings.passwordConfigured
-                            ? "admin.webTerminalSettings.configured"
-                            : "admin.webTerminalSettings.notConfigured",
-                      )
-                    }}</span>
-                  </div>
-                  <p class="text-sm leading-6 text-muted-foreground">
-                    {{ t("admin.webTerminalSettings.passwordHint") }}
-                  </p>
-                </div>
-                <div
-                  class="flex min-w-0 flex-col gap-2 sm:flex-row sm:items-center"
-                >
-                  <div class="min-w-0 flex-1">
-                    <PasswordInput
-                      :id="`${id}-password`"
-                      v-model="password"
-                      autocomplete="new-password"
-                      input-class="h-10 w-full rounded-lg border-border/70 bg-background pl-3 pr-10 text-sm shadow-none"
-                      :disabled="saving || loading"
-                      :placeholder="
-                        t('admin.webTerminalSettings.passwordPlaceholder')
-                      "
-                      @update:model-value="clearPassword = false"
-                    />
-                  </div>
-                  <Button
-                    v-if="settings.passwordConfigured"
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    class="h-10 shrink-0 rounded-lg border-border/70 shadow-none"
-                    :disabled="saving || loading"
-                    @click="clearPassword ? (clearPassword = false) : clear()"
-                    >{{
-                      t(
-                        clearPassword
-                          ? "admin.webTerminalSettings.undoClear"
-                          : "admin.webTerminalSettings.clear",
-                      )
-                    }}</Button
-                  >
-                </div>
-              </div>
-            </section>
             <FloatingActionDock
               :active="Boolean(dirty)"
-              :inline-class="[
-                'space-y-4 p-5',
-                enabled ? 'border-t border-border/60' : '',
-              ]"
+              inline-class="space-y-4 p-5"
             >
               <template #inline>
                 <div

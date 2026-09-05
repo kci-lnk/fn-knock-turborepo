@@ -13,11 +13,7 @@ async fn request(
 ) -> String {
     use std::process::Stdio;
     use tokio::io::AsyncWriteExt;
-    let body = if method == "POST" {
-        r#"{"password":"cgi-test-secret"}"#
-    } else {
-        ""
-    };
+    let body = "";
     let mut child = Command::new("sh")
         .arg(script)
         .env(
@@ -51,10 +47,10 @@ fn json(output: &str) -> serde_json::Value {
 }
 
 #[tokio::test]
-async fn nas_cgi_verification_cookie_unlocks_real_business_routes_and_survives_reentry() {
+async fn nas_cgi_terminal_uses_only_the_feature_switch() {
     use std::os::unix::fs::PermissionsExt;
     let (directory, state) = test_state().await;
-    change(&state, true, Some("cgi-test-secret"), false).await;
+
     let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
     let port = listener.local_addr().unwrap().port();
     let app = crate::terminal::terminal_routes().with_state(state.clone());
@@ -91,46 +87,26 @@ async fn nas_cgi_verification_cookie_unlocks_real_business_routes_and_survives_r
         ),
     ] {
         let script = root.join(script);
-        let access_path = format!("{prefix}api/admin/terminal/access");
         let targets_path = format!("{prefix}api/admin/terminal/targets");
-        let locked = request(
-            &script,
-            &bin,
-            port,
-            &targets_path,
-            "GET",
-            "nas-session=private",
-        )
-        .await;
-        assert_eq!(json(&locked)["errorCode"], "access_password_required");
-        let verified = request(
-            &script,
-            &bin,
-            port,
-            &format!("{access_path}/verify"),
-            "POST",
-            "nas-session=private",
-        )
-        .await;
-        let cookie = verified
-            .lines()
-            .find_map(|line| line.strip_prefix("Set-Cookie: fn-knock-terminal-access="))
-            .unwrap();
-        assert!(cookie.contains(&format!("Path={prefix}; HttpOnly; SameSite=Strict")));
-        assert!(!cookie.contains("Max-Age"));
-        let cookie = format!(
-            "fn-knock-terminal-access={}; nas-session=private",
-            cookie.split(';').next().unwrap()
-        );
-        for _ in 0..2 {
-            let status = request(&script, &bin, port, &access_path, "GET", &cookie).await;
-            assert_eq!(json(&status)["data"]["authorized"], true);
-            let targets = request(&script, &bin, port, &targets_path, "GET", &cookie).await;
-            assert!(json(&targets)["data"].is_array());
+        for enabled in [true, false, true] {
+            change(&state, enabled).await;
+            let response = request(
+                &script,
+                &bin,
+                port,
+                &targets_path,
+                "GET",
+                "nas-session=private",
+            )
+            .await;
+            if enabled {
+                assert!(json(&response)["data"].is_array());
+            } else {
+                assert_eq!(json(&response)["errorCode"], "feature_disabled");
+            }
+            assert!(!response.contains("fn-knock-terminal-access="));
         }
-        // A different browser session cannot inherit this authorization.
-        let fresh = request(&script, &bin, port, &access_path, "GET", "").await;
-        assert_eq!(json(&fresh)["data"]["authorized"], false);
     }
+
     state.shutdown.cancel();
 }

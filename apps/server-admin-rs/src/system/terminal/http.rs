@@ -3,7 +3,7 @@ use std::time::Duration;
 use axum::{
     Json,
     extract::{FromRequest, FromRequestParts, Path, Query, State},
-    http::{HeaderMap, StatusCode, Uri, header, request::Parts},
+    http::{StatusCode, header, request::Parts},
     response::{IntoResponse, Response},
 };
 use base64::{Engine as _, engine::general_purpose::STANDARD};
@@ -15,10 +15,7 @@ use uuid::Uuid;
 use crate::{response, state::AppState};
 
 use super::{
-    access::{
-        self, TerminalAccess, WebTerminalAccessStatus, WebTerminalSettings,
-        WebTerminalSettingsInput, WebTerminalVerifyInput,
-    },
+    access::{self, TerminalAccess, WebTerminalSettings, WebTerminalSettingsInput},
     domain::*,
     service,
 };
@@ -86,8 +83,6 @@ where
 pub fn routes() -> OpenApiRouter<AppState> {
     OpenApiRouter::new()
         .routes(routes!(get_feature_settings, update_feature_settings))
-        .routes(routes!(get_access_status))
-        .routes(routes!(verify_access))
         .routes(routes!(get_local_terminal, update_local_terminal))
         .routes(routes!(create_local_session))
         .routes(routes!(list_targets, create_target))
@@ -378,10 +373,7 @@ pub struct TerminalErrorEnvelope {
 
 pub(super) fn terminal_error(error: TerminalError) -> Response {
     let status = match error.code {
-        TerminalErrorCode::FeatureDisabled | TerminalErrorCode::AccessPasswordRequired => {
-            StatusCode::FORBIDDEN
-        }
-        TerminalErrorCode::AccessRateLimited => StatusCode::TOO_MANY_REQUESTS,
+        TerminalErrorCode::FeatureDisabled => StatusCode::FORBIDDEN,
         TerminalErrorCode::InvalidRequest
         | TerminalErrorCode::HostKeyRequired
         | TerminalErrorCode::LocalTerminalUnsupported
@@ -497,40 +489,10 @@ async fn get_feature_settings(State(state): State<AppState>) -> Response {
     result(access::settings(&state).await)
 }
 
-#[utoipa::path(patch, path = "/api/admin/terminal/settings", tag = "terminal", request_body = WebTerminalSettingsInput, responses((status = 200, body = WebTerminalSettings), (status = 409, body = TerminalErrorEnvelope), (status = 503, body = TerminalErrorEnvelope)))]
+#[utoipa::path(patch, path = "/api/admin/terminal/settings", tag = "terminal", request_body = WebTerminalSettingsInput, responses((status = 200, body = WebTerminalSettings), (status = 409, body = TerminalErrorEnvelope)))]
 async fn update_feature_settings(
     State(state): State<AppState>,
     TerminalJson(input): TerminalJson<WebTerminalSettingsInput>,
 ) -> Response {
     result(access::update(&state, input).await)
-}
-
-#[utoipa::path(get, path = "/api/admin/terminal/access", tag = "terminal", responses((status = 200, body = WebTerminalAccessStatus)))]
-async fn get_access_status(State(state): State<AppState>, headers: HeaderMap) -> Response {
-    result(access::status(&state, &headers).await)
-}
-
-#[utoipa::path(post, path = "/api/admin/terminal/access/verify", tag = "terminal", request_body = WebTerminalVerifyInput, responses((status = 200), (status = 403, body = TerminalErrorEnvelope), (status = 429, body = TerminalErrorEnvelope), (status = 503, body = TerminalErrorEnvelope)))]
-async fn verify_access(
-    State(state): State<AppState>,
-    headers: HeaderMap,
-    uri: Uri,
-    TerminalJson(input): TerminalJson<WebTerminalVerifyInput>,
-) -> Response {
-    match access::verify(&state, &headers, input).await {
-        Err(error) => terminal_error(error),
-        Ok(token) => {
-            let mut response = response::success_empty().into_response();
-            if let Some(token) = token {
-                let cookie = access::browser_cookie(
-                    &token,
-                    crate::http_utils::is_secure_request(&headers, &uri),
-                );
-                if let Ok(value) = cookie.parse() {
-                    response.headers_mut().append(header::SET_COOKIE, value);
-                }
-            }
-            response
-        }
-    }
 }

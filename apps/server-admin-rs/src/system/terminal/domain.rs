@@ -409,8 +409,6 @@ pub struct EventsResult {
 #[serde(rename_all = "snake_case")]
 pub enum TerminalErrorCode {
     FeatureDisabled,
-    AccessPasswordRequired,
-    AccessRateLimited,
     ResourceBusy,
     InvalidRequest,
     TargetNotFound,

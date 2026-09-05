@@ -54,8 +54,8 @@ pub fn start_terminal_tasks(state: AppState) {
                 }
                 _ = interval.tick() => {
                     task_state.terminal.expire_attachments().await;
-                    if let Err(error) = access::expire_grants(&task_state).await {
-                        tracing::warn!(%error, "failed to expire terminal access grants");
+                    if let Err(error) = access::cleanup_retired_password(&task_state).await {
+                        tracing::warn!(%error, "failed to clean retired terminal passwords");
                     }
                 },
             }

@@ -5,12 +5,7 @@ import { nextTick } from "vue";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { enAdmin } from "../../../packages/i18n/src/messages/admin/en";
 
-const api = vi.hoisted(() => ({
-  settings: vi.fn(),
-  update: vi.fn(),
-  status: vi.fn(),
-  verify: vi.fn(),
-}));
+const api = vi.hoisted(() => ({ settings: vi.fn(), update: vi.fn() }));
 const push = vi.hoisted(() => vi.fn());
 vi.mock("@/lib/api/terminal-access", async (original) => ({
   ...(await original<typeof import("@/lib/api/terminal-access")>()),
@@ -29,18 +24,18 @@ import WebTerminalSettings from "@/views/system-settings/WebTerminalSettings.vue
 import { useTerminalAccessStore } from "@/store/terminal-access";
 import { Switch } from "@/components/ui/switch";
 
-const configured = { enabled: true, passwordConfigured: true, revision: "one" };
-const pendingAccess = { ...configured, authorized: false };
-const i18n = () =>
-  createI18n({
-    legacy: false,
-    locale: "en",
-    messages: { en: { admin: enAdmin } },
-  });
+const enabled = { enabled: true, revision: "one" };
 function options() {
   return {
     global: {
-      plugins: [createPinia(), i18n()],
+      plugins: [
+        createPinia(),
+        createI18n({
+          legacy: false,
+          locale: "en",
+          messages: { en: { admin: enAdmin } },
+        }),
+      ],
       stubs: {
         FloatingActionDock: { template: '<div><slot name="inline" /></div>' },
         RefreshButton: {
@@ -52,51 +47,26 @@ function options() {
   };
 }
 beforeEach(() => {
-  vi.clearAllMocks();
+  vi.resetAllMocks();
   vi.useFakeTimers();
   setActivePinia(createPinia());
-  api.settings.mockResolvedValue(configured);
-  api.status.mockResolvedValue(pendingAccess);
-  api.verify.mockResolvedValue(undefined);
+  api.settings.mockResolvedValue(enabled);
 });
-afterEach(() => {
-  vi.useRealTimers();
-});
+afterEach(() => vi.useRealTimers());
 
-describe("Web Terminal access", () => {
-  it("mounts only after successful verification and locks on revocation", async () => {
+async function toggle(wrapper: ReturnType<typeof mount>, value: boolean) {
+  wrapper.findComponent(Switch).vm.$emit("update:modelValue", value);
+  await nextTick();
+}
+
+describe("Web Terminal feature switch", () => {
+  it("opens the workspace without a password form, and leaves when disabled", async () => {
     const wrapper = mount(WebTerminal, options());
     expect(wrapper.find('[data-test="workspace"]').exists()).toBe(false);
     await flushPromises();
-    expect(wrapper.find('input[type="password"]').exists()).toBe(true);
-    api.verify.mockRejectedValueOnce({
-      response: { data: { errorCode: "access_password_required" } },
-    });
-    await wrapper.get("input").setValue("wrong");
-    await wrapper.get("form").trigger("submit");
-    await flushPromises();
-    expect(wrapper.get('[role="alert"]').text()).toContain(
-      "Incorrect password",
-    );
-    expect(wrapper.find('[data-test="workspace"]').exists()).toBe(false);
-    api.status.mockResolvedValue({ ...pendingAccess, authorized: true });
-    await wrapper.get("input").setValue("correct");
-    await wrapper.get("form").trigger("submit");
-    await flushPromises();
-    expect(api.verify).toHaveBeenLastCalledWith("correct");
     expect(wrapper.find('[data-test="workspace"]').exists()).toBe(true);
-    api.status.mockResolvedValue({ ...pendingAccess, revision: "two" });
-    await vi.advanceTimersByTimeAsync(5000);
-    expect(wrapper.find('[data-test="workspace"]').exists()).toBe(false);
-    wrapper.unmount();
-  });
-  it("reuses server authorization on reentry and redirects when disabled", async () => {
-    api.status.mockResolvedValue({ ...pendingAccess, authorized: true });
-    const wrapper = mount(WebTerminal, options());
-    await flushPromises();
-    expect(wrapper.find('[data-test="workspace"]').exists()).toBe(true);
-    expect(api.verify).not.toHaveBeenCalled();
-    api.status.mockResolvedValue({ ...pendingAccess, enabled: false });
+    expect(wrapper.find("input").exists()).toBe(false);
+    api.settings.mockResolvedValue({ enabled: false, revision: "two" });
     await vi.advanceTimersByTimeAsync(5000);
     expect(wrapper.find('[data-test="workspace"]').exists()).toBe(false);
     expect(push).toHaveBeenCalledWith({
@@ -105,227 +75,148 @@ describe("Web Terminal access", () => {
     });
     wrapper.unmount();
   });
-  it("fails closed when the access check fails", async () => {
-    api.status.mockRejectedValue(new Error("offline"));
+  it("fails closed on a failed check and recovers on retry", async () => {
+    api.settings.mockRejectedValueOnce(new Error("offline"));
     const wrapper = mount(WebTerminal, options());
-    useTerminalAccessStore().applySettings({
-      ...configured,
-      passwordConfigured: false,
-    });
     await flushPromises();
     expect(wrapper.find('[data-test="workspace"]').exists()).toBe(false);
     expect(wrapper.get('[role="alert"]').text()).toContain("Request failed");
+    await wrapper
+      .findAll("button")
+      .find((b) => b.text() === "Retry")!
+      .trigger("click");
+    await flushPromises();
+    expect(wrapper.find('[data-test="workspace"]').exists()).toBe(true);
     wrapper.unmount();
   });
-  it("ignores a stale status response after settings change", async () => {
-    let resolve!: (value: typeof pendingAccess) => void;
-    api.status.mockImplementationOnce(
+  it("shows only the switch and publishes only a successful save", async () => {
+    const wrapper = mount(WebTerminalSettings, options());
+    await flushPromises();
+    expect(wrapper.find("input").exists()).toBe(false);
+    expect(wrapper.findAllComponents(Switch)).toHaveLength(1);
+    await toggle(wrapper, false);
+    expect(useTerminalAccessStore().status?.enabled).toBe(true);
+    api.update.mockRejectedValueOnce(new Error("offline"));
+    await wrapper.get("form").trigger("submit");
+    await flushPromises();
+    expect(wrapper.get('[role="alert"]').text()).toContain("Request failed");
+    expect(useTerminalAccessStore().status?.enabled).toBe(true);
+    api.update.mockResolvedValue({ enabled: false, revision: "two" });
+    await wrapper.get("form").trigger("submit");
+    await flushPromises();
+    expect(api.update).toHaveBeenLastCalledWith({
+      enabled: false,
+      revision: "one",
+    });
+    expect(useTerminalAccessStore().status?.enabled).toBe(false);
+    wrapper.unmount();
+  });
+  it("saves re-enabling without starting a terminal session", async () => {
+    api.settings.mockResolvedValue({ enabled: false, revision: "one" });
+    const wrapper = mount(WebTerminalSettings, options());
+    await flushPromises();
+    await toggle(wrapper, true);
+    api.update.mockResolvedValue({ enabled: true, revision: "two" });
+    await wrapper.get("form").trigger("submit");
+    await flushPromises();
+    expect(api.update).toHaveBeenCalledWith({ enabled: true, revision: "one" });
+    expect(wrapper.find('[data-test="workspace"]').exists()).toBe(false);
+    expect(push).not.toHaveBeenCalled();
+    wrapper.unmount();
+  });
+  it("ignores an old refresh after a settings save", async () => {
+    let resolve!: (value: typeof enabled) => void;
+    api.settings.mockImplementationOnce(
       () =>
         new Promise((done) => {
           resolve = done;
         }),
     );
-    const access = useTerminalAccessStore();
-    const refresh = access.refresh();
-    access.applySettings({ ...configured, enabled: false, revision: "two" });
-    resolve({ ...pendingAccess, authorized: true });
-    await refresh;
-    expect(access.status?.enabled).toBe(false);
-    expect(access.status?.revision).toBe("two");
+    const store = useTerminalAccessStore();
+    const pending = store.refresh();
+    store.applySettings({ enabled: false, revision: "two" });
+    resolve(enabled);
+    await pending;
+    expect(store.status?.enabled).toBe(false);
   });
-});
-
-describe("Web Terminal settings", () => {
-  it("hides password configuration while disabled and preserves it on save", async () => {
-    const wrapper = mount(WebTerminalSettings, options());
-    await flushPromises();
-    expect(wrapper.text()).toContain("Configured");
-    expect(
-      (wrapper.get('input[type="password"]').element as HTMLInputElement).value,
-    ).toBe("");
-    wrapper.getComponent(Switch).vm.$emit("update:modelValue", false);
-    await nextTick();
-    expect(wrapper.find('input[type="password"]').exists()).toBe(false);
-    api.update.mockResolvedValue({
-      ...configured,
-      enabled: false,
-      revision: "two",
-    });
-    await wrapper.get("form").trigger("submit");
-    await flushPromises();
-    expect(api.update).toHaveBeenCalledWith({
-      enabled: false,
-      revision: "one",
-      password: undefined,
-      clearPassword: false,
-    });
-    expect(useTerminalAccessStore().status?.enabled).toBe(false);
-    wrapper.unmount();
+  it("a failed newer check cannot be replaced by an old successful response", async () => {
+    const store = useTerminalAccessStore();
+    store.applySettings(enabled);
+    let resolve!: (value: typeof enabled) => void;
+    api.settings.mockImplementationOnce(
+      () =>
+        new Promise((done) => {
+          resolve = done;
+        }),
+    );
+    const old = store.refresh();
+    api.settings.mockRejectedValueOnce(new Error("offline"));
+    await expect(store.refresh()).rejects.toThrow("offline");
+    resolve(enabled);
+    await old;
+    expect(store.isCurrent).toBe(false);
   });
-  it("retains a failed password draft and supports explicit clearing", async () => {
+  it("keeps a known disabled menu state when a later refresh fails", async () => {
+    const store = useTerminalAccessStore();
+    store.applySettings({ enabled: false, revision: "disabled" });
+    api.settings.mockRejectedValueOnce(new Error("offline"));
+    await expect(store.refresh()).rejects.toThrow("offline");
+    expect(store.status?.enabled).toBe(false);
+    expect(store.isCurrent).toBe(false);
+  });
+  it("an old failed check cannot replace newer saved settings", async () => {
+    const store = useTerminalAccessStore();
+    let reject!: (error: Error) => void;
+    api.settings.mockImplementationOnce(
+      () =>
+        new Promise((_, fail) => {
+          reject = fail;
+        }),
+    );
+    const old = store.refresh().catch(() => undefined);
+    await store.refresh();
+    reject(new Error("old failure"));
+    await old;
+    expect(store.status?.enabled).toBe(true);
+  });
+  it("coalesces settings refreshes and ignores responses after leaving", async () => {
+    let resolve!: (value: typeof enabled) => void;
+    api.settings.mockImplementationOnce(
+      () =>
+        new Promise((done) => {
+          resolve = done;
+        }),
+    );
     const wrapper = mount(WebTerminalSettings, options());
-    await flushPromises();
-    await wrapper.get('input[type="password"]').setValue("new-secret");
-    api.update.mockRejectedValueOnce(new Error("offline"));
-    await wrapper.get("form").trigger("submit");
-    await flushPromises();
-    expect(
-      (wrapper.get('input[type="password"]').element as HTMLInputElement).value,
-    ).toBe("new-secret");
-    expect(wrapper.get('[role="alert"]').text()).toContain("Request failed");
     await wrapper
       .findAll("button")
-      .find((button) => button.text() === "Clear password")!
+      .find((b) => b.text() === "Refresh")!
       .trigger("click");
-    expect(wrapper.text()).toContain("will be cleared");
-    api.update.mockResolvedValue({
-      ...configured,
-      passwordConfigured: false,
-      revision: "two",
-    });
-    await wrapper.get("form").trigger("submit");
-    await flushPromises();
-    expect(api.update).toHaveBeenLastCalledWith({
-      enabled: true,
-      revision: "one",
-      password: undefined,
-      clearPassword: true,
-    });
-    expect(wrapper.text()).toContain("Not configured");
+    expect(api.settings).toHaveBeenCalledTimes(1);
     wrapper.unmount();
+    const store = useTerminalAccessStore();
+    store.applySettings({ enabled: false, revision: "two" });
+    resolve(enabled);
+    await flushPromises();
+    expect(store.status?.enabled).toBe(false);
+  });
+  it("ignores a late save after leaving the settings page", async () => {
+    const wrapper = mount(WebTerminalSettings, options());
+    await flushPromises();
+    let resolve!: (value: typeof enabled) => void;
+    api.update.mockImplementationOnce(
+      () =>
+        new Promise((done) => {
+          resolve = done;
+        }),
+    );
+    await toggle(wrapper, false);
+    await wrapper.get("form").trigger("submit");
+    const store = useTerminalAccessStore();
+    wrapper.unmount();
+    store.applySettings({ enabled: true, revision: "latest" });
+    resolve({ enabled: false, revision: "older-save" });
+    await flushPromises();
+    expect(store.status?.revision).toBe("latest");
   });
 });
-
-it("successful verification supersedes an older pending access poll", async () => {
-  const wrapper = mount(WebTerminal, options());
-  await flushPromises();
-  let resolve!: (value: typeof pendingAccess) => void;
-  api.status.mockImplementationOnce(
-    () =>
-      new Promise((done) => {
-        resolve = done;
-      }),
-  );
-  vi.advanceTimersByTime(5000);
-  api.status.mockResolvedValue({ ...pendingAccess, authorized: true });
-  await wrapper.get("input").setValue("correct");
-  await wrapper.get("form").trigger("submit");
-  await flushPromises();
-  expect(wrapper.find('[data-test="workspace"]').exists()).toBe(true);
-  resolve(pendingAccess);
-  await flushPromises();
-  expect(wrapper.find('[data-test="workspace"]').exists()).toBe(true);
-  wrapper.unmount();
-});
-
-it("a failed newer access check invalidates cached authorization despite an older successful response", async () => {
-  const access = useTerminalAccessStore();
-  access.applySettings({ ...configured, passwordConfigured: false });
-  let resolveOld!: (value: typeof pendingAccess) => void;
-  api.status.mockImplementationOnce(
-    () =>
-      new Promise((resolve) => {
-        resolveOld = resolve;
-      }),
-  );
-  const old = access.refresh();
-  api.status.mockRejectedValueOnce(new Error("offline"));
-  await expect(access.refresh()).rejects.toThrow("offline");
-  resolveOld({ ...pendingAccess, authorized: true });
-  await old;
-  expect(access.status?.authorized).toBe(false);
-});
-
-it("does not let an old failed access check revoke a newer successful verification", async () => {
-  const access = useTerminalAccessStore();
-  let rejectOld!: (error: Error) => void;
-  api.status.mockImplementationOnce(
-    () =>
-      new Promise((_, reject) => {
-        rejectOld = reject;
-      }),
-  );
-  const old = access.refresh().catch(() => undefined);
-  api.status.mockResolvedValueOnce({ ...pendingAccess, authorized: true });
-  await access.refresh();
-  rejectOld(new Error("old failure"));
-  await old;
-  expect(access.status?.authorized).toBe(true);
-});
-
-it("coalesces repeated settings refreshes and ignores responses after leaving", async () => {
-  let resolve!: (value: typeof configured) => void;
-  api.settings.mockImplementationOnce(
-    () =>
-      new Promise((done) => {
-        resolve = done;
-      }),
-  );
-  const wrapper = mount(WebTerminalSettings, options());
-  const access = useTerminalAccessStore();
-  await wrapper
-    .findAll("button")
-    .find((button) => button.text() === "Refresh")!
-    .trigger("click");
-  expect(api.settings).toHaveBeenCalledTimes(1);
-  wrapper.unmount();
-  access.applySettings({ ...configured, enabled: false, revision: "new" });
-  resolve(configured);
-  await flushPromises();
-  expect(access.status?.enabled).toBe(false);
-  expect(access.status?.revision).toBe("new");
-});
-
-it("does not publish an unmounted settings page's late save over newer state", async () => {
-  const wrapper = mount(WebTerminalSettings, options());
-  await flushPromises();
-  let resolve!: (value: typeof configured) => void;
-  api.update.mockImplementationOnce(
-    () =>
-      new Promise((done) => {
-        resolve = done;
-      }),
-  );
-  await wrapper.get('input[type="password"]').setValue("new-secret");
-  await wrapper.get("form").trigger("submit");
-  const access = useTerminalAccessStore();
-  wrapper.unmount();
-  access.applySettings({ ...configured, enabled: false, revision: "latest" });
-  resolve({ ...configured, revision: "older-save" });
-  await flushPromises();
-  expect(access.status?.enabled).toBe(false);
-  expect(access.status?.revision).toBe("latest");
-});
-
-it("keeps the password and explains a verification whose cookie was not retained", async () => {
-  const wrapper = mount(WebTerminal, options());
-  await flushPromises();
-  await wrapper.get("input").setValue("correct");
-  await wrapper.get("form").trigger("submit");
-  await flushPromises();
-  expect(wrapper.find('[data-test="workspace"]').exists()).toBe(false);
-  expect(wrapper.get('[role="alert"]').text()).toContain("Allow cookies");
-  expect((wrapper.get("input").element as HTMLInputElement).value).toBe(
-    "correct",
-  );
-  wrapper.unmount();
-});
-
-it.each([WebTerminal, WebTerminalSettings])(
-  "toggles password visibility without submitting or changing the draft",
-  async (component) => {
-    const wrapper = mount(component, options());
-    await flushPromises();
-    await wrapper.get("input").setValue("visible-secret");
-    await wrapper.get('button[aria-label="Show password"]').trigger("click");
-    expect(wrapper.get("input").attributes("type")).toBe("text");
-    expect((wrapper.get("input").element as HTMLInputElement).value).toBe(
-      "visible-secret",
-    );
-    await wrapper.get('button[aria-label="Hide password"]').trigger("click");
-    expect(wrapper.get("input").attributes("type")).toBe("password");
-    expect(api.verify).not.toHaveBeenCalled();
-    expect(api.update).not.toHaveBeenCalled();
-    wrapper.unmount();
-  },
-);

@@ -5966,46 +5966,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/admin/terminal/access": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * 查看Web 终端访问权限
-         * @description 管理 Web 终端运行时能力和交互会话。。`GET /api/admin/terminal/access` 用于读取当前状态、配置或导出内容，不会主动修改服务配置。 该操作不要求 JSON 请求体。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
-         */
-        get: operations["get_access_status"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/admin/terminal/access/verify": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * 验证Web 终端访问权限
-         * @description 管理 Web 终端运行时能力和交互会话。。`POST /api/admin/terminal/access/verify` 用于提交操作或创建、更新服务状态；执行结果以响应中的数据和消息为准。 请求体字段、必填项和可选值请以 Swagger 展开的 schema 为准。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
-         */
-        post: operations["verify_access"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/api/admin/terminal/attachments/{id}": {
         parameters: {
             query?: never;
@@ -12799,7 +12759,7 @@ export interface components {
             transport: components["schemas"]["TerminalTransport"];
         };
         /** @enum {string} */
-        TerminalErrorCode: "feature_disabled" | "access_password_required" | "access_rate_limited" | "resource_busy" | "invalid_request" | "target_not_found" | "session_not_found" | "host_key_required" | "host_key_mismatch" | "authentication_failed" | "pty_rejected" | "session_limit_reached" | "session_lost" | "attachment_expired" | "controller_conflict" | "target_revision_conflict" | "local_terminal_unsupported" | "local_terminal_disabled" | "local_terminal_risk_acknowledgement_required" | "local_terminal_revision_conflict" | "local_shell_unavailable" | "local_pty_start_failed" | "connect_timeout" | "conflict" | "upstream_unavailable" | "internal_error";
+        TerminalErrorCode: "feature_disabled" | "resource_busy" | "invalid_request" | "target_not_found" | "session_not_found" | "host_key_required" | "host_key_mismatch" | "authentication_failed" | "pty_rejected" | "session_limit_reached" | "session_lost" | "attachment_expired" | "controller_conflict" | "target_revision_conflict" | "local_terminal_unsupported" | "local_terminal_disabled" | "local_terminal_risk_acknowledgement_required" | "local_terminal_revision_conflict" | "local_shell_unavailable" | "local_pty_start_failed" | "connect_timeout" | "conflict" | "upstream_unavailable" | "internal_error";
         TerminalErrorEnvelope: {
             activeSessionCount?: number | null;
             confirmationToken?: string | null;
@@ -13235,26 +13195,13 @@ export interface components {
             content_base64: string;
             filename: string;
         };
-        WebTerminalAccessStatus: {
-            authorized: boolean;
-            enabled: boolean;
-            passwordConfigured: boolean;
-            revision: string;
-        };
         WebTerminalSettings: {
             enabled: boolean;
-            passwordConfigured: boolean;
             revision: string;
         };
         WebTerminalSettingsInput: {
-            clearPassword?: boolean;
             enabled: boolean;
-            /** @description Missing or empty means keep the existing password. */
-            password?: string | null;
             revision: string;
-        };
-        WebTerminalVerifyInput: {
-            password: string;
         };
         WhitelistAddBodyData: {
             /** Format: int64 */
@@ -28294,86 +28241,6 @@ export interface operations {
             };
         };
     };
-    get_access_status: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description 「查看Web 终端访问权限」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": {
-                        data: components["schemas"]["WebTerminalAccessStatus"];
-                        message?: string | null;
-                        /** @constant */
-                        success: true;
-                    } & {
-                        [key: string]: unknown;
-                    };
-                };
-            };
-            /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
-            default: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["TerminalErrorEnvelope"];
-                };
-            };
-        };
-    };
-    verify_access: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["WebTerminalVerifyInput"];
-            };
-        };
-        responses: {
-            /** @description 「验证Web 终端访问权限」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ApiSuccessEnvelope"];
-                };
-            };
-            /** @description 服务处理失败；请检查依赖服务和运行日志后重试。 */
-            503: {
-                headers: {
-                    /** @description 密码处理资源繁忙时建议等待的秒数 */
-                    "Retry-After"?: number;
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["TerminalErrorEnvelope"];
-                };
-            };
-            /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
-            default: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["TerminalErrorEnvelope"];
-                };
-            };
-        };
-    };
     delete_attachment: {
         parameters: {
             query?: never;
@@ -28898,17 +28765,6 @@ export interface operations {
                     } & {
                         [key: string]: unknown;
                     };
-                };
-            };
-            /** @description 服务处理失败；请检查依赖服务和运行日志后重试。 */
-            503: {
-                headers: {
-                    /** @description 密码处理资源繁忙时建议等待的秒数 */
-                    "Retry-After"?: number;
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["TerminalErrorEnvelope"];
                 };
             };
             /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */

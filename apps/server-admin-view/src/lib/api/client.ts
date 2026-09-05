@@ -53,15 +53,8 @@ apiClient.interceptors.response.use(
   (response) => response,
   async (error) => {
     const terminalCode = error?.response?.data?.errorCode;
-    if (
-      terminalCode === "feature_disabled" ||
-      terminalCode === "access_password_required" ||
-      terminalCode === "access_rate_limited"
-    ) {
-      if (
-        typeof window !== "undefined" &&
-        !error.config?.url?.endsWith("/access/verify")
-      ) {
+    if (terminalCode === "feature_disabled") {
+      if (typeof window !== "undefined") {
         window.dispatchEvent(
           new CustomEvent("fn-knock:terminal-access-changed"),
         );

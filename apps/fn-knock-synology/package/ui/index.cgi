@@ -148,27 +148,6 @@ case "${REL_PATH}" in
         ;;
 esac
 
-# Only relay the terminal's browser grant, never NAS/DSM login cookies.
-# Scope it to this package so full and Lite installations cannot overwrite it.
-terminal_cookie_token() {
-    printf '%s' "$1" | tr ';' '\n' |
-        sed -n 's/^[[:space:]]*fn-knock-terminal-access=//p' |
-        head -n 1 | grep -E '^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$'
-}
-
-emit_terminal_cookie() {
-    TERMINAL_COOKIE_LINE=$(awk 'tolower($0) ~ /^set-cookie: fn-knock-terminal-access=/ { sub(/^[^:]*: */, ""); sub(/\r$/, ""); print; exit }' "$HEADER_FILE")
-    TERMINAL_COOKIE_TOKEN=$(terminal_cookie_token "$TERMINAL_COOKIE_LINE")
-    [ -n "$TERMINAL_COOKIE_TOKEN" ] || return 0
-    TERMINAL_COOKIE_PATH="${URI_NO_QUERY%%/index.cgi*}/index.cgi/"
-    TERMINAL_SECURE=""
-    case "${HTTPS:-}:${HTTP_X_FORWARDED_PROTO:-}:$TERMINAL_COOKIE_LINE" in
-        on:*|1:*|*:https:*|*'; Secure'*) TERMINAL_SECURE="; Secure" ;;
-    esac
-    printf 'Set-Cookie: fn-knock-terminal-access=%s; Path=%s; HttpOnly; SameSite=Strict%s\r\n' \
-        "$TERMINAL_COOKIE_TOKEN" "$TERMINAL_COOKIE_PATH" "$TERMINAL_SECURE"
-}
-
 TARGET_URL="http://${TARGET_HOST}:${TARGET_PORT}${REL_PATH}"
 if [ -n "${QUERY_STRING}" ]; then
     TARGET_URL="${TARGET_URL}?${QUERY_STRING}"
@@ -205,8 +184,6 @@ set -- -sS -D "${HEADER_FILE}" -o "${BODY_FILE}" -X "${UPSTREAM_METHOD}"
 [ -n "${HTTP_ORIGIN:-}" ] && set -- "$@" -H "origin: ${HTTP_ORIGIN}"
 [ -n "${HTTP_REFERER:-}" ] && set -- "$@" -H "referer: ${HTTP_REFERER}"
 
-TERMINAL_REQUEST_TOKEN=$(terminal_cookie_token "${HTTP_COOKIE:-}")
-[ -z "$TERMINAL_REQUEST_TOKEN" ] || set -- "$@" -H "cookie: fn-knock-terminal-access=$TERMINAL_REQUEST_TOKEN"
 
 case "${REQUEST_METHOD_ORIGINAL}" in
     POST|PUT|PATCH|DELETE)
@@ -261,7 +238,6 @@ for HEADER_NAME in Expires Pragma ETag Last-Modified Vary Content-Encoding Conte
     HEADER_LINE="$(grep -i "^${HEADER_NAME}:" "${HEADER_FILE}" | tail -1 | tr -d '\r')"
     [ -z "${HEADER_LINE}" ] || printf '%s\r\n' "${HEADER_LINE}"
 done
-emit_terminal_cookie
 printf '\r\n'
 
 # Frontend assets use relative URLs, so preserve negotiated br/gzip bytes

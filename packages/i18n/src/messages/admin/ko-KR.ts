@@ -2,37 +2,19 @@ import { zhCNAdmin } from "./zh-CN";
 
 export const koKRAdmin = {
   webTerminalSettings: {
-    undoClear: "삭제 취소",
-    verifyPlaceholder: "접근 비밀번호 입력",
-    verifying: "확인 중…",
-    sessionUnavailable:
-      "인증 상태를 유지할 수 없습니다. 쿠키를 허용하고 페이지를 새로고침한 후 다시 시도하세요.",
-
-    description: "Web 터미널 활성화 상태와 접근 비밀번호를 관리합니다.",
+    description: "Web 터미널의 활성화 상태를 관리합니다.",
     enabled: "Web 터미널 활성화",
     enabledHint:
       "비활성화하고 저장하면 모든 SSH 및 로컬 터미널 세션이 즉시 종료됩니다.",
-    password: "접근 비밀번호",
-    passwordHint: "선택 사항. 로그인마다 한 번만 인증합니다.",
-    configured: "설정됨",
-    notConfigured: "설정되지 않음",
-    clearPending: "저장하면 접근 비밀번호가 삭제됩니다",
-    passwordPlaceholder: "새 비밀번호 (비워 두면 유지)",
-    clear: "비밀번호 삭제",
     cancel: "취소",
     save: "저장",
     saving: "저장 중…",
     saved: "Web 터미널 설정이 저장되었습니다",
     loading: "불러오는 중…",
-    verifyHint: "계속하려면 Web 터미널 접근 비밀번호를 입력하세요.",
-    verify: "터미널 열기",
     retry: "다시 시도",
-    wrongPassword: "비밀번호가 올바르지 않습니다. 다시 입력하세요.",
-    rateLimited: "시도 횟수가 너무 많습니다. 1분 후 다시 시도하세요.",
     disabled: "Web 터미널이 비활성화되었습니다.",
     conflict: "설정이 변경되었습니다. 새로 고침 후 다시 시도하세요.",
     requestFailed: "요청에 실패했습니다. 다시 시도하세요.",
-    passwordTooLong: "비밀번호는 128바이트를 초과할 수 없습니다.",
   },
   trace: {
     label: "Trace ID",

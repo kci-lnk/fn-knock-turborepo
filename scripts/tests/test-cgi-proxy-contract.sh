@@ -74,7 +74,6 @@ header_file=""
 body_file=""
 accept_encoding=""
 target_url=""
-forwarded_cookie=""
 request_method="GET"
 forward_body="false"
 while [ "$#" -gt 0 ]; do
@@ -89,7 +88,6 @@ while [ "$#" -gt 0 ]; do
       ;;
     -H)
       case "$2" in
-        cookie:*) forwarded_cookie="${2#cookie: }" ;;
         accept-encoding:*) accept_encoding="${2#accept-encoding: }" ;;
       esac
       shift 2
@@ -118,7 +116,6 @@ if [ -n "${CAPTURE_FILE:-}" ]; then
   {
     printf 'method=%s\n' "${request_method}"
     printf 'url=%s\n' "${target_url}"
-    printf 'cookie=%s\n' "${forwarded_cookie}"
     printf 'body=%s\n' "${forwarded_body}"
   } > "${CAPTURE_FILE}"
 fi
@@ -129,9 +126,6 @@ case "${target_url}" in
 esac
 printf 'HTTP/1.1 200 OK\r\nContent-Type: %s\r\nCache-Control: public, max-age=31536000, immutable\r\nContent-Length: %s\r\nVary: Accept-Encoding\r\nX-Content-Type-Options: nosniff\r\n' \
   "${content_type}" "${#body}" > "${header_file}"
-if [ -n "${COOKIE_FIXTURE:-}" ]; then
-  printf 'Set-Cookie: unrelated=private; Path=/\r\nset-cookie: fn-knock-terminal-access=11111111-2222-4333-8444-555555555555; Path=/; HttpOnly; SameSite=Strict\r\n' >> "${header_file}"
-fi
 printf '\r\n' >> "${header_file}"
 printf '%s' "${body}" > "${body_file}"
 FAKE_CURL
@@ -237,26 +231,5 @@ assert_fpk_terminal_forwarding \
   'after=4&timeoutMs=25000' \
   '' \
   'http://127.0.0.1:7998/api/admin/terminal/attachments/attachment-1/events?after=4&timeoutMs=25000'
-
-# NAS cookies must stay outside the upstream application. Its own grant must
-# round-trip, preserving a browser-session lifetime and a package-specific path.
-for package in fn-knock fn-knock-lite; do
-  capture="${WORK_DIR}/cookie.capture"
-  output="$(PATH="${WORK_DIR}/bin:${PATH}" EXPECTED_ACCEPT_ENCODING='' \
-    COOKIE_FIXTURE=1 CAPTURE_FILE="${capture}" HTTPS=on \
-    HTTP_COOKIE='nas_session=private; fn-knock-terminal-access=11111111-2222-4333-8444-555555555555; unrelated=private' \
-    REQUEST_URI="/cgi/ThirdParty/${package}/index.cgi/api/admin/terminal/access/verify" \
-    sh "${ROOT_DIR}/apps/${package}/app/ui/index.cgi")"
-  assert_contains "${capture}" 'cookie=fn-knock-terminal-access=11111111-2222-4333-8444-555555555555' 'terminal grant request forwarding'
-  assert_not_contains "${capture}" 'private' 'NAS credential isolation'
-  printf '%s' "${output}" | grep -Fq "Path=/cgi/ThirdParty/${package}/index.cgi/; HttpOnly; SameSite=Strict; Secure" || fail 'terminal cookie path/flags lost'
-  if printf '%s' "${output}" | grep -Eq 'unrelated=|Max-Age'; then fail 'unexpected response cookie or persistent expiry'; fi
-  PATH="${WORK_DIR}/bin:${PATH}" EXPECTED_ACCEPT_ENCODING='' CAPTURE_FILE="${capture}" \
-    HTTP_COOKIE='fn-knock-terminal-access=invalid; nas_session=private' \
-    REQUEST_URI="/cgi/ThirdParty/${package}/index.cgi/api/admin/terminal/access" \
-    sh "${ROOT_DIR}/apps/${package}/app/ui/index.cgi" >/dev/null
-  assert_contains "${capture}" 'cookie=' 'malformed cookie handling'
-  assert_not_contains "${capture}" 'invalid' 'malformed grant forwarding'
-done
 
 printf '[test-cgi-proxy-contract] CGI forwarding, local terminal, and fnOS WebView compression contract passed\n'

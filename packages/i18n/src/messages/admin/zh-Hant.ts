@@ -2,36 +2,18 @@ import { zhCNAdmin } from "./zh-CN";
 
 export const zhHantAdmin = {
   webTerminalSettings: {
-    undoClear: "撤銷清除",
-    verifyPlaceholder: "輸入存取密碼",
-    verifying: "正在驗證…",
-    sessionUnavailable:
-      "驗證未能保持，請確認瀏覽器允許 Cookie，並重新載入頁面後再試。",
-
-    description: "管理 Web 終端的啟用狀態和存取密碼。",
+    description: "管理 Web 終端的啟用狀態。",
     enabled: "啟用 Web 終端",
     enabledHint: "關閉並儲存後，將立即結束所有 SSH 和本機終端工作階段。",
-    password: "存取密碼",
-    passwordHint: "選填；同一次登入只需驗證一次。",
-    configured: "已設定",
-    notConfigured: "未設定",
-    clearPending: "儲存後將清除存取密碼",
-    passwordPlaceholder: "輸入新密碼，留空不修改",
-    clear: "清除密碼",
     cancel: "取消",
     save: "儲存",
     saving: "儲存中…",
     saved: "Web 終端設定已儲存",
     loading: "正在載入…",
-    verifyHint: "請輸入 Web 終端存取密碼，驗證後即可使用。",
-    verify: "進入終端",
     retry: "重試",
-    wrongPassword: "密碼錯誤，請重新輸入。",
-    rateLimited: "嘗試次數過多，請一分鐘後重試。",
     disabled: "Web 終端已關閉。",
     conflict: "設定已被修改，請重新整理後重試。",
     requestFailed: "請求失敗，請重試。",
-    passwordTooLong: "密碼不能超過 128 位元組。",
   },
   trace: {
     label: "Trace ID",

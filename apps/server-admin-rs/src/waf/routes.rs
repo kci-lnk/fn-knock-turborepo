@@ -226,10 +226,7 @@ pub fn start_waf_tasks(state: AppState) {
             }
         }
         loop {
-            let schedule = tokio::select! {
-                _ = drain_state.shutdown.cancelled() => break,
-                schedule = waf_drain_schedule(&drain_state) => schedule,
-            };
+            let schedule = waf_drain_schedule(&drain_state);
             if let Some(interval) = schedule {
                 tokio::select! {
                     _ = drain_state.shutdown.cancelled() => break,

@@ -389,25 +389,49 @@ pub(super) async fn has_system_rule_files(state: &AppState) -> anyhow::Result<bo
     Ok(false)
 }
 
-pub(super) async fn waf_drain_schedule(state: &AppState) -> Option<u64> {
-    let Ok(config) = state.storage.store.get_config().await else {
-        return Some(DEFAULT_WAF_DRAIN_INTERVAL_SECONDS);
-    };
-    let waf = config.get("waf");
-    if !waf
-        .and_then(|value| value.get("enabled"))
-        .and_then(Value::as_bool)
-        .unwrap_or(false)
-    {
-        return None;
-    }
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(super) struct WafDrainSettings {
+    pub(super) enabled: bool,
+    pub(super) interval_seconds: u64,
+    pub(super) retention_days: i64,
+}
 
-    Some(
-        waf.and_then(|value| value.get("drain_interval_seconds"))
-            .and_then(Value::as_i64)
-            .unwrap_or(DEFAULT_WAF_DRAIN_INTERVAL_SECONDS as i64)
-            .clamp(1, 60) as u64,
-    )
+impl WafDrainSettings {
+    fn from_config(config: &Value) -> Self {
+        let waf = config.get("waf");
+        Self {
+            enabled: waf
+                .and_then(|value| value.get("enabled"))
+                .and_then(Value::as_bool)
+                .unwrap_or(false),
+            interval_seconds: waf
+                .and_then(|value| value.get("drain_interval_seconds"))
+                .and_then(Value::as_i64)
+                .unwrap_or(DEFAULT_WAF_DRAIN_INTERVAL_SECONDS as i64)
+                .clamp(1, 60) as u64,
+            retention_days: normalize_i64(
+                waf.and_then(|value| value.get("log_retention_days")),
+                7,
+                1,
+                365,
+            ),
+        }
+    }
+}
+
+pub(super) fn waf_drain_settings(state: &AppState) -> WafDrainSettings {
+    // Store initialization reconciles persisted config; writes, migrations and
+    // restores publish a revision-ordered snapshot before returning. Only copy
+    // the three drain scalars, releasing the Arc before any network/storage
+    // await. Polling must not reload/parse megabytes of unrelated host icons or
+    // normalize host policies. Full management reads still reconcile legacy
+    // and typed documents through get_config().
+    WafDrainSettings::from_config(&state.storage.store.config_snapshot())
+}
+
+pub(super) fn waf_drain_schedule(state: &AppState) -> Option<u64> {
+    let settings = waf_drain_settings(state);
+    settings.enabled.then_some(settings.interval_seconds)
 }
 
 pub(super) async fn set_waf_rule_enabled(
@@ -662,12 +686,10 @@ pub(super) async fn drain_waf_events_now(state: &AppState) -> anyhow::Result<Val
 
 async fn drain_waf_events_inner(state: &AppState) -> anyhow::Result<Value> {
     let _drain_guard = state.security.waf_event_drain_lock.lock().await;
-    let config = load_waf_config(state).await?;
-    if !config
-        .get("enabled")
-        .and_then(Value::as_bool)
-        .unwrap_or(false)
-    {
+    // Read after acquiring the drain lock so a waiter sees settings published
+    // while the preceding drain was running.
+    let settings = waf_drain_settings(state);
+    if !settings.enabled {
         return Ok(json!({
             "drained": 0,
             "remaining": 0,
@@ -711,13 +733,7 @@ async fn drain_waf_events_inner(state: &AppState) -> anyhow::Result<Value> {
         && let Err(error) = state
             .storage
             .store
-            .persist_waf_events(
-                &events,
-                config
-                    .get("log_retention_days")
-                    .and_then(Value::as_i64)
-                    .unwrap_or(7),
-            )
+            .persist_waf_events(&events, settings.retention_days)
             .await
     {
         if !lease_id.is_empty()

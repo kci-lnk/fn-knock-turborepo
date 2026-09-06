@@ -1,0 +1,17 @@
+{"go":{"acks":0,"active_waits":1,"completed_waits":0,"drains":1,"goroutines":11,"heap_alloc":2384744,"pending":0,"releases":0,"waits":1},"mode":"new","phase":"warm","pid":2626,"tasks":11}
+{"elapsed_ms":60001,"go":{"acks":0,"active_waits":1,"completed_waits":1,"drains":1,"goroutines":11,"heap_alloc":2403928,"pending":0,"releases":0,"waits":2},"phase":"idle_sample","tasks":11}
+{"elapsed_ms":120004,"go":{"acks":0,"active_waits":1,"completed_waits":2,"drains":1,"goroutines":11,"heap_alloc":2446512,"pending":0,"releases":0,"waits":3},"phase":"idle_sample","tasks":11}
+{"elapsed_ms":180006,"go":{"acks":0,"active_waits":1,"completed_waits":3,"drains":1,"goroutines":11,"heap_alloc":2455368,"pending":0,"releases":0,"waits":4},"phase":"idle_sample","tasks":11}
+{"elapsed_ms":240009,"go":{"acks":0,"active_waits":1,"completed_waits":4,"drains":1,"goroutines":11,"heap_alloc":2466656,"pending":0,"releases":0,"waits":5},"phase":"idle_sample","tasks":11}
+{"elapsed_ms":300012,"go":{"acks":0,"active_waits":1,"completed_waits":5,"drains":1,"goroutines":11,"heap_alloc":2476032,"pending":0,"releases":0,"waits":6},"phase":"idle_sample","tasks":11}
+{"elapsed_ms":360016,"go":{"acks":0,"active_waits":1,"completed_waits":6,"drains":1,"goroutines":11,"heap_alloc":2484696,"pending":0,"releases":0,"waits":7},"phase":"idle_sample","tasks":11}
+{"elapsed_ms":420018,"go":{"acks":0,"active_waits":1,"completed_waits":7,"drains":1,"goroutines":11,"heap_alloc":2493344,"pending":0,"releases":0,"waits":8},"phase":"idle_sample","tasks":11}
+{"elapsed_ms":480021,"go":{"acks":0,"active_waits":1,"completed_waits":8,"drains":1,"goroutines":11,"heap_alloc":2501976,"pending":0,"releases":0,"waits":9},"phase":"idle_sample","tasks":11}
+{"elapsed_ms":540024,"go":{"acks":0,"active_waits":1,"completed_waits":9,"drains":1,"goroutines":11,"heap_alloc":2513744,"pending":0,"releases":0,"waits":10},"phase":"idle_sample","tasks":11}
+{"elapsed_ms":600001,"go":{"acks":0,"active_waits":1,"completed_waits":10,"drains":1,"goroutines":11,"heap_alloc":2523152,"pending":0,"releases":0,"waits":11},"phase":"idle_sample","tasks":11}
+{"diagnostics":{"active":false,"dropped_operations":0,"elapsed_ms":600002,"generation":1,"operations":[{"calls":9,"cancelled":0,"failures":0,"in_flight":1,"kind":"wait","label":"waf.wait_events","max_cpu_ms":null,"max_wall_ms":60002.003166,"rows":null,"total_cpu_ms":null,"total_wall_ms":540014.8931669999}]},"go":{"acks":0,"active_waits":1,"completed_waits":10,"drains":1,"goroutines":11,"heap_alloc":2526032,"pending":0,"releases":0,"waits":11},"phase":"idle_done","seconds":600}
+{"count":1,"go":{"acks":1,"active_waits":1,"completed_waits":11,"drains":2,"goroutines":11,"heap_alloc":2858648,"pending":0,"releases":0,"waits":12},"latency_ms":2026,"phase":"events"}
+{"count":1,"go":{"acks":2,"active_waits":1,"completed_waits":12,"drains":3,"goroutines":11,"heap_alloc":2325184,"pending":0,"releases":0,"waits":13},"latency_ms":2008,"phase":"events"}
+{"count":1,"go":{"acks":3,"active_waits":1,"completed_waits":13,"drains":4,"goroutines":11,"heap_alloc":2637336,"pending":0,"releases":0,"waits":14},"latency_ms":2020,"phase":"events"}
+{"count":1000,"go":{"acks":5,"active_waits":1,"completed_waits":14,"drains":6,"goroutines":11,"heap_alloc":4999536,"pending":0,"releases":0,"waits":15},"latency_ms":2175,"phase":"events"}
+{"go":{"acks":5,"active_waits":0,"completed_waits":14,"drains":6,"goroutines":10,"heap_alloc":5002568,"pending":0,"releases":0,"waits":15},"phase":"stopped","tasks":9}

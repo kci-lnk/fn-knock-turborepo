@@ -99,6 +99,17 @@ impl GoBackendClient {
         .await
     }
 
+    /// Preserve gRPC status so only UNIMPLEMENTED selects legacy polling.
+    pub(crate) async fn wait_waf_events(&self) -> Result<bool, tonic::Status> {
+        let mut request = self.request(crate::grpc_proto::WafWaitRequest { timeout_ms: 60_000 });
+        request.set_timeout(std::time::Duration::from_secs(65));
+        self.waf_wait
+            .clone()
+            .wait_waf_events(request)
+            .await
+            .map(|response| response.into_inner().available)
+    }
+
     pub async fn acknowledge_waf_event_lease(&self, lease_id: &str) -> anyhow::Result<Value> {
         self.waf_event_lease_request(
             "acknowledge_waf_event_lease",

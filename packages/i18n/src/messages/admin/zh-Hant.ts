@@ -6133,6 +6133,7 @@ export const zhHantAdmin = {
         wallHint:
           "僅彙總取樣期間已接入診斷的操作，每組依累計耗時顯示前 10 項。耗時包含等待，不等於 CPU；非同步工作 CPU 不單獨歸因。",
         tasks: "背景工作",
+        waits: "事件等待（含正常閒置時間）",
         sqlite: "SQLite 操作",
         operation: "操作標籤",
         calls: "次數",

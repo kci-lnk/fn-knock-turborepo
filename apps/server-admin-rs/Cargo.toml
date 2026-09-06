@@ -105,6 +105,8 @@ windows-sys = { version = "0.61", features = [
 portable-pty = "0.9.0"
 
 [dev-dependencies]
+tonic = { version = "0.12", default-features = false, features = ["server", "router"] }
+tokio-stream = { version = "0.1", features = ["net"] }
 getrandom = { version = "0.4", features = ["sys_rng"] }
 rcgen = { version = "0.14.8", features = ["pem", "x509-parser"] }
 ring = "0.17"

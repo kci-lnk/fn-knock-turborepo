@@ -6219,6 +6219,7 @@ export const zhCNAdmin = {
         wallHint:
           "仅汇总采样期间已接入诊断的操作，每组按累计耗时显示前 10 项。耗时包含等待，不等于 CPU；异步任务 CPU 不单独归因。",
         tasks: "后台任务",
+        waits: "事件等待（含正常空闲时间）",
         sqlite: "SQLite 操作",
         operation: "操作标签",
         calls: "次数",

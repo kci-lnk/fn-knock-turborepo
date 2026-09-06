@@ -3,7 +3,7 @@ import path from "node:path";
 import process from "node:process";
 
 const sourceRoot = path.resolve("apps/server-admin-rs/src");
-const maxDirectSpawnCallSites = 117;
+const maxDirectSpawnCallSites = 120;
 
 // Direct spawns are limited to explicitly audited owners, request-scoped
 // fan-out, subprocess pipe/wait tasks, platform entry points, and tests.
@@ -65,6 +65,9 @@ const auditedBudgets = new Map(
     "tunnels/cloudflared/managed.rs": 5,
     "tunnels/supervisor.rs": 6,
     "windows_service.rs": 1,
+    // Test-only gRPC fixture and old/new collector owners; workers are joined,
+    // and the returned fixture server is aborted by each owning test.
+    "waf/routes/worker_tests.rs": 3,
     "wol/dispatch.rs": 2,
     "wol/integrations.rs": 1,
     // Test-only russh fixture; each returned handle is explicitly aborted by its test.

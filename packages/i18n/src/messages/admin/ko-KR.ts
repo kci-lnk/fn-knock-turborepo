@@ -6650,6 +6650,7 @@ export const koKRAdmin = {
         wallHint:
           "수집 기간에 계측된 작업을 총 경과 시간 기준 그룹별 상위 10개로 표시합니다. 경과 시간에는 대기가 포함되며 CPU 시간이 아닙니다. 비동기 작업별 CPU는 계산하지 않습니다.",
         tasks: "백그라운드 작업",
+        waits: "이벤트 대기 (정상 유휴 시간 포함)",
         sqlite: "SQLite 작업",
         operation: "작업 레이블",
         calls: "횟수",

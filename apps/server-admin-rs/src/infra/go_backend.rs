@@ -74,6 +74,7 @@ pub struct GoBackendClient {
     security: SecurityServiceClient<Channel>,
     traffic: TrafficServiceClient<Channel>,
     waf: WafServiceClient<Channel>,
+    waf_wait: WafServiceClient<Channel>,
     ssl: SslServiceClient<Channel>,
     firewall: FirewallServiceClient<Channel>,
     health: HealthClient<Channel>,
@@ -104,6 +105,10 @@ impl GoBackendClient {
             .timeout(timeout)
             .connect_timeout(timeout);
         let channel = endpoint.connect_lazy();
+        let wait_channel = Endpoint::from_shared(format!("http://{addr}"))?
+            .timeout(Duration::from_secs(65))
+            .connect_timeout(timeout)
+            .connect_lazy();
         Ok(Self {
             addr,
             control: GatewayControlServiceClient::new(channel.clone())
@@ -122,6 +127,9 @@ impl GoBackendClient {
                 .max_decoding_message_size(INTERNAL_GRPC_MAX_MESSAGE_SIZE)
                 .max_encoding_message_size(INTERNAL_GRPC_MAX_MESSAGE_SIZE),
             waf: WafServiceClient::new(channel.clone())
+                .max_decoding_message_size(INTERNAL_GRPC_MAX_MESSAGE_SIZE)
+                .max_encoding_message_size(INTERNAL_GRPC_MAX_MESSAGE_SIZE),
+            waf_wait: WafServiceClient::new(wait_channel)
                 .max_decoding_message_size(INTERNAL_GRPC_MAX_MESSAGE_SIZE)
                 .max_encoding_message_size(INTERNAL_GRPC_MAX_MESSAGE_SIZE),
             ssl: SslServiceClient::new(channel.clone())

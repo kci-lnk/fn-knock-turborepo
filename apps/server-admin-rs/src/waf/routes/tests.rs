@@ -1,13 +1,15 @@
 use super::service::{
     apply_recommended_lfi_rule_patch_if_needed, apply_recommended_system_rule_state,
     normalize_fixed_waf_config, should_sync_system_rules_for_restore, waf_drain_schedule,
-    waf_drain_settings,
+    waf_drain_settings, wait_for_waf_drain,
 };
 use super::*;
 use serde_json::json;
 
 #[path = "drain_tests.rs"]
 mod drain;
+#[path = "worker_tests.rs"]
+mod worker;
 
 async fn waf_test_state(go_backend_grpc_addr: &str) -> (tempfile::TempDir, AppState) {
     let directory = tempfile::tempdir().unwrap();

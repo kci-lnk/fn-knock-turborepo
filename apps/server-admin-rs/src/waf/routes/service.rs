@@ -435,6 +435,7 @@ pub(super) fn waf_drain_schedule(state: &AppState) -> Option<u64> {
     settings.enabled.then_some(settings.interval_seconds)
 }
 
+#[cfg(test)]
 pub(super) async fn wait_for_waf_drain(
     state: &AppState,
     updates: &mut tokio::sync::watch::Receiver<u64>,
@@ -785,12 +786,17 @@ async fn drain_waf_events_inner(state: &AppState) -> anyhow::Result<Value> {
         }
         return Err(error.into());
     }
+    let mut remaining = data.get("remaining").and_then(Value::as_i64).unwrap_or(0);
     if !lease_id.is_empty() {
         let acknowledgement = state
             .gateway
             .client
             .acknowledge_waf_event_lease(&lease_id)
             .await?;
+        remaining = acknowledgement
+            .pointer("/data/remaining")
+            .and_then(Value::as_i64)
+            .unwrap_or(remaining);
         let acknowledged = acknowledgement
             .pointer("/data/acknowledged")
             .and_then(Value::as_i64)
@@ -811,7 +817,7 @@ async fn drain_waf_events_inner(state: &AppState) -> anyhow::Result<Value> {
     }
     Ok(json!({
         "drained": data.get("drained").and_then(Value::as_i64).unwrap_or(0),
-        "remaining": data.get("remaining").and_then(Value::as_i64).unwrap_or(0),
+        "remaining": remaining,
     }))
 }
 

@@ -1,0 +1,176 @@
+{
+  "idle_seconds": 600,
+  "parallel": true,
+  "profile": "runtime-test (opt-level=z, thin LTO)",
+  "go_commit": "8656ecf3b2f5aeb2e82f5a377dda7888959f9e08",
+  "arms": {
+    "old": {
+      "idle_rpc_delta": {
+        "drains": 300,
+        "waits": 0,
+        "completed_waits": 0,
+        "acks": 0,
+        "releases": 0
+      },
+      "goroutines": [
+        7
+      ],
+      "rust_tasks": [
+        8
+      ],
+      "sparse_latency_ms": [
+        1784,
+        1000,
+        1009
+      ],
+      "burst_latency_ms": 3192,
+      "idle_operations": [
+        {
+          "calls": 300,
+          "cancelled": 0,
+          "failures": 0,
+          "in_flight": 0,
+          "kind": "task",
+          "label": "waf.drain_events",
+          "max_cpu_ms": null,
+          "max_wall_ms": 2.187166,
+          "rows": 0,
+          "total_cpu_ms": null,
+          "total_wall_ms": 193.96803900000006
+        }
+      ],
+      "resources": {
+        "go": {
+          "rss_mib_min": 20.859375,
+          "rss_mib_max": 23.765625,
+          "rss_mib_median": 21.7890625,
+          "rss_mib_first": 20.859375,
+          "rss_mib_last": 23.765625,
+          "sample_count": 118,
+          "cpu_window_seconds": 588.048,
+          "cpu_seconds_delta": 0.15,
+          "one_core_cpu_percent": 0.02550812178597665
+        },
+        "rust": {
+          "rss_mib_min": 19.375,
+          "rss_mib_max": 19.484375,
+          "rss_mib_median": 19.453125,
+          "rss_mib_first": 19.375,
+          "rss_mib_last": 19.484375,
+          "sample_count": 118,
+          "cpu_window_seconds": 588.051,
+          "cpu_seconds_delta": 0.17,
+          "one_core_cpu_percent": 0.028909057207623146
+        }
+      },
+      "event_resources": {
+        "sparse_total": {
+          "rust": {
+            "cpu_seconds_delta": 0.07,
+            "end_rss_mib": 19.984375
+          },
+          "go": {
+            "cpu_seconds_delta": 0.07,
+            "end_rss_mib": 23.921875
+          },
+          "go_goroutines_at_end": 7
+        },
+        "burst": {
+          "rust": {
+            "cpu_seconds_delta": 0.25,
+            "end_rss_mib": 25.71875
+          },
+          "go": {
+            "cpu_seconds_delta": 0.06,
+            "end_rss_mib": 26.0
+          },
+          "go_goroutines_at_end": 7
+        }
+      }
+    },
+    "new": {
+      "idle_rpc_delta": {
+        "drains": 0,
+        "waits": 10,
+        "completed_waits": 10,
+        "acks": 0,
+        "releases": 0
+      },
+      "goroutines": [
+        11
+      ],
+      "rust_tasks": [
+        11
+      ],
+      "sparse_latency_ms": [
+        2026,
+        2008,
+        2020
+      ],
+      "burst_latency_ms": 2175,
+      "idle_operations": [
+        {
+          "calls": 9,
+          "cancelled": 0,
+          "failures": 0,
+          "in_flight": 1,
+          "kind": "wait",
+          "label": "waf.wait_events",
+          "max_cpu_ms": null,
+          "max_wall_ms": 60002.003166,
+          "rows": null,
+          "total_cpu_ms": null,
+          "total_wall_ms": 540014.8931669999
+        }
+      ],
+      "resources": {
+        "go": {
+          "rss_mib_min": 20.9375,
+          "rss_mib_max": 21.140625,
+          "rss_mib_median": 21.140625,
+          "rss_mib_first": 20.9375,
+          "rss_mib_last": 21.140625,
+          "sample_count": 118,
+          "cpu_window_seconds": 588.053,
+          "cpu_seconds_delta": 0.01,
+          "one_core_cpu_percent": 0.0017005269933152284
+        },
+        "rust": {
+          "rss_mib_min": 19.484375,
+          "rss_mib_max": 19.640625,
+          "rss_mib_median": 19.6015625,
+          "rss_mib_first": 19.484375,
+          "rss_mib_last": 19.640625,
+          "sample_count": 118,
+          "cpu_window_seconds": 588.0550000000001,
+          "cpu_seconds_delta": 0.01,
+          "one_core_cpu_percent": 0.0017005212097507883
+        }
+      },
+      "event_resources": {
+        "sparse_total": {
+          "rust": {
+            "cpu_seconds_delta": 0.09,
+            "end_rss_mib": 20.125
+          },
+          "go": {
+            "cpu_seconds_delta": 0.11,
+            "end_rss_mib": 22.9375
+          },
+          "go_goroutines_at_end": 11
+        },
+        "burst": {
+          "rust": {
+            "cpu_seconds_delta": 0.2,
+            "end_rss_mib": 26.0625
+          },
+          "go": {
+            "cpu_seconds_delta": 0.04,
+            "end_rss_mib": 24.578125
+          },
+          "go_goroutines_at_end": 11
+        }
+      }
+    }
+  }
+}

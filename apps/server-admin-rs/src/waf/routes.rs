@@ -28,6 +28,7 @@ use crate::{
     time_utils,
 };
 
+mod drain_worker;
 mod logs;
 mod rules;
 mod service;
@@ -38,7 +39,7 @@ use service::{
     apply_waf_config, apply_waf_config_to_gateway, check_and_sync_system_waf_rules_if_needed,
     delete_custom_waf_rule, drain_waf_events_now, get_waf_details, load_waf_config,
     read_waf_rule_file, set_recommended_system_rules, set_waf_rule_enabled, sync_waf_on_boot,
-    upload_custom_waf_rules, wait_for_waf_drain,
+    upload_custom_waf_rules,
 };
 pub(crate) use service::{
     disabled_hosts_for_config, restore_waf_runtime_after_import, sync_waf_config_to_gateway,
@@ -217,25 +218,7 @@ pub fn start_waf_tasks(state: AppState) {
 
     let drain_state = state.clone();
     state.spawn_background("waf-event-drain", async move {
-        let mut config_updates = drain_state.storage.store.subscribe_config_snapshot();
-        tokio::select! {
-            _ = drain_state.shutdown.cancelled() => return,
-            result = drain_waf_events_now(&drain_state) => {
-                if let Err(error) = result {
-                    tracing::debug!(%error, "failed to drain WAF events on boot");
-                }
-            }
-        }
-        while wait_for_waf_drain(&drain_state, &mut config_updates).await {
-            tokio::select! {
-                _ = drain_state.shutdown.cancelled() => break,
-                result = drain_waf_events_now(&drain_state) => {
-                    if let Err(error) = result {
-                        tracing::debug!(%error, "failed to drain WAF events");
-                    }
-                }
-            }
-        }
+        drain_worker::run(&drain_state).await;
     });
 
     let update_state = state.clone();

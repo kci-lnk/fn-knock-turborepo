@@ -73,8 +73,14 @@ const operationGroups = computed(() => [
     items: operations.value.filter((item) => item.kind === "task").slice(0, 10),
   },
   {
+    name: "waits",
+    items: operations.value.filter((item) => item.kind === "wait").slice(0, 10),
+  },
+  {
     name: "sqlite",
-    items: operations.value.filter((item) => item.kind !== "task").slice(0, 10),
+    items: operations.value
+      .filter((item) => item.kind !== "task" && item.kind !== "wait")
+      .slice(0, 10),
   },
 ]);
 const memoryRows = computed(() =>

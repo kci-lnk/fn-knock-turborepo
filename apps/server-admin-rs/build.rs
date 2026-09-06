@@ -36,7 +36,8 @@ fn main() {
         env::set_var("PROTOC", protoc);
     }
     tonic_build::configure()
-        .build_server(false)
+        .build_server(true)
+        .server_mod_attribute(".", "#[cfg(test)]")
         .compile_protos(&[proto_file], &[proto_root])
         .expect("compile fn-knock grpc proto");
 

@@ -1098,6 +1098,17 @@ message WafDrainRequest {
   string lease_id = 3;
 }
 
+// Waits for a claimable event without reserving or deleting it.
+message WafWaitRequest {
+  // Zero defaults to 60000; values above 60000 are rejected.
+  uint32 timeout_ms = 1;
+}
+
+message WafWaitResult {
+  // False means a normal empty timeout, not a delivery failure.
+  bool available = 1;
+}
+
 message TcpRedirectRequest {
   int32 listen_port = 1;
   int32 target_port = 2;
@@ -1406,6 +1417,7 @@ service WafService {
   rpc ValidateWafBundle(WafBundleRequest) returns (WafValidationResult);
   rpc ReloadWafBundle(WafBundleRequest) returns (WafStatus);
   rpc DrainWafEvents(WafDrainRequest) returns (WafDrainResult);
+  rpc WaitWafEvents(WafWaitRequest) returns (WafWaitResult);
 }
 
 service SslService {

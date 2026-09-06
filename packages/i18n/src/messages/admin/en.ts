@@ -6702,6 +6702,7 @@ export const enAdmin = {
         wallHint:
           "Shows instrumented operations during the capture, with the top 10 per group by total wall time. Wall time includes waiting and is not CPU time. CPU is not attributed to individual async tasks.",
         tasks: "Background tasks",
+        waits: "Event waits (including normal idle time)",
         sqlite: "SQLite operations",
         operation: "Operation label",
         calls: "Calls",

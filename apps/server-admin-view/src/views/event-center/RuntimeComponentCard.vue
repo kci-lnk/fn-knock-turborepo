@@ -158,11 +158,12 @@ const statusClass = (status: RuntimeHealthStatus) => {
       <Button
         v-if="showDebugAction"
         variant="outline"
-        size="sm"
+        size="icon-sm"
+        :title="t('admin.eventCenter.runtime.debug.view')"
+        :aria-label="t('admin.eventCenter.runtime.debug.view')"
         @click="emit('viewDebug', props.component)"
       >
-        <Activity class="mr-2 h-4 w-4" />
-        {{ t("admin.eventCenter.runtime.debug.view") }}
+        <Activity class="h-4 w-4" aria-hidden="true" />
       </Button>
       <Button
         v-if="showMemoryAction"

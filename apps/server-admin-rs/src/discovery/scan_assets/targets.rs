@@ -1,10 +1,11 @@
 use super::*;
 
-pub(super) const DISCOVERY_RESERVED_PORTS: [u16; 6] = [
+pub(super) const DISCOVERY_RESERVED_PORTS: [u16; 7] = [
     7_995,
     8_000,
     8_200,
     crate::tunnels::MANAGED_CLOUDFLARE_INGRESS_PORT,
+    crate::tunnels::MANAGED_CLOUDFLARE_LITE_INGRESS_PORT,
     30_661,
     30_662,
 ];

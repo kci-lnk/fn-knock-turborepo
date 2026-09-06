@@ -661,6 +661,7 @@ start_gateway() {
 
     while [ "${attempt}" -le "${max_attempts}" ]; do
         log_msg "Starting Go Reauth Proxy (admin-port=${GO_BACKEND_PORT}, proxy-port=${GO_REPROXY_PORT}, attempt=${attempt}/${max_attempts})..."
+        FN_KNOCK_RUNTIME_TARGET="fpk-lite" \
         BACKEND_PORT="${BACKEND_PORT}" \
         FN_KNOCK_DATA_DIR="${PKG_VAR_DIR}" \
         FN_KNOCK_INTERNAL_RPC_TOKEN="${FN_KNOCK_INTERNAL_RPC_TOKEN}" \

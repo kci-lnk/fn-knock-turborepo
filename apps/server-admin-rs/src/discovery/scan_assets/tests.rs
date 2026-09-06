@@ -89,6 +89,9 @@ fn network_discovery_uses_full_range_and_excluded_ports() {
 #[test]
 fn discovery_reserves_managed_cloudflare_ingress_port() {
     assert!(DISCOVERY_RESERVED_PORTS.contains(&crate::tunnels::MANAGED_CLOUDFLARE_INGRESS_PORT));
+    assert!(
+        DISCOVERY_RESERVED_PORTS.contains(&crate::tunnels::MANAGED_CLOUDFLARE_LITE_INGRESS_PORT)
+    );
 }
 
 #[test]

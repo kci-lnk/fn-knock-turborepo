@@ -14,7 +14,7 @@ use serde_json::{Map, Value, json};
 use utoipa_axum::{router::OpenApiRouter, routes};
 
 use crate::{
-    crypto_utils, response, state::AppState, time_utils, tunnels::MANAGED_CLOUDFLARE_INGRESS_PORT,
+    crypto_utils, response, state::AppState, time_utils, tunnels::managed_cloudflare_ingress_port,
 };
 
 use super::{
@@ -895,7 +895,7 @@ async fn build_plan(
     };
     let wildcard = format!("*.{root}");
     let dns_records = api.list_dns_records(&zone_id, Some(&wildcard)).await?;
-    let service = local_gateway_service();
+    let service = local_gateway_service(&state.settings.runtime_target);
     let desired_hosts = if request.optimization_enabled {
         optimization::configured_optimization_hosts(state, &local).await?
     } else {
@@ -1157,7 +1157,7 @@ async fn apply_setup(
 
     let current = api.get_tunnel_config(&account_id, &tunnel_id).await?;
     let wildcard = format!("*.{root}");
-    let service = local_gateway_service();
+    let service = local_gateway_service(&state.settings.runtime_target);
     let desired = merge_tunnel_config(
         &current,
         &ownership,
@@ -2272,8 +2272,9 @@ fn root_domain(config: &Value) -> Result<String, String> {
     idna::domain_to_ascii(&raw).map_err(|_| "The configured root domain is invalid".to_string())
 }
 
-fn local_gateway_service() -> String {
-    format!("http://127.0.0.1:{MANAGED_CLOUDFLARE_INGRESS_PORT}")
+fn local_gateway_service(runtime_target: &str) -> String {
+    let port = managed_cloudflare_ingress_port(runtime_target);
+    format!("http://127.0.0.1:{port}")
 }
 
 fn operation(id: &str, kind: &str, action: &str, target: impl Into<String>, owned: bool) -> Value {
@@ -2673,7 +2674,8 @@ mod tests {
 
     #[test]
     fn managed_tunnel_uses_dedicated_cloudflare_ingress_port() {
-        assert_eq!(local_gateway_service(), "http://127.0.0.1:17999");
+        assert_eq!(local_gateway_service("fnos"), "http://127.0.0.1:17999");
+        assert_eq!(local_gateway_service("fpk-lite"), "http://127.0.0.1:18999");
     }
 
     fn legacy_managed_ownership() -> Value {

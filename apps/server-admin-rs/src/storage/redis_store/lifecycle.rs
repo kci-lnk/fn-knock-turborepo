@@ -1,6 +1,10 @@
 use super::*;
 
 impl Store {
+    pub(crate) fn diagnostics(&self) -> Arc<crate::runtime_health::operations::OperationRecorder> {
+        self.manager.diagnostics()
+    }
+
     pub async fn connect(sqlite_path: impl AsRef<Path>) -> crate::storage::StorageResult<Self> {
         let path = sqlite_path.as_ref().to_path_buf();
         let manager = ConnectionManager::open(&path).await?;

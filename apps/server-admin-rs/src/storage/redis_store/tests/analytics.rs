@@ -1,6 +1,54 @@
 use super::*;
 
 #[tokio::test]
+async fn traffic_diagnostics_distinguish_snapshot_persistence_from_retention_pruning() {
+    let (_dir, store) = open_test_store().await;
+    let recorder = store.diagnostics();
+    let generation = recorder.start();
+    let now = chrono_like_now_seconds();
+    let host = "diagnostic-private-host.example.com";
+    let record = TrafficSnapshotRecord {
+        host: Some(host.to_string()),
+        stream: None,
+        total_in: 10.0,
+        total_out: 20.0,
+        error_5xx: 0.0,
+    };
+    store
+        .record_traffic_snapshot("global", &[record], now - 120, 60)
+        .await
+        .unwrap();
+    assert_eq!(store.cleanup_traffic_metrics(60).await.unwrap(), 3);
+    recorder.stop(generation);
+
+    let snapshot = recorder.snapshot();
+    for label in ["traffic.snapshot.persist", "traffic.retention.prune"] {
+        let operation = snapshot
+            .operations
+            .iter()
+            .find(|operation| operation.kind == "sqlite_primary" && operation.label == label)
+            .unwrap_or_else(|| panic!("missing actual SQLite operation {label}"));
+        assert_eq!(operation.calls, 1);
+        assert_eq!(operation.failures, 0);
+        assert_eq!(operation.cancelled, 0);
+        assert_eq!(operation.in_flight, 0);
+        #[cfg(unix)]
+        assert!(operation.total_cpu_ms.is_some());
+    }
+    assert!(snapshot.operations.iter().all(|operation| {
+        !operation.label.contains("execute_pipeline") && !operation.label.contains(host)
+    }));
+    assert!(
+        store
+            .list_traffic_points("global", "in", now - 180, now, Some(host), None)
+            .await
+            .unwrap()
+            .is_empty(),
+        "named execution must still remove expired traffic points"
+    );
+}
+
+#[tokio::test]
 async fn traffic_cleanup_prunes_stale_series_in_batches_and_preserves_live_counters() {
     let (_dir, store) = open_test_store().await;
     let now = chrono_like_now_seconds();

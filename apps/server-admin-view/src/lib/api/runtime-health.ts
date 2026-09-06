@@ -1,3 +1,4 @@
+import type { RuntimeDebugResponse } from "../../types/runtime-debug";
 import type { RuntimeLogComponent } from "../../types";
 import type { operations as ApiContractOperations } from "@fn-knock/api-contract";
 import { apiClient } from "./client";
@@ -24,7 +25,50 @@ type GatewayMemoryConfigUpdate =
 type GatewayMemoryReclaimResponse =
   ApiContractOperations["post_api_admin_runtime_health_gateway_memory_reclaim"]["responses"][200]["content"]["application/json"];
 
+type RuntimeDebugCaptureResponse =
+  ApiContractOperations["post_api_admin_runtime_health_debug_capture"]["responses"][200]["content"]["application/json"];
+type RuntimeDebugStopResponse =
+  ApiContractOperations["delete_api_admin_runtime_health_debug_capture"]["responses"][200]["content"]["application/json"];
+type RuntimeDebugMemoryResponse =
+  ApiContractOperations["post_api_admin_runtime_health_debug_memory"]["responses"][200]["content"]["application/json"];
+
 export const RuntimeHealthAPI = {
+  async getDebug(signal?: AbortSignal): Promise<RuntimeDebugResponse> {
+    const response = await apiClient.get("/runtime-health/debug", { signal });
+    return response.data;
+  },
+
+  async startDebugCapture(
+    signal?: AbortSignal,
+  ): Promise<RuntimeDebugCaptureResponse> {
+    const response = await apiClient.post(
+      "/runtime-health/debug/capture",
+      {},
+      { signal },
+    );
+    return response.data;
+  },
+
+  async stopDebugCapture(
+    signal?: AbortSignal,
+  ): Promise<RuntimeDebugStopResponse> {
+    const response = await apiClient.delete("/runtime-health/debug/capture", {
+      signal,
+    });
+    return response.data;
+  },
+
+  async refreshDebugMemory(
+    signal?: AbortSignal,
+  ): Promise<RuntimeDebugMemoryResponse> {
+    const response = await apiClient.post(
+      "/runtime-health/debug/memory",
+      {},
+      { signal },
+    );
+    return response.data;
+  },
+
   async getHealth(signal?: AbortSignal): Promise<RuntimeHealthResponse> {
     const response = await apiClient.get("/runtime-health", { signal });
     return response.data;

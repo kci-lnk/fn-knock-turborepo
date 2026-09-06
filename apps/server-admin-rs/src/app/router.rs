@@ -725,7 +725,7 @@ mod tests {
             }
         }
 
-        assert_eq!(checked, 454, "all OpenAPI operations should be probed");
+        assert_eq!(checked, 458, "all OpenAPI operations should be probed");
     }
 
     #[tokio::test]

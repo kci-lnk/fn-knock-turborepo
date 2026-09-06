@@ -193,6 +193,7 @@ pub(super) struct RuntimeDiagnosticsData {
     commit: String,
     platform: RuntimePlatformData,
     runtime: RuntimeHealthSnapshotData,
+    runtime_debug: crate::runtime_health::debug::RuntimeDebugReportData,
     recent_runtime_events: Vec<RuntimeSystemEventData>,
     storage_migration: RuntimeStorageMigrationData,
     collection: RuntimeDiagnosticsCollectionData,

@@ -89,6 +89,7 @@ struct GatewayMemoryReclaimBody {}
 pub(crate) fn runtime_health_routes() -> OpenApiRouter<AppState> {
     OpenApiRouter::new()
         .routes(routes!(runtime_health))
+        .merge(super::debug::debug_routes())
         .routes(routes!(gateway_memory_config, update_gateway_memory_config))
         .routes(routes!(reclaim_gateway_memory))
         .routes(routes!(runtime_logs, clear_runtime_logs))
@@ -479,11 +480,16 @@ async fn build_diagnostics(state: &AppState) -> anyhow::Result<Value> {
             "typed_whitelist_runtime_shadow": typed_whitelist_runtime_shadow,
         },
         "collection": {
-            "includes": ["component health", "runtime lifecycle events", "storage migration health", "bounded operational logs"],
+            "includes": ["component health", "runtime lifecycle events", "storage migration health", "bounded operational logs", "cached manual runtime diagnostics"],
             "excludes": ["requests", "WAF details", "authentication records", "configuration", "environment", "certificates", "database"],
         },
     });
-    Ok(sanitize_value(value))
+    let mut sanitized = sanitize_value(value);
+    // This closed schema contains only resource counters and static operation
+    // labels. Generic domain redaction would erase labels like traffic.collect.
+    sanitized["runtime_debug"] =
+        serde_json::to_value(state.runtime_health.inner.debug.report(state))?;
+    Ok(sanitized)
 }
 
 async fn build_archive(state: &AppState) -> anyhow::Result<Vec<u8>> {
@@ -856,6 +862,13 @@ mod tests {
     #[tokio::test]
     async fn diagnostics_exposes_only_storage_shadow_health() {
         let (_directory, state) = diagnostics_test_state().await;
+        let recorder = state.storage.store.diagnostics();
+        let generation = recorder.start();
+        recorder
+            .scope("task", "traffic.collect")
+            .finish(true, Some(3));
+        recorder.scope("sqlite", "health.ping").finish(true, None);
+        recorder.stop(generation);
         state
             .storage
             .store
@@ -879,6 +892,14 @@ mod tests {
             .unwrap();
 
         let diagnostics = build_diagnostics(&state).await.unwrap();
+        let labels: Vec<_> = diagnostics["runtime_debug"]["capture"]["operations"]["operations"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|row| row["label"].as_str().unwrap())
+            .collect();
+        assert!(labels.contains(&"traffic.collect"));
+        assert!(labels.contains(&"health.ping"));
         assert_eq!(
             diagnostics.pointer("/storage_migration/typed_config_shadow/phase"),
             Some(&json!("typed_primary"))

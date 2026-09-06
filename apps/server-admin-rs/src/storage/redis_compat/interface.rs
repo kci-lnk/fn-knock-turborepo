@@ -19,6 +19,7 @@ pub(crate) struct ConnectionManager {
     pub(super) auth_read_admission: Arc<Semaphore>,
     pub(super) health_admission: Arc<Semaphore>,
     pub(super) primary_metrics: Arc<PrimaryExecutorMetrics>,
+    pub(super) operation_recorder: Arc<crate::runtime_health::operations::OperationRecorder>,
     #[cfg(test)]
     pub(super) path: PathBuf,
 }

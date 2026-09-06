@@ -38,6 +38,9 @@ impl ConnectionManager {
             auth_read_admission: Arc::new(Semaphore::new(1)),
             health_admission: Arc::new(Semaphore::new(1)),
             primary_metrics: Arc::new(PrimaryExecutorMetrics::default()),
+            operation_recorder: Arc::new(
+                crate::runtime_health::operations::OperationRecorder::default(),
+            ),
             #[cfg(test)]
             path: path.to_path_buf(),
         };
@@ -283,6 +286,18 @@ impl ConnectionManager {
         T: Send + 'static,
         F: FnOnce(&mut rusqlite::Connection) -> RedisResult<T> + Send + 'static,
     {
+        self.call_named(std::any::type_name::<F>(), f).await
+    }
+
+    pub(crate) fn diagnostics(&self) -> Arc<crate::runtime_health::operations::OperationRecorder> {
+        self.operation_recorder.clone()
+    }
+
+    pub(crate) async fn call_named<T, F>(&self, label: &'static str, f: F) -> RedisResult<T>
+    where
+        T: Send + 'static,
+        F: FnOnce(&mut rusqlite::Connection) -> RedisResult<T> + Send + 'static,
+    {
         // Keep cancellation outside tokio-rusqlite's internal queue. Once a
         // closure is submitted it cannot be recalled by dropping the caller's
         // future; moving both guards into the closure ensures a timed-out auth
@@ -304,11 +319,15 @@ impl ConnectionManager {
             }
         };
         let execution = self.primary_metrics.begin_execution(wait_ms);
+        let recorder = self.diagnostics();
         self.db
             .call(move |conn| {
                 let _permit = permit;
                 let _execution = execution;
-                f(conn)
+                let operation = recorder.scope_sqlite("sqlite_primary", label);
+                let result = f(conn);
+                operation.finish(result.is_ok(), None);
+                result
             })
             .await
             .map_err(StorageError::from)
@@ -320,7 +339,7 @@ impl ConnectionManager {
         F: FnOnce(&mut rusqlite::Connection) -> RedisResult<T> + Send + 'static,
     {
         let checkpoint_guard = self.checkpoint_gate.clone().write_owned().await;
-        self.call(move |conn| {
+        self.call_named(std::any::type_name::<F>(), move |conn| {
             let _checkpoint_guard = checkpoint_guard;
             f(conn)
         })
@@ -331,6 +350,8 @@ impl ConnectionManager {
         &self,
         reader: &Connection,
         admission: Arc<Semaphore>,
+        kind: &'static str,
+        label: &'static str,
         f: F,
     ) -> RedisResult<T>
     where
@@ -345,11 +366,15 @@ impl ConnectionManager {
             .await
             .map_err(|_| storage_error("sqlite reader admission is closed"))?;
         let checkpoint_guard = self.checkpoint_gate.clone().read_owned().await;
+        let recorder = self.diagnostics();
         reader
             .call(move |conn| {
                 let _permit = permit;
                 let _checkpoint_guard = checkpoint_guard;
-                f(conn)
+                let operation = recorder.scope_sqlite(kind, label);
+                let result = f(conn);
+                operation.finish(result.is_ok(), None);
+                result
             })
             .await
             .map_err(StorageError::from)
@@ -360,8 +385,14 @@ impl ConnectionManager {
         T: Send + 'static,
         F: FnOnce(&mut rusqlite::Connection) -> RedisResult<T> + Send + 'static,
     {
-        self.call_reader(&self.analytics_db, self.analytics_admission.clone(), f)
-            .await
+        self.call_reader(
+            &self.analytics_db,
+            self.analytics_admission.clone(),
+            "sqlite_analytics",
+            std::any::type_name::<F>(),
+            f,
+        )
+        .await
     }
 
     pub(crate) async fn call_auth_read<T, F>(&self, f: F) -> RedisResult<T>
@@ -369,15 +400,27 @@ impl ConnectionManager {
         T: Send + 'static,
         F: FnOnce(&mut rusqlite::Connection) -> RedisResult<T> + Send + 'static,
     {
-        self.call_reader(&self.auth_read_db, self.auth_read_admission.clone(), f)
-            .await
+        self.call_reader(
+            &self.auth_read_db,
+            self.auth_read_admission.clone(),
+            "sqlite_auth_read",
+            std::any::type_name::<F>(),
+            f,
+        )
+        .await
     }
 
     pub(crate) async fn ping(&self) -> RedisResult<()> {
-        self.call_reader(&self.health_db, self.health_admission.clone(), |conn| {
-            conn.query_row("SELECT 1", [], |row| row.get::<_, i64>(0))?;
-            Ok::<(), StorageError>(())
-        })
+        self.call_reader(
+            &self.health_db,
+            self.health_admission.clone(),
+            "sqlite_health",
+            "health.ping",
+            |conn| {
+                conn.query_row("SELECT 1", [], |row| row.get::<_, i64>(0))?;
+                Ok::<(), StorageError>(())
+            },
+        )
         .await
     }
 

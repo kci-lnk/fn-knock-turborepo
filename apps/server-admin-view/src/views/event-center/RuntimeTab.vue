@@ -1,6 +1,14 @@
 <script setup lang="ts">
+import { ref } from "vue";
 import { useI18n } from "vue-i18n";
-import { Copy, Download, Loader2, RefreshCw, Trash2 } from "lucide-vue-next";
+import {
+  Activity,
+  Copy,
+  Download,
+  Loader2,
+  RefreshCw,
+  Trash2,
+} from "lucide-vue-next";
 import ConfirmDangerPopover from "@admin-shared/components/common/ConfirmDangerPopover.vue";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -13,6 +21,7 @@ import {
 } from "@/components/ui/dialog";
 import RuntimeComponentCard from "./RuntimeComponentCard.vue";
 import GatewayMemoryDialog from "./GatewayMemoryDialog.vue";
+import RuntimeDebugDialog from "./RuntimeDebugDialog.vue";
 import {
   formatRuntimeBytes as formatBytes,
   formatRuntimeDate as formatDate,
@@ -26,6 +35,7 @@ const props = withDefaults(defineProps<{ active?: boolean }>(), {
   active: true,
 });
 const { t } = useI18n();
+const debugDialogOpen = ref(false);
 const {
   clearRuntimeLogs,
   copying,
@@ -84,7 +94,13 @@ const {
           >
         </div>
       </div>
-      <div class="grid w-full grid-cols-1 gap-2 sm:grid-cols-3 lg:w-auto">
+      <div
+        class="grid w-full grid-cols-1 gap-2 sm:grid-cols-2 xl:grid-cols-4 lg:w-auto"
+      >
+        <Button variant="outline" size="sm" @click="debugDialogOpen = true">
+          <Activity class="mr-2 h-4 w-4" />
+          {{ t("admin.eventCenter.runtime.debug.open") }}
+        </Button>
         <Button
           variant="outline"
           size="sm"
@@ -132,6 +148,8 @@ const {
             variant="process"
             show-log-action
             :show-memory-action="component.id === 'gateway_process'"
+            :show-debug-action="component.id === 'management'"
+            @view-debug="debugDialogOpen = true"
             @view-logs="openRuntimeLogs"
             @manage-memory="openGatewayMemoryDialog"
           />
@@ -314,6 +332,8 @@ const {
         </div>
       </DialogContent>
     </Dialog>
+
+    <RuntimeDebugDialog v-model:open="debugDialogOpen" :active="props.active" />
 
     <GatewayMemoryDialog
       v-model:open="gatewayMemoryDialogOpen"

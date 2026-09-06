@@ -274,7 +274,9 @@ impl Store {
             pipe.zrembyscore(&key_5xx, 0, expire_before_sec).ignore();
         }
 
-        let _: () = pipe.query_async(&mut conn).await?;
+        let _: () = pipe
+            .query_async_named(&mut conn, "traffic.snapshot.persist")
+            .await?;
         Ok((global_delta_in, global_delta_out, global_delta_5xx))
     }
 
@@ -302,7 +304,9 @@ impl Store {
         for key in &keys {
             pipe.zrembyscore(key, 0, expire_before_sec).ignore();
         }
-        let _: () = pipe.query_async(&mut conn).await?;
+        let _: () = pipe
+            .query_async_named(&mut conn, "traffic.retention.prune")
+            .await?;
         self.cleanup_empty_traffic_metric_keys(&traffic_keys, TRAFFIC_KEY_INDEX)
             .await?;
         self.cleanup_empty_traffic_metric_keys(&error_keys, ERROR5XX_KEY_INDEX)

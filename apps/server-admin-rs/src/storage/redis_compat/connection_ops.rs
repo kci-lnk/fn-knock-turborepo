@@ -562,14 +562,16 @@ impl ConnectionManager {
     pub(super) async fn execute_pipeline(
         &mut self,
         commands: Vec<CommandSpec>,
+        label: Option<&'static str>,
     ) -> RedisResult<Vec<CmdOutput>> {
-        self.call(move |conn| {
+        let execute = move |conn: &mut rusqlite::Connection| {
             let tx = immediate_transaction(conn)?;
             let outputs = execute_pipeline_commands_tx(&tx, commands)?;
             tx.commit()?;
             Ok(outputs)
-        })
-        .await
+        };
+        let label = label.unwrap_or_else(|| std::any::type_name_of_val(&execute));
+        self.call_named(label, execute).await
     }
 
     pub(crate) async fn export_backup_entries_by_prefix(

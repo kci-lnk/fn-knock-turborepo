@@ -1,3 +1,6 @@
+pub(crate) mod debug;
+pub(crate) mod debug_resources;
+pub(crate) mod operations;
 pub(crate) mod routes;
 
 use std::{
@@ -220,6 +223,7 @@ pub(crate) struct RuntimeHealth {
 }
 
 struct RuntimeHealthInner {
+    debug: debug::DebugController,
     snapshot: RwLock<RuntimeSnapshot>,
     trackers: Mutex<BTreeMap<String, Tracker>>,
     pending_events: Mutex<VecDeque<PendingRuntimeEvent>>,
@@ -354,6 +358,7 @@ impl RuntimeHealth {
         let log_status = logger.status();
         Ok(Self {
             inner: Arc::new(RuntimeHealthInner {
+                debug: debug::DebugController::default(),
                 snapshot: RwLock::new(RuntimeSnapshot {
                     schema_version: 1,
                     overall_status: HealthStatus::Unknown,

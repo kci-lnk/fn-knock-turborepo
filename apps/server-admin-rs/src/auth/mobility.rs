@@ -277,9 +277,15 @@ pub fn start_auth_mobility_tasks(state: AppState) {
                     AUTH_MOBILITY_MAINTENANCE_INTERVAL_SECONDS,
                 )) => {}
             }
+            let operation = task_state
+                .storage
+                .store
+                .diagnostics()
+                .scope("task", "auth_mobility.maintenance");
             tokio::select! {
                 _ = task_state.shutdown.cancelled() => break,
                 result = maintain_session_active_ips(&task_state) => {
+                    operation.finish(result.is_ok(), None);
                     if let Err(error) = result {
                         tracing::warn!(%error, "auth mobility active IP maintenance failed");
                     }

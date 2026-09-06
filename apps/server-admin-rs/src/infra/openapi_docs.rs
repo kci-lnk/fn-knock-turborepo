@@ -2714,6 +2714,60 @@ pub(crate) fn build_openapi_document() -> Value {
         None,
         None,
     );
+    for (path, method, summary, description) in [
+        (
+            "/api/admin/runtime-health/debug",
+            "get",
+            "查看管理进程运行诊断",
+            "读取当前管理进程的资源样本、操作统计、队列状态和最近一次内存详情；不会启动采样或扫描数据库。",
+        ),
+        (
+            "/api/admin/runtime-health/debug/capture",
+            "post",
+            "开始六十秒运行采样",
+            "手动启动每秒一次、目标时长六十秒的管理进程采样及操作统计；已有运行中的采集时复用当前轮次，结束后重新开始会替换旧结果。关闭浏览器不会中止已启动的服务端采集。",
+        ),
+        (
+            "/api/admin/runtime-health/debug/capture",
+            "delete",
+            "停止运行采样并保留结果",
+            "停止当前采集并冻结已有样本和操作统计；不会删除报告，也不会取消正在执行的业务操作。采集停止时未结束的操作保留为未完成统计。",
+        ),
+        (
+            "/api/admin/runtime-health/debug/memory",
+            "post",
+            "采集管理进程内存详情",
+            "按需读取有大小上限的进程内存统计，不执行内存回收。最多同时进行一次读取，完成后三秒内复用已有结果；平台不支持的指标返回空值及说明。",
+        ),
+    ] {
+        insert_typed_enveloped_operation(
+            &mut paths,
+            &typed_runtime_health,
+            path,
+            method,
+            "RuntimeDebugReportData",
+            None,
+            None,
+        );
+        if let Some(operation) = paths
+            .get_mut(path)
+            .and_then(|item| item.get_mut(method))
+            .and_then(Value::as_object_mut)
+        {
+            operation.insert("summary".to_string(), json!(summary));
+            operation.insert("description".to_string(), json!(description));
+            if let Some(response) = operation
+                .get_mut("responses")
+                .and_then(|responses| responses.get_mut("200"))
+                .and_then(Value::as_object_mut)
+            {
+                response.insert(
+                    "description".to_string(),
+                    json!("操作完成，返回标准管理端响应封装中的当前运行诊断报告。"),
+                );
+            }
+        }
+    }
     insert_typed_enveloped_operation(
         &mut paths,
         &typed_runtime_health,
@@ -4991,7 +5045,7 @@ mod tests {
                 }
             }
         }
-        assert_eq!(operations, 454);
+        assert_eq!(operations, 458);
         assert_eq!(documented_tags, operation_tags);
         assert!(documented_tags.iter().all(|tag| {
             tags.iter().any(|item| {
@@ -5736,7 +5790,7 @@ mod tests {
             .filter_map(Value::as_object)
             .flat_map(|path| path.values())
             .collect::<Vec<_>>();
-        assert_eq!(operations.len(), 454);
+        assert_eq!(operations.len(), 458);
         assert!(
             operations
                 .iter()

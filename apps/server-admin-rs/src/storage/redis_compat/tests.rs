@@ -10,6 +10,7 @@ async fn temp_manager() -> ConnectionManager {
 
 mod collections;
 mod migrations;
+mod operations;
 mod stream_commands;
 mod streams_tail;
 mod transactions;

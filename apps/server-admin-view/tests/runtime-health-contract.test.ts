@@ -43,6 +43,10 @@ describe("runtime health API contract", () => {
   it("keeps all runtime health operations typed", () => {
     for (const [method, path] of [
       ["get", "/api/admin/runtime-health"],
+      ["get", "/api/admin/runtime-health/debug"],
+      ["post", "/api/admin/runtime-health/debug/capture"],
+      ["delete", "/api/admin/runtime-health/debug/capture"],
+      ["post", "/api/admin/runtime-health/debug/memory"],
       ["get", "/api/admin/runtime-health/gateway-memory"],
       ["put", "/api/admin/runtime-health/gateway-memory"],
       ["post", "/api/admin/runtime-health/gateway-memory/reclaim"],

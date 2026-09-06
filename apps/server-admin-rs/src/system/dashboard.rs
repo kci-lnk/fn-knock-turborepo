@@ -503,8 +503,25 @@ async fn collect_traffic_once(
     state: &AppState,
     last_observed: &mut Option<Vec<TrafficSnapshotRecord>>,
 ) -> anyhow::Result<()> {
+    let operation = state
+        .storage
+        .store
+        .diagnostics()
+        .scope("task", "traffic.collect");
+    let mut rows = None;
+    let result = collect_traffic_once_inner(state, last_observed, &mut rows).await;
+    operation.finish(result.is_ok(), rows);
+    result
+}
+
+async fn collect_traffic_once_inner(
+    state: &AppState,
+    last_observed: &mut Option<Vec<TrafficSnapshotRecord>>,
+    rows: &mut Option<u64>,
+) -> anyhow::Result<()> {
     let snapshot = fetch_traffic_stats(state).await?;
     let records = build_snapshot_records(&snapshot);
+    *rows = Some(records.len() as u64);
     let Some(previous) = last_observed.as_ref() else {
         *last_observed = Some(records);
         return Ok(());

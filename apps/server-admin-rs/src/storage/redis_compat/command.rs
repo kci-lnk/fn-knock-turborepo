@@ -166,7 +166,18 @@ impl Pipeline {
         conn: &mut ConnectionManager,
     ) -> RedisResult<T> {
         self.flush_current();
-        T::from_pipe_outputs(conn.execute_pipeline(self.commands).await?)
+        T::from_pipe_outputs(conn.execute_pipeline(self.commands, None).await?)
+    }
+
+    /// Attach a static operation identifier to the actual SQLite execution.
+    /// Labels must never contain keys, request fields, or configuration values.
+    pub(crate) async fn query_async_named<T: FromPipeOutput>(
+        mut self,
+        conn: &mut ConnectionManager,
+        label: &'static str,
+    ) -> RedisResult<T> {
+        self.flush_current();
+        T::from_pipe_outputs(conn.execute_pipeline(self.commands, Some(label)).await?)
     }
 
     /// Executes this pipeline inside a caller-owned SQLite transaction.

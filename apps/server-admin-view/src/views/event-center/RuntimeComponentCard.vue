@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { FileText, MemoryStick } from "lucide-vue-next";
+import { Activity, FileText, MemoryStick } from "lucide-vue-next";
 import { useI18n } from "vue-i18n";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -11,13 +11,15 @@ const props = withDefaults(
     variant: "process" | "service";
     showLogAction?: boolean;
     showMemoryAction?: boolean;
+    showDebugAction?: boolean;
   }>(),
-  { showLogAction: false, showMemoryAction: false },
+  { showLogAction: false, showMemoryAction: false, showDebugAction: false },
 );
 
 const emit = defineEmits<{
   viewLogs: [component: RuntimeComponentHealth];
   manageMemory: [component: RuntimeComponentHealth];
+  viewDebug: [component: RuntimeComponentHealth];
 }>();
 
 const { t } = useI18n();
@@ -141,8 +143,8 @@ const statusClass = (status: RuntimeHealthStatus) => {
     </dl>
 
     <div
-      v-if="showLogAction || showMemoryAction"
-      class="mt-auto flex items-center gap-2 pt-4"
+      v-if="showLogAction || showMemoryAction || showDebugAction"
+      class="mt-auto flex flex-wrap items-center gap-2 pt-4"
     >
       <Button
         v-if="showLogAction"
@@ -152,6 +154,15 @@ const statusClass = (status: RuntimeHealthStatus) => {
       >
         <FileText class="mr-2 h-4 w-4" />
         {{ t("admin.eventCenter.runtime.viewLogs") }}
+      </Button>
+      <Button
+        v-if="showDebugAction"
+        variant="outline"
+        size="sm"
+        @click="emit('viewDebug', props.component)"
+      >
+        <Activity class="mr-2 h-4 w-4" />
+        {{ t("admin.eventCenter.runtime.debug.view") }}
       </Button>
       <Button
         v-if="showMemoryAction"

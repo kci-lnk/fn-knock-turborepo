@@ -645,6 +645,22 @@ pub(super) async fn delete_custom_waf_rule(
 }
 
 pub(super) async fn drain_waf_events_now(state: &AppState) -> anyhow::Result<Value> {
+    let operation = state
+        .storage
+        .store
+        .diagnostics()
+        .scope("task", "waf.drain_events");
+    let result = drain_waf_events_inner(state).await;
+    let rows = result
+        .as_ref()
+        .ok()
+        .and_then(|value| value.get("drained"))
+        .and_then(Value::as_u64);
+    operation.finish(result.is_ok(), rows);
+    result
+}
+
+async fn drain_waf_events_inner(state: &AppState) -> anyhow::Result<Value> {
     let _drain_guard = state.security.waf_event_drain_lock.lock().await;
     let config = load_waf_config(state).await?;
     if !config

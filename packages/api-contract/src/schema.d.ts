@@ -4630,6 +4630,70 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/admin/runtime-health/debug": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * 查看管理进程运行诊断
+         * @description 读取当前管理进程的资源样本、操作统计、队列状态和最近一次内存详情；不会启动采样或扫描数据库。
+         */
+        get: operations["get_api_admin_runtime_health_debug"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/runtime-health/debug/capture": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * 开始六十秒运行采样
+         * @description 手动启动每秒一次、目标时长六十秒的管理进程采样及操作统计；已有运行中的采集时复用当前轮次，结束后重新开始会替换旧结果。关闭浏览器不会中止已启动的服务端采集。
+         */
+        post: operations["post_api_admin_runtime_health_debug_capture"];
+        /**
+         * 停止运行采样并保留结果
+         * @description 停止当前采集并冻结已有样本和操作统计；不会删除报告，也不会取消正在执行的业务操作。采集停止时未结束的操作保留为未完成统计。
+         */
+        delete: operations["delete_api_admin_runtime_health_debug_capture"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/runtime-health/debug/memory": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * 采集管理进程内存详情
+         * @description 按需读取有大小上限的进程内存统计，不执行内存回收。最多同时进行一次读取，完成后三秒内复用已有结果；平台不支持的指标返回空值及说明。
+         */
+        post: operations["post_api_admin_runtime_health_debug_memory"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/admin/runtime-health/diagnostics": {
         parameters: {
             query?: never;
@@ -7799,6 +7863,45 @@ export interface components {
             advanced_auth?: components["schemas"]["AdvancedAuthConfigInputData"];
             revision?: string | null;
         };
+        AllocatorStats: {
+            /**
+             * Format: int64
+             * @description glibc arena allocations; excludes mmap allocations and may include caches.
+             */
+            allocated_bytes: number;
+            /** Format: int64 */
+            arena_bytes: number;
+            /**
+             * Format: int64
+             * @description Allocator-reported free arena space, not necessarily resident or releasable.
+             */
+            free_bytes: number;
+            /** Format: int64 */
+            mmap_bytes: number;
+            /**
+             * Format: int64
+             * @description glibc's top-most releasable space estimate; no reclamation is performed.
+             */
+            releasable_bytes: number;
+        };
+        AnonymousRegion: {
+            /** Format: int64 */
+            anonymous_bytes: number;
+            /** Format: int64 */
+            anonymous_huge_bytes: number;
+            category: string;
+            permissions: string;
+            /** Format: int64 */
+            private_dirty_bytes: number;
+            /** Format: int64 */
+            pss_bytes: number;
+            /** Format: int64 */
+            rss_bytes: number;
+            /** Format: int64 */
+            size_bytes: number;
+            /** Format: int64 */
+            swap_bytes: number;
+        };
         ApiErrorEnvelope: {
             /**
              * Format: int32
@@ -8091,6 +8194,8 @@ export interface components {
             secret_key?: string | null;
             site_key?: string | null;
         };
+        /** @enum {string} */
+        CaptureStatus: "idle" | "running" | "completed" | "stopped";
         CidrCapabilitiesData: {
             operatorFiltering: components["schemas"]["CidrOperatorCapabilityData"];
             /** @enum {string} */
@@ -9166,6 +9271,55 @@ export interface components {
         };
         DdnsToggleBodyData: {
             enabled: boolean;
+        };
+        DebugCapture: {
+            /** Format: int64 */
+            duration_seconds: number;
+            /** Format: int64 */
+            elapsed_ms: number;
+            errors: string[];
+            finished_at: string | null;
+            id: string | null;
+            operations: components["schemas"]["OperationSnapshot"];
+            /** Format: int64 */
+            sample_interval_ms: number;
+            samples: components["schemas"]["DebugSample"][];
+            started_at: string | null;
+            status: components["schemas"]["CaptureStatus"];
+        };
+        DebugProcess: {
+            arch: string;
+            logical_cpus: number;
+            os: string;
+            /** Format: int32 */
+            pid: number;
+            /** Format: int64 */
+            uptime_ms: number;
+            version: string;
+        };
+        DebugQueue: {
+            /** Format: int64 */
+            active_operation_ms: number;
+            /** Format: int64 */
+            canceled_operations: number;
+            /** Format: int64 */
+            queue_depth: number;
+            /** Format: int64 */
+            queue_depth_peak: number;
+            /** Format: int64 */
+            queue_wait_ms: number;
+            /** Format: int64 */
+            queue_wait_peak_ms: number;
+        };
+        DebugSample: {
+            /** Format: int64 */
+            active_operation_ms: number;
+            at: string;
+            /** Format: int64 */
+            elapsed_ms: number;
+            /** Format: int64 */
+            queue_depth: number;
+            resource: components["schemas"]["ResourceSample"];
         };
         DeepMonitorEventData: {
             auth_credential_id: string;
@@ -10751,6 +10905,46 @@ export interface components {
             mappings: unknown[];
             revision?: string | null;
         };
+        MemoryCategory: {
+            /** Format: int64 */
+            anonymous_bytes: number;
+            /** Format: int64 */
+            anonymous_huge_bytes: number;
+            category: string;
+            /** Format: int64 */
+            mappings: number;
+            /** Format: int64 */
+            private_dirty_bytes: number;
+            /** Format: int64 */
+            pss_bytes: number;
+            /** Format: int64 */
+            rss_bytes: number;
+            /** Format: int64 */
+            size_bytes: number;
+            /** Format: int64 */
+            swap_bytes: number;
+        };
+        MemoryDetails: {
+            allocator: null | components["schemas"]["AllocatorStats"];
+            /** Format: int64 */
+            anonymous_bytes: number | null;
+            categories: components["schemas"]["MemoryCategory"][];
+            collected_at: string;
+            /** @description Static diagnostic codes, never paths, environment values or file content. */
+            errors: string[];
+            /** Format: int64 */
+            file_bytes: number | null;
+            largest_anonymous_regions: components["schemas"]["AnonymousRegion"][];
+            /** Format: int64 */
+            rss_bytes: number | null;
+            status: components["schemas"]["MemoryDetailsStatus"];
+            /** Format: int64 */
+            swap_bytes: number | null;
+            /** Format: int64 */
+            threads: number | null;
+        };
+        /** @enum {string} */
+        MemoryDetailsStatus: "available" | "partial" | "unsupported" | "unavailable";
         NotificationDeliveryClearBodyData: {
             provider_id?: string | null;
             rule_id?: string | null;
@@ -11232,6 +11426,53 @@ export interface components {
         OidcProvidersData: {
             providers: components["schemas"]["OidcProviderData"][];
         };
+        OperationSnapshot: {
+            active: boolean;
+            /**
+             * Format: int64
+             * @description Scopes omitted after the distinct operation limit was reached.
+             */
+            dropped_operations: number;
+            /** Format: int64 */
+            elapsed_ms: number;
+            /** Format: int64 */
+            generation: number;
+            operations: components["schemas"]["OperationStats"][];
+        };
+        OperationStats: {
+            /**
+             * Format: int64
+             * @description Completed scopes, including failures and cancellations.
+             */
+            calls: number;
+            /** Format: int64 */
+            cancelled: number;
+            /** Format: int64 */
+            failures: number;
+            /**
+             * Format: int64
+             * @description Scopes still running, or unfinished when capture stopped.
+             */
+            in_flight: number;
+            kind: string;
+            label: string;
+            /** Format: double */
+            max_cpu_ms: number | null;
+            /** Format: double */
+            max_wall_ms: number;
+            /**
+             * Format: int64
+             * @description Sum of item counts explicitly supplied by the instrumented operation.
+             */
+            rows: number | null;
+            /**
+             * Format: double
+             * @description Available only for scopes measured on one SQLite execution thread.
+             */
+            total_cpu_ms: number | null;
+            /** Format: double */
+            total_wall_ms: number;
+        };
         PanelAppearanceData: {
             /** @enum {string} */
             theme_color_preset: "default" | "hermes_orange" | "prussian_blue" | "dynamic_white";
@@ -11396,6 +11637,26 @@ export interface components {
             /** Format: int32 */
             rows: number;
         };
+        ResourceSample: {
+            /** Format: int64 */
+            anonymous_bytes: number | null;
+            collected_at: string;
+            /**
+             * Format: double
+             * @description One fully occupied logical CPU is 100%; the first sample has no delta.
+             */
+            cpu_percent: number | null;
+            errors: string[];
+            /** Format: int64 */
+            file_bytes: number | null;
+            /** Format: int64 */
+            rss_bytes: number | null;
+            /** Format: int64 */
+            swap_bytes: number | null;
+            thread_cpu: components["schemas"]["ThreadCpuSample"][];
+            /** Format: int64 */
+            threads: number | null;
+        };
         RunModePromptPreferencesData: {
             directToReverseProxy: boolean;
             reverseProxyToDirect: boolean;
@@ -11509,6 +11770,16 @@ export interface components {
             /** Format: int32 */
             schema_version: number;
         };
+        RuntimeDebugReportData: {
+            capture: components["schemas"]["DebugCapture"];
+            generated_at: string;
+            memory: null | components["schemas"]["MemoryDetails"];
+            memory_refreshing: boolean;
+            process: components["schemas"]["DebugProcess"];
+            queue: components["schemas"]["DebugQueue"];
+            /** Format: int32 */
+            schema_version: number;
+        };
         RuntimeDiagnosticsCollectionData: {
             excludes: string[];
             includes: string[];
@@ -11521,6 +11792,7 @@ export interface components {
             platform: components["schemas"]["RuntimePlatformData"];
             recent_runtime_events: components["schemas"]["RuntimeSystemEventData"][];
             runtime: components["schemas"]["RuntimeHealthSnapshotData"];
+            runtime_debug: components["schemas"]["RuntimeDebugReportData"];
             /** Format: int32 */
             schema_version: number;
             storage_migration: components["schemas"]["RuntimeStorageMigrationData"];
@@ -12829,6 +13101,14 @@ export interface components {
         TestConnectionInput: {
             connection_id?: string | null;
             draft?: null | components["schemas"]["ConnectionInput"];
+        };
+        ThreadCpuSample: {
+            /** Format: double */
+            cpu_percent: number;
+            /** @description Fixed application thread labels; arbitrary OS thread names are omitted. */
+            name: string;
+            /** Format: int64 */
+            tid: number;
         };
         TotpBindBody: {
             comment?: string | null;
@@ -24552,6 +24832,150 @@ export interface operations {
                 content: {
                     "application/json": {
                         data: components["schemas"]["RuntimeHealthSnapshotData"];
+                        message?: string | null;
+                        /** @constant */
+                        success: true;
+                    } & {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorEnvelope"];
+                };
+            };
+        };
+    };
+    get_api_admin_runtime_health_debug: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 操作完成，返回标准管理端响应封装中的当前运行诊断报告。 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        data: components["schemas"]["RuntimeDebugReportData"];
+                        message?: string | null;
+                        /** @constant */
+                        success: true;
+                    } & {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorEnvelope"];
+                };
+            };
+        };
+    };
+    post_api_admin_runtime_health_debug_capture: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 操作完成，返回标准管理端响应封装中的当前运行诊断报告。 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        data: components["schemas"]["RuntimeDebugReportData"];
+                        message?: string | null;
+                        /** @constant */
+                        success: true;
+                    } & {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorEnvelope"];
+                };
+            };
+        };
+    };
+    delete_api_admin_runtime_health_debug_capture: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 操作完成，返回标准管理端响应封装中的当前运行诊断报告。 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        data: components["schemas"]["RuntimeDebugReportData"];
+                        message?: string | null;
+                        /** @constant */
+                        success: true;
+                    } & {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorEnvelope"];
+                };
+            };
+        };
+    };
+    post_api_admin_runtime_health_debug_memory: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 操作完成，返回标准管理端响应封装中的当前运行诊断报告。 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        data: components["schemas"]["RuntimeDebugReportData"];
                         message?: string | null;
                         /** @constant */
                         success: true;

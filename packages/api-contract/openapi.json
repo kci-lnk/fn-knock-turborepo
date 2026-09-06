@@ -1947,6 +1947,103 @@
         },
         "type": "object"
       },
+      "AllocatorStats": {
+        "properties": {
+          "allocated_bytes": {
+            "description": "glibc arena allocations; excludes mmap allocations and may include caches.",
+            "format": "int64",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "arena_bytes": {
+            "format": "int64",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "free_bytes": {
+            "description": "Allocator-reported free arena space, not necessarily resident or releasable.",
+            "format": "int64",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "mmap_bytes": {
+            "format": "int64",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "releasable_bytes": {
+            "description": "glibc's top-most releasable space estimate; no reclamation is performed.",
+            "format": "int64",
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "allocated_bytes",
+          "free_bytes",
+          "mmap_bytes",
+          "arena_bytes",
+          "releasable_bytes"
+        ],
+        "type": "object"
+      },
+      "AnonymousRegion": {
+        "properties": {
+          "anonymous_bytes": {
+            "format": "int64",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "anonymous_huge_bytes": {
+            "format": "int64",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "category": {
+            "type": "string"
+          },
+          "permissions": {
+            "type": "string"
+          },
+          "private_dirty_bytes": {
+            "format": "int64",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "pss_bytes": {
+            "format": "int64",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "rss_bytes": {
+            "format": "int64",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "size_bytes": {
+            "format": "int64",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "swap_bytes": {
+            "format": "int64",
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "category",
+          "permissions",
+          "size_bytes",
+          "rss_bytes",
+          "pss_bytes",
+          "anonymous_bytes",
+          "private_dirty_bytes",
+          "swap_bytes",
+          "anonymous_huge_bytes"
+        ],
+        "type": "object"
+      },
       "ApiErrorEnvelope": {
         "properties": {
           "code": {
@@ -3084,6 +3181,15 @@
           }
         },
         "type": "object"
+      },
+      "CaptureStatus": {
+        "enum": [
+          "idle",
+          "running",
+          "completed",
+          "stopped"
+        ],
+        "type": "string"
       },
       "CidrCapabilitiesData": {
         "properties": {
@@ -7794,6 +7900,186 @@
         },
         "required": [
           "enabled"
+        ],
+        "type": "object"
+      },
+      "DebugCapture": {
+        "properties": {
+          "duration_seconds": {
+            "format": "int64",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "elapsed_ms": {
+            "format": "int64",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "errors": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "finished_at": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "operations": {
+            "$ref": "#/components/schemas/OperationSnapshot"
+          },
+          "sample_interval_ms": {
+            "format": "int64",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "samples": {
+            "items": {
+              "$ref": "#/components/schemas/DebugSample"
+            },
+            "type": "array"
+          },
+          "started_at": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "status": {
+            "$ref": "#/components/schemas/CaptureStatus"
+          }
+        },
+        "required": [
+          "id",
+          "status",
+          "started_at",
+          "finished_at",
+          "elapsed_ms",
+          "duration_seconds",
+          "sample_interval_ms",
+          "samples",
+          "operations",
+          "errors"
+        ],
+        "type": "object"
+      },
+      "DebugProcess": {
+        "properties": {
+          "arch": {
+            "type": "string"
+          },
+          "logical_cpus": {
+            "minimum": 0,
+            "type": "integer"
+          },
+          "os": {
+            "type": "string"
+          },
+          "pid": {
+            "format": "int32",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "uptime_ms": {
+            "format": "int64",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "version": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "pid",
+          "version",
+          "os",
+          "arch",
+          "logical_cpus",
+          "uptime_ms"
+        ],
+        "type": "object"
+      },
+      "DebugQueue": {
+        "properties": {
+          "active_operation_ms": {
+            "format": "int64",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "canceled_operations": {
+            "format": "int64",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "queue_depth": {
+            "format": "int64",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "queue_depth_peak": {
+            "format": "int64",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "queue_wait_ms": {
+            "format": "int64",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "queue_wait_peak_ms": {
+            "format": "int64",
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "queue_depth",
+          "queue_depth_peak",
+          "queue_wait_ms",
+          "queue_wait_peak_ms",
+          "active_operation_ms",
+          "canceled_operations"
+        ],
+        "type": "object"
+      },
+      "DebugSample": {
+        "properties": {
+          "active_operation_ms": {
+            "format": "int64",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "at": {
+            "type": "string"
+          },
+          "elapsed_ms": {
+            "format": "int64",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "queue_depth": {
+            "format": "int64",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "resource": {
+            "$ref": "#/components/schemas/ResourceSample"
+          }
+        },
+        "required": [
+          "at",
+          "elapsed_ms",
+          "resource",
+          "queue_depth",
+          "active_operation_ms"
         ],
         "type": "object"
       },
@@ -14042,6 +14328,167 @@
         ],
         "type": "object"
       },
+      "MemoryCategory": {
+        "properties": {
+          "anonymous_bytes": {
+            "format": "int64",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "anonymous_huge_bytes": {
+            "format": "int64",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "category": {
+            "type": "string"
+          },
+          "mappings": {
+            "format": "int64",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "private_dirty_bytes": {
+            "format": "int64",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "pss_bytes": {
+            "format": "int64",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "rss_bytes": {
+            "format": "int64",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "size_bytes": {
+            "format": "int64",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "swap_bytes": {
+            "format": "int64",
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "category",
+          "mappings",
+          "size_bytes",
+          "rss_bytes",
+          "pss_bytes",
+          "anonymous_bytes",
+          "private_dirty_bytes",
+          "swap_bytes",
+          "anonymous_huge_bytes"
+        ],
+        "type": "object"
+      },
+      "MemoryDetails": {
+        "properties": {
+          "allocator": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/AllocatorStats"
+              }
+            ]
+          },
+          "anonymous_bytes": {
+            "format": "int64",
+            "minimum": 0,
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "categories": {
+            "items": {
+              "$ref": "#/components/schemas/MemoryCategory"
+            },
+            "type": "array"
+          },
+          "collected_at": {
+            "type": "string"
+          },
+          "errors": {
+            "description": "Static diagnostic codes, never paths, environment values or file content.",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "file_bytes": {
+            "format": "int64",
+            "minimum": 0,
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "largest_anonymous_regions": {
+            "items": {
+              "$ref": "#/components/schemas/AnonymousRegion"
+            },
+            "type": "array"
+          },
+          "rss_bytes": {
+            "format": "int64",
+            "minimum": 0,
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "status": {
+            "$ref": "#/components/schemas/MemoryDetailsStatus"
+          },
+          "swap_bytes": {
+            "format": "int64",
+            "minimum": 0,
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "threads": {
+            "format": "int64",
+            "minimum": 0,
+            "type": [
+              "integer",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "status",
+          "collected_at",
+          "rss_bytes",
+          "anonymous_bytes",
+          "file_bytes",
+          "swap_bytes",
+          "threads",
+          "categories",
+          "largest_anonymous_regions",
+          "allocator",
+          "errors"
+        ],
+        "type": "object"
+      },
+      "MemoryDetailsStatus": {
+        "enum": [
+          "available",
+          "partial",
+          "unsupported",
+          "unavailable"
+        ],
+        "type": "string"
+      },
       "NotificationDeliveryClearBodyData": {
         "properties": {
           "provider_id": {
@@ -16384,6 +16831,121 @@
         ],
         "type": "object"
       },
+      "OperationSnapshot": {
+        "properties": {
+          "active": {
+            "type": "boolean"
+          },
+          "dropped_operations": {
+            "description": "Scopes omitted after the distinct operation limit was reached.",
+            "format": "int64",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "elapsed_ms": {
+            "format": "int64",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "generation": {
+            "format": "int64",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "operations": {
+            "items": {
+              "$ref": "#/components/schemas/OperationStats"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "generation",
+          "active",
+          "elapsed_ms",
+          "dropped_operations",
+          "operations"
+        ],
+        "type": "object"
+      },
+      "OperationStats": {
+        "properties": {
+          "calls": {
+            "description": "Completed scopes, including failures and cancellations.",
+            "format": "int64",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "cancelled": {
+            "format": "int64",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "failures": {
+            "format": "int64",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "in_flight": {
+            "description": "Scopes still running, or unfinished when capture stopped.",
+            "format": "int64",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "kind": {
+            "type": "string"
+          },
+          "label": {
+            "type": "string"
+          },
+          "max_cpu_ms": {
+            "format": "double",
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "max_wall_ms": {
+            "format": "double",
+            "type": "number"
+          },
+          "rows": {
+            "description": "Sum of item counts explicitly supplied by the instrumented operation.",
+            "format": "int64",
+            "minimum": 0,
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "total_cpu_ms": {
+            "description": "Available only for scopes measured on one SQLite execution thread.",
+            "format": "double",
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "total_wall_ms": {
+            "format": "double",
+            "type": "number"
+          }
+        },
+        "required": [
+          "kind",
+          "label",
+          "calls",
+          "failures",
+          "cancelled",
+          "in_flight",
+          "total_wall_ms",
+          "max_wall_ms",
+          "total_cpu_ms",
+          "max_cpu_ms",
+          "rows"
+        ],
+        "type": "object"
+      },
       "PanelAppearanceData": {
         "properties": {
           "theme_color_preset": {
@@ -17076,6 +17638,85 @@
         ],
         "type": "object"
       },
+      "ResourceSample": {
+        "properties": {
+          "anonymous_bytes": {
+            "format": "int64",
+            "minimum": 0,
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "collected_at": {
+            "type": "string"
+          },
+          "cpu_percent": {
+            "description": "One fully occupied logical CPU is 100%; the first sample has no delta.",
+            "format": "double",
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "errors": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "file_bytes": {
+            "format": "int64",
+            "minimum": 0,
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "rss_bytes": {
+            "format": "int64",
+            "minimum": 0,
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "swap_bytes": {
+            "format": "int64",
+            "minimum": 0,
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "thread_cpu": {
+            "items": {
+              "$ref": "#/components/schemas/ThreadCpuSample"
+            },
+            "type": "array"
+          },
+          "threads": {
+            "format": "int64",
+            "minimum": 0,
+            "type": [
+              "integer",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "collected_at",
+          "cpu_percent",
+          "rss_bytes",
+          "anonymous_bytes",
+          "file_bytes",
+          "swap_bytes",
+          "threads",
+          "thread_cpu",
+          "errors"
+        ],
+        "type": "object"
+      },
       "RunModePromptPreferencesData": {
         "properties": {
           "directToReverseProxy": {
@@ -17546,6 +18187,50 @@
         ],
         "type": "object"
       },
+      "RuntimeDebugReportData": {
+        "properties": {
+          "capture": {
+            "$ref": "#/components/schemas/DebugCapture"
+          },
+          "generated_at": {
+            "type": "string"
+          },
+          "memory": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/MemoryDetails"
+              }
+            ]
+          },
+          "memory_refreshing": {
+            "type": "boolean"
+          },
+          "process": {
+            "$ref": "#/components/schemas/DebugProcess"
+          },
+          "queue": {
+            "$ref": "#/components/schemas/DebugQueue"
+          },
+          "schema_version": {
+            "format": "int32",
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "schema_version",
+          "generated_at",
+          "process",
+          "capture",
+          "memory",
+          "memory_refreshing",
+          "queue"
+        ],
+        "type": "object"
+      },
       "RuntimeDiagnosticsCollectionData": {
         "properties": {
           "excludes": {
@@ -17591,6 +18276,9 @@
           "runtime": {
             "$ref": "#/components/schemas/RuntimeHealthSnapshotData"
           },
+          "runtime_debug": {
+            "$ref": "#/components/schemas/RuntimeDebugReportData"
+          },
           "schema_version": {
             "format": "int32",
             "minimum": 0,
@@ -17610,6 +18298,7 @@
           "commit",
           "platform",
           "runtime",
+          "runtime_debug",
           "recent_runtime_events",
           "storage_migration",
           "collection"
@@ -22928,6 +23617,29 @@
             ]
           }
         },
+        "type": "object"
+      },
+      "ThreadCpuSample": {
+        "properties": {
+          "cpu_percent": {
+            "format": "double",
+            "type": "number"
+          },
+          "name": {
+            "description": "Fixed application thread labels; arbitrary OS thread names are omitted.",
+            "type": "string"
+          },
+          "tid": {
+            "format": "int64",
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "tid",
+          "name",
+          "cpu_percent"
+        ],
         "type": "object"
       },
       "TotpBindBody": {
@@ -43480,6 +44192,216 @@
           }
         },
         "summary": "查看运行时健康",
+        "tags": [
+          "runtime-health"
+        ],
+        "x-fn-knock-contract-source": "utoipa"
+      }
+    },
+    "/api/admin/runtime-health/debug": {
+      "get": {
+        "description": "读取当前管理进程的资源样本、操作统计、队列状态和最近一次内存详情；不会启动采样或扫描数据库。",
+        "operationId": "get_api_admin_runtime_health_debug",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "properties": {
+                    "data": {
+                      "$ref": "#/components/schemas/RuntimeDebugReportData"
+                    },
+                    "message": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "success": {
+                      "const": true,
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "success",
+                    "data"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "操作完成，返回标准管理端响应封装中的当前运行诊断报告。"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorEnvelope"
+                }
+              }
+            },
+            "description": "接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。"
+          }
+        },
+        "summary": "查看管理进程运行诊断",
+        "tags": [
+          "runtime-health"
+        ],
+        "x-fn-knock-contract-source": "utoipa"
+      }
+    },
+    "/api/admin/runtime-health/debug/capture": {
+      "delete": {
+        "description": "停止当前采集并冻结已有样本和操作统计；不会删除报告，也不会取消正在执行的业务操作。采集停止时未结束的操作保留为未完成统计。",
+        "operationId": "delete_api_admin_runtime_health_debug_capture",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "properties": {
+                    "data": {
+                      "$ref": "#/components/schemas/RuntimeDebugReportData"
+                    },
+                    "message": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "success": {
+                      "const": true,
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "success",
+                    "data"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "操作完成，返回标准管理端响应封装中的当前运行诊断报告。"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorEnvelope"
+                }
+              }
+            },
+            "description": "接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。"
+          }
+        },
+        "summary": "停止运行采样并保留结果",
+        "tags": [
+          "runtime-health"
+        ],
+        "x-fn-knock-contract-source": "utoipa"
+      },
+      "post": {
+        "description": "手动启动每秒一次、目标时长六十秒的管理进程采样及操作统计；已有运行中的采集时复用当前轮次，结束后重新开始会替换旧结果。关闭浏览器不会中止已启动的服务端采集。",
+        "operationId": "post_api_admin_runtime_health_debug_capture",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "properties": {
+                    "data": {
+                      "$ref": "#/components/schemas/RuntimeDebugReportData"
+                    },
+                    "message": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "success": {
+                      "const": true,
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "success",
+                    "data"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "操作完成，返回标准管理端响应封装中的当前运行诊断报告。"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorEnvelope"
+                }
+              }
+            },
+            "description": "接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。"
+          }
+        },
+        "summary": "开始六十秒运行采样",
+        "tags": [
+          "runtime-health"
+        ],
+        "x-fn-knock-contract-source": "utoipa"
+      }
+    },
+    "/api/admin/runtime-health/debug/memory": {
+      "post": {
+        "description": "按需读取有大小上限的进程内存统计，不执行内存回收。最多同时进行一次读取，完成后三秒内复用已有结果；平台不支持的指标返回空值及说明。",
+        "operationId": "post_api_admin_runtime_health_debug_memory",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "properties": {
+                    "data": {
+                      "$ref": "#/components/schemas/RuntimeDebugReportData"
+                    },
+                    "message": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "success": {
+                      "const": true,
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "success",
+                    "data"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "操作完成，返回标准管理端响应封装中的当前运行诊断报告。"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorEnvelope"
+                }
+              }
+            },
+            "description": "接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。"
+          }
+        },
+        "summary": "采集管理进程内存详情",
         "tags": [
           "runtime-health"
         ],

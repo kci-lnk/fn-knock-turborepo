@@ -27,6 +27,7 @@ mod waf;
 mod whitelist;
 mod wol;
 
+use crate::runtime_health::debug::RuntimeDebugReportData;
 use acme::*;
 use cloudflared::*;
 use ddns::*;
@@ -747,6 +748,7 @@ struct BackupImportResultData {
     TypedConfigShadowStatusData,
     RuntimeStorageMigrationData,
     RuntimeDiagnosticsData,
+    RuntimeDebugReportData,
     CidrOperatorCapabilityData,
     CidrCapabilitiesData,
     CidrProvinceItemData,

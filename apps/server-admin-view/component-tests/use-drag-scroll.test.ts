@@ -252,7 +252,7 @@ describe("useDragScroll", () => {
     expect(windowListeners["pointermove"]).toBeUndefined();
   });
 
-  it("allows real mouse drag on a touch-capable desktop PC", () => {
+  it("skips mouse drag on a touch-capable desktop PC", () => {
     vi.spyOn(window.navigator, "maxTouchPoints", "get").mockReturnValue(5);
     vi.spyOn(window.navigator, "platform", "get").mockReturnValue("Win32");
     vi.spyOn(window.navigator, "userAgent", "get").mockReturnValue(
@@ -264,7 +264,37 @@ describe("useDragScroll", () => {
 
     onPointerDown(downEvent(100));
 
-    expect(windowListeners["pointermove"]).toHaveLength(1);
+    expect(windowListeners["pointermove"]).toBeUndefined();
+  });
+
+  it("preserves the first click in an unrecognized touch WebView reporting mouse input", () => {
+    vi.spyOn(window.navigator, "maxTouchPoints", "get").mockReturnValue(5);
+    vi.spyOn(window.navigator, "platform", "get").mockReturnValue("Linux aarch64");
+    vi.spyOn(window.navigator, "userAgent", "get").mockReturnValue(
+      "Unrecognized WebView",
+    );
+    vi.mocked(window.matchMedia).mockReturnValue({
+      matches: true,
+    } as MediaQueryList);
+    const el = createElement();
+    const elRef = ref<HTMLElement | null>(el);
+    const { isDragging, onPointerDown } = useDragScroll(elRef);
+    const down = downEvent(100);
+    Object.assign(down, { width: 1, height: 1 });
+
+    onPointerDown(down);
+    expect(windowListeners["pointermove"]).toBeUndefined();
+    const move = moveEvent(108);
+    emitWindow("pointermove", move);
+    emitWindow("pointerup", upEvent());
+    const click = dispatchClick(el);
+
+    expect(isDragging.value).toBe(false);
+    expect(el.scrollLeft).toBe(100);
+    expect(down.preventDefault).not.toHaveBeenCalled();
+    expect(move.preventDefault).not.toHaveBeenCalled();
+    expect(click.preventDefault).not.toHaveBeenCalled();
+    expect(click.stopPropagation).not.toHaveBeenCalled();
   });
 
   it("ignores misclassified mouse events in an Android WebView", () => {

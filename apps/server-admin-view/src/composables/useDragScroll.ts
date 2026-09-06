@@ -23,10 +23,9 @@ const MOBILE_USER_AGENT_PATTERN =
 /**
  * Identifies mobile runtimes before enabling the mouse-only drag path.
  *
- * `maxTouchPoints` alone cannot make this decision: touch-screen Windows PCs
- * report a positive value too, and their real mouse input should keep working.
- * The MacIntel fallback covers iPadOS browsers that request a desktop user
- * agent while still exposing the iPad touch signature.
+ * This supplements the conservative touch-capability guard for runtimes that
+ * omit touch capability information. The MacIntel fallback covers iPadOS
+ * browsers that request a desktop user agent while exposing a touch signature.
  */
 const isMobileRuntime = () => {
   const navigatorWithHints = window.navigator as NavigatorWithClientHints;
@@ -134,11 +133,13 @@ export const useDragScroll = (
 
     // Some Android/Huawei WebViews have reported touch-originated pointer
     // events as `mouse`, and a few builds also incorrectly match fine-pointer
-    // media queries. Keep every mobile runtime out of this mouse drag path.
+    // media queries. UA detection can miss these runtimes, so prefer native
+    // panning on every touch-capable device to avoid swallowing the first tap.
+    // This intentionally disables mouse drag on touch-screen desktop PCs too.
+    if (window.navigator.maxTouchPoints > 0) return;
     if (isMobileRuntime()) return;
 
-    // A desktop may use touch as its primary pointer while a mouse is also
-    // connected, so query all available pointers rather than the primary one.
+    // Require a fine, hover-capable pointer before enabling mouse drag.
     const pointerQuery = window.matchMedia?.(
       "(any-hover: hover) and (any-pointer: fine)",
     );

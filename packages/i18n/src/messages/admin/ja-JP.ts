@@ -564,6 +564,9 @@ export const jaJPAdmin = {
       "「システム更新」でバージョン情報と手動アップグレードの手順を確認できます。",
   },
   route: {
+    resourceLoadFailed: "ページのリソースを読み込めませんでした",
+    resourceLoadFailedDescription: "アプリの更新またはネットワークの問題により、リソースを読み込めなかった可能性があります。ページを再読み込みしてください。",
+    reloadPage: "再読み込み",
     navigationFailed: "ページの移動に失敗しました",
     loadFailedRetry:
       "ページを読み込めませんでした。しばらくしてから、もう一度お試しください。",

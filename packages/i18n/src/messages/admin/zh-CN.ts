@@ -511,6 +511,9 @@ export const zhCNAdmin = {
     genericUpdateInfo: "可前往系统更新页查看版本信息与手动升级说明。",
   },
   route: {
+    resourceLoadFailed: "页面资源加载失败",
+    resourceLoadFailedDescription: "应用更新或网络异常可能导致资源加载失败，请重新加载页面。",
+    reloadPage: "重新加载",
     navigationFailed: "页面跳转失败",
     loadFailedRetry: "页面加载失败，请稍后重试",
     cacheExpired: "检测到页面资源版本已更新，正在刷新页面...",

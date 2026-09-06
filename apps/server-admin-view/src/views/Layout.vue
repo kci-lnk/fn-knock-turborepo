@@ -228,7 +228,7 @@
             <span>{{ t("common.pageSwitching") }}</span>
           </div>
         </div>
-        <RouterView v-if="!configStore.isLoading && !configStore.isError" />
+        <RouteContentBoundary v-if="!configStore.isLoading && !configStore.isError" :reset-key="route.fullPath" />
         <div
           v-else-if="configStore.isLoading"
           class="flex h-full min-h-[400px] items-center justify-center"
@@ -254,6 +254,7 @@
 
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref, watch } from "vue";
+import RouteContentBoundary from "./layout/RouteContentBoundary.vue";
 import { useI18n } from "vue-i18n";
 import { isNavigationFailure, useRoute, useRouter } from "vue-router";
 import { useConfigStore } from "../store/config";

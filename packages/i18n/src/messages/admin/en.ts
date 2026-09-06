@@ -566,6 +566,9 @@ export const enAdmin = {
       "Open System Update for version details and manual upgrade instructions.",
   },
   route: {
+    resourceLoadFailed: "Page resources failed to load",
+    resourceLoadFailedDescription: "An application update or network issue may have prevented resources from loading. Please reload the page.",
+    reloadPage: "Reload",
     navigationFailed: "Navigation failed",
     loadFailedRetry: "Failed to load the page. Please try again later.",
     cacheExpired: "A newer page resource version is available. Refreshing...",

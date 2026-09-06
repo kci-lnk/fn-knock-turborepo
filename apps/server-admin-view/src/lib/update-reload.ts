@@ -91,7 +91,10 @@ export const replaceWithUpdatedApplication = (
   );
 };
 
-export const isDynamicImportFailure = (error: unknown) => {
+export const isDynamicImportFailure = (
+  error: unknown,
+  allowGenericFetchError = true,
+) => {
   const message = error instanceof Error ? error.message : String(error ?? "");
   const name = error instanceof Error ? error.name : "";
   const description = `${name} ${message}`.toLowerCase();
@@ -102,6 +105,7 @@ export const isDynamicImportFailure = (error: unknown) => {
       "error loading dynamically imported module",
       "load failed for module with source",
       "chunkloaderror",
+      "unable to preload css for ",
     ].some((fragment) => description.includes(fragment))
   ) {
     return true;
@@ -113,6 +117,7 @@ export const isDynamicImportFailure = (error: unknown) => {
   // otherwise ambiguous messages are safe to treat as chunk failures here.
   const normalizedMessage = message.trim().toLowerCase();
   return (
+    allowGenericFetchError &&
     name.toLowerCase() === "typeerror" &&
     (normalizedMessage === "failed to fetch" ||
       normalizedMessage === "load failed")

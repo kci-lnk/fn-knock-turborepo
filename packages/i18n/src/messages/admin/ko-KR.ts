@@ -559,6 +559,9 @@ export const koKRAdmin = {
       "시스템 업데이트를 열어 버전 정보와 수동 업그레이드 안내를 확인하세요.",
   },
   route: {
+    resourceLoadFailed: "페이지 리소스를 불러오지 못했습니다",
+    resourceLoadFailedDescription: "앱 업데이트 또는 네트워크 문제로 리소스를 불러오지 못했을 수 있습니다. 페이지를 새로고침해 주세요.",
+    reloadPage: "새로고침",
     navigationFailed: "페이지 이동 실패",
     loadFailedRetry:
       "페이지를 불러오지 못했습니다. 잠시 후 다시 시도해 주세요.",

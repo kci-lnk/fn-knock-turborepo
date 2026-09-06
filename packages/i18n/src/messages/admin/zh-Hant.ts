@@ -445,6 +445,9 @@ export const zhHantAdmin = {
     genericUpdateInfo: "可前往系統更新頁查看版本資訊與手動升級說明。",
   },
   route: {
+    resourceLoadFailed: "頁面資源載入失敗",
+    resourceLoadFailedDescription: "應用程式更新或網路異常可能導致資源載入失敗，請重新載入頁面。",
+    reloadPage: "重新載入",
     navigationFailed: "頁面跳轉失敗",
     loadFailedRetry: "頁面載入失敗，請稍後重試",
     cacheExpired: "檢測到頁面資源版本已更新，正在刷新頁面...",

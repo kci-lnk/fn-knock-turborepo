@@ -26,7 +26,7 @@ const forwardedProps = useForwardProps(delegatedProps);
     v-bind="forwardedProps"
     :class="
       cn(
-        'relative inline-flex max-w-full items-stretch overflow-x-auto rounded-lg border border-border/80 bg-background px-3 pt-0 shadow-none after:pointer-events-none after:absolute after:right-3 after:bottom-0 after:left-3 after:h-px after:bg-border/80',
+        'relative inline-flex max-w-full items-stretch overflow-x-auto [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden rounded-lg border border-border/80 bg-background px-3 pt-0 shadow-none after:pointer-events-none after:absolute after:right-3 after:bottom-0 after:left-3 after:h-px after:bg-border/80',
         props.class,
       )
     "

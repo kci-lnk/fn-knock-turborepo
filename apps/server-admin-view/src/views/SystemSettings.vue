@@ -140,7 +140,7 @@ const { currentTab, navigateTo } = useSyncedQueryTab({
       @update:model-value="navigateTo"
       class="w-full"
     >
-      <div class="w-full overflow-x-auto pb-1">
+      <div class="w-full overflow-x-auto [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden pb-1">
         <TabsList class="min-w-max justify-start">
           <TabsTrigger value="run-mode" class="flex-none shrink-0 px-3">{{
             t("admin.systemSettingsTabs.mode")

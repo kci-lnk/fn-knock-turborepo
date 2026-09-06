@@ -50,7 +50,7 @@ const { currentTab, navigateTo } = useSyncedQueryTab({
           {{ t("admin.mappingManagement.description") }}
         </p>
         <div
-          class="order-3 min-w-0 overflow-x-auto pb-1 sm:order-none sm:col-start-2 sm:row-start-1 sm:justify-self-start sm:pb-0"
+          class="order-3 min-w-0 overflow-x-auto [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden pb-1 sm:order-none sm:col-start-2 sm:row-start-1 sm:justify-self-start sm:pb-0"
         >
           <TabsList>
             <TabsTrigger value="subdomain">

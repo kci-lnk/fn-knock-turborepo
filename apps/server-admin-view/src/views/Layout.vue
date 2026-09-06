@@ -38,7 +38,7 @@
               v-for="item in navItems"
               :key="item.path"
               :variant="isNavActive(item.path) ? 'default' : 'ghost'"
-              class="w-full justify-start gap-3"
+              class="w-full justify-start gap-3 select-none [-webkit-user-select:none] [-webkit-touch-callout:none]"
               @click="navigateTo(item.path)"
             >
               <component :is="item.icon" class="h-4 w-4" />
@@ -128,7 +128,7 @@
               :key="item.path"
               :variant="isNavActive(item.path) ? 'default' : 'ghost'"
               :class="[
-                'min-w-0 w-full justify-start gap-2 overflow-hidden px-2.5 transition-[transform,box-shadow,background-color,color] duration-150',
+                'min-w-0 w-full justify-start gap-2 overflow-hidden select-none [-webkit-user-select:none] [-webkit-touch-callout:none] px-2.5 transition-[transform,box-shadow,background-color,color] duration-150',
                 isNavActive(item.path)
                   ? 'shadow-sm shadow-primary/15'
                   : 'hover:-translate-y-[1px]',

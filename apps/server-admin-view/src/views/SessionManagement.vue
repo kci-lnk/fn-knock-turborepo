@@ -81,7 +81,7 @@ const currentDocsHref = computed(() =>
       @update:model-value="navigateTo"
       class="w-full"
     >
-      <div class="overflow-x-auto pb-1">
+      <div class="overflow-x-auto [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden pb-1">
         <TabsList>
           <TabsTrigger v-if="showSessionsTab" value="sessions">
             {{ t("admin.sessions.page.sessionsTab") }}

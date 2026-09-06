@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref } from "vue";
+import { computed } from "vue";
 import { useI18n } from "vue-i18n";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -39,37 +39,6 @@ const emit = defineEmits<{
 }>();
 
 const { t } = useI18n();
-const revealedTargetId = ref("");
-let suppressNextTargetSelectionId = "";
-
-const handleTargetPointerEnter = (event: PointerEvent) => {
-  if (event.pointerType === "mouse") revealedTargetId.value = "";
-};
-
-const handleTargetPointerDown = (event: PointerEvent, targetId: string) => {
-  if (event.pointerType === "mouse") {
-    suppressNextTargetSelectionId = "";
-    return;
-  }
-  suppressNextTargetSelectionId =
-    revealedTargetId.value === targetId ? "" : targetId;
-  revealedTargetId.value = targetId;
-};
-
-const selectTarget = (targetId: string) => {
-  if (suppressNextTargetSelectionId === targetId) {
-    suppressNextTargetSelectionId = "";
-    return;
-  }
-  emit("select", targetId);
-};
-
-const editTarget = (target: TerminalTargetRecord) => {
-  revealedTargetId.value = "";
-  suppressNextTargetSelectionId = "";
-  emit("edit", target);
-};
-
 const activePhases = new Set([
   "creating",
   "openingPty",
@@ -192,8 +161,6 @@ const sessionStatus = (session: TerminalSessionRecord) => {
             ? 'border-primary/35 bg-primary/7'
             : 'border-transparent hover:border-border/70 hover:bg-muted/40',
         ]"
-        @pointerenter="handleTargetPointerEnter"
-        @pointerdown="handleTargetPointerDown($event, target.id)"
       >
         <button
           type="button"
@@ -213,7 +180,7 @@ const sessionStatus = (session: TerminalSessionRecord) => {
                 : `${target.name} — ${target.username}@${target.host}`
               : undefined
           "
-          @click="selectTarget(target.id)"
+          @click="emit('select', target.id)"
         >
           <span class="relative shrink-0">
             <Laptop v-if="target.kind === 'local'" class="h-4 w-4" />
@@ -262,15 +229,7 @@ const sessionStatus = (session: TerminalSessionRecord) => {
 
         <div
           v-if="!collapsed"
-          :data-action-state="
-            revealedTargetId === target.id ? 'revealed' : 'concealed'
-          "
-          :class="[
-            'absolute right-1.5 top-1.5 flex transition-opacity group-hover:visible group-hover:pointer-events-auto group-hover:opacity-100 group-focus-within:visible group-focus-within:pointer-events-auto group-focus-within:opacity-100',
-            revealedTargetId === target.id
-              ? 'visible pointer-events-auto opacity-100'
-              : 'invisible pointer-events-none opacity-0',
-          ]"
+          class="terminal-target-actions absolute right-1.5 top-1.5 flex transition-opacity"
         >
           <Button
             v-if="target.kind === 'local'"
@@ -290,7 +249,7 @@ const sessionStatus = (session: TerminalSessionRecord) => {
             variant="ghost"
             :aria-label="t('common.edit')"
             :title="t('common.edit')"
-            @click.stop="editTarget(target)"
+            @click.stop="emit('edit', target)"
           >
             <Pencil class="h-3.5 w-3.5" />
           </Button>
@@ -340,3 +299,21 @@ const sessionStatus = (session: TerminalSessionRecord) => {
     </div>
   </div>
 </template>
+
+<style scoped>
+/* Touch and hybrid devices expose actions without consuming the first tap. */
+@media (hover: hover) and (pointer: fine) and (not (any-pointer: coarse)) {
+  .terminal-target-actions {
+    visibility: hidden;
+    pointer-events: none;
+    opacity: 0;
+  }
+
+  [data-terminal-target-row]:hover > .terminal-target-actions,
+  [data-terminal-target-row]:focus-within > .terminal-target-actions {
+    visibility: visible;
+    pointer-events: auto;
+    opacity: 1;
+  }
+}
+</style>

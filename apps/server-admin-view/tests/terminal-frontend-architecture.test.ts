@@ -126,26 +126,17 @@ describe("Web terminal frontend architecture", () => {
     assert.match(targetList, /sessionsForTarget/u);
     assert.match(targetList, /emit\(['"]selectSession['"], session\.id\)/u);
     assert.match(targetList, /drawer \? 'pr-14'/u);
-    assert.match(targetList, /revealedTargetId/u);
-    assert.match(targetList, /@pointerdown="handleTargetPointerDown/u);
-    assert.match(targetList, /group-hover:visible/u);
-    assert.match(targetList, /group-focus-within:visible/u);
     assert.doesNotMatch(targetList, /ConfirmDangerPopover|Trash2/u);
     assert.doesNotMatch(targetList, /ChevronRight|KeyRound|targetReady/u);
   });
 
-  it("reveals one edit affordance before exposing target deletion", () => {
-    const targetList = readSource(
-      "../src/views/web-terminal/TerminalTargetList.vue",
-    );
+  it("keeps target deletion inside the editor", () => {
     const targetEditor = readSource(
       "../src/views/web-terminal/TerminalTargetEditorDialog.vue",
     );
     const dialogs = readSource(
       "../src/views/web-terminal/WebTerminalDialogs.vue",
     );
-    assert.match(targetList, /suppressNextTargetSelectionId/u);
-    assert.match(targetList, /data-action-state/u);
     assert.match(targetEditor, /ConfirmDangerPopover/u);
     assert.match(targetEditor, /Trash2/u);
     assert.match(targetEditor, /deleteEditingTarget/u);

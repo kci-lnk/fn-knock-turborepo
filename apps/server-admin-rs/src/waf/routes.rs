@@ -38,7 +38,7 @@ use service::{
     apply_waf_config, apply_waf_config_to_gateway, check_and_sync_system_waf_rules_if_needed,
     delete_custom_waf_rule, drain_waf_events_now, get_waf_details, load_waf_config,
     read_waf_rule_file, set_recommended_system_rules, set_waf_rule_enabled, sync_waf_on_boot,
-    upload_custom_waf_rules, waf_drain_schedule,
+    upload_custom_waf_rules, wait_for_waf_drain,
 };
 pub(crate) use service::{
     disabled_hosts_for_config, restore_waf_runtime_after_import, sync_waf_config_to_gateway,
@@ -217,6 +217,7 @@ pub fn start_waf_tasks(state: AppState) {
 
     let drain_state = state.clone();
     state.spawn_background("waf-event-drain", async move {
+        let mut config_updates = drain_state.storage.store.subscribe_config_snapshot();
         tokio::select! {
             _ = drain_state.shutdown.cancelled() => return,
             result = drain_waf_events_now(&drain_state) => {
@@ -225,20 +226,7 @@ pub fn start_waf_tasks(state: AppState) {
                 }
             }
         }
-        loop {
-            let schedule = waf_drain_schedule(&drain_state);
-            if let Some(interval) = schedule {
-                tokio::select! {
-                    _ = drain_state.shutdown.cancelled() => break,
-                    _ = drain_state.waf_event_drain_reload_notify.notified() => continue,
-                    _ = tokio_time::sleep(std::time::Duration::from_secs(interval)) => {}
-                }
-            } else {
-                tokio::select! {
-                    _ = drain_state.shutdown.cancelled() => break,
-                    _ = drain_state.waf_event_drain_reload_notify.notified() => continue,
-                }
-            }
+        while wait_for_waf_drain(&drain_state, &mut config_updates).await {
             tokio::select! {
                 _ = drain_state.shutdown.cancelled() => break,
                 result = drain_waf_events_now(&drain_state) => {
@@ -363,10 +351,7 @@ async fn config(
 ) -> Response {
     let translator = Translator::from_state(&state).await;
     match apply_waf_config(&state, &body).await {
-        Ok(data) => {
-            state.request_waf_event_drain_reload();
-            response::ok(data).into_response()
-        }
+        Ok(data) => response::ok(data).into_response(),
         Err(error) => {
             tracing::warn!(%error, "failed to save WAF config");
             waf_error_response(&translator, StatusCode::BAD_REQUEST, error.to_string())

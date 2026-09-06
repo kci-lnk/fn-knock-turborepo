@@ -404,11 +404,12 @@ impl WafDrainSettings {
                 .and_then(|value| value.get("enabled"))
                 .and_then(Value::as_bool)
                 .unwrap_or(false),
-            interval_seconds: waf
-                .and_then(|value| value.get("drain_interval_seconds"))
-                .and_then(Value::as_i64)
-                .unwrap_or(DEFAULT_WAF_DRAIN_INTERVAL_SECONDS as i64)
-                .clamp(1, 60) as u64,
+            interval_seconds: normalize_i64(
+                waf.and_then(|value| value.get("drain_interval_seconds")),
+                DEFAULT_WAF_DRAIN_INTERVAL_SECONDS as i64,
+                1,
+                60,
+            ) as u64,
             retention_days: normalize_i64(
                 waf.and_then(|value| value.get("log_retention_days")),
                 7,
@@ -432,6 +433,43 @@ pub(super) fn waf_drain_settings(state: &AppState) -> WafDrainSettings {
 pub(super) fn waf_drain_schedule(state: &AppState) -> Option<u64> {
     let settings = waf_drain_settings(state);
     settings.enabled.then_some(settings.interval_seconds)
+}
+
+pub(super) async fn wait_for_waf_drain(
+    state: &AppState,
+    updates: &mut tokio::sync::watch::Receiver<u64>,
+) -> bool {
+    loop {
+        // Mark the revision seen BEFORE loading the snapshot: a publication
+        // racing with that load must remain observable by changed().
+        updates.borrow_and_update();
+        let schedule = waf_drain_schedule(state);
+        let deadline = async {
+            match schedule {
+                Some(seconds) => tokio_time::sleep(std::time::Duration::from_secs(seconds)).await,
+                None => std::future::pending::<()>().await,
+            }
+        };
+        tokio::pin!(deadline);
+        loop {
+            tokio::select! {
+                biased;
+                _ = state.shutdown.cancelled() => return false,
+                _ = &mut deadline => return true,
+                _ = state.waf_event_drain_reload_notify.notified() => break,
+                changed = updates.changed() => {
+                    if changed.is_err() {
+                        return false;
+                    }
+                    if waf_drain_schedule(state) != schedule {
+                        break;
+                    }
+                    // Icon/policy/retention-only writes must not postpone an
+                    // enabled drain indefinitely. Keep the existing deadline.
+                }
+            }
+        }
+    }
 }
 
 pub(super) async fn set_waf_rule_enabled(

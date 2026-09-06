@@ -315,8 +315,10 @@ async fn stale_typed_revision_cannot_replace_a_newer_in_memory_config_snapshot()
         .expect("publish newer config");
     assert_eq!(store.config_snapshot()["newer_snapshot"], json!(true));
 
+    let updates = store.subscribe_config_snapshot();
     store.publish_config_snapshot(stale, stale_revision);
     assert_eq!(store.config_snapshot().as_ref(), &fresh);
+    assert!(!updates.has_changed().unwrap());
 }
 
 #[tokio::test]
@@ -333,8 +335,10 @@ async fn equal_typed_revision_cannot_replace_an_existing_snapshot() {
         .revision;
     let mut stale = expected.clone();
     stale["locale"] = json!({ "default_locale": "stale" });
+    let updates = store.subscribe_config_snapshot();
     store.publish_config_snapshot(stale, revision);
     assert_eq!(store.config_snapshot().as_ref(), &expected);
+    assert!(!updates.has_changed().unwrap());
 }
 
 #[tokio::test]

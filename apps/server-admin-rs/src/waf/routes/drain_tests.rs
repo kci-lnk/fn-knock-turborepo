@@ -24,13 +24,9 @@ async fn drain_settings_preserve_defaults_and_retention_normalization() {
             json!(settings.retention_days),
             normalized["log_retention_days"]
         );
-        // Keep the scheduler's existing integer-only interval semantics.
         assert_eq!(
-            settings.interval_seconds,
-            waf.get("drain_interval_seconds")
-                .and_then(Value::as_i64)
-                .unwrap_or(2)
-                .clamp(1, 60) as u64
+            json!(settings.interval_seconds),
+            normalized["drain_interval_seconds"]
         );
     }
 }
@@ -186,6 +182,149 @@ fn large_host_mappings() -> Value {
             })
             .collect(),
     )
+}
+
+#[tokio::test]
+async fn committed_waf_config_notifies_even_when_response_construction_fails() {
+    let (_directory, state) = waf_test_state("http://127.0.0.1:1").await;
+    // A file where the rules directory should be makes get_waf_details fail
+    // after the configuration commit, without relying on a network failure.
+    fs::write(waf_root_dir(&state), b"not a directory")
+        .await
+        .unwrap();
+    let mut updates = state.storage.store.subscribe_config_snapshot();
+    let result =
+        apply_waf_config(&state, &json!({"system_rules_auto_update_enabled": false})).await;
+    assert!(result.is_err());
+    assert!(updates.has_changed().unwrap());
+    updates.changed().await.unwrap();
+    assert_eq!(
+        state.storage.store.config_snapshot()["waf"]["system_rules_auto_update_enabled"],
+        false
+    );
+}
+
+#[tokio::test]
+async fn disabled_drain_wakes_on_publication_without_handler_notification() {
+    let (_directory, state) = waf_test_state("http://127.0.0.1:1").await;
+    let mut updates = state.storage.store.subscribe_config_snapshot();
+    let wait = wait_for_waf_drain(&state, &mut updates);
+    tokio::pin!(wait);
+    assert!(
+        std::future::poll_fn(|cx| std::task::Poll::Ready(wait.as_mut().poll(cx)))
+            .await
+            .is_pending()
+    );
+
+    // A compatibility write or an API whose response construction subsequently
+    // fails has no route-level notification. Publication alone must wake it.
+    state
+        .storage
+        .store
+        .set_config_top_level_value("waf", json!({"enabled": true, "drain_interval_seconds": 1}))
+        .await
+        .unwrap();
+    assert!(
+        tokio::time::timeout(std::time::Duration::from_secs(3), wait)
+            .await
+            .unwrap()
+    );
+}
+
+#[tokio::test]
+async fn drain_wait_observes_updates_before_registration_and_interval_changes() {
+    let (_directory, state) = waf_test_state("http://127.0.0.1:1").await;
+    let mut updates = state.storage.store.subscribe_config_snapshot();
+    state
+        .storage
+        .store
+        .set_config_top_level_value(
+            "waf",
+            json!({"enabled": true, "drain_interval_seconds": 60}),
+        )
+        .await
+        .unwrap();
+    let wait = wait_for_waf_drain(&state, &mut updates);
+    tokio::pin!(wait);
+    assert!(
+        std::future::poll_fn(|cx| std::task::Poll::Ready(wait.as_mut().poll(cx)))
+            .await
+            .is_pending()
+    );
+    state
+        .storage
+        .store
+        .set_config_top_level_value(
+            "waf",
+            json!({"enabled": true, "drain_interval_seconds": "1"}),
+        )
+        .await
+        .unwrap();
+    assert!(
+        tokio::time::timeout(std::time::Duration::from_secs(3), wait)
+            .await
+            .unwrap()
+    );
+}
+
+#[tokio::test]
+async fn unrelated_publications_do_not_starve_a_drain_deadline() {
+    let (_directory, state) = waf_test_state("http://127.0.0.1:1").await;
+    state
+        .storage
+        .store
+        .set_config_top_level_value("waf", json!({"enabled": true, "drain_interval_seconds": 1}))
+        .await
+        .unwrap();
+    let mut updates = state.storage.store.subscribe_config_snapshot();
+    let writes = async {
+        for index in 0..30 {
+            tokio::time::sleep(std::time::Duration::from_millis(100)).await;
+            state
+                .storage
+                .store
+                .set_config_top_level_value("locale", json!({"test_sequence": index}))
+                .await
+                .unwrap();
+        }
+    };
+    tokio::pin!(writes);
+    tokio::select! {
+        result = wait_for_waf_drain(&state, &mut updates) => assert!(result),
+        _ = &mut writes => panic!("unrelated configuration writes kept postponing the deadline"),
+    }
+}
+
+#[tokio::test]
+async fn disabling_a_waiting_drain_removes_its_deadline_and_shutdown_wakes_it() {
+    let (_directory, state) = waf_test_state("http://127.0.0.1:1").await;
+    state
+        .storage
+        .store
+        .set_config_top_level_value("waf", json!({"enabled": true, "drain_interval_seconds": 1}))
+        .await
+        .unwrap();
+    let mut updates = state.storage.store.subscribe_config_snapshot();
+    let wait = wait_for_waf_drain(&state, &mut updates);
+    tokio::pin!(wait);
+    assert!(
+        std::future::poll_fn(|cx| std::task::Poll::Ready(wait.as_mut().poll(cx)))
+            .await
+            .is_pending()
+    );
+    state
+        .storage
+        .store
+        .set_config_top_level_value("waf", json!({"enabled": false}))
+        .await
+        .unwrap();
+    assert!(
+        tokio::time::timeout(std::time::Duration::from_millis(1200), wait.as_mut())
+            .await
+            .is_err()
+    );
+    state.shutdown.cancel();
+    assert!(!wait.await);
 }
 
 // Run explicitly in an optimized build. Synthetic data only; no submitted

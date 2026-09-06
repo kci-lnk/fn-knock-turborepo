@@ -47,6 +47,7 @@ impl Store {
             path,
             config_snapshot: Arc::new(ArcSwap::from_pointee(default_config())),
             config_snapshot_revision: Arc::new(StdMutex::new(0)),
+            config_snapshot_updates: tokio::sync::watch::channel(0).0,
             auth_account_mutation_lock: Arc::new(tokio::sync::Mutex::new(())),
             typed: TypedRepositories {
                 typed_config,
@@ -172,6 +173,12 @@ impl Store {
         self.config_snapshot.load_full()
     }
 
+    /// Signals publication, not attempted writes. Subscribers read the latest
+    /// snapshot; the channel retains only a revision, never old config values.
+    pub(crate) fn subscribe_config_snapshot(&self) -> tokio::sync::watch::Receiver<u64> {
+        self.config_snapshot_updates.subscribe()
+    }
+
     pub async fn refresh_config_snapshot(&self) -> crate::storage::StorageResult<()> {
         let (config, revision) = self.reconcile_typed_config_from_legacy().await?;
         self.publish_config_snapshot(config, revision);
@@ -194,6 +201,9 @@ impl Store {
         self.config_snapshot.store(Arc::new(config));
         *published_revision = revision;
         self.typed_config_shadow.set_healthy();
+        // Publish under the same revision lock so notifications cannot arrive
+        // out of order. send_replace also retains the revision without readers.
+        self.config_snapshot_updates.send_replace(revision);
     }
 
     pub(crate) fn typed_config_shadow_status(&self) -> TypedConfigShadowStatus {

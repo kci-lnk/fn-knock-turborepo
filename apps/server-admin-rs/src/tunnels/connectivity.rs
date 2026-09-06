@@ -46,6 +46,11 @@ pub(super) struct TunnelConnectivityGate {
 }
 
 impl TunnelConnectivityGate {
+    // A pending outage has not yet been reported as disconnected.
+    pub(super) fn has_connection_baseline(&self) -> bool {
+        self.connected || self.pending_disconnect.is_some()
+    }
+
     pub(super) fn observe_connected(&mut self, now: Instant) -> ConnectedEventAction {
         if self.connected || self.stop_requested {
             return ConnectedEventAction::Ignore;

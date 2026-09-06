@@ -18,10 +18,12 @@ use tokio::{fs as tokio_fs, process::Command, sync::Mutex};
 use utoipa_axum::{router::OpenApiRouter, routes};
 
 mod cloudflare_api;
+mod connectivity;
 mod managed;
 mod optimization;
 mod secrets;
 
+use connectivity::{CloudflaredConnectivity, CloudflaredSignal, parse_cloudflared_signal};
 use secrets::{CloudflaredSecretStore, SecretKind, atomic_private_write};
 
 use crate::{
@@ -35,7 +37,7 @@ use crate::{
     system_events, time_utils,
     tunnels::{
         TUNNEL_RUNTIME_KEY,
-        connectivity::{ConnectedEventAction, TunnelConnectivityGate, TunnelDisconnectEvent},
+        connectivity::{ConnectedEventAction, TunnelDisconnectEvent},
         supervisor::{
             OutputStream, ProcessLaunch, SupervisorFailure, SupervisorHandle, SupervisorSnapshot,
             TunnelProcessAdapter,
@@ -47,13 +49,6 @@ const LOG_KEY: &str = "fn_knock:cloudflared:logs";
 const LOG_TTL_SECONDS: usize = 24 * 3600;
 const LOG_MAX_LEN: usize = 1000;
 const CLOUDFLARED_RUNTIME_KEY: &str = "fn_knock:cloudflared:runtime:v2";
-const CONNECTED_PATTERNS: &[&str] = &["registered tunnel connection", "connection "];
-const DISCONNECTED_PATTERNS: &[&str] = &[
-    "serve tunnel error",
-    "tunnel disconnected",
-    "failed to serve tunnel",
-];
-
 const CLOUDFLARED_SUPERVISOR_KEY: &str = "cloudflared";
 
 fn cloudflared_text(translator: &Translator, key: &str) -> String {
@@ -732,7 +727,7 @@ pub(crate) async fn ensure_cloudflared_supervisor(
     let adapter = Arc::new(CloudflaredProcessAdapter {
         state: state.clone(),
         manager: manager(state),
-        connection: Arc::new(Mutex::new(TunnelConnectivityGate::default())),
+        connection: Arc::new(Mutex::new(CloudflaredConnectivity::default())),
         secret: RwLock::new(
             manager(state)
                 .read_config()
@@ -775,7 +770,7 @@ pub(crate) async fn resume_cloudflared_after_asset_update(
 struct CloudflaredProcessAdapter {
     state: AppState,
     manager: CloudflaredManager,
-    connection: Arc<Mutex<TunnelConnectivityGate>>,
+    connection: Arc<Mutex<CloudflaredConnectivity>>,
     secret: RwLock<String>,
 }
 
@@ -949,6 +944,20 @@ impl TunnelProcessAdapter for CloudflaredProcessAdapter {
         connection.set_expected_stop(expected);
     }
 
+    async fn finish_expected_stop(&self, stopped: bool) {
+        self.connection.lock().await.finish_expected_stop(stopped);
+        if !stopped {
+            emit_cloudflared_connectivity_with_state(
+                &self.state,
+                &self.connection,
+                CloudflaredSignal::Reconcile,
+                Some("cloudflared termination failed; resumed connection monitoring"),
+                None,
+            )
+            .await;
+        }
+    }
+
     async fn on_unexpected_exit(&self, pid: Option<u32>, failure: &SupervisorFailure) {
         let mut details = vec![
             "cloudflared stopped unexpectedly".to_string(),
@@ -987,7 +996,7 @@ impl TunnelProcessAdapter for CloudflaredProcessAdapter {
         emit_cloudflared_connectivity_with_state(
             &self.state,
             &self.connection,
-            false,
+            CloudflaredSignal::ProcessExited,
             Some(&failure.reason),
             pid,
         )
@@ -1074,32 +1083,34 @@ async fn append_logs(state: &AppState, lines: Vec<String>) -> crate::storage::St
 
 async fn handle_cloudflared_runtime_signal(
     state: &AppState,
-    connection: &Arc<Mutex<TunnelConnectivityGate>>,
+    connection: &Arc<Mutex<CloudflaredConnectivity>>,
     line: &str,
 ) {
-    let Some(message) = normalize_tunnel_event_message(line) else {
+    // Parse the original line: truncating the displayed feedback can remove connIndex.
+    let Some(signal) = parse_cloudflared_signal(line) else {
         return;
     };
-    let normalized = message.to_ascii_lowercase();
-    if is_cloudflared_connected_message(&normalized) {
-        emit_cloudflared_connectivity_with_state(state, connection, true, Some(&message), None)
-            .await;
-    } else if is_cloudflared_disconnected_message(&normalized) {
-        emit_cloudflared_connectivity_with_state(state, connection, false, Some(&message), None)
-            .await;
-    }
+    let message = normalize_tunnel_event_message(line);
+    emit_cloudflared_connectivity_with_state(state, connection, signal, message.as_deref(), None)
+        .await;
 }
 
 async fn emit_cloudflared_connectivity_with_state(
     state: &AppState,
-    connection: &Arc<Mutex<TunnelConnectivityGate>>,
-    connected: bool,
+    connection: &Arc<Mutex<CloudflaredConnectivity>>,
+    signal: CloudflaredSignal,
     message: Option<&str>,
     pid: Option<u32>,
 ) {
+    let mut connection_guard = connection.lock().await;
+    let Some(connected) = connection_guard.observe_signal(signal) else {
+        return;
+    };
     if connected {
-        let mut connection = connection.lock().await;
-        match connection.observe_connected(tokio::time::Instant::now()) {
+        match connection_guard
+            .gate
+            .observe_connected(tokio::time::Instant::now())
+        {
             ConnectedEventAction::Ignore => return,
             ConnectedEventAction::PublishConnected => {}
             ConnectedEventAction::PublishDisconnectThenConnected(disconnected) => {
@@ -1118,14 +1129,16 @@ async fn emit_cloudflared_connectivity_with_state(
         return;
     }
 
-    let mut connection_guard = connection.lock().await;
     let observed_at = tokio::time::Instant::now();
     let disconnected = TunnelDisconnectEvent {
         happened_at: time_utils::now_iso(),
         message: message.map(str::to_string),
         pid: cloudflared_event_pid(state, pid).await,
     };
-    let Some(timer) = connection_guard.observe_disconnected(observed_at, disconnected) else {
+    let Some(timer) = connection_guard
+        .gate
+        .observe_disconnected(observed_at, disconnected)
+    else {
         return;
     };
     drop(connection_guard);
@@ -1140,7 +1153,9 @@ async fn emit_cloudflared_connectivity_with_state(
             _ = shutdown.cancelled() => return,
         }
         let mut connection = connection.lock().await;
-        let Some(disconnected) = connection.confirm_disconnect(&timer, tokio::time::Instant::now())
+        let Some(disconnected) = connection
+            .gate
+            .confirm_disconnect(&timer, tokio::time::Instant::now())
         else {
             return;
         };
@@ -1442,19 +1457,6 @@ fn redact_cloudflared_line(line: &str, token: &str) -> String {
         return line.to_string();
     }
     line.replace(token, "[REDACTED]")
-}
-
-fn is_cloudflared_connected_message(normalized: &str) -> bool {
-    CONNECTED_PATTERNS
-        .iter()
-        .any(|pattern| normalized.contains(pattern))
-        && normalized.contains("registered")
-}
-
-fn is_cloudflared_disconnected_message(normalized: &str) -> bool {
-    DISCONNECTED_PATTERNS
-        .iter()
-        .any(|pattern| normalized.contains(pattern))
 }
 
 fn normalize_tunnel_event_message(line: &str) -> Option<String> {

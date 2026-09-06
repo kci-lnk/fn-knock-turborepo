@@ -155,6 +155,9 @@ pub trait TunnelProcessAdapter: Send + Sync + 'static {
     async fn append_output(&self, stream: OutputStream, line: String);
     async fn append_supervisor_log(&self, line: String);
     async fn set_expected_stop(&self, expected: bool);
+    async fn finish_expected_stop(&self, _stopped: bool) {
+        self.set_expected_stop(false).await;
+    }
     async fn on_unexpected_exit(&self, pid: Option<u32>, failure: &SupervisorFailure);
     async fn remove_pid_file(&self);
     async fn write_pid_file(&self, pid: u32);
@@ -749,7 +752,7 @@ impl SupervisorActor {
         self.adapter.set_expected_stop(true).await;
         let mut result = self.adapter.terminate_process(running.pid).await;
         if result.is_err() && self.adapter.owns_live_pid(running.pid).await {
-            self.adapter.set_expected_stop(false).await;
+            self.adapter.finish_expected_stop(false).await;
             self.snapshot.running = true;
             self.snapshot.attached = true;
             self.snapshot.pid = Some(running.pid);
@@ -773,7 +776,7 @@ impl SupervisorActor {
         let _ = tokio::time::timeout(Duration::from_secs(4), &mut running.waiter).await;
         drain_reader(running.stdout_reader.take()).await;
         drain_reader(running.stderr_reader.take()).await;
-        self.adapter.set_expected_stop(false).await;
+        self.adapter.finish_expected_stop(true).await;
         self.adapter.remove_pid_file().await;
         self.snapshot.desired_running = preserve_desired;
         self.snapshot.running = false;
@@ -824,7 +827,7 @@ impl SupervisorActor {
         self.adapter.set_expected_stop(true).await;
         let mut result = self.adapter.terminate_process(pid).await;
         if result.is_err() && self.adapter.owns_live_pid(pid).await {
-            self.adapter.set_expected_stop(false).await;
+            self.adapter.finish_expected_stop(false).await;
             self.snapshot.running = true;
             self.snapshot.attached = false;
             self.snapshot.pid = Some(pid);
@@ -844,7 +847,7 @@ impl SupervisorActor {
         if result.is_err() {
             result = Ok(());
         }
-        self.adapter.set_expected_stop(false).await;
+        self.adapter.finish_expected_stop(true).await;
         self.adapter.remove_pid_file().await;
         self.snapshot.desired_running = preserve_desired;
         self.snapshot.running = false;
@@ -1649,6 +1652,7 @@ mod tests {
         snapshots: StdMutex<Vec<SupervisorSnapshot>>,
         outputs: StdMutex<Vec<String>>,
         failures: StdMutex<Vec<SupervisorFailure>>,
+        stop_outcomes: StdMutex<Vec<bool>>,
     }
 
     #[cfg(unix)]
@@ -1667,6 +1671,7 @@ mod tests {
                 snapshots: StdMutex::new(Vec::new()),
                 outputs: StdMutex::new(Vec::new()),
                 failures: StdMutex::new(Vec::new()),
+                stop_outcomes: StdMutex::new(Vec::new()),
             })
         }
 
@@ -1688,6 +1693,7 @@ mod tests {
                 snapshots: StdMutex::new(Vec::new()),
                 outputs: StdMutex::new(Vec::new()),
                 failures: StdMutex::new(Vec::new()),
+                stop_outcomes: StdMutex::new(Vec::new()),
             })
         }
 
@@ -1705,6 +1711,7 @@ mod tests {
                 snapshots: StdMutex::new(Vec::new()),
                 outputs: StdMutex::new(Vec::new()),
                 failures: StdMutex::new(Vec::new()),
+                stop_outcomes: StdMutex::new(Vec::new()),
             })
         }
 
@@ -1797,6 +1804,10 @@ mod tests {
         }
 
         async fn set_expected_stop(&self, _expected: bool) {}
+
+        async fn finish_expected_stop(&self, stopped: bool) {
+            self.stop_outcomes.lock().unwrap().push(stopped);
+        }
 
         async fn on_unexpected_exit(&self, _pid: Option<u32>, failure: &SupervisorFailure) {
             self.failures
@@ -2042,10 +2053,36 @@ mod tests {
         assert!(snapshot.running);
         assert!(!snapshot.desired_running);
         assert_eq!(snapshot.pid, Some(pid));
+        assert_eq!(*adapter.stop_outcomes.lock().unwrap(), vec![false]);
 
         adapter.set_terminate_error(None);
         handle.stop().await.unwrap();
+        assert_eq!(*adapter.stop_outcomes.lock().unwrap(), vec![false, true]);
         let _ = waiter.await;
+        shutdown.cancel();
+    }
+
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn owned_child_reports_failed_and_successful_stop_outcomes() {
+        let adapter = TestAdapter::shell("while :; do :; done");
+        let shutdown = CancellationToken::new();
+        let handle = spawn_supervisor(
+            adapter.clone(),
+            SupervisorSnapshot::default(),
+            shutdown.clone(),
+        );
+        let pid = handle.start().await.unwrap();
+        // The fake ownership check requires an explicit PID even for a child
+        // launched by this adapter (production checks the process arguments).
+        *adapter.existing_pid.lock().unwrap() = Some(pid);
+        adapter.set_terminate_error(Some("permission denied"));
+        assert!(handle.stop().await.is_err());
+        assert_eq!(handle.snapshot().pid, Some(pid));
+        assert_eq!(*adapter.stop_outcomes.lock().unwrap(), vec![false]);
+        adapter.set_terminate_error(None);
+        handle.stop().await.unwrap();
+        assert_eq!(*adapter.stop_outcomes.lock().unwrap(), vec![false, true]);
         shutdown.cancel();
     }
 

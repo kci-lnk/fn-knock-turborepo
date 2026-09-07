@@ -30,6 +30,17 @@ import {
   WEBHOOK_BODY_VARIABLES,
 } from "./webhook-body";
 
+import {
+  WEBHOOK_COMMON_FACTS,
+  WEBHOOK_EVENT_FACTS,
+  WEBHOOK_FACT_LABELS,
+} from "./webhook-facts";
+
+const factLabel = (key: string) =>
+  key === "host"
+    ? "Host"
+    : t(`admin.notifications.body.factLabels.${WEBHOOK_FACT_LABELS[key]}`);
+
 const props = withDefaults(
   defineProps<{
     modelValue: unknown;
@@ -57,7 +68,6 @@ const emit = defineEmits<{
 
 const { t } = useI18n();
 const templateEditor = ref<InstanceType<typeof CodeMirrorEditor> | null>(null);
-const fallbackSampleContext = createWebhookSampleContext();
 const encoder = new TextEncoder();
 
 const scope = computed<WebhookBodyScope>(() =>
@@ -70,7 +80,7 @@ const custom = computed(() => config.value.mode === "custom");
 const issues = computed(() =>
   validateWebhookBodyConfig(props.modelValue, props.constraints, scope.value),
 );
-const sampleText = computed(() => props.sampleContext || fallbackSampleContext);
+const sampleText = computed(() => props.sampleContext);
 const sampleIssue = computed(() => {
   const issue = validateWebhookSampleContext(
     sampleText.value,
@@ -276,6 +286,54 @@ const issueText = computed(() => {
           </Button>
         </div>
       </details>
+
+      <details
+        class="rounded-md border border-border/70 p-3"
+        data-testid="fact-variables"
+      >
+        <summary class="cursor-pointer text-sm font-medium">
+          {{ t("admin.notifications.body.factVariables") }}
+        </summary>
+        <p class="mt-2 text-xs text-muted-foreground">
+          {{ t("admin.notifications.body.factVariablesHelp") }}
+        </p>
+        <div class="mt-3 max-h-80 space-y-3 overflow-y-auto">
+          <details
+            v-for="group in [
+              { event: '', keys: WEBHOOK_COMMON_FACTS },
+              ...WEBHOOK_EVENT_FACTS,
+            ]"
+            :key="group.event"
+            class="rounded border p-2"
+          >
+            <summary class="cursor-pointer text-sm">
+              {{
+                group.event
+                  ? t(`admin.eventCenter.eventTypes.${group.event}`)
+                  : t("admin.notifications.body.commonFacts")
+              }}
+            </summary>
+            <div class="mt-2 grid gap-1">
+              <Button
+                v-for="key in group.keys"
+                :key="key"
+                type="button"
+                variant="outline"
+                class="h-auto min-w-0 justify-start whitespace-normal py-2 text-left"
+                @click="insertVariable(`message.fact_values.${key}`)"
+              >
+                <Plus class="mr-2 h-3 w-3 shrink-0" />
+                <span class="min-w-0"
+                  ><span class="block text-xs">{{ factLabel(key) }}</span
+                  ><code class="block break-all text-[11px]"
+                    >message.fact_values.{{ key }}</code
+                  ></span
+                >
+              </Button>
+            </div>
+          </details>
+        </div>
+      </details>
     </template>
 
     <details class="rounded-md border border-border/70 p-3">
@@ -285,6 +343,16 @@ const issueText = computed(() => {
       <p class="mt-2 text-xs text-muted-foreground">
         {{ t("admin.notifications.body.sampleHelp") }}
       </p>
+      <Button
+        v-if="!sampleContext.trim()"
+        type="button"
+        variant="outline"
+        size="sm"
+        class="mt-2"
+        @click="emit('update:sampleContext', createWebhookSampleContext())"
+      >
+        {{ t("admin.notifications.body.loadSample") }}
+      </Button>
       <div class="mt-3">
         <CodeMirrorEditor
           class="min-w-0 max-w-full"

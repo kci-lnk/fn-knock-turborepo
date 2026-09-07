@@ -325,6 +325,9 @@ pub(super) struct NotificationMessageData {
     body_markdown: Option<String>,
     severity: String,
     facts: Vec<NotificationMessageFactData>,
+    /// Formatted detail values keyed by stable names; absent on historical messages.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    fact_values: Option<std::collections::BTreeMap<String, String>>,
     actions: Vec<NotificationMessageActionData>,
     mentions: Vec<String>,
     dedupe_key: Option<String>,

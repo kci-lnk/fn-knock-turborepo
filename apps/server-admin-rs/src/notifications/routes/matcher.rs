@@ -127,6 +127,7 @@ pub(super) fn build_notification_message(
         "body_markdown": details.body_markdown,
         "severity": notification_severity(event.get("level").and_then(Value::as_str)),
         "facts": details.facts,
+        "fact_values": details.fact_values,
         "actions": [],
         "mentions": [],
         "dedupe_key": format!("{rule_id}:{group_key}"),
@@ -158,6 +159,14 @@ pub(super) fn sanitize_notification_message(message: &Value) -> Value {
     if let Some(metadata) = object.get_mut("metadata").and_then(Value::as_object_mut) {
         metadata.remove("trace_id");
         metadata.remove("waf_trace_id");
+    }
+    if let Some(values) = object.get_mut("fact_values").and_then(Value::as_object_mut) {
+        values.retain(|key, value| {
+            !matches!(key.as_str(), "trace_id" | "waf_trace_id")
+                && !value
+                    .as_str()
+                    .is_some_and(crate::trace_id::is_valid_trace_id)
+        });
     }
     if let Some(facts) = object.get_mut("facts").and_then(Value::as_array_mut) {
         facts.retain(|fact| {

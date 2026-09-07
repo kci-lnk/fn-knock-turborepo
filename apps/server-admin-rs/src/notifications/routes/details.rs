@@ -5,6 +5,7 @@ pub(super) struct NotificationDetails {
     pub(super) body_text: String,
     pub(super) body_markdown: String,
     pub(super) facts: Vec<Value>,
+    pub(super) fact_values: Map<String, Value>,
 }
 
 pub(super) fn build_notification_details(
@@ -20,7 +21,7 @@ pub(super) fn build_notification_details(
         .unwrap_or(60);
     let aggregation =
         build_notification_aggregation_text(matched_count, window_seconds, translator);
-    let mut facts = Vec::new();
+    let mut facts = NotificationFacts::default();
     let mut summary = default_string(
         format_notification_summary(event, translator),
         &format_notification_event_label(event_type, translator),
@@ -165,56 +166,67 @@ pub(super) fn build_notification_details(
 
             push_notification_fact(
                 &mut facts,
+                "credential_name",
                 notification_fact_label(translator, "credentialName"),
                 credential_name,
             );
             push_notification_fact(
                 &mut facts,
+                "linked_totp",
                 notification_fact_label(translator, "linkedTotp"),
                 linked_totp_name,
             );
             push_notification_fact(
                 &mut facts,
+                "session_comment",
                 notification_fact_label(translator, "sessionComment"),
                 session_comment,
             );
             push_notification_fact(
                 &mut facts,
+                "login_ip",
                 notification_fact_label(translator, "loginIp"),
                 ip,
             );
             push_notification_fact(
                 &mut facts,
+                "ip_location",
                 notification_fact_label(translator, "ipLocation"),
                 ip_location,
             );
             push_notification_fact(
                 &mut facts,
+                "auth_method",
                 notification_fact_label(translator, "authMethod"),
                 auth_method,
             );
             push_notification_fact(
                 &mut facts,
+                "login_provider",
                 notification_fact_label(translator, "loginProvider"),
                 auth_provider_name,
             );
             push_notification_fact(
                 &mut facts,
+                "grant_type",
                 notification_fact_label(translator, "grantType"),
                 grant_type,
             );
             push_notification_fact(
                 &mut facts,
+                "remember_login",
                 notification_fact_label(translator, "rememberLogin"),
                 remember_me,
             );
             push_notification_fact(
                 &mut facts,
+                "session_expires_at",
                 notification_fact_label(translator, "sessionExpiresAt"),
                 expires_at,
             );
             push_notification_fact(
                 &mut facts,
+                "session_id",
                 notification_fact_label(translator, "sessionId"),
                 read_payload_value(event, "session_id"),
             );
@@ -292,41 +304,49 @@ pub(super) fn build_notification_details(
 
             push_notification_fact(
                 &mut facts,
+                "credential_name",
                 notification_fact_label(translator, "credentialName"),
                 credential_name,
             );
             push_notification_fact(
                 &mut facts,
+                "linked_totp",
                 notification_fact_label(translator, "linkedTotp"),
                 linked_totp_name,
             );
             push_notification_fact(
                 &mut facts,
+                "session_comment",
                 notification_fact_label(translator, "sessionComment"),
                 session_comment,
             );
             push_notification_fact(
                 &mut facts,
+                "login_ip",
                 notification_fact_label(translator, "loginIp"),
                 ip,
             );
             push_notification_fact(
                 &mut facts,
+                "ip_location",
                 notification_fact_label(translator, "ipLocation"),
                 ip_location,
             );
             push_notification_fact(
                 &mut facts,
+                "logout_source",
                 notification_fact_label(translator, "logoutSource"),
                 logout_source,
             );
             push_notification_fact(
                 &mut facts,
+                "login_time",
                 notification_fact_label(translator, "loginTime"),
                 format_notification_datetime(&read_payload_value(event, "login_time")),
             );
             push_notification_fact(
                 &mut facts,
+                "session_id",
                 notification_fact_label(translator, "sessionId"),
                 read_payload_value(event, "session_id"),
             );
@@ -382,41 +402,49 @@ pub(super) fn build_notification_details(
 
             push_notification_fact(
                 &mut facts,
+                "source_ip",
                 notification_fact_label(translator, "sourceIp"),
                 ip,
             );
             push_notification_fact(
                 &mut facts,
+                "ip_location",
                 notification_fact_label(translator, "ipLocation"),
                 ip_location,
             );
             push_notification_fact(
                 &mut facts,
+                "failure_attempts",
                 notification_fact_label(translator, "failureAttempts"),
                 format_times(&attempts, translator),
             );
             push_notification_fact(
                 &mut facts,
+                "auth_method",
                 notification_fact_label(translator, "authMethod"),
                 method,
             );
             push_notification_fact(
                 &mut facts,
+                "credential_name",
                 notification_fact_label(translator, "credentialName"),
                 credential_name,
             );
             push_notification_fact(
                 &mut facts,
+                "linked_totp",
                 notification_fact_label(translator, "linkedTotp"),
                 linked_totp_name,
             );
             push_notification_fact(
                 &mut facts,
+                "retry_wait",
                 notification_fact_label(translator, "retryWait"),
                 format_seconds(&retry_after, translator),
             );
             push_notification_fact(
                 &mut facts,
+                "limit_until",
                 notification_fact_label(translator, "limitUntil"),
                 blocked_until,
             );
@@ -484,56 +512,67 @@ pub(super) fn build_notification_details(
 
             push_notification_fact(
                 &mut facts,
+                "credential_name",
                 notification_fact_label(translator, "credentialName"),
                 credential_name,
             );
             push_notification_fact(
                 &mut facts,
+                "linked_totp",
                 notification_fact_label(translator, "linkedTotp"),
                 linked_totp_name,
             );
             push_notification_fact(
                 &mut facts,
+                "session_comment",
                 notification_fact_label(translator, "sessionComment"),
                 session_comment,
             );
             push_notification_fact(
                 &mut facts,
+                "auth_method",
                 notification_fact_label(translator, "authMethod"),
                 auth_method,
             );
             push_notification_fact(
                 &mut facts,
+                "original_ip",
                 notification_fact_label(translator, "originalIp"),
                 from_ip,
             );
             push_notification_fact(
                 &mut facts,
+                "original_location",
                 notification_fact_label(translator, "originalLocation"),
                 from_ip_location,
             );
             push_notification_fact(
                 &mut facts,
+                "current_ip",
                 notification_fact_label(translator, "currentIp"),
                 to_ip,
             );
             push_notification_fact(
                 &mut facts,
+                "current_location",
                 notification_fact_label(translator, "currentLocation"),
                 to_ip_location,
             );
             push_notification_fact(
                 &mut facts,
+                "drift_source",
                 notification_fact_label(translator, "driftSource"),
                 source,
             );
             push_notification_fact(
                 &mut facts,
+                "login_time",
                 notification_fact_label(translator, "loginTime"),
                 format_notification_datetime(&read_payload_value(event, "login_time")),
             );
             push_notification_fact(
                 &mut facts,
+                "session_id",
                 notification_fact_label(translator, "sessionId"),
                 read_payload_value(event, "session_id"),
             );
@@ -581,36 +620,43 @@ pub(super) fn build_notification_details(
 
             push_notification_fact(
                 &mut facts,
+                "source_ip",
                 notification_fact_label(translator, "sourceIp"),
                 ip,
             );
             push_notification_fact(
                 &mut facts,
+                "ip_location",
                 notification_fact_label(translator, "ipLocation"),
                 ip_location,
             );
             push_notification_fact(
                 &mut facts,
+                "hit_count",
                 notification_fact_label(translator, "hitCount"),
                 format_times(&hit_count, translator),
             );
             push_notification_fact(
                 &mut facts,
+                "observation_window",
                 notification_fact_label(translator, "observationWindow"),
                 format_minutes(&window_minutes, translator),
             );
             push_notification_fact(
                 &mut facts,
+                "trigger_threshold",
                 notification_fact_label(translator, "triggerThreshold"),
                 format_times(&threshold, translator),
             );
             push_notification_fact(
                 &mut facts,
+                "blocked_at",
                 notification_fact_label(translator, "blockedAt"),
                 format_notification_datetime(&read_payload_value(event, "blocked_at")),
             );
             push_notification_fact(
                 &mut facts,
+                "recent_paths",
                 notification_fact_label(translator, "recentPaths"),
                 join_localized_list(&scanner_paths, translator),
             );
@@ -706,16 +752,19 @@ pub(super) fn build_notification_details(
 
             push_notification_fact(
                 &mut facts,
+                "target",
                 notification_fact_label(translator, "target"),
                 target_name,
             );
             push_notification_fact(
                 &mut facts,
+                "provider",
                 notification_fact_label(translator, "provider"),
                 provider,
             );
             push_notification_fact(
                 &mut facts,
+                "target_type",
                 notification_fact_label(translator, "targetType"),
                 if read_payload_value(event, "is_primary") == "true" {
                     notification_detail_text(translator, "ddnsUpdateCompleted.primaryDomain", &[])
@@ -729,31 +778,37 @@ pub(super) fn build_notification_details(
             );
             push_notification_fact(
                 &mut facts,
+                "trigger",
                 notification_fact_label(translator, "trigger"),
                 trigger,
             );
             push_notification_fact(
                 &mut facts,
+                "update_scope",
                 notification_fact_label(translator, "updateScope"),
                 update_scope,
             );
             push_notification_fact(
                 &mut facts,
+                "ip_source",
                 notification_fact_label(translator, "ipSource"),
                 ip_source,
             );
             push_notification_fact(
                 &mut facts,
+                "ipv4_change",
                 notification_fact_label(translator, "ipv4Change"),
                 ipv4_change,
             );
             push_notification_fact(
                 &mut facts,
+                "ipv6_change",
                 notification_fact_label(translator, "ipv6Change"),
                 ipv6_change,
             );
             push_notification_fact(
                 &mut facts,
+                "result",
                 notification_fact_label(translator, "result"),
                 result_message,
             );
@@ -799,51 +854,61 @@ pub(super) fn build_notification_details(
 
             push_notification_fact(
                 &mut facts,
+                "source_ip",
                 notification_fact_label(translator, "sourceIp"),
                 ip,
             );
             push_notification_fact(
                 &mut facts,
+                "ip_location",
                 notification_fact_label(translator, "ipLocation"),
                 ip_location,
             );
             push_notification_fact(
                 &mut facts,
+                "block_duration",
                 notification_fact_label(translator, "blockDuration"),
                 format_seconds(&block_seconds, translator),
             );
             push_notification_fact(
                 &mut facts,
+                "blocked_until",
                 notification_fact_label(translator, "blockedUntil"),
                 format_notification_datetime(&read_payload_value(event, "blocked_until")),
             );
             push_notification_fact(
                 &mut facts,
+                "rate_limit",
                 notification_fact_label(translator, "rateLimit"),
                 format_rate_per_second(&requests_per_second, translator),
             );
             push_notification_fact(
                 &mut facts,
+                "burst_capacity",
                 notification_fact_label(translator, "burstCapacity"),
                 burst,
             );
             push_notification_fact(
                 &mut facts,
+                "target_host",
                 notification_fact_label(translator, "targetHost"),
                 host,
             );
             push_notification_fact(
                 &mut facts,
+                "request_path",
                 notification_fact_label(translator, "requestPath"),
                 path,
             );
             push_notification_fact(
                 &mut facts,
+                "route_type",
                 notification_fact_label(translator, "routeType"),
                 read_payload_value(event, "route_type"),
             );
             push_notification_fact(
                 &mut facts,
+                "auth_route",
                 notification_fact_label(translator, "authRoute"),
                 format_notification_bool(&read_payload_value(event, "is_auth_route"), translator),
             );
@@ -918,57 +983,68 @@ pub(super) fn build_notification_details(
 
             push_notification_fact(
                 &mut facts,
+                "source_ip",
                 notification_fact_label(translator, "sourceIp"),
                 ip,
             );
             push_notification_fact(
                 &mut facts,
+                "ip_location",
                 notification_fact_label(translator, "ipLocation"),
                 ip_location,
             );
             push_notification_fact(
                 &mut facts,
+                "blocked_at",
                 notification_fact_label(translator, "blockedAt"),
                 format_notification_datetime(&read_payload_value(event, "blocked_at")),
             );
             push_notification_fact(
                 &mut facts,
+                "request_method",
                 notification_fact_label(translator, "requestMethod"),
                 method,
             );
             push_notification_fact(
                 &mut facts,
+                "request_scheme",
                 notification_fact_label(translator, "requestScheme"),
                 read_payload_value(event, "scheme"),
             );
-            push_notification_fact(&mut facts, "Host".to_string(), host);
+            push_notification_fact(&mut facts, "host", "Host".to_string(), host);
             push_notification_fact(
                 &mut facts,
+                "request_path",
                 notification_fact_label(translator, "requestPath"),
                 path,
             );
             push_notification_fact(
                 &mut facts,
+                "route_type",
                 notification_fact_label(translator, "routeType"),
                 read_payload_value(event, "route_type"),
             );
             push_notification_fact(
                 &mut facts,
+                "route_key",
                 notification_fact_label(translator, "routeKey"),
                 read_payload_value(event, "route_key"),
             );
             push_notification_fact(
                 &mut facts,
+                "visibility_scope",
                 notification_fact_label(translator, "visibilityScope"),
                 visibility_scope,
             );
             push_notification_fact(
                 &mut facts,
+                "visibility_mode",
                 notification_fact_label(translator, "visibilityMode"),
                 visibility_mode,
             );
             push_notification_fact(
                 &mut facts,
+                "status_code",
                 notification_fact_label(translator, "statusCode"),
                 read_payload_value(event, "status"),
             );
@@ -1069,52 +1145,62 @@ pub(super) fn build_notification_details(
 
             push_notification_fact(
                 &mut facts,
+                "source_ip",
                 notification_fact_label(translator, "sourceIp"),
                 ip,
             );
             push_notification_fact(
                 &mut facts,
+                "ip_location",
                 notification_fact_label(translator, "ipLocation"),
                 ip_location,
             );
-            push_notification_fact(&mut facts, "Host".to_string(), host);
+            push_notification_fact(&mut facts, "host", "Host".to_string(), host);
             push_notification_fact(
                 &mut facts,
+                "request_address",
                 notification_fact_label(translator, "requestAddress"),
                 path,
             );
             push_notification_fact(
                 &mut facts,
+                "outcome",
                 notification_fact_label(translator, "outcome"),
                 outcome_label,
             );
             push_notification_fact(
                 &mut facts,
+                "waf_action",
                 notification_fact_label(translator, "wafAction"),
                 action_label,
             );
             push_notification_fact(
                 &mut facts,
+                "waf_mode",
                 notification_fact_label(translator, "wafMode"),
                 mode_label,
             );
             push_notification_fact(
                 &mut facts,
+                "rule_ids",
                 notification_fact_label(translator, "ruleIds"),
                 rule_ids,
             );
             push_notification_fact(
                 &mut facts,
+                "rule_bundle",
                 notification_fact_label(translator, "ruleBundle"),
                 read_payload_value(event, "bundle_id"),
             );
             push_notification_fact(
                 &mut facts,
+                "status_code",
                 notification_fact_label(translator, "statusCode"),
                 read_payload_value(event, "status"),
             );
             push_notification_fact(
                 &mut facts,
+                "blocked_at",
                 notification_fact_label(translator, "blockedAt"),
                 format_notification_datetime(&read_payload_value(event, "blocked_at")),
             );
@@ -1168,31 +1254,37 @@ pub(super) fn build_notification_details(
 
             push_notification_fact(
                 &mut facts,
+                "user",
                 notification_fact_label(translator, "user"),
                 username,
             );
             push_notification_fact(
                 &mut facts,
+                "source_ip",
                 notification_fact_label(translator, "sourceIp"),
                 ip,
             );
             push_notification_fact(
                 &mut facts,
+                "ip_location",
                 notification_fact_label(translator, "ipLocation"),
                 ip_location,
             );
             push_notification_fact(
                 &mut facts,
+                "auth_method",
                 notification_fact_label(translator, "authMethod"),
                 auth_method,
             );
             push_notification_fact(
                 &mut facts,
+                "port",
                 notification_fact_label(translator, "port"),
                 read_payload_value(event, "port"),
             );
             push_notification_fact(
                 &mut facts,
+                "log_time",
                 notification_fact_label(translator, "logTime"),
                 format_notification_datetime(&read_payload_value(event, "log_time")),
             );
@@ -1240,46 +1332,55 @@ pub(super) fn build_notification_details(
 
             push_notification_fact(
                 &mut facts,
+                "user",
                 notification_fact_label(translator, "user"),
                 username,
             );
             push_notification_fact(
                 &mut facts,
+                "invalid_user",
                 notification_fact_label(translator, "invalidUser"),
                 format_notification_bool(&read_payload_value(event, "invalid_user"), translator),
             );
             push_notification_fact(
                 &mut facts,
+                "source_ip",
                 notification_fact_label(translator, "sourceIp"),
                 ip,
             );
             push_notification_fact(
                 &mut facts,
+                "ip_location",
                 notification_fact_label(translator, "ipLocation"),
                 ip_location,
             );
             push_notification_fact(
                 &mut facts,
+                "auth_method",
                 notification_fact_label(translator, "authMethod"),
                 read_payload_value(event, "auth_method"),
             );
             push_notification_fact(
                 &mut facts,
+                "port",
                 notification_fact_label(translator, "port"),
                 read_payload_value(event, "port"),
             );
             push_notification_fact(
                 &mut facts,
+                "failure_attempts",
                 notification_fact_label(translator, "failureAttempts"),
                 attempts,
             );
             push_notification_fact(
                 &mut facts,
+                "threshold",
                 notification_fact_label(translator, "threshold"),
                 threshold,
             );
             push_notification_fact(
                 &mut facts,
+                "window",
                 notification_fact_label(translator, "window"),
                 format_minutes(&window_minutes, translator),
             );
@@ -1322,46 +1423,55 @@ pub(super) fn build_notification_details(
 
             push_notification_fact(
                 &mut facts,
+                "source_ip",
                 notification_fact_label(translator, "sourceIp"),
                 ip,
             );
             push_notification_fact(
                 &mut facts,
+                "ip_location",
                 notification_fact_label(translator, "ipLocation"),
                 ip_location,
             );
             push_notification_fact(
                 &mut facts,
+                "blocked_reason",
                 notification_fact_label(translator, "blockedReason"),
                 reason_label,
             );
             push_notification_fact(
                 &mut facts,
+                "related_user",
                 notification_fact_label(translator, "relatedUser"),
                 read_payload_value(event, "username"),
             );
             push_notification_fact(
                 &mut facts,
+                "failure_attempts",
                 notification_fact_label(translator, "failureAttempts"),
                 read_payload_value(event, "failed_count"),
             );
             push_notification_fact(
                 &mut facts,
+                "window",
                 notification_fact_label(translator, "window"),
                 format_minutes(&read_payload_value(event, "window_minutes"), translator),
             );
             push_notification_fact(
                 &mut facts,
+                "threshold",
                 notification_fact_label(translator, "threshold"),
                 read_payload_value(event, "threshold"),
             );
             push_notification_fact(
                 &mut facts,
+                "blocked_at",
                 notification_fact_label(translator, "blockedAt"),
                 format_notification_datetime(&read_payload_value(event, "blocked_at")),
             );
             push_notification_fact(
                 &mut facts,
+                "blocked_until",
                 notification_fact_label(translator, "blockedUntil"),
                 format_notification_datetime(&read_payload_value(event, "blocked_until")),
             );
@@ -1435,21 +1545,25 @@ pub(super) fn build_notification_details(
 
             push_notification_fact(
                 &mut facts,
+                "current_version",
                 notification_fact_label(translator, "currentVersion"),
                 local_version,
             );
             push_notification_fact(
                 &mut facts,
+                "latest_version",
                 notification_fact_label(translator, "latestVersion"),
                 latest_version,
             );
             push_notification_fact(
                 &mut facts,
+                "check_reason",
                 notification_fact_label(translator, "checkReason"),
                 check_reason,
             );
             push_notification_fact(
                 &mut facts,
+                "force_update",
                 notification_fact_label(translator, "forceUpdate"),
                 if force_update {
                     notification_template_text(translator, "yes", &[])
@@ -1459,6 +1573,7 @@ pub(super) fn build_notification_details(
             );
             push_notification_fact(
                 &mut facts,
+                "release_notes",
                 notification_fact_label(translator, "releaseNotes"),
                 release_notes,
             );
@@ -1525,26 +1640,31 @@ pub(super) fn build_notification_details(
 
             push_notification_fact(
                 &mut facts,
+                "hostname",
                 notification_fact_label(translator, "hostname"),
                 hostname,
             );
             push_notification_fact(
                 &mut facts,
+                "current_usage",
                 notification_fact_label(translator, "currentUsage"),
                 format!("{usage_percent}%"),
             );
             push_notification_fact(
                 &mut facts,
+                "alert_threshold",
                 notification_fact_label(translator, "alertThreshold"),
                 format!("{threshold_percent}%"),
             );
             push_notification_fact(
                 &mut facts,
+                "recover_threshold",
                 notification_fact_label(translator, "recoverThreshold"),
                 format!("{recover_percent}%"),
             );
             push_notification_fact(
                 &mut facts,
+                "sample_interval",
                 notification_fact_label(translator, "sampleInterval"),
                 format_seconds(
                     &read_payload_value(event, "sample_interval_seconds"),
@@ -1553,6 +1673,7 @@ pub(super) fn build_notification_details(
             );
             push_notification_fact(
                 &mut facts,
+                "sustain_duration",
                 notification_fact_label(translator, "sustainDuration"),
                 format_seconds(&read_payload_value(event, "sustain_seconds"), translator),
             );
@@ -1610,11 +1731,13 @@ pub(super) fn build_notification_details(
 
             push_notification_fact(
                 &mut facts,
+                "tunnel_type",
                 notification_fact_label(translator, "tunnelType"),
                 tunnel,
             );
             push_notification_fact(
                 &mut facts,
+                "connection_status",
                 notification_fact_label(translator, "connectionStatus"),
                 if connected {
                     notification_detail_text(translator, "connected", &[])
@@ -1624,11 +1747,13 @@ pub(super) fn build_notification_details(
             );
             push_notification_fact(
                 &mut facts,
+                "process_pid",
                 notification_fact_label(translator, "processPid"),
                 pid,
             );
             push_notification_fact(
                 &mut facts,
+                "runtime_feedback",
                 notification_fact_label(translator, "runtimeFeedback"),
                 runtime_message,
             );
@@ -1649,26 +1774,31 @@ pub(super) fn build_notification_details(
             overview = summary.clone();
             push_notification_fact(
                 &mut facts,
+                "terminal_action",
                 notification_fact_label(translator, "terminalAction"),
                 action,
             );
             push_notification_fact(
                 &mut facts,
+                "terminal_target",
                 notification_fact_label(translator, "terminalTarget"),
                 target_id,
             );
             push_notification_fact(
                 &mut facts,
+                "terminal_session",
                 notification_fact_label(translator, "terminalSession"),
                 session_id,
             );
             push_notification_fact(
                 &mut facts,
+                "terminal_revision",
                 notification_fact_label(translator, "terminalRevision"),
                 revision,
             );
             push_notification_fact(
                 &mut facts,
+                "error_code",
                 notification_fact_label(translator, "errorCode"),
                 error_code,
             );
@@ -1678,11 +1808,13 @@ pub(super) fn build_notification_details(
 
     push_notification_fact(
         &mut facts,
+        "event_type",
         notification_fact_label(translator, "eventType"),
         format_notification_event_label(event_type, translator),
     );
     push_notification_fact(
         &mut facts,
+        "risk_level",
         notification_fact_label(translator, "riskLevel"),
         format_notification_level_label(
             event.get("level").and_then(Value::as_str).unwrap_or("INFO"),
@@ -1691,6 +1823,7 @@ pub(super) fn build_notification_details(
     );
     push_notification_fact(
         &mut facts,
+        "event_source",
         notification_fact_label(translator, "eventSource"),
         format_notification_source_label(
             event
@@ -1702,6 +1835,7 @@ pub(super) fn build_notification_details(
     );
     push_notification_fact(
         &mut facts,
+        "happened_at",
         notification_fact_label(translator, "happenedAt"),
         format_notification_datetime(
             event
@@ -1713,6 +1847,7 @@ pub(super) fn build_notification_details(
     if matched_count > 1 {
         push_notification_fact(
             &mut facts,
+            "aggregation_stats",
             notification_fact_label(translator, "aggregationStats"),
             notification_detail_text(
                 translator,
@@ -1744,6 +1879,7 @@ pub(super) fn build_notification_details(
             additional_content,
             translator,
         ),
-        facts,
+        facts: facts.items,
+        fact_values: facts.values,
     }
 }

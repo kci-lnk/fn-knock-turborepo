@@ -14808,6 +14808,19 @@
               "null"
             ]
           },
+          "fact_values": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "description": "Formatted detail values keyed by stable names; absent on historical messages.",
+            "propertyNames": {
+              "type": "string"
+            },
+            "type": [
+              "object",
+              "null"
+            ]
+          },
           "facts": {
             "items": {
               "$ref": "#/components/schemas/NotificationMessageFactData"

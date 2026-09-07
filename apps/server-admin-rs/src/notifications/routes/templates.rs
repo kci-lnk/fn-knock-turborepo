@@ -113,13 +113,28 @@ pub(super) fn value_to_notification_text(value: &Value) -> String {
     }
 }
 
-pub(super) fn push_notification_fact(facts: &mut Vec<Value>, label: String, value: String) {
+#[derive(Default)]
+pub(super) struct NotificationFacts {
+    pub(super) items: Vec<Value>,
+    pub(super) values: Map<String, Value>,
+}
+
+pub(super) fn push_notification_fact(
+    facts: &mut NotificationFacts,
+    key: &str,
+    label: String,
+    value: String,
+) -> bool {
+    // Reject duplicate keys before either representation can diverge.
+    if facts.values.contains_key(key) {
+        tracing::error!(key, "duplicate notification fact key");
+        return false;
+    }
     let label = label.trim();
     let value = value.trim();
-    if label.is_empty() && value.is_empty() {
-        return;
-    }
-    facts.push(json!({ "label": label, "value": value }));
+    facts.values.insert(key.to_string(), json!(value));
+    facts.items.push(json!({ "label": label, "value": value }));
+    true
 }
 
 pub(super) fn format_seconds(value: &str, translator: &Translator) -> String {

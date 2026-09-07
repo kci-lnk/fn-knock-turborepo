@@ -216,3 +216,66 @@ describe("WebhookBodyTemplateEditor", () => {
     }
   });
 });
+
+it("groups detail variables by event and inserts a stable detail path", async () => {
+  const wrapper = mountEditor({
+    modelValue: { mode: "custom", format: "text", template: "" },
+  });
+  const section = wrapper.get('[data-testid="fact-variables"]');
+  expect(section.text()).toContain("admin.notifications.body.commonFacts");
+  expect(section.text()).toContain(
+    "admin.eventCenter.eventTypes.FN_EVENT_AUTH_LOGOUT",
+  );
+  const button = section
+    .findAll("button")
+    .find((item) =>
+      item.text().includes("message.fact_values.credential_name"),
+    );
+  expect(button).toBeDefined();
+  await button!.trigger("click");
+  expect(wrapper.emitted("update:modelValue")?.at(-1)?.[0]).toMatchObject({
+    template: "{{message.fact_values.credential_name}}",
+  });
+});
+
+it("uses the actual admin locale scope for every detail label", async () => {
+  const { default: messages } =
+    await import("../../../packages/i18n/src/messages/scopes/admin/zh-CN");
+  const wrapper = mount(WebhookBodyTemplateEditor, {
+    props: { modelValue: { mode: "custom", format: "text", template: "" } },
+    global: {
+      plugins: [
+        createI18n({
+          legacy: false,
+          locale: "zh-CN",
+          messages: { "zh-CN": messages },
+        }),
+      ],
+      stubs: { CodeMirrorEditor: CodeMirrorStub },
+    },
+  });
+  const section = wrapper.get('[data-testid="fact-variables"]');
+  expect(section.text()).toContain("凭证名称");
+  expect(section.text()).toContain("关联 TOTP");
+  expect(section.text()).not.toContain("admin.notifications.");
+  expect(section.text()).not.toContain("server.notifications.");
+});
+
+it("keeps the sample empty until explicitly inserted and allows clearing it", async () => {
+  const wrapper = mountEditor({});
+  const sample = wrapper.get('textarea[aria-label="Sample context"]');
+  expect((sample.element as HTMLTextAreaElement).value).toBe("");
+  const button = wrapper
+    .findAll("button")
+    .find((item) =>
+      item.text().includes("admin.notifications.body.loadSample"),
+    );
+  await button!.trigger("click");
+  const emitted = wrapper.emitted("update:sampleContext")!.at(-1)![0] as string;
+  expect(JSON.parse(emitted).message.fact_values.credential_name).toBe("macOS");
+  await wrapper.setProps({ sampleContext: emitted });
+  await sample.setValue("");
+  expect(wrapper.emitted("update:sampleContext")!.at(-1)![0]).toBe("");
+  await wrapper.setProps({ sampleContext: "" });
+  expect((sample.element as HTMLTextAreaElement).value).toBe("");
+});

@@ -57,6 +57,15 @@ const configuredSensitiveFieldSet = computed(
 const getFieldDomId = (field: NotificationSchemaField) =>
   `${a11yId}-schemafieldseditor-${field.key}`;
 
+const isUrlField = (field: NotificationSchemaField) =>
+  field.key === "url" || field.key === "webhook_url";
+
+const getStringInputType = (field: NotificationSchemaField) => {
+  // URLs may contain credentials, but still need to be readable while editing.
+  if (isUrlField(field)) return "url";
+  return field.sensitive && !props.revealSensitiveValues ? "password" : "text";
+};
+
 const updateField = (key: string, value: unknown) => {
   emit("update:modelValue", {
     ...props.modelValue,
@@ -139,9 +148,10 @@ const resolvePlaceholder = (field: NotificationSchemaField) => {
       <Input
         v-if="field.type === 'string'"
         :id="getFieldDomId(field)"
-        :type="
-          field.sensitive && !props.revealSensitiveValues ? 'password' : 'text'
-        "
+        :type="getStringInputType(field)"
+        :autocomplete="isUrlField(field) ? 'off' : undefined"
+        :autocapitalize="isUrlField(field) ? 'none' : undefined"
+        :spellcheck="isUrlField(field) ? false : undefined"
         :model-value="String(readFieldValue(field) ?? '')"
         :placeholder="resolvePlaceholder(field)"
         @update:model-value="(value) => updateField(field.key, value)"

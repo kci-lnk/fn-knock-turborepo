@@ -121,6 +121,8 @@ export interface NotificationMessage {
   body_markdown?: string;
   severity: NotificationSeverity;
   facts: NotificationMessageFact[];
+  /** Stable detail keys; absent on historical messages. */
+  fact_values?: Record<string, string>;
   actions: NotificationMessageAction[];
   mentions: string[];
   dedupe_key?: string;

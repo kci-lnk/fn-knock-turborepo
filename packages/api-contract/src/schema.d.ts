@@ -11023,6 +11023,10 @@ export interface components {
             body_text: string;
             dedupe_key?: string | null;
             event_id?: string | null;
+            /** @description Formatted detail values keyed by stable names; absent on historical messages. */
+            fact_values?: {
+                [key: string]: string;
+            } | null;
             facts: components["schemas"]["NotificationMessageFactData"][];
             mentions: string[];
             metadata?: unknown;

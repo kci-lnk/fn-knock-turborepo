@@ -1135,7 +1135,7 @@ async fn webhook_custom_bodies_match_preview_test_and_delivery_without_leaking_c
                 "mode": "custom",
                 "format": "text",
                 "content_type": "text/plain; charset=utf-8",
-                "template": r#"{{message.title}}|{{event.payload.ip}}|\{{literal}}|{{legacy.extra_body}}"#
+                "template": r#"{{message.title}}|{{message.fact_values.login_ip}}|{{event.payload.ip}}|\{{literal}}|{{legacy.extra_body}}"#
             }),
         ),
         ("extra_body_json".to_string(), json!({ "legacy": true })),
@@ -1147,7 +1147,7 @@ async fn webhook_custom_bodies_match_preview_test_and_delivery_without_leaking_c
         WebhookTestOptions {
             target_config: Some(target_config.clone()),
             sample_context: Some(json!({
-                "message": { "title": "target-body-secret" },
+                "message": { "title": "target-body-secret", "fact_values": { "login_ip": "detail-target" } },
                 "event": { "trace_id": "must-not-render", "payload": { "ip": "192.0.2.30" } }
             })),
         },
@@ -1167,7 +1167,7 @@ async fn webhook_custom_bodies_match_preview_test_and_delivery_without_leaking_c
         &json!({
             "id": "ntfdelivery_webhook_body",
             "event_id": "evt_delivery_body",
-            "message_snapshot": { "title": "delivery-body-secret" },
+            "message_snapshot": { "title": "delivery-body-secret", "fact_values": { "login_ip": "detail-delivery" } },
             "webhook_event_snapshot": {
                 "id": "evt_delivery_body",
                 "trace_id": "must-not-render",
@@ -1202,11 +1202,11 @@ async fn webhook_custom_bodies_match_preview_test_and_delivery_without_leaking_c
     );
     assert_eq!(
         request_body(&requests[1]),
-        "target-body-secret|192.0.2.30|{{literal}}|{\"legacy\":true}"
+        "target-body-secret|detail-target|192.0.2.30|{{literal}}|{\"legacy\":true}"
     );
     assert_eq!(
         request_body(&requests[2]),
-        "delivery-body-secret|192.0.2.40|{{literal}}|{\"legacy\":true}"
+        "delivery-body-secret|detail-delivery|192.0.2.40|{{literal}}|{\"legacy\":true}"
     );
     assert!(!request_body(&requests[2]).contains("must-not-render"));
 
@@ -2638,4 +2638,255 @@ fn localizes_email_address_validation_errors() {
         )
         .contains("发生时间: 2026-07-06T00:00:00.000Z")
     );
+}
+
+#[test]
+fn webhook_fact_values_cover_all_event_details_and_locales() {
+    let events = [
+        "FN_EVENT_AUTH_LOGIN_SUCCESS",
+        "FN_EVENT_AUTH_LOGOUT",
+        "FN_EVENT_AUTH_LOGIN_FAILURE",
+        "FN_EVENT_AUTH_SESSION_IP_DRIFT",
+        "FN_EVENT_SECURITY_SCANNER_BLOCKED",
+        "FN_EVENT_DDNS_UPDATE_COMPLETED",
+        "FN_EVENT_GATEWAY_THROTTLE_BLOCKED",
+        "FN_EVENT_GATEWAY_VISIBILITY_BLOCKED",
+        "FN_EVENT_WAF_BLOCKED",
+        "FN_EVENT_SSH_LOGIN_SUCCESS",
+        "FN_EVENT_SSH_LOGIN_FAILURE",
+        "FN_EVENT_SSH_IP_BLOCKED",
+        "FN_EVENT_SYSTEM_APP_UPDATE_AVAILABLE",
+        "FN_EVENT_SYSTEM_CPU_ALERT",
+        "FN_EVENT_SYSTEM_CPU_RECOVERED",
+        "FN_EVENT_SYSTEM_MEMORY_ALERT",
+        "FN_EVENT_SYSTEM_MEMORY_RECOVERED",
+        "FN_EVENT_TUNNEL_FRP_CONNECTED",
+        "FN_EVENT_TUNNEL_FRP_DISCONNECTED",
+        "FN_EVENT_TUNNEL_CLOUDFLARED_CONNECTED",
+        "FN_EVENT_TUNNEL_CLOUDFLARED_DISCONNECTED",
+        "FN_EVENT_TERMINAL_AUDIT",
+        "UNKNOWN_EVENT",
+    ];
+    for event_type in events {
+        let event = json!({ "type": event_type, "level": "INFO", "source": "SERVER_ADMIN", "happened_at": "2026-09-07T05:51:18Z", "payload": {} });
+        let mut expected_keys = None;
+        for locale in ["zh-CN", "en", "zh-Hant", "ja-JP", "ko-KR"] {
+            let translator = Translator::new(locale);
+            let details = build_notification_details(&event, &json!({}), 3, &translator);
+            assert_eq!(
+                details.facts.len(),
+                details.fact_values.len(),
+                "{event_type}"
+            );
+            let keys: Vec<_> = details.fact_values.keys().cloned().collect();
+            if let Some(expected) = &expected_keys {
+                assert_eq!(&keys, expected);
+            }
+            expected_keys = Some(keys);
+            for (key, value) in &details.fact_values {
+                let mut parts = key.split('_');
+                let mut label_key = parts.next().unwrap().to_string();
+                for part in parts {
+                    let mut chars = part.chars();
+                    if let Some(first) = chars.next() {
+                        label_key.extend(first.to_uppercase());
+                        label_key.extend(chars);
+                    }
+                }
+                let label = if key == "host" {
+                    "Host".to_string()
+                } else {
+                    notification_fact_label(&translator, &label_key)
+                };
+                assert!(
+                    details
+                        .facts
+                        .iter()
+                        .any(|fact| fact["label"] == label.trim() && &fact["value"] == value),
+                    "{event_type}: {key} ({locale})"
+                );
+            }
+        }
+    }
+}
+
+#[test]
+fn webhook_fact_values_reject_duplicates_and_preserve_empty_strings() {
+    let mut facts = NotificationFacts::default();
+    assert!(push_notification_fact(
+        &mut facts,
+        "login_ip",
+        "IP".into(),
+        "  ".into()
+    ));
+    assert!(!push_notification_fact(
+        &mut facts,
+        "login_ip",
+        "Other".into(),
+        "replacement".into()
+    ));
+    assert_eq!(facts.items.len(), 1);
+    assert_eq!(facts.values["login_ip"], "");
+    assert_eq!(facts.items[0]["value"], "");
+}
+
+#[test]
+fn webhook_logout_fact_values_render_and_survive_message_serialization() {
+    let event = json!({"id": "evt_logout", "type": "FN_EVENT_AUTH_LOGOUT", "payload": {
+        "credential_name": "macOS", "linked_totp_name": "admin mac", "session_comment": "登录后自动授权",
+        "ip": "192.0.2.10", "ip_location": "甘肃|定西|移动", "logout_source": "user_logout"
+    }});
+    let message =
+        build_notification_message(&event, &json!({}), 1, "global", &Translator::new("zh-CN"));
+    let stored: Value = serde_json::from_str(&serde_json::to_string(&message).unwrap()).unwrap();
+    let context = build_webhook_template_context(
+        &stored,
+        &event,
+        json!({}),
+        &json!({}),
+        &json!({}),
+        &json!({}),
+        json!({}),
+    );
+    let template = json!({ "mode": "custom", "format": "json", "template": r#"{"credential":"{{message.fact_values.credential_name}}","totp":"{{message.fact_values.linked_totp}}","comment":"{{message.fact_values.session_comment}}","ip":"{{message.fact_values.login_ip}}","location":"{{message.fact_values.ip_location}}","all":"{{message.fact_values}}","missing":"{{message.fact_values.not_present}}"}"# });
+    let config = parse_webhook_body_config(&template, WebhookBodyScope::Provider).unwrap();
+    let rendered = render_webhook_body(&config, &context).unwrap();
+    let body: Value = serde_json::from_slice(&rendered.bytes).unwrap();
+    assert_eq!(body["credential"], "macOS");
+    assert_eq!(body["totp"], "admin mac");
+    assert_eq!(body["comment"], "登录后自动授权");
+    assert_eq!(body["ip"], "192.0.2.10");
+    assert_eq!(body["location"], "甘肃|定西|移动");
+    assert_eq!(body["all"], stored["fact_values"]);
+    assert_eq!(body["missing"], Value::Null);
+    assert_eq!(
+        rendered.missing_variables,
+        vec!["message.fact_values.not_present"]
+    );
+    let legacy = json!({ "message": { "facts": [{ "label": "凭证名称", "value": "old" }] } });
+    assert!(
+        render_webhook_body(&config, &legacy)
+            .unwrap()
+            .missing_variables
+            .contains(&"message.fact_values.credential_name".to_string())
+    );
+
+    let context =
+        json!({"message": {"fact_values": {"session_comment": "quote\"\n\\", "login_ip": ""}}});
+    let json_config = parse_webhook_body_config(&json!({"mode":"custom", "format":"json", "template": r#"{"value":"{{message.fact_values.session_comment}}","empty":"{{message.fact_values.login_ip}}"}"#}), WebhookBodyScope::Provider).unwrap();
+    let rendered = render_webhook_body(&json_config, &context).unwrap();
+    let body: Value = serde_json::from_slice(&rendered.bytes).unwrap();
+    assert_eq!(
+        body["value"],
+        context["message"]["fact_values"]["session_comment"]
+    );
+    assert_eq!(body["empty"], "");
+    assert!(rendered.missing_variables.is_empty());
+}
+
+#[test]
+fn webhook_fact_values_are_available_in_default_preview_and_sanitized() {
+    let provider = json!({"type":"webhook", "connection_config": {"url":"http://localhost", "body_config": {"mode":"custom", "format":"json", "template": r#"{"credential":"{{message.fact_values.credential_name}}","ip":"{{message.fact_values.login_ip}}"}"#}}});
+    let preview = preview_webhook_body(
+        &provider,
+        &Translator::new("en"),
+        WebhookTestOptions::default(),
+    )
+    .unwrap();
+    let body: Value = serde_json::from_str(preview["body"].as_str().unwrap()).unwrap();
+    assert_eq!(body["credential"], "macOS");
+    assert_eq!(body["ip"], "192.0.2.10");
+    assert_eq!(preview["missing_variables"], json!([]));
+    let sanitized = sanitize_notification_message(
+        &json!({"fact_values":{"trace_id":"hidden", "waf_trace_id":"hidden", "login_ip":"192.0.2.10"}}),
+    );
+    assert_eq!(sanitized["fact_values"], json!({"login_ip":"192.0.2.10"}));
+}
+
+#[tokio::test]
+async fn webhook_fact_values_survive_storage_and_repeated_delivery() {
+    let (_directory, state) = notification_test_state().await;
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let url = format!("http://{}", listener.local_addr().unwrap());
+    let receiver = tokio::spawn(async move {
+        let mut requests = Vec::new();
+        for _ in 0..3 {
+            let (stream, _) = listener.accept().await.unwrap();
+            requests.push(receive_webhook_request(stream).await);
+        }
+        requests
+    });
+    let event = json!({"id":"evt_fact_storage", "type":"FN_EVENT_AUTH_LOGOUT", "payload":{"credential_name":"macOS", "ip":"192.0.2.10"}});
+    let translator = Translator::new("zh-CN");
+    let message = build_notification_message(&event, &json!({}), 1, "global", &translator);
+    let delivery = json!({"id":"delivery-fact-storage", "event_id":"evt_fact_storage", "triggered_at":time_utils::now_iso(), "message_snapshot":message, "webhook_event_snapshot":event});
+    save_delivery_raw(&state, &delivery).await.unwrap();
+    let stored = load_delivery(&state, "delivery-fact-storage")
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(
+        stored["message_snapshot"]["fact_values"],
+        message["fact_values"]
+    );
+    let mut provider = json!({"type":"webhook", "connection_config":{"url":url}});
+    let target = json!({"target_config":{}});
+    // A standard delivery and two custom attempts all read the persisted values.
+    for attempt in 0..3 {
+        if attempt > 0 {
+            provider["connection_config"]["body_config"] = json!({"mode":"custom", "format":"json", "template":r#"{"details":"{{message.fact_values}}"}"#});
+        }
+        let result = send_webhook_delivery(
+            &state,
+            &provider,
+            &target,
+            &stored,
+            &json!({}),
+            &json!({}),
+            5,
+            &translator,
+        )
+        .await;
+        assert!(result.success);
+    }
+    let requests = receiver.await.unwrap();
+    let standard: Value = serde_json::from_str(request_body(&requests[0])).unwrap();
+    let custom: Value = serde_json::from_str(request_body(&requests[1])).unwrap();
+    assert_eq!(standard["message"]["fact_values"], message["fact_values"]);
+    assert_eq!(custom["details"], message["fact_values"]);
+    assert_eq!(request_body(&requests[1]), request_body(&requests[2]));
+}
+
+#[tokio::test]
+async fn webhook_standard_sample_matches_preview_and_http_test() {
+    let (_directory, state) = notification_test_state().await;
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let provider = json!({"type":"webhook", "connection_config":{"url":format!("http://{}", listener.local_addr().unwrap())}});
+    let receiver = tokio::spawn(async move {
+        let (stream, _) = listener.accept().await.unwrap();
+        receive_webhook_request(stream).await
+    });
+    let options = WebhookTestOptions {
+        sample_context: Some(json!({
+            "message":{"title":"edited sample", "fact_values":{"credential_name":"custom name", "trace_id":"hidden"}},
+            "legacy":{"extra_body":{"sample":true}}, "context":{"event_id":"sample-event"}
+        })),
+        ..WebhookTestOptions::default()
+    };
+    let translator = Translator::new("en");
+    let preview = preview_webhook_body(&provider, &translator, options.clone()).unwrap();
+    let body: Value = serde_json::from_str(preview["body"].as_str().unwrap()).unwrap();
+    assert_eq!(
+        body["message"]["fact_values"],
+        json!({"credential_name":"custom name"})
+    );
+    assert_eq!(body["payload"]["extra_body"], json!({"sample":true}));
+    assert_eq!(body["context"]["mode"], "provider_test");
+    let sent = send_webhook_test_with_options(&state, &provider, &translator, options)
+        .await
+        .unwrap();
+    assert!(sent.success);
+    let request = receiver.await.unwrap();
+    let actual: Value = serde_json::from_str(request_body(&request)).unwrap();
+    assert_eq!(actual, body);
 }

@@ -2808,14 +2808,14 @@ async fn webhook_fact_values_survive_storage_and_repeated_delivery() {
     let (_directory, state) = notification_test_state().await;
     let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
     let url = format!("http://{}", listener.local_addr().unwrap());
-    let receiver = tokio::spawn(async move {
+    let receiver = async move {
         let mut requests = Vec::new();
         for _ in 0..3 {
             let (stream, _) = listener.accept().await.unwrap();
             requests.push(receive_webhook_request(stream).await);
         }
         requests
-    });
+    };
     let event = json!({"id":"evt_fact_storage", "type":"FN_EVENT_AUTH_LOGOUT", "payload":{"credential_name":"macOS", "ip":"192.0.2.10"}});
     let translator = Translator::new("zh-CN");
     let message = build_notification_message(&event, &json!({}), 1, "global", &translator);
@@ -2831,25 +2831,27 @@ async fn webhook_fact_values_survive_storage_and_repeated_delivery() {
     );
     let mut provider = json!({"type":"webhook", "connection_config":{"url":url}});
     let target = json!({"target_config":{}});
-    // A standard delivery and two custom attempts all read the persisted values.
-    for attempt in 0..3 {
-        if attempt > 0 {
-            provider["connection_config"]["body_config"] = json!({"mode":"custom", "format":"json", "template":r#"{"details":"{{message.fact_values}}"}"#});
+    let dispatch = async {
+        // A standard delivery and two custom attempts all read the persisted values.
+        for attempt in 0..3 {
+            if attempt > 0 {
+                provider["connection_config"]["body_config"] = json!({"mode":"custom", "format":"json", "template":r#"{"details":"{{message.fact_values}}"}"#});
+            }
+            let result = send_webhook_delivery(
+                &state,
+                &provider,
+                &target,
+                &stored,
+                &json!({}),
+                &json!({}),
+                5,
+                &translator,
+            )
+            .await;
+            assert!(result.success);
         }
-        let result = send_webhook_delivery(
-            &state,
-            &provider,
-            &target,
-            &stored,
-            &json!({}),
-            &json!({}),
-            5,
-            &translator,
-        )
-        .await;
-        assert!(result.success);
-    }
-    let requests = receiver.await.unwrap();
+    };
+    let (requests, ()) = tokio::join!(receiver, dispatch);
     let standard: Value = serde_json::from_str(request_body(&requests[0])).unwrap();
     let custom: Value = serde_json::from_str(request_body(&requests[1])).unwrap();
     assert_eq!(standard["message"]["fact_values"], message["fact_values"]);
@@ -2862,10 +2864,10 @@ async fn webhook_standard_sample_matches_preview_and_http_test() {
     let (_directory, state) = notification_test_state().await;
     let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
     let provider = json!({"type":"webhook", "connection_config":{"url":format!("http://{}", listener.local_addr().unwrap())}});
-    let receiver = tokio::spawn(async move {
+    let receiver = async move {
         let (stream, _) = listener.accept().await.unwrap();
         receive_webhook_request(stream).await
-    });
+    };
     let options = WebhookTestOptions {
         sample_context: Some(json!({
             "message":{"title":"edited sample", "fact_values":{"credential_name":"custom name", "trace_id":"hidden"}},
@@ -2882,11 +2884,11 @@ async fn webhook_standard_sample_matches_preview_and_http_test() {
     );
     assert_eq!(body["payload"]["extra_body"], json!({"sample":true}));
     assert_eq!(body["context"]["mode"], "provider_test");
-    let sent = send_webhook_test_with_options(&state, &provider, &translator, options)
-        .await
-        .unwrap();
-    assert!(sent.success);
-    let request = receiver.await.unwrap();
+    let (request, sent) = tokio::join!(
+        receiver,
+        send_webhook_test_with_options(&state, &provider, &translator, options)
+    );
+    assert!(sent.unwrap().success);
     let actual: Value = serde_json::from_str(request_body(&request)).unwrap();
     assert_eq!(actual, body);
 }

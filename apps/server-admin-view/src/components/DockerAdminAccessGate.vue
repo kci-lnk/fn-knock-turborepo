@@ -256,7 +256,9 @@ const showForgotPassword = computed(
 );
 const showRememberMe = computed(() => props.mode === "login");
 const passwordValidationError = computed(() =>
-  password.value ? validateDockerAdminPassword(password.value) : null,
+  props.mode === "setup" && password.value
+    ? validateDockerAdminPassword(password.value)
+    : null,
 );
 const localErrorMessage = computed(() => {
   const error = passwordValidationError.value;

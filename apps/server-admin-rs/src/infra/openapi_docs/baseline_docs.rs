@@ -601,6 +601,8 @@ fn segment_label(segment: &str) -> String {
         "host_mappings" => "主机映射".to_string(),
         "hosts" => "主机".to_string(),
         "host-mappings" => "主机映射".to_string(),
+        "http3" => "HTTP/3 设置".to_string(),
+        "email" => "邮件".to_string(),
         "interfaces" => "网络接口".to_string(),
         "instances" => "实例".to_string(),
         "invitations" => "邀请".to_string(),

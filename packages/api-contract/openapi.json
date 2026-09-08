@@ -34492,7 +34492,7 @@
                 }
               }
             },
-            "description": "「查看系统配置http3」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。"
+            "description": "「查看系统配置HTTP/3 设置」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。"
           },
           "default": {
             "content": {
@@ -34505,7 +34505,7 @@
             "description": "接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。"
           }
         },
-        "summary": "查看系统配置http3",
+        "summary": "查看系统配置HTTP/3 设置",
         "tags": [
           "config"
         ],
@@ -34553,7 +34553,7 @@
                 }
               }
             },
-            "description": "「提交系统配置http3」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。"
+            "description": "「提交系统配置HTTP/3 设置」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。"
           },
           "default": {
             "content": {
@@ -34566,7 +34566,7 @@
             "description": "接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。"
           }
         },
-        "summary": "提交系统配置http3",
+        "summary": "提交系统配置HTTP/3 设置",
         "tags": [
           "config"
         ],
@@ -41916,7 +41916,7 @@
                 }
               }
             },
-            "description": "「测试备份与维护email」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。"
+            "description": "「测试备份与维护邮件」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。"
           },
           "default": {
             "content": {
@@ -41929,7 +41929,7 @@
             "description": "接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。"
           }
         },
-        "summary": "测试备份与维护email",
+        "summary": "测试备份与维护邮件",
         "tags": [
           "maintenance"
         ],

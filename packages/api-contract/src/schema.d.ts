@@ -2084,13 +2084,13 @@ export interface paths {
             cookie?: never;
         };
         /**
-         * 查看系统配置http3
+         * 查看系统配置HTTP/3 设置
          * @description 读取和更新管理端、网关、安全及平台功能的配置。。`GET /api/admin/config/gateway/http3` 用于读取当前状态、配置或导出内容，不会主动修改服务配置。 该操作不要求 JSON 请求体。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
          */
         get: operations["get_api_admin_config_gateway_http3"];
         put?: never;
         /**
-         * 提交系统配置http3
+         * 提交系统配置HTTP/3 设置
          * @description 读取和更新管理端、网关、安全及平台功能的配置。。`POST /api/admin/config/gateway/http3` 用于提交操作或创建、更新服务状态；执行结果以响应中的数据和消息为准。 请求体字段、必填项和可选值请以 Swagger 展开的 schema 为准。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
          */
         post: operations["post_api_admin_config_gateway_http3"];
@@ -3972,7 +3972,7 @@ export interface paths {
         get?: never;
         put?: never;
         /**
-         * 测试备份与维护email
+         * 测试备份与维护邮件
          * @description 管理备份导入导出、自动备份和受确认保护的数据维护。。`POST /api/admin/maintenance/backup/automatic/email/test` 用于提交操作或创建、更新服务状态；执行结果以响应中的数据和消息为准。 请求体字段、必填项和可选值请以 Swagger 展开的 schema 为准。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
          */
         post: operations["test_backup_email"];
@@ -18831,7 +18831,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description 「查看系统配置http3」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
+            /** @description 「查看系统配置HTTP/3 设置」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -18871,7 +18871,7 @@ export interface operations {
             };
         };
         responses: {
-            /** @description 「提交系统配置http3」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
+            /** @description 「提交系统配置HTTP/3 设置」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -23414,7 +23414,7 @@ export interface operations {
             };
         };
         responses: {
-            /** @description 「测试备份与维护email」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
+            /** @description 「测试备份与维护邮件」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
             200: {
                 headers: {
                     [name: string]: unknown;

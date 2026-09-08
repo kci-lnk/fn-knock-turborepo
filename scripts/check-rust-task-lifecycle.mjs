@@ -3,7 +3,7 @@ import path from "node:path";
 import process from "node:process";
 
 const sourceRoot = path.resolve("apps/server-admin-rs/src");
-const maxDirectSpawnCallSites = 120;
+const maxDirectSpawnCallSites = 122;
 
 // Direct spawns are limited to explicitly audited owners, request-scoped
 // fan-out, subprocess pipe/wait tasks, platform entry points, and tests.
@@ -30,6 +30,10 @@ const auditedBudgets = new Map(
     "gateway/proxy_config.rs": 1,
     "gateway/proxy_config/tests.rs": 8,
     "infra/background_tasks.rs": 1,
+    // Test-only SMTP fixture; bounded by a timeout and awaited by every caller.
+    "infra/mail.rs": 1,
+    // Test-only delivery concurrency probe; its handle is awaited.
+    "system/maintenance/backup_email/tests.rs": 1,
     // Test-only webhook HTTP fixtures; each task is awaited or explicitly aborted.
     "notifications/routes/tests.rs": 4,
     // Test-only local HTTP fixtures; every returned handle is awaited by its test.

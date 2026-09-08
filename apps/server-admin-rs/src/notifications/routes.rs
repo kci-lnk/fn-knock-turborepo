@@ -38,9 +38,8 @@ use axum::{
     response::{IntoResponse, Response},
 };
 use lettre::{
-    Address, AsyncSmtpTransport, AsyncTransport, Message, Tokio1Executor,
+    Address, Message,
     message::Mailbox,
-    transport::smtp::{authentication::Credentials, client::Tls},
 };
 use serde::Deserialize;
 use serde_json::{Map, Value, json};

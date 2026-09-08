@@ -10,3 +10,7 @@ pub(crate) mod settings;
 pub(crate) mod state;
 pub(crate) mod static_files;
 pub(crate) mod system_resources;
+pub(crate) mod mail;
+pub(crate) mod credentials;
+#[cfg(windows)]
+pub(crate) mod private_permissions;

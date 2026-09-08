@@ -415,7 +415,28 @@ struct SessionAttachmentData {
 }
 
 #[derive(Serialize, ToSchema)]
+struct BackupEmailTestData { success: bool }
+
+#[derive(Serialize, ToSchema)]
+struct AutomaticBackupEmailConfigData {
+    #[serde(flatten)]
+    config: crate::maintenance::BackupEmailConfig,
+    password_configured: bool,
+}
+
+#[derive(Serialize, ToSchema)]
+struct AutomaticBackupEmailStatusData {
+    last_attempt_at: Option<String>,
+    last_success_at: Option<String>,
+    last_filename: Option<String>,
+    last_error: Option<String>,
+    pending_count: usize,
+    next_retry_at: Option<String>,
+}
+
+#[derive(Serialize, ToSchema)]
 struct AutomaticBackupConfigData {
+    email: AutomaticBackupEmailConfigData,
     enabled: bool,
     interval_hours: i64,
     retention_days: i64,
@@ -424,6 +445,7 @@ struct AutomaticBackupConfigData {
 
 #[derive(Serialize, ToSchema)]
 struct AutomaticBackupStatusData {
+    email: AutomaticBackupEmailStatusData,
     directory_path: String,
     last_attempt_at: Option<String>,
     last_success_at: Option<String>,
@@ -594,6 +616,7 @@ struct BackupImportResultData {
     SessionMobilityEventData,
     SessionMobilityDetailsData,
     SessionAttachmentData,
+    BackupEmailTestData,
     AutomaticBackupConfigData,
     AutomaticBackupStatusData,
     AutomaticBackupDetailsData,

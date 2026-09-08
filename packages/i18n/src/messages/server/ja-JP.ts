@@ -1628,6 +1628,12 @@ export const jaJPServer = {
     clearFailed: "すべてのデータを消去できませんでした",
   },
   maintenanceBackup: {
+    emailSubject: "[fn-knock] バックアップ {time}",
+    emailBody: "インスタンス：{name}\nバックアップ日時：{time}\nファイル名：{filename}\nサイズ：{size} バイト\nローカルバックアップが完了しました。",
+    emailOversized: "添付サイズの上限を超えました。添付ファイルはありません。バックアップはローカルにのみ保存されています。",
+    emailTestSubject: "[fn-knock] バックアップメールのテスト",
+    emailTestBody: "これはテストメールです。添付はテストファイルで、バックアップではありません。",
+
     automaticIntervalInvalid:
       "自動バックアップ間隔は 1～8760 時間で指定してください",
     automaticRetentionInvalid:

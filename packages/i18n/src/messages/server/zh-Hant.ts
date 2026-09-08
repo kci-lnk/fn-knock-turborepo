@@ -1383,6 +1383,12 @@ export const zhHantServer = {
     clearFailed: "清空所有資料失敗",
   },
   maintenanceBackup: {
+    emailSubject: "[fn-knock] 備份 {time}",
+    emailBody: "執行個體：{name}\n備份時間：{time}\n檔案名稱：{filename}\n大小：{size} 位元組\n本機備份已成功完成。",
+    emailOversized: "備份超過附件大小上限，本郵件不含附件，備份僅儲存在本機。",
+    emailTestSubject: "[fn-knock] 備份郵件測試",
+    emailTestBody: "這是一封測試郵件，附件為測試檔案，並非真實備份。",
+
     automaticIntervalInvalid: "自動備份間隔必須為 1 到 8760 小時",
     automaticRetentionInvalid: "自動備份保留天數必須為 1 到 3650 天",
     automaticDirectoryReadFailed: "讀取自動備份目錄失敗",

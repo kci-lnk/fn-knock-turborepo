@@ -3508,6 +3508,15 @@ pub(crate) fn build_openapi_document() -> Value {
     insert_typed_enveloped_operation(
         &mut paths,
         &typed_backup,
+        "/api/admin/maintenance/backup/automatic/email/test",
+        "post",
+        "BackupEmailTestData",
+        None,
+        Some("BackupEmailUpdate"),
+    );
+    insert_typed_enveloped_operation(
+        &mut paths,
+        &typed_backup,
         "/api/admin/maintenance/backup/automatic/files",
         "get",
         "AutomaticBackupFilesData",

@@ -247,7 +247,7 @@ pub(super) fn should_snapshot_backup_import_key(key: &str) -> bool {
     should_export_backup_key(key)
         || matches!(
             key,
-            AUTOMATIC_BACKUP_CONFIG_KEY | AUTOMATIC_BACKUP_RUNTIME_KEY
+            AUTOMATIC_BACKUP_CONFIG_KEY | AUTOMATIC_BACKUP_RUNTIME_KEY | backup_email::EMAIL_KEY
         )
 }
 

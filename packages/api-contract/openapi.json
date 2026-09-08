@@ -2774,6 +2774,9 @@
       },
       "AutomaticBackupConfigData": {
         "properties": {
+          "email": {
+            "$ref": "#/components/schemas/AutomaticBackupEmailConfigData"
+          },
           "enabled": {
             "type": "boolean"
           },
@@ -2793,6 +2796,7 @@
           }
         },
         "required": [
+          "email",
           "enabled",
           "interval_hours",
           "retention_days"
@@ -2811,6 +2815,66 @@
         "required": [
           "config",
           "status"
+        ],
+        "type": "object"
+      },
+      "AutomaticBackupEmailConfigData": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/BackupEmailConfig"
+          },
+          {
+            "properties": {
+              "password_configured": {
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "password_configured"
+            ],
+            "type": "object"
+          }
+        ]
+      },
+      "AutomaticBackupEmailStatusData": {
+        "properties": {
+          "last_attempt_at": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "last_error": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "last_filename": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "last_success_at": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "next_retry_at": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "pending_count": {
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "pending_count"
         ],
         "type": "object"
       },
@@ -2840,6 +2904,9 @@
         "properties": {
           "directory_path": {
             "type": "string"
+          },
+          "email": {
+            "$ref": "#/components/schemas/AutomaticBackupEmailStatusData"
           },
           "last_attempt_at": {
             "type": [
@@ -2873,6 +2940,7 @@
           }
         },
         "required": [
+          "email",
           "directory_path"
         ],
         "type": "object"
@@ -2927,6 +2995,84 @@
           "files"
         ],
         "type": "object"
+      },
+      "BackupEmailConfig": {
+        "properties": {
+          "attachment_limit_mib": {
+            "default": 20,
+            "format": "int64",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "enabled": {
+            "default": false,
+            "type": "boolean"
+          },
+          "from_address": {
+            "default": "",
+            "type": "string"
+          },
+          "from_name": {
+            "default": "fn-knock",
+            "type": "string"
+          },
+          "smtp": {
+            "default": {
+              "auth_mode": "auto",
+              "host": "",
+              "port": 465,
+              "security": "ssl_tls",
+              "timeout_seconds": 30,
+              "username": ""
+            },
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/SmtpConfig"
+              }
+            ]
+          },
+          "to_addresses": {
+            "default": [],
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          }
+        },
+        "type": "object"
+      },
+      "BackupEmailTestData": {
+        "properties": {
+          "success": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "success"
+        ],
+        "type": "object"
+      },
+      "BackupEmailUpdate": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/BackupEmailConfig"
+          },
+          {
+            "properties": {
+              "clear_password": {
+                "type": "boolean"
+              },
+              "password": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "writeOnly": true
+              }
+            },
+            "type": "object"
+          }
+        ]
       },
       "BackupFileData": {
         "properties": {
@@ -20218,6 +20364,39 @@
         },
         "type": "object"
       },
+      "SmtpConfig": {
+        "properties": {
+          "auth_mode": {
+            "default": "auto",
+            "type": "string"
+          },
+          "host": {
+            "default": "",
+            "type": "string"
+          },
+          "port": {
+            "default": 465,
+            "format": "int32",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "security": {
+            "default": "ssl_tls",
+            "type": "string"
+          },
+          "timeout_seconds": {
+            "default": 30,
+            "format": "int64",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "username": {
+            "default": "",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
       "SshBlocksDeleteBodyData": {
         "properties": {
           "ips": {
@@ -23933,6 +24112,16 @@
       },
       "UpdateAutomaticBackupBody": {
         "properties": {
+          "email": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/BackupEmailUpdate"
+              }
+            ]
+          },
           "enabled": {
             "type": "boolean"
           },
@@ -41488,6 +41677,69 @@
           }
         },
         "summary": "更新备份与维护自动备份",
+        "tags": [
+          "maintenance"
+        ],
+        "x-fn-knock-contract-source": "utoipa"
+      }
+    },
+    "/api/admin/maintenance/backup/automatic/email/test": {
+      "post": {
+        "description": "管理备份导入导出、自动备份和受确认保护的数据维护。。`POST /api/admin/maintenance/backup/automatic/email/test` 用于提交操作或创建、更新服务状态；执行结果以响应中的数据和消息为准。 请求体字段、必填项和可选值请以 Swagger 展开的 schema 为准。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。",
+        "operationId": "test_backup_email",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BackupEmailUpdate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "properties": {
+                    "data": {
+                      "$ref": "#/components/schemas/BackupEmailTestData"
+                    },
+                    "message": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "success": {
+                      "const": true,
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "success",
+                    "data"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "「测试备份与维护email」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorEnvelope"
+                }
+              }
+            },
+            "description": "接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。"
+          }
+        },
+        "summary": "测试备份与维护email",
         "tags": [
           "maintenance"
         ],

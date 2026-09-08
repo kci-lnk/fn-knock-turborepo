@@ -1,7 +1,7 @@
 use super::*;
 use tower::ServiceExt;
 
-async fn maintenance_test_state() -> (tempfile::TempDir, AppState) {
+pub(super) async fn maintenance_test_state() -> (tempfile::TempDir, AppState) {
     let directory = tempfile::tempdir().expect("create maintenance test directory");
     let mut settings = {
         let _environment = crate::test_support::EnvGuard::new(&[]);
@@ -1142,6 +1142,7 @@ fn automatic_backup_defaults_and_validation_are_stable() {
     );
     assert!(
         validate_automatic_backup_config(&UpdateAutomaticBackupBody {
+            email: None,
             enabled: true,
             interval_hours: 1,
             retention_days: 1,
@@ -1150,6 +1151,7 @@ fn automatic_backup_defaults_and_validation_are_stable() {
     );
     assert!(
         validate_automatic_backup_config(&UpdateAutomaticBackupBody {
+            email: None,
             enabled: true,
             interval_hours: 8760,
             retention_days: 3650,
@@ -1159,6 +1161,7 @@ fn automatic_backup_defaults_and_validation_are_stable() {
     for (interval_hours, retention_days) in [(0, 7), (8761, 7), (24, 0), (24, 3651)] {
         assert!(
             validate_automatic_backup_config(&UpdateAutomaticBackupBody {
+            email: None,
                 enabled: true,
                 interval_hours,
                 retention_days,
@@ -1199,6 +1202,7 @@ async fn automatic_backup_writes_to_the_cross_platform_data_directory() {
     let details = save_automatic_backup_config(
         &state,
         UpdateAutomaticBackupBody {
+            email: None,
             enabled: true,
             interval_hours: 24,
             retention_days: 7,
@@ -1247,6 +1251,7 @@ async fn automatic_backup_scheduler_runs_the_first_backup_immediately() {
     save_automatic_backup_config(
         &state,
         UpdateAutomaticBackupBody {
+            email: None,
             enabled: true,
             interval_hours: 24,
             retention_days: 7,
@@ -1355,6 +1360,7 @@ async fn changing_the_interval_keeps_a_failed_backup_within_the_retry_cap() {
     let details = save_automatic_backup_config(
         &state,
         UpdateAutomaticBackupBody {
+            email: None,
             enabled: true,
             interval_hours: 8760,
             retention_days: 7,
@@ -1522,6 +1528,7 @@ async fn failed_automatic_backup_records_an_hourly_retry() {
     save_automatic_backup_config(
         &state,
         UpdateAutomaticBackupBody {
+            email: None,
             enabled: true,
             interval_hours: 24,
             retention_days: 7,
@@ -1550,6 +1557,7 @@ async fn backup_restore_preserves_automatic_backup_settings_atomically() {
     save_automatic_backup_config(
         &state,
         UpdateAutomaticBackupBody {
+            email: None,
             enabled: true,
             interval_hours: 12,
             retention_days: 30,
@@ -1804,6 +1812,7 @@ async fn automatic_backup_waits_for_the_maintenance_mutex() {
     save_automatic_backup_config(
         &state,
         UpdateAutomaticBackupBody {
+            email: None,
             enabled: true,
             interval_hours: 24,
             retention_days: 7,

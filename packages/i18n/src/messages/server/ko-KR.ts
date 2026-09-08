@@ -1583,6 +1583,12 @@ export const koKRServer = {
     clearFailed: "모든 데이터를 지우지 못했습니다",
   },
   maintenanceBackup: {
+    emailSubject: "[fn-knock] 백업 {time}",
+    emailBody: "인스턴스: {name}\n백업 시간: {time}\n파일 이름: {filename}\n크기: {size} 바이트\n로컬 백업이 완료되었습니다.",
+    emailOversized: "첨부 크기 제한을 초과했습니다. 첨부 파일 없이 전송되며 백업은 로컬에만 저장됩니다.",
+    emailTestSubject: "[fn-knock] 백업 이메일 테스트",
+    emailTestBody: "테스트 이메일입니다. 첨부 파일은 테스트용이며 실제 백업이 아닙니다.",
+
     automaticIntervalInvalid: "자동 백업 간격은 1~8760시간 사이여야 합니다",
     automaticRetentionInvalid: "자동 백업 보관 일수는 1~3650일 사이여야 합니다",
     automaticDirectoryReadFailed: "자동 백업 디렉터리를 읽지 못했습니다",

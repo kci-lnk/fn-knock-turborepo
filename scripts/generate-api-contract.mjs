@@ -619,6 +619,7 @@ function validateContract(openapiPath) {
       "UpdateAutomaticBackupBody",
     ],
     ["get /api/admin/maintenance/backup/automatic/files", null],
+    ["post /api/admin/maintenance/backup/automatic/email/test", "BackupEmailUpdate"],
     ["get /api/admin/maintenance/backup/export", null],
     ["get /api/admin/maintenance/backup/files", null],
     ["post /api/admin/maintenance/backup/export/fnos", null],

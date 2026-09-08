@@ -26,6 +26,16 @@ import {
 } from "@/lib/automatic-backup";
 import type { AutomaticBackupDetails } from "@/types";
 
+import BackupEmailSettings from "./BackupEmailSettings.vue";
+import BackupEmailStatus from "./BackupEmailStatus.vue";
+import {
+  defaultBackupEmail,
+  backupEmailPayload,
+  isBackupEmailValid,
+  type BackupEmailForm,
+} from "@/lib/backup-email";
+const emailForm = ref<BackupEmailForm>(defaultBackupEmail());
+
 const emit = defineEmits<{ filesChanged: [] }>();
 const { locale, t } = useI18n();
 const a11yId = useId();
@@ -35,6 +45,23 @@ const isSaving = ref(false);
 const loadErrorMessage = ref("");
 const saveErrorMessage = ref("");
 let refreshTimer: number | null = null;
+let disposed = false;
+let statusGeneration = 0;
+let statusPolling = false;
+
+async function refreshStatus(): Promise<AutomaticBackupDetails | undefined> {
+  if (disposed || statusPolling || isSaving.value || isLoading.value) return;
+  statusPolling = true;
+  const generation = statusGeneration;
+  try {
+    const next = await MaintenanceAPI.getAutomaticBackupDetails();
+    if (disposed || generation !== statusGeneration) return;
+    if (details.value) details.value.status = next.status;
+    return next;
+  } finally {
+    statusPolling = false;
+  }
+}
 
 const form = reactive({
   enabled: false,
@@ -42,8 +69,10 @@ const form = reactive({
   retention_days: 7,
 });
 
-const isValid = computed(() =>
-  isAutomaticBackupConfigValid(form.interval_hours, form.retention_days),
+const isValid = computed(
+  () =>
+    isAutomaticBackupConfigValid(form.interval_hours, form.retention_days) &&
+    isBackupEmailValid(emailForm.value),
 );
 const intervalIsInvalid = computed(
   () =>
@@ -64,20 +93,32 @@ const isDirty = computed(() => {
   const config = details.value?.config;
   return (
     !!config &&
-    (form.enabled !== config.enabled ||
+    (JSON.stringify(backupEmailPayload(emailForm.value)) !==
+      JSON.stringify(
+        backupEmailPayload(config.email ?? defaultBackupEmail()),
+      ) ||
+      form.enabled !== config.enabled ||
       form.interval_hours !== config.interval_hours ||
       form.retention_days !== config.retention_days)
   );
 });
 
 function applyDetails(value: AutomaticBackupDetails) {
+  if (disposed) return;
   details.value = value;
+  const email = value.config.email ?? defaultBackupEmail();
+  emailForm.value = {
+    ...email,
+    smtp: { ...email.smtp },
+    to_addresses: [...email.to_addresses],
+  };
   form.enabled = value.config.enabled;
   form.interval_hours = value.config.interval_hours;
   form.retention_days = value.config.retention_days;
 }
 
 async function load() {
+  statusGeneration += 1;
   isLoading.value = true;
   loadErrorMessage.value = "";
   try {
@@ -108,11 +149,13 @@ async function save() {
   const previousSuccess = details.value?.status.last_success_at;
   const shouldWatchFirstBackup =
     form.enabled && details.value?.config.enabled !== true;
+  statusGeneration += 1;
   isSaving.value = true;
   saveErrorMessage.value = "";
   try {
     applyDetails(
       await MaintenanceAPI.updateAutomaticBackupConfig({
+        email: backupEmailPayload(emailForm.value),
         enabled: form.enabled,
         interval_hours: form.interval_hours,
         retention_days: form.retention_days,
@@ -139,13 +182,14 @@ function pollForBackupResult(
   previousSuccess: string | null | undefined,
   attempt: number,
 ) {
+  if (disposed) return;
   if (refreshTimer !== null) window.clearTimeout(refreshTimer);
   if (attempt >= AUTOMATIC_BACKUP_RESULT_POLL_LIMIT) return;
   refreshTimer = window.setTimeout(async () => {
     try {
-      const next = await MaintenanceAPI.getAutomaticBackupDetails();
-      applyDetails(next);
+      const next = await refreshStatus();
       if (
+        next &&
         automaticBackupAttemptCompleted(
           previousAttempt,
           next.status.last_attempt_at,
@@ -177,8 +221,22 @@ function formatDate(value: string | null | undefined) {
   }).format(date);
 }
 
-onMounted(load);
+let emailRefreshTimer: ReturnType<typeof setInterval> | undefined;
+onMounted(() => {
+  void load();
+  emailRefreshTimer = setInterval(async () => {
+    if (!details.value || isSaving.value || isLoading.value) return;
+    try {
+      await refreshStatus();
+    } catch {
+      /* Retry on the next status poll. */
+    }
+  }, 5000);
+});
 onBeforeUnmount(() => {
+  disposed = true;
+  statusGeneration += 1;
+  if (emailRefreshTimer) clearInterval(emailRefreshTimer);
   if (refreshTimer !== null) window.clearTimeout(refreshTimer);
 });
 </script>
@@ -363,6 +421,15 @@ onBeforeUnmount(() => {
         {{ details.status.last_error }}
       </p>
     </div>
+
+    <BackupEmailSettings
+      v-model="emailForm"
+      :disabled="isLoading || isSaving || !details"
+    />
+    <BackupEmailStatus
+      v-if="details?.status.email"
+      :status="details.status.email"
+    />
 
     <div class="mt-5 flex justify-end gap-3">
       <Button

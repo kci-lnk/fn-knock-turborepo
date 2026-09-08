@@ -1332,7 +1332,12 @@
       "automaticSettingsReadFailed": "读取自动备份设置失败",
       "automaticSettingsSaveFailed": "保存自动备份设置失败",
       "automaticSettingsInvalidRequest": "自动备份设置请求格式无效",
-      "exportTooLarge": "备份数据过大，无法导出"
+      "exportTooLarge": "备份数据过大，无法导出",
+      "emailSubject": "[fn-knock] 备份 {time}",
+      "emailBody": "实例：{name}\n备份时间：{time}\n文件名：{filename}\n大小：{size} 字节\n本地备份已成功完成。",
+      "emailOversized": "备份超过附件大小上限，本邮件不含附件，备份仅保存在本地。",
+      "emailTestSubject": "[fn-knock] 备份邮件测试",
+      "emailTestBody": "这是一封测试邮件，附件为测试文件，不是真实备份。"
     },
     "captcha": {
       "powServerNotConfigured": "PoW 验证码尚未完成服务端配置",
@@ -4577,7 +4582,12 @@
       "automaticSettingsReadFailed": "讀取自動備份設定失敗",
       "automaticSettingsSaveFailed": "儲存自動備份設定失敗",
       "automaticSettingsInvalidRequest": "自動備份設定請求格式無效",
-      "exportTooLarge": "備份資料過大，無法匯出"
+      "exportTooLarge": "備份資料過大，無法匯出",
+      "emailSubject": "[fn-knock] 備份 {time}",
+      "emailBody": "執行個體：{name}\n備份時間：{time}\n檔案名稱：{filename}\n大小：{size} 位元組\n本機備份已成功完成。",
+      "emailOversized": "備份超過附件大小上限，本郵件不含附件，備份僅儲存在本機。",
+      "emailTestSubject": "[fn-knock] 備份郵件測試",
+      "emailTestBody": "這是一封測試郵件，附件為測試檔案，並非真實備份。"
     },
     "captcha": {
       "powServerNotConfigured": "PoW 驗證碼尚未完成服務端配置",
@@ -7822,7 +7832,12 @@
       "automaticSettingsReadFailed": "Failed to read automatic backup settings",
       "automaticSettingsSaveFailed": "Failed to save automatic backup settings",
       "automaticSettingsInvalidRequest": "The automatic backup settings request is invalid",
-      "exportTooLarge": "Backup data is too large to export"
+      "exportTooLarge": "Backup data is too large to export",
+      "emailSubject": "[fn-knock] Backup {time}",
+      "emailBody": "Instance: {name}\nBackup time: {time}\nFilename: {filename}\nSize: {size} bytes\nLocal backup completed successfully.",
+      "emailOversized": "The backup exceeds the attachment limit. No attachment was sent; the backup is stored locally only.",
+      "emailTestSubject": "[fn-knock] Backup email test",
+      "emailTestBody": "This is a test email. The attachment is a test file, not a backup."
     },
     "captcha": {
       "powServerNotConfigured": "PoW captcha is not configured on the server",
@@ -11067,7 +11082,12 @@
       "automaticSettingsReadFailed": "자동 백업 설정을 읽지 못했습니다",
       "automaticSettingsSaveFailed": "자동 백업 설정을 저장하지 못했습니다",
       "automaticSettingsInvalidRequest": "자동 백업 설정 요청 형식이 올바르지 않습니다",
-      "exportTooLarge": "백업 데이터가 너무 커서 내보낼 수 없습니다."
+      "exportTooLarge": "백업 데이터가 너무 커서 내보낼 수 없습니다.",
+      "emailSubject": "[fn-knock] 백업 {time}",
+      "emailBody": "인스턴스: {name}\n백업 시간: {time}\n파일 이름: {filename}\n크기: {size} 바이트\n로컬 백업이 완료되었습니다.",
+      "emailOversized": "첨부 크기 제한을 초과했습니다. 첨부 파일 없이 전송되며 백업은 로컬에만 저장됩니다.",
+      "emailTestSubject": "[fn-knock] 백업 이메일 테스트",
+      "emailTestBody": "테스트 이메일입니다. 첨부 파일은 테스트용이며 실제 백업이 아닙니다."
     },
     "captcha": {
       "powServerNotConfigured": "PoW 보안 문자가 서버에 설정되어 있지 않습니다.",
@@ -14312,7 +14332,12 @@
       "automaticSettingsReadFailed": "自動バックアップ設定を読み込めませんでした",
       "automaticSettingsSaveFailed": "自動バックアップ設定を保存できませんでした",
       "automaticSettingsInvalidRequest": "自動バックアップ設定のリクエスト形式が無効です",
-      "exportTooLarge": "バックアップデータが大きすぎるためエクスポートできません"
+      "exportTooLarge": "バックアップデータが大きすぎるためエクスポートできません",
+      "emailSubject": "[fn-knock] バックアップ {time}",
+      "emailBody": "インスタンス：{name}\nバックアップ日時：{time}\nファイル名：{filename}\nサイズ：{size} バイト\nローカルバックアップが完了しました。",
+      "emailOversized": "添付サイズの上限を超えました。添付ファイルはありません。バックアップはローカルにのみ保存されています。",
+      "emailTestSubject": "[fn-knock] バックアップメールのテスト",
+      "emailTestBody": "これはテストメールです。添付はテストファイルで、バックアップではありません。"
     },
     "captcha": {
       "powServerNotConfigured": "サーバー側で PoW CAPTCHA が設定されていません",

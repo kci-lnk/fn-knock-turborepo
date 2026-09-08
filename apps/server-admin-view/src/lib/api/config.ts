@@ -137,6 +137,15 @@ export const MaintenanceAPI = {
     const res = await apiClient.put("/maintenance/backup/automatic", payload);
     return res.data.data;
   },
+  async testBackupEmail(
+    payload: import("../backup-email").BackupEmailForm,
+  ): Promise<void> {
+    const { backupEmailPayload } = await import("../backup-email");
+    await apiClient.post(
+      "/maintenance/backup/automatic/email/test",
+      backupEmailPayload(payload),
+    );
+  },
   async getAutomaticBackupFiles(): Promise<AutomaticBackupFilesPayload> {
     const res = await apiClient.get("/maintenance/backup/automatic/files");
     return res.data.data;

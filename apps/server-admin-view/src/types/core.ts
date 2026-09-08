@@ -377,7 +377,33 @@ export interface BackupDirectoryFilesPayload {
   files: SharedDataFileEntry[];
 }
 
+export interface BackupEmailConfig {
+  enabled: boolean;
+  smtp: {
+    host: string;
+    port: number;
+    security: string;
+    auth_mode: string;
+    username: string;
+    timeout_seconds: number;
+  };
+  from_address: string;
+  from_name: string;
+  to_addresses: string[];
+  attachment_limit_mib: number;
+  password_configured: boolean;
+}
+export interface BackupEmailStatus {
+  last_attempt_at: string | null;
+  last_success_at: string | null;
+  last_filename: string | null;
+  last_error: string | null;
+  pending_count: number;
+  next_retry_at: string | null;
+}
+
 export interface AutomaticBackupConfig {
+  email?: BackupEmailConfig;
   enabled: boolean;
   interval_hours: number;
   retention_days: number;
@@ -385,6 +411,7 @@ export interface AutomaticBackupConfig {
 }
 
 export interface AutomaticBackupStatus {
+  email?: BackupEmailStatus;
   directory_path: string;
   last_attempt_at: string | null;
   last_success_at: string | null;

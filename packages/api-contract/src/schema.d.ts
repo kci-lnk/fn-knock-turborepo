@@ -3938,6 +3938,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/admin/maintenance/backup/automatic/email/test": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * 测试备份与维护email
+         * @description 管理备份导入导出、自动备份和受确认保护的数据维护。。`POST /api/admin/maintenance/backup/automatic/email/test` 用于提交操作或创建、更新服务状态；执行结果以响应中的数据和消息为准。 请求体字段、必填项和可选值请以 Swagger 展开的 schema 为准。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
+         */
+        post: operations["test_backup_email"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/admin/maintenance/backup/automatic/files": {
         parameters: {
             query?: never;
@@ -8091,6 +8111,7 @@ export interface components {
             interval_minutes?: number;
         };
         AutomaticBackupConfigData: {
+            email: components["schemas"]["AutomaticBackupEmailConfigData"];
             enabled: boolean;
             /** Format: int64 */
             interval_hours: number;
@@ -8102,6 +8123,17 @@ export interface components {
             config: components["schemas"]["AutomaticBackupConfigData"];
             status: components["schemas"]["AutomaticBackupStatusData"];
         };
+        AutomaticBackupEmailConfigData: components["schemas"]["BackupEmailConfig"] & {
+            password_configured: boolean;
+        };
+        AutomaticBackupEmailStatusData: {
+            last_attempt_at?: string | null;
+            last_error?: string | null;
+            last_filename?: string | null;
+            last_success_at?: string | null;
+            next_retry_at?: string | null;
+            pending_count: number;
+        };
         AutomaticBackupFilesData: {
             available: boolean;
             directoryPath: string;
@@ -8109,6 +8141,7 @@ export interface components {
         };
         AutomaticBackupStatusData: {
             directory_path: string;
+            email: components["schemas"]["AutomaticBackupEmailStatusData"];
             last_attempt_at?: string | null;
             last_error?: string | null;
             last_filename?: string | null;
@@ -8127,6 +8160,39 @@ export interface components {
             available: boolean;
             files: components["schemas"]["BackupFileData"][];
             shareName: string;
+        };
+        BackupEmailConfig: {
+            /**
+             * Format: int64
+             * @default 20
+             */
+            attachment_limit_mib: number;
+            /** @default false */
+            enabled: boolean;
+            /** @default  */
+            from_address: string;
+            /** @default fn-knock */
+            from_name: string;
+            /**
+             * @default {
+             *       "auth_mode": "auto",
+             *       "host": "",
+             *       "port": 465,
+             *       "security": "ssl_tls",
+             *       "timeout_seconds": 30,
+             *       "username": ""
+             *     }
+             */
+            smtp: components["schemas"]["SmtpConfig"];
+            /** @default [] */
+            to_addresses: string[];
+        };
+        BackupEmailTestData: {
+            success: boolean;
+        };
+        BackupEmailUpdate: components["schemas"]["BackupEmailConfig"] & {
+            clear_password?: boolean;
+            password?: string | null;
         };
         BackupFileData: {
             extension: string;
@@ -12240,6 +12306,26 @@ export interface components {
             enabled?: boolean | null;
             selected_ipv4?: string | null;
         };
+        SmtpConfig: {
+            /** @default auto */
+            auth_mode: string;
+            /** @default  */
+            host: string;
+            /**
+             * Format: int32
+             * @default 465
+             */
+            port: number;
+            /** @default ssl_tls */
+            security: string;
+            /**
+             * Format: int64
+             * @default 30
+             */
+            timeout_seconds: number;
+            /** @default  */
+            username: string;
+        };
         SshBlocksDeleteBodyData: {
             ips: string[];
         };
@@ -13183,6 +13269,7 @@ export interface components {
             phase: "typed_primary";
         };
         UpdateAutomaticBackupBody: {
+            email?: null | components["schemas"]["BackupEmailUpdate"];
             enabled: boolean;
             /** Format: int64 */
             interval_hours: number;
@@ -23176,6 +23263,46 @@ export interface operations {
                 content: {
                     "application/json": {
                         data: components["schemas"]["AutomaticBackupDetailsData"];
+                        message?: string | null;
+                        /** @constant */
+                        success: true;
+                    } & {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorEnvelope"];
+                };
+            };
+        };
+    };
+    test_backup_email: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["BackupEmailUpdate"];
+            };
+        };
+        responses: {
+            /** @description 「测试备份与维护email」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        data: components["schemas"]["BackupEmailTestData"];
                         message?: string | null;
                         /** @constant */
                         success: true;

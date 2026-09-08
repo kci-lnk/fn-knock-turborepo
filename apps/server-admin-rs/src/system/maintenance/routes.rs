@@ -162,6 +162,7 @@ where
 pub(crate) fn backup_routes() -> OpenApiRouter<AppState> {
     OpenApiRouter::new()
         .routes(routes!(get_automatic_backup_details))
+        .routes(routes!(test_backup_email))
         .routes(routes!(update_automatic_backup_config))
         .routes(routes!(list_automatic_backup_files))
         .routes(routes!(export_backup))
@@ -517,6 +518,13 @@ where
                     maintenance_clear_text(&translator, "clearFailed"),
                 );
             }
+            if let Err(error) = backup_email::clear_credentials(&state) {
+                tracing::error!(%error, "failed to clear backup email credentials after clearing data");
+                return response::error(
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    maintenance_clear_text(&translator, "clearFailed"),
+                );
+            }
             if let Err(error) = panel_sync::clear_all_credentials(&state) {
                 tracing::error!(%error, "failed to clear panel sync credentials after clearing data");
                 return response::error(
@@ -544,5 +552,26 @@ where
                 maintenance_clear_text(&translator, "clearFailed"),
             )
         }
+    }
+}
+
+#[utoipa::path(
+    post,
+    path = "/api/admin/maintenance/backup/automatic/email/test",
+    tag = "maintenance",
+    request_body = backup_email::BackupEmailUpdate,
+    responses((status = 200, description = "Test email sent"))
+)]
+pub(super) async fn test_backup_email(
+    State(state): State<AppState>,
+    body: Result<Json<backup_email::BackupEmailUpdate>, JsonRejection>,
+) -> Response {
+    let body = match body {
+        Ok(Json(body)) => body,
+        Err(_) => return response::error(StatusCode::BAD_REQUEST, "Invalid email configuration"),
+    };
+    match backup_email::test_email(&state, body).await {
+        Ok(value) => response::ok(value).into_response(),
+        Err(error) => response::error(error.status, error.message),
     }
 }

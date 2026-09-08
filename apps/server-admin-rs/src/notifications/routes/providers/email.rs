@@ -184,17 +184,17 @@ pub(in crate::notifications::routes) async fn send_email_notification(
         }
     };
 
-    let transport_result = build_smtp_transport(
-        &smtp_host,
-        smtp_port,
-        &smtp_security,
-        &auth_mode,
-        &smtp_username,
-        &smtp_password,
-    );
-    let mailer = match transport_result {
-        Ok(value) => value,
-        Err(message) => return missing_config_result(&message),
+    let smtp = crate::infra::mail::SmtpConfig {
+        host: smtp_host.clone(),
+        port: smtp_port,
+        security: smtp_security.clone(),
+        auth_mode: if auth_mode == "none" {
+            "none".into()
+        } else {
+            "auto".into()
+        },
+        username: smtp_username.clone(),
+        timeout_seconds: timeout_seconds.max(1) as u64,
     };
     let request_summary = json!({
         "method": "SMTP",
@@ -207,13 +207,8 @@ pub(in crate::notifications::routes) async fn send_email_notification(
         "bcc_count": bcc.len(),
         "subject_preview": truncate_text(&subject, 160)
     });
-    match time::timeout(
-        Duration::from_secs(timeout_seconds.max(1) as u64),
-        mailer.send(email),
-    )
-    .await
-    {
-        Ok(Ok(response)) => ProviderTestResult {
+    match crate::infra::mail::send(&smtp, &smtp_password, email).await {
+        Ok(response) => ProviderTestResult {
             success: true,
             retryable: false,
             message: notification_service_default_text("testSendSuccess", &[]),
@@ -224,19 +219,12 @@ pub(in crate::notifications::routes) async fn send_email_notification(
                 "message": response.message().collect::<Vec<_>>().join("\n")
             })),
         },
-        Ok(Err(error)) => ProviderTestResult {
+        Err(error) => ProviderTestResult {
             success: false,
             retryable: true,
             message: error.to_string(),
             request_summary: Some(request_summary),
             response_summary: Some(json!({ "ok": false, "error": error.to_string() })),
-        },
-        Err(_) => ProviderTestResult {
-            success: false,
-            retryable: true,
-            message: notification_provider_error_default("email", "smtpConnectionTimeout", &[]),
-            request_summary: Some(request_summary),
-            response_summary: Some(json!({ "ok": false, "timeout": true })),
         },
     }
 }

@@ -157,28 +157,6 @@ pub(in crate::notifications::routes) fn default_smtp_port(security: &str) -> i64
     }
 }
 
-pub(in crate::notifications::routes) fn build_smtp_transport(
-    host: &str,
-    port: u16,
-    security: &str,
-    auth_mode: &str,
-    username: &str,
-    password: &str,
-) -> Result<AsyncSmtpTransport<Tokio1Executor>, String> {
-    let mut builder = match security {
-        "none" => AsyncSmtpTransport::<Tokio1Executor>::builder_dangerous(host).tls(Tls::None),
-        "starttls" => AsyncSmtpTransport::<Tokio1Executor>::starttls_relay(host)
-            .map_err(|error| error.to_string())?,
-        _ => {
-            AsyncSmtpTransport::<Tokio1Executor>::relay(host).map_err(|error| error.to_string())?
-        }
-    }
-    .port(port);
-    if auth_mode != "none" && !username.trim().is_empty() {
-        builder = builder.credentials(Credentials::new(username.to_string(), password.to_string()));
-    }
-    Ok(builder.build())
-}
 
 pub(in crate::notifications::routes) fn parse_mailboxes(
     value: &str,

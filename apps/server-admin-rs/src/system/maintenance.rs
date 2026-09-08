@@ -151,6 +151,7 @@ pub(crate) fn maintenance_data_openapi_routes() -> utoipa_axum::router::OpenApiR
 }
 
 pub fn start_automatic_backup_tasks(state: AppState) {
+    backup_email::start(state.clone());
     spawn_automatic_backup_task(state);
 }
 
@@ -167,6 +168,7 @@ pub(crate) struct ImportBackupFromDirectoryBody {
 
 #[derive(serde::Deserialize, utoipa::ToSchema)]
 pub(crate) struct UpdateAutomaticBackupBody {
+    email: Option<backup_email::BackupEmailUpdate>,
     enabled: bool,
     interval_hours: i64,
     retention_days: i64,
@@ -207,6 +209,8 @@ impl BackupImportError {
 }
 
 mod automatic;
+mod backup_email;
+pub(crate) use backup_email::BackupEmailConfig;
 mod credentials;
 mod directory;
 mod export;

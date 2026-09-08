@@ -1566,6 +1566,12 @@ export const enServer = {
     clearFailed: "Failed to clear all data",
   },
   maintenanceBackup: {
+    emailSubject: "[fn-knock] Backup {time}",
+    emailBody: "Instance: {name}\nBackup time: {time}\nFilename: {filename}\nSize: {size} bytes\nLocal backup completed successfully.",
+    emailOversized: "The backup exceeds the attachment limit. No attachment was sent; the backup is stored locally only.",
+    emailTestSubject: "[fn-knock] Backup email test",
+    emailTestBody: "This is a test email. The attachment is a test file, not a backup.",
+
     automaticIntervalInvalid:
       "Automatic backup interval must be between 1 and 8760 hours",
     automaticRetentionInvalid:

@@ -1383,6 +1383,12 @@ export const zhCNServer = {
     clearFailed: "清空所有数据失败",
   },
   maintenanceBackup: {
+    emailSubject: "[fn-knock] 备份 {time}",
+    emailBody: "实例：{name}\n备份时间：{time}\n文件名：{filename}\n大小：{size} 字节\n本地备份已成功完成。",
+    emailOversized: "备份超过附件大小上限，本邮件不含附件，备份仅保存在本地。",
+    emailTestSubject: "[fn-knock] 备份邮件测试",
+    emailTestBody: "这是一封测试邮件，附件为测试文件，不是真实备份。",
+
     automaticIntervalInvalid: "自动备份间隔必须为 1 到 8760 小时",
     automaticRetentionInvalid: "自动备份保留天数必须为 1 到 3650 天",
     automaticDirectoryReadFailed: "读取自动备份目录失败",

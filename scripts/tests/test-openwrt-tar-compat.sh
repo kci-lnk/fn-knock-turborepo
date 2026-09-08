@@ -99,6 +99,7 @@ IPK_LISTING="$(tar -tzf "${IPK_TAR}" | normalize_tar_listing)"
 
 LARGE_PAYLOAD_LISTING="$({
   printf '%s\n' \
+    "usr/libexec/fn-knock-firewall" \
     "etc/config/fn-knock" \
     "etc/init.d/fn-knock" \
     "usr/lib/fn-knock/server/server-admin/resources/acmesh.zip" \

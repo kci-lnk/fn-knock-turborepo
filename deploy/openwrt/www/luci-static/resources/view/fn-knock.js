@@ -5,6 +5,7 @@
 'require fs';
 'require ui';
 'require dom';
+'require rpc';
 
 function formatHost(hostname) {
 	if (!hostname)
@@ -23,6 +24,37 @@ function optionValue(name, fallback) {
 
 var OFFICIAL_SITE_URL = 'https://www.fnknock.cn/';
 var DOCUMENTATION_URL = 'https://docs.fnknock.cn/';
+
+var getPendingChanges = rpc.declare({
+	object: 'uci',
+	method: 'changes',
+	reject: true
+});
+
+var FIREWALL_HELPER = '/usr/libexec/fn-knock-firewall';
+var firewallErrors = {
+	unavailable: '当前系统缺少所需的 OpenWrt 防火墙服务或工具。',
+	session_failed: '无法建立独立的防火墙配置会话。',
+	config_unavailable: '无法读取已提交的服务或防火墙配置。',
+	pending_firewall: '存在未提交的防火墙修改，请先在防火墙页面或 CLI 中应用或撤销，再点击放行。',
+	invalid_port: '网关端口无效，请先保存并应用有效端口。',
+	port_changed: '已提交的网关端口已变化，请刷新页面后重试。',
+	invalid_zone: '所选防火墙区域不存在，请刷新页面重新选择。',
+	conflict: '同名规则不属于敲门 Knock，或包含额外限制，请先在防火墙页面检查。',
+	busy: '另一个放行操作正在执行，请稍后重试；若持续出现，请检查 /var/run/fn-knock-firewall.lock.d 残留锁。',
+	write_failed: '防火墙规则写入失败，未提交配置。',
+	commit_failed: '防火墙配置提交失败，请检查后重试。',
+	reload_failed: '规则已保存，但防火墙重载失败，请检查防火墙配置后再次点击重试。'
+};
+
+function readFirewallResult(result) {
+	var value;
+	try { value = JSON.parse(result.stdout || '{}'); }
+	catch (e) { throw new Error('无法解析防火墙操作结果。'); }
+	if (result.code !== 0 || !value.state)
+		throw new Error(firewallErrors[value.state] || '防火墙操作失败，请检查系统日志。');
+	return value;
+}
 
 var servicePortLabels = {
 	admin_view_port: '管理后台端口',
@@ -98,7 +130,10 @@ return view.extend({
 	load: function() {
 		return Promise.all([
 			L.resolveDefault(uci.load('fn-knock'), null),
-			L.resolveDefault(fs.exec('/etc/init.d/fn-knock', [ 'status' ]), null)
+			L.resolveDefault(fs.exec('/etc/init.d/fn-knock', [ 'status' ]), null),
+			fs.exec(FIREWALL_HELPER, [ 'status' ]).then(readFirewallResult).catch(function(err) {
+				return { error: err.message || String(err), zones: [] };
+			})
 		]);
 	},
 
@@ -108,6 +143,7 @@ return view.extend({
 		var port = optionValue('admin_view_port', '7991');
 		var targetUrl = buildAdminUrl(port);
 		var m, s, o;
+		var firewall = data && data[2];
 
 		m = new form.Map('fn-knock', '敲门 Knock', '配置 OpenWrt 上的敲门 Knock 服务端口，并打开管理后台。');
 
@@ -140,6 +176,61 @@ return view.extend({
 		o.rawhtml = true;
 		o.cfgvalue = buildExternalLinks;
 		o.textvalue = buildExternalLinks;
+
+		var zones = firewall && Array.isArray(firewall.zones) ? firewall.zones : [];
+		var defaultZone = zones.indexOf(firewall && firewall.source_zone) !== -1
+			? firewall.source_zone : zones.indexOf('wan') !== -1 ? 'wan' : '';
+		var zoneOption = s.option(form.ListValue, '_firewall_zone', '防火墙来源区域');
+		zoneOption.value('', '请选择来源区域');
+		zones.forEach(function(zone) { zoneOption.value(zone, zone); });
+		zoneOption.cfgvalue = function() { return defaultZone; };
+		// This is an action parameter, never a saved fn-knock option.
+		zoneOption.write = function() {};
+		zoneOption.remove = function() {};
+		zoneOption.rmempty = true;
+
+		o = s.option(form.DummyValue, '_firewall_info', '网关防火墙');
+		o.cfgvalue = function() {
+			if (!firewall) return '无法读取防火墙配置，当前系统可能缺少所需服务或工具。';
+			if (firewall.error) return '无法读取防火墙配置：' + firewall.error;
+			var text = '手动放行 TCP ' + firewall.port + '（IPv4/IPv6），规则重启后保留。修改端口后需再次点击；撤销请到防火墙页面删除规则。';
+			if (firewall.state === 'conflict') return text + ' ' + firewallErrors.conflict;
+			if (firewall.state === 'configured')
+				text += ' 已保存规则：' + firewall.source_zone + ' / TCP ' + firewall.configured_port + '（不代表实时连通状态）。';
+			return text;
+		};
+
+		o = s.option(form.Button, '_open_firewall', '手动放行');
+		o.inputtitle = '放行防火墙';
+		o.inputstyle = 'action';
+		o.readonly = !firewall || !zones.length || firewall.state === 'conflict' || m.readonly;
+		o.onclick = function(ev, sectionId) {
+			var button = ev.currentTarget;
+			var zone = zoneOption.formvalue(sectionId);
+			button.disabled = true;
+			return Promise.resolve().then(function() {
+				if (!zone) throw new Error('请先选择防火墙来源区域。');
+				var currentPort = s.getOption('go_reproxy_port').formvalue(sectionId);
+				if (!/^[0-9]+$/.test(String(currentPort)) || Number(currentPort) !== Number(firewall.port))
+					throw new Error('请先保存并应用网关端口，然后刷新页面再放行。');
+				return getPendingChanges();
+			}).then(function(response) {
+				var changes = response && response.changes;
+				if (!changes || typeof changes !== 'object' || Array.isArray(changes))
+					throw new Error('无法确认待应用配置，请刷新页面后重试。');
+				if (changes['fn-knock'] && changes['fn-knock'].length)
+					throw new Error('敲门 Knock 配置尚未应用，请先保存并应用，再刷新页面放行。');
+				if (changes.firewall && changes.firewall.length)
+					throw new Error(firewallErrors.pending_firewall);
+				return fs.exec(FIREWALL_HELPER, [ 'allow', zone, firewall.port ]);
+			}).then(readFirewallResult).then(function(result) {
+				ui.addNotification(null, E('p', {}, [
+					'已保存并重载防火墙：' + result.source_zone + ' → 本机 TCP ' + result.port + '（IPv4/IPv6）。'
+				]), 'info');
+			}).catch(function(err) {
+				ui.addNotification(null, E('p', {}, [ err.message || String(err) ]), 'danger');
+			}).then(function() { button.disabled = false; });
+		};
 
 		o = s.option(form.Flag, 'enabled', '启用服务');
 		o.default = o.enabled;

@@ -588,7 +588,8 @@ copy_runtime_payload() {
   chmod 755 \
     "${data_dir}/etc/init.d/fn-knock" \
     "${data_dir}/usr/bin/fn-knock-reset-panel-password" \
-    "${data_dir}/usr/libexec/fn-knock-migrate-data-dir"
+    "${data_dir}/usr/libexec/fn-knock-migrate-data-dir" \
+    "${data_dir}/usr/libexec/fn-knock-firewall"
 }
 
 create_tarball() {
@@ -676,6 +677,9 @@ validate_payload_listing() {
     fail "data payload missing OpenWrt LuCI view"
   grep -Fxq "www/luci-static/resources/fn-knock/fn-knock.png" <<<"${listing}" || \
     fail "data payload missing LuCI icon"
+
+  grep -Fxq "usr/libexec/fn-knock-firewall" <<<"${listing}" || \
+    fail "data payload missing manual firewall helper"
 
   gateway_listing="$(grep 'usr/lib/fn-knock/server/go-reauth-proxy-linux-' <<<"${listing}" || true)"
   if [ "${gateway_listing}" != "usr/lib/fn-knock/server/go-reauth-proxy-linux-${gateway_arch}" ]; then

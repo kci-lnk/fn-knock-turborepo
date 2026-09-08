@@ -9,6 +9,10 @@ fail() {
   exit 1
 }
 
+[ -x deploy/openwrt/usr/libexec/fn-knock-firewall ] || \
+  fail "manual firewall helper is not executable"
+sh -n deploy/openwrt/usr/libexec/fn-knock-firewall
+
 unset FN_KNOCK_OPENWRT_DEPENDS
 source "${ROOT_DIR}/scripts/build-openwrt-ipk.sh"
 

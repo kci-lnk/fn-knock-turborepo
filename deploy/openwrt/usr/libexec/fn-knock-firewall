@@ -1,0 +1,213 @@
+#!/bin/sh
+# Only `allow` changes configuration. Never called from service/package hooks.
+umask 077
+PATH=/usr/sbin:/usr/bin:/sbin:/bin
+export PATH
+UBUS_BIN=ubus
+JSHN_LIB=/usr/share/libubox/jshn.sh
+FIREWALL_INIT=/etc/init.d/firewall
+LOCK_DIR=/var/run/fn-knock-firewall.lock.d
+RULE_SECTION=fn_knock_gateway_ingress
+RULE_NAME=Allow-FnKnock-Gateway
+SESSION_ID=
+LOCK_HELD=0
+
+fail() {
+	printf '{"state":"%s"}\n' "$1"
+	printf 'fn-knock-firewall: %s\n' "$1" >&2
+	exit 1
+}
+
+cleanup() {
+	if [ -n "$SESSION_ID" ]; then
+		"$UBUS_BIN" -t 5 call session destroy "{\"ubus_rpc_session\":\"$SESSION_ID\"}" >/dev/null 2>&1 || true
+	fi
+	[ "$LOCK_HELD" = 0 ] || rmdir "$LOCK_DIR" 2>/dev/null || true
+}
+trap cleanup EXIT
+trap 'exit 1' HUP INT TERM
+
+case "${1:-}:$#" in
+	status:1|allow:3) ACTION="$1" ;;
+	*) fail invalid_arguments ;;
+esac
+command -v "$UBUS_BIN" >/dev/null 2>&1 && command -v uci >/dev/null 2>&1 && command -v jshn >/dev/null 2>&1 &&
+	[ -r "$JSHN_LIB" ] && [ -x "$FIREWALL_INIT" ] || fail unavailable
+. "$JSHN_LIB"
+_json_no_warning=1
+
+# Check the parser's exit code (json_load in older jshn releases does not).
+load_json() {
+	local parsed
+	parsed="$(jshn -r "$1")" || return 1
+	eval "$parsed"
+}
+
+rpc() {
+	local response
+	response="$("$UBUS_BIN" -t 10 call "$1" "$2" "$3")" || return 1
+	[ -n "$response" ] || response='{}'
+	load_json "$response"
+}
+
+request() {
+	json_init
+	json_add_string ubus_rpc_session "$SESSION_ID"
+	json_add_string config "$1"
+}
+
+normalize_port() {
+	case "$1" in ''|*[!0-9]*) return 1 ;; esac
+	local number
+	number="$(printf '%s' "$1" | sed 's/^0*//')"
+	[ -n "$number" ] && [ "${#number}" -le 5 ] &&
+		[ "$number" -ge 1 ] && [ "$number" -le 65535 ] || return 1
+	printf '%s' "$number"
+}
+
+# fw3/fw4 may load the default CLI delta directory during reload. Do not
+# activate uncommitted administrator rules as a side effect of this button.
+check_pending_firewall() {
+	local pending
+	pending="$(uci -q changes firewall)" || fail config_unavailable
+	[ -z "$pending" ] || fail pending_firewall
+}
+
+# mkdir works on BusyBox without flock/lock. Never wait indefinitely or steal
+# a possibly live lock. SIGKILL/power-loss residue is reported for manual recovery.
+if [ "$ACTION" = allow ]; then
+	attempt=0
+	until mkdir "$LOCK_DIR" 2>/dev/null; do
+		attempt=$((attempt + 1))
+		[ "$attempt" -lt 5 ] || fail busy
+		sleep 1
+	done
+	LOCK_HELD=1
+	check_pending_firewall
+fi
+rpc session create '{"timeout":120}' || fail session_failed
+json_get_var SESSION_ID ubus_rpc_session
+case "$SESSION_ID" in ''|*[!0-9a-fA-F]*) SESSION_ID=; fail session_failed ;; esac
+[ "${#SESSION_ID}" = 32 ] || { SESSION_ID=; fail session_failed; }
+# A private rpcd delta directory prevents committing another LuCI/CLI session.
+permissions='["fn-knock","read"],["firewall","read"]'
+[ "$ACTION" = status ] || permissions="$permissions,[\"firewall\",\"write\"]"
+rpc session grant "{\"ubus_rpc_session\":\"$SESSION_ID\",\"scope\":\"uci\",\"objects\":[$permissions]}" || fail session_failed
+
+request fn-knock
+json_add_string section main
+rpc uci get "$(json_dump)" && json_select values || fail config_unavailable
+json_get_var raw_port go_reproxy_port 7999
+PORT="$(normalize_port "$raw_port")" || fail invalid_port
+
+request firewall
+rpc uci get "$(json_dump)" && json_select values || fail config_unavailable
+# Retain the complete committed snapshot for both zones and ownership checks.
+FIREWALL_JSON="$(json_dump)"
+json_get_keys sections
+ZONES=
+for section in $sections; do
+	json_select "$section" || fail config_unavailable
+	json_get_var section_type .type
+	if [ "$section_type" = zone ]; then
+		json_get_var zone_name name
+		# OpenWrt zone names are identifiers; keep the wire contract unambiguous.
+		case "$zone_name" in ''|*[!a-zA-Z0-9_-]*) ;;
+			*) ZONES="${ZONES}${ZONES:+ }$zone_name" ;;
+		esac
+	fi
+	json_select ..
+done
+
+RULE_STATE=absent
+SOURCE_ZONE=
+CONFIGURED_PORT=
+if json_select "$RULE_SECTION" 2>/dev/null; then
+	RULE_STATE=configured
+	json_get_var owner name
+	json_get_var section_type .type
+	[ "$owner" = "$RULE_NAME" ] && [ "$section_type" = rule ] || RULE_STATE=conflict
+	json_get_keys keys
+	for key in $keys; do
+		# jshn maps dots in metadata keys to underscores.
+		case "$key" in
+			_type|_name|_anonymous|_index|name|src|proto|dest_port|target|family|enabled) ;;
+			*) RULE_STATE=conflict ;;
+		esac
+	done
+	json_get_var SOURCE_ZONE src
+	json_get_var CONFIGURED_PORT dest_port
+	for key in name src proto dest_port target family enabled; do
+		json_get_type value_type "$key"
+		[ -z "$value_type" ] || [ "$value_type" = string ] || RULE_STATE=conflict
+	done
+	json_select ..
+fi
+
+if [ "$ACTION" = status ]; then
+	json_init
+	json_add_string state "$RULE_STATE"
+	json_add_string port "$PORT"
+	json_add_string source_zone "$SOURCE_ZONE"
+	json_add_string configured_port "$CONFIGURED_PORT"
+	json_add_array zones
+	for zone in $ZONES; do json_add_string '' "$zone"; done
+	json_close_array
+	json_dump
+	exit 0
+fi
+
+ZONE="$2"
+EXPECTED_PORT="$(normalize_port "$3")" || fail invalid_port
+[ "$PORT" = "$EXPECTED_PORT" ] || fail port_changed
+found=0
+for zone in $ZONES; do [ "$zone" != "$ZONE" ] || found=1; done
+[ "$found" = 1 ] || fail invalid_zone
+[ "$RULE_STATE" != conflict ] || fail conflict
+
+# Compare every managed field. Extra fields were rejected above; don't erase
+# administrator restrictions (src_ip, dest, schedules, ipsets, etc.).
+load_json "$FIREWALL_JSON" && json_select values || fail config_unavailable
+matches=0
+if json_select "$RULE_SECTION" 2>/dev/null; then
+	json_get_var proto proto
+	json_get_var target target
+	json_get_var family family
+	json_get_var enabled enabled
+	if [ "$SOURCE_ZONE" = "$ZONE" ] && [ "$CONFIGURED_PORT" = "$PORT" ] &&
+		[ "$proto" = tcp ] && [ "$target" = ACCEPT ] &&
+		[ "$family" = any ] && [ "$enabled" = 1 ]; then matches=1; fi
+fi
+check_pending_firewall
+if [ "$matches" = 0 ]; then
+	request firewall
+	if [ "$RULE_STATE" = absent ]; then
+		method=add
+		json_add_string name "$RULE_SECTION"
+		json_add_string type rule
+	else
+		method=set
+		json_add_string section "$RULE_SECTION"
+	fi
+	json_add_object values
+	json_add_string name "$RULE_NAME"
+	json_add_string src "$ZONE"
+	json_add_string proto tcp
+	json_add_string dest_port "$PORT"
+	json_add_string target ACCEPT
+	json_add_string family any
+	json_add_string enabled 1
+	json_close_object
+	rpc uci "$method" "$(json_dump)" || fail write_failed
+	request firewall
+	rpc uci commit "$(json_dump)" || fail commit_failed
+fi
+# Always retry reload on a click, including after a prior failed reload. Status
+# describes saved configuration only, never promises live packet reachability.
+check_pending_firewall
+"$FIREWALL_INIT" reload >&2 || fail reload_failed
+json_init
+json_add_string state applied
+json_add_string port "$PORT"
+json_add_string source_zone "$ZONE"
+json_dump

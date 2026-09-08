@@ -659,17 +659,19 @@ export const zhHantAdmin = {
   gatewaySettings: {
     ...zhCNAdmin.gatewaySettings,
     http3: {
+      edit: "編輯 HTTP/3",
+      saved: "HTTP/3 設定已儲存",
       title: "HTTP/3",
-      description:
-        "允許 HTTPS 直連訪客使用 HTTP/3，同時保留 HTTP/1.1、HTTP/2。僅適用於協定模式為 auto 的網域。",
+      description: "僅用於 auto 網域的 HTTPS 直連存取，保留 HTTP/1.1、HTTP/2。",
       port: "公網 UDP 連接埠",
-      portHint:
-        "0 表示使用 HTTPS 請求連接埠。請將公網 UDP 連接埠轉送至閘道連接埠（預設 7999）。",
+      portHint: "0 跟隨 HTTPS 連接埠；公網 UDP 需轉送至網關連接埠（預設 7999）。",
       reachability:
         "此狀態僅確認本機監聽。公網 UDP 轉送及防火牆規則需另外驗證。",
       metrics: "QUIC 活躍連線：{active} · 交握失敗：{failed}",
-      save: "儲存 HTTP/3 設定",
-      refresh: "重新整理 / 重設",
+      save: "儲存",
+      refresh: "重新整理狀態",
+      details: "執行詳情",
+      reset: "撤銷變更",
       states: {
         running: "本機監聽正常",
         disabled: "已關閉",

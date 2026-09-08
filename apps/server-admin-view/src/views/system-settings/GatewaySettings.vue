@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { useI18n } from "vue-i18n";
+import { useRouter } from "vue-router";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -11,7 +12,6 @@ import {
 } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import FloatingActionDock from "@admin-shared/components/common/FloatingActionDock.vue";
-import GatewayHttp3Settings from "./GatewayHttp3Settings.vue";
 import FeatureSwitchRow from "./FeatureSwitchRow.vue";
 import GatewayEditorRow from "./GatewayEditorRow.vue";
 import GatewayNumberSettingRow from "./GatewayNumberSettingRow.vue";
@@ -22,6 +22,7 @@ import GatewayUpstreamErrorSettingRow from "./GatewayUpstreamErrorSettingRow.vue
 import { useGatewaySettingsController } from "./useGatewaySettingsController";
 
 const { t } = useI18n();
+const router = useRouter();
 const {
   authCacheFailHint,
   authCacheHint,
@@ -74,7 +75,12 @@ const {
     </CardContent>
 
     <CardContent v-else-if="!isLoading" class="border-t p-0 divide-y">
-      <GatewayHttp3Settings />
+      <GatewayEditorRow
+        :title="t('admin.gatewaySettings.http3.title')"
+        :description="t('admin.gatewaySettings.http3.description')"
+        :action-label="t('admin.gatewaySettings.http3.edit')"
+        @action="router.push('/system/gateway-http3')"
+      />
       <GatewayNumberSettingRow
         v-model="form.auth_cache_ttl_seconds"
         :title="t('admin.gatewaySettings.authCacheTitle')"

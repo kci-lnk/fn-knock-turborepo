@@ -802,17 +802,19 @@ export const jaJPAdmin = {
   },
   gatewaySettings: {
     http3: {
+      edit: "HTTP/3 を編集",
+      saved: "HTTP/3 設定を保存しました",
       title: "HTTP/3",
-      description:
-        "HTTPS の直接接続で HTTP/3 を許可します。HTTP/1.1 と HTTP/2 も維持されます。auto モードのホストが対象です。",
+      description: "auto モードのホストへの HTTPS 直接アクセス用。HTTP/1.1・HTTP/2 も利用可能です。",
       port: "公開 UDP ポート",
-      portHint:
-        "0 は HTTPS リクエストのポートを使用します。公開 UDP ポートをゲートウェイポート（既定 7999）へ転送してください。",
+      portHint: "0 は HTTPS ポートに追従。公開 UDP をゲートウェイのポート（既定 7999）に転送してください。",
       reachability:
         "この状態はローカルの待ち受けのみを示します。公開 UDP 転送とファイアウォールは別途確認してください。",
       metrics: "QUIC 接続数：{active} · ハンドシェイク失敗：{failed}",
-      save: "HTTP/3 設定を保存",
-      refresh: "更新 / リセット",
+      save: "保存",
+      refresh: "状態を更新",
+      details: "動作の詳細",
+      reset: "変更を破棄",
       states: {
         running: "ローカルで待ち受け中",
         disabled: "無効",

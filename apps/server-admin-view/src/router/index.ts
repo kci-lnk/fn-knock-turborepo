@@ -218,6 +218,12 @@ const router = createRouter({
             import("../views/system-settings/GatewayProxyHeadersSettings.vue"),
         },
         {
+          path: "system/gateway-http3",
+          name: "GatewayHttp3Settings",
+          component: () =>
+            import("../views/system-settings/GatewayHttp3Settings.vue"),
+        },
+        {
           path: "system/gateway-proxy-protocol",
           name: "GatewayProxyProtocolSettings",
           component: () =>

@@ -2,10 +2,28 @@
 import { computed, onMounted, reactive, ref, useId } from "vue";
 import { useI18n } from "vue-i18n";
 import { extractErrorMessage } from "@admin-shared/composables/useAsyncAction";
+import { toast } from "@admin-shared/utils/toast";
+import {
+  Breadcrumb,
+  BreadcrumbItem,
+  BreadcrumbLink,
+  BreadcrumbList,
+  BreadcrumbPage,
+  BreadcrumbSeparator,
+} from "@/components/ui/breadcrumb";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import FeatureSwitchRow from "./FeatureSwitchRow.vue";
+import { Switch } from "@/components/ui/switch";
+import { Badge } from "@/components/ui/badge";
+import { RefreshCw } from "lucide-vue-next";
 import {
   gatewayHttp3Api,
   type GatewayHttp3Status,
@@ -43,7 +61,15 @@ const stateLabel = computed(() => {
     `admin.gatewaySettings.http3.states.${supported.includes(state) ? state : "unknown"}`,
   );
 });
+function resetForm() {
+  if (!status.value) return;
+  form.enabled = status.value.enabled;
+  form.advertised_port = status.value.advertised_port;
+  error.value = "";
+}
 async function run(save: boolean) {
+  if (busy.value || (save && (!dirty.value || !valid.value))) return;
+  const preserveEdits = !save && dirty.value;
   busy.value = true;
   error.value = "";
   try {
@@ -54,8 +80,8 @@ async function run(save: boolean) {
         })
       : await gatewayHttp3Api.get();
     status.value = next;
-    form.enabled = next.enabled;
-    form.advertised_port = next.advertised_port;
+    if (!preserveEdits) resetForm();
+    if (save) toast.success(t("admin.gatewaySettings.http3.saved"));
   } catch (cause) {
     error.value = extractErrorMessage(cause);
   } finally {
@@ -68,71 +94,119 @@ onMounted(() => {
 </script>
 
 <template>
-  <section
-    class="space-y-4 py-4"
-    :aria-label="t('admin.gatewaySettings.http3.title')"
-  >
-    <FeatureSwitchRow
-      :model-value="form.enabled"
-      :title="t('admin.gatewaySettings.http3.title')"
-      :description="t('admin.gatewaySettings.http3.description')"
-      :disabled="busy || !status"
-      @change="form.enabled = $event"
-    />
-    <div class="space-y-3 px-6">
-      <div class="flex flex-wrap items-center gap-3">
-        <Label :for="id">{{ t("admin.gatewaySettings.http3.port") }}</Label>
-        <Input
-          :id="id"
-          v-model="form.advertised_port"
-          type="number"
-          min="0"
-          max="65535"
-          step="1"
-          class="w-28"
-          :disabled="busy || !status"
-        />
-      </div>
-      <p class="text-sm text-muted-foreground">
-        {{ t("admin.gatewaySettings.http3.portHint") }}
-      </p>
-      <p v-if="status" class="text-sm">
-        {{ stateLabel }}
-        <span class="break-all">{{ status.listen_addresses.join(", ") }}</span>
-      </p>
-      <p class="text-sm text-muted-foreground">
-        {{ t("admin.gatewaySettings.http3.reachability") }}
-      </p>
-      <p v-if="status" class="text-sm text-muted-foreground">
-        {{
-          t("admin.gatewaySettings.http3.metrics", {
-            active: status.active_connections,
-            failed: status.handshake_failures,
-          })
-        }}
-      </p>
-      <p
-        v-if="error || status?.error"
-        role="alert"
-        class="text-sm text-destructive"
+  <div class="space-y-6">
+    <Breadcrumb>
+      <BreadcrumbList>
+        <BreadcrumbItem>
+          <BreadcrumbLink href="#/system">{{
+            t("admin.gatewayPortalSettings.systemSettings")
+          }}</BreadcrumbLink>
+        </BreadcrumbItem>
+        <BreadcrumbSeparator />
+        <BreadcrumbItem>
+          <BreadcrumbLink href="#/system?tab=gateway">{{
+            t("admin.gatewayPortalSettings.gateway")
+          }}</BreadcrumbLink>
+        </BreadcrumbItem>
+        <BreadcrumbSeparator />
+        <BreadcrumbItem
+          ><BreadcrumbPage>{{
+            t("admin.gatewaySettings.http3.title")
+          }}</BreadcrumbPage></BreadcrumbItem
+        >
+      </BreadcrumbList>
+    </Breadcrumb>
+    <Card class="w-full border-border/60 shadow-none">
+      <CardHeader
+        class="flex flex-row items-start justify-between gap-6 space-y-0"
       >
-        {{ error || status?.error }}
-      </p>
-      <div class="flex gap-2">
-        <Button
-          size="sm"
-          :disabled="busy || !dirty || !valid"
-          @click="run(true)"
-          >{{ t("admin.gatewaySettings.http3.save") }}</Button
+        <div class="space-y-2">
+          <CardTitle :id="`${id}-title`" class="text-xl">HTTP/3</CardTitle>
+          <CardDescription>{{
+            t("admin.gatewaySettings.http3.description")
+          }}</CardDescription>
+        </div>
+        <Switch
+          v-model="form.enabled"
+          :aria-labelledby="`${id}-title`"
+          :disabled="busy || !status"
+          class="mt-1 shrink-0"
+        />
+      </CardHeader>
+      <CardContent class="space-y-5 border-t pt-5">
+        <div class="space-y-2">
+          <div class="flex flex-wrap items-center gap-3">
+            <Label :for="id">{{ t("admin.gatewaySettings.http3.port") }}</Label>
+            <Input
+              :id="id"
+              v-model="form.advertised_port"
+              type="number"
+              min="0"
+              max="65535"
+              step="1"
+              class="w-28"
+              :disabled="busy || !status"
+              :aria-describedby="`${id}-hint`"
+            />
+          </div>
+          <p :id="`${id}-hint`" class="text-xs text-muted-foreground">
+            {{ t("admin.gatewaySettings.http3.portHint") }}
+          </p>
+        </div>
+        <p
+          v-if="error || status?.error"
+          role="alert"
+          class="text-sm text-destructive"
         >
-        <Button
-          size="sm"
-          variant="outline"
-          :disabled="busy"
-          @click="run(false)"
-          >{{ t("admin.gatewaySettings.http3.refresh") }}</Button
-        >
-      </div>
-    </div>
-  </section>
+          {{ error || status?.error }}
+        </p>
+        <div class="space-y-2 border-t pt-4">
+          <div class="flex flex-wrap items-center gap-2">
+            <Badge variant="secondary">{{ stateLabel }}</Badge>
+            <span
+              v-if="status?.listen_addresses.length"
+              class="break-all font-mono text-xs text-muted-foreground"
+              >{{ status.listen_addresses.join(", ") }}</span
+            >
+            <Button
+              size="icon"
+              variant="ghost"
+              class="h-7 w-7"
+              :disabled="busy"
+              :aria-label="t('admin.gatewaySettings.http3.refresh')"
+              :title="t('admin.gatewaySettings.http3.refresh')"
+              @click="run(false)"
+              ><RefreshCw
+                class="h-3.5 w-3.5"
+                :class="{ 'animate-spin': busy }"
+                aria-hidden="true"
+            /></Button>
+          </div>
+          <p v-if="status" class="text-xs text-muted-foreground">
+            {{
+              t("admin.gatewaySettings.http3.metrics", {
+                active: status.active_connections,
+                failed: status.handshake_failures,
+              })
+            }}
+          </p>
+          <p class="text-xs text-muted-foreground">
+            {{ t("admin.gatewaySettings.http3.reachability") }}
+          </p>
+        </div>
+        <div class="flex justify-end gap-2 border-t pt-4">
+          <Button
+            v-if="dirty"
+            variant="ghost"
+            :disabled="busy"
+            @click="resetForm"
+            >{{ t("admin.gatewaySettings.http3.reset") }}</Button
+          >
+          <Button :disabled="busy || !dirty || !valid" @click="run(true)">{{
+            t("admin.gatewaySettings.http3.save")
+          }}</Button>
+        </div>
+      </CardContent>
+    </Card>
+  </div>
 </template>

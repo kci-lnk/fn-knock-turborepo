@@ -723,17 +723,19 @@ export const zhCNAdmin = {
   },
   gatewaySettings: {
     http3: {
+      edit: "编辑 HTTP/3",
+      saved: "HTTP/3 设置已保存",
       title: "HTTP/3",
-      description:
-        "允许 HTTPS 直连访客使用 HTTP/3，同时保留 HTTP/1.1、HTTP/2。仅适用于协议模式为 auto 的域名。",
+      description: "仅用于 auto 域名的 HTTPS 直连访问，保留 HTTP/1.1、HTTP/2。",
       port: "公网 UDP 端口",
-      portHint:
-        "0 表示使用 HTTPS 请求端口。请将公网 UDP 端口转发至网关端口（默认 7999）。",
+      portHint: "0 跟随 HTTPS 端口；公网 UDP 需转发至网关端口（默认 7999）。",
       reachability:
         "此状态仅确认本机监听。公网 UDP 转发、防火墙放行情况需单独验证。",
       metrics: "QUIC 活跃连接：{active} · 握手失败：{failed}",
-      save: "保存 HTTP/3 设置",
-      refresh: "刷新 / 重置",
+      save: "保存",
+      refresh: "刷新状态",
+      details: "运行详情",
+      reset: "撤销修改",
       states: {
         running: "本机监听正常",
         disabled: "已关闭",

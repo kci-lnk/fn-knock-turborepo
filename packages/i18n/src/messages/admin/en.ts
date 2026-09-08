@@ -801,18 +801,20 @@ export const enAdmin = {
   },
   gatewaySettings: {
     http3: {
+      edit: "Edit HTTP/3",
+      saved: "HTTP/3 settings saved",
       title: "HTTP/3",
-      description:
-        "Allow direct HTTPS visitors to use HTTP/3. HTTP/1.1 and HTTP/2 remain available. Only auto-mode hosts participate.",
+      description: "For direct HTTPS access to auto-mode hosts. HTTP/1.1 and HTTP/2 remain available.",
       port: "Public UDP port",
-      portHint:
-        "0 uses the HTTPS request port. Forward the public UDP port to the gateway port (default 7999).",
+      portHint: "0 follows the HTTPS port. Forward public UDP to the gateway port (default 7999).",
       reachability:
         "This status only confirms the local listener. Verify public UDP forwarding and firewall rules separately.",
       metrics:
         "Active QUIC connections: {active} · Failed handshakes: {failed}",
-      save: "Save HTTP/3 settings",
-      refresh: "Refresh / reset",
+      save: "Save",
+      refresh: "Refresh status",
+      details: "Runtime details",
+      reset: "Discard changes",
       states: {
         running: "Listening locally",
         disabled: "Disabled",

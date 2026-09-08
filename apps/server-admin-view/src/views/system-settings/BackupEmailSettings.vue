@@ -65,7 +65,7 @@ async function test() {
       {{ t("admin.maintenanceSettings.emailTitle") }}
     </legend>
     <div
-      class="flex items-center justify-between gap-4 rounded-xl border bg-muted/10 p-5"
+      class="flex items-center justify-between gap-4 rounded-xl border bg-muted/10 px-5 py-4"
     >
       <Label :for="`${id}-enabled`" class="text-base">{{
         t("admin.maintenanceSettings.emailEnabled")
@@ -76,7 +76,7 @@ async function test() {
         :disabled="disabled || testing"
       />
     </div>
-    <Card class="border-border/60 shadow-none">
+    <Card v-if="model.enabled" class="border-border/60 shadow-none">
       <CardHeader
         ><CardTitle class="text-base">{{
           t("admin.maintenanceSettings.emailConnection")
@@ -194,7 +194,7 @@ async function test() {
         </div>
       </CardContent>
     </Card>
-    <Card class="border-border/60 shadow-none">
+    <Card v-if="model.enabled" class="border-border/60 shadow-none">
       <CardHeader
         ><CardTitle class="text-base">{{
           t("admin.maintenanceSettings.emailAddresses")
@@ -225,7 +225,7 @@ async function test() {
         </div>
       </CardContent>
     </Card>
-    <Card class="border-border/60 shadow-none">
+    <Card v-if="model.enabled" class="border-border/60 shadow-none">
       <CardHeader
         ><CardTitle class="text-base">{{
           t("admin.maintenanceSettings.emailLimits")

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ArrowLeft, Mail, Loader2, RotateCcw, Save } from "lucide-vue-next";
+import { Mail, Loader2, RotateCcw, Save } from "lucide-vue-next";
 import {
   Breadcrumb,
   BreadcrumbItem,
@@ -36,7 +36,7 @@ const {
 } = useAutomaticBackupSettings(true);
 </script>
 <template>
-  <div class="mx-auto w-full max-w-5xl space-y-5">
+  <div class="w-full space-y-5">
     <Breadcrumb>
       <BreadcrumbList>
         <BreadcrumbItem
@@ -52,18 +52,7 @@ const {
         >
       </BreadcrumbList>
     </Breadcrumb>
-    <div class="flex items-start gap-3">
-      <Button
-        as-child
-        variant="outline"
-        size="icon"
-        class="shrink-0"
-        :aria-label="t('admin.maintenanceSettings.emailBack')"
-        ><a
-          href="#/system?tab=maintenance"
-          :aria-label="t('admin.maintenanceSettings.emailBack')"
-          ><ArrowLeft class="h-4 w-4" /></a
-      ></Button>
+    <div>
       <div class="space-y-1">
         <h1 class="text-xl font-semibold tracking-tight">
           {{ t("admin.maintenanceSettings.emailTitle") }}
@@ -101,7 +90,10 @@ const {
         {{ t("admin.maintenanceSettings.emailBackupDisabled") }}
       </div>
       <BackupEmailSettings v-model="emailForm" :disabled="isSaving" />
-      <Card v-if="details.status.email" class="border-border/60 shadow-none">
+      <Card
+        v-if="emailForm.enabled && details.status.email"
+        class="border-border/60 shadow-none"
+      >
         <CardHeader
           ><CardTitle class="flex items-center gap-2 text-base"
             ><Mail class="h-4 w-4" />{{

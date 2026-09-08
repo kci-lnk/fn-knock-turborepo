@@ -17,14 +17,25 @@ afterEach(() => {
   vi.restoreAllMocks();
   vi.useRealTimers();
 });
-async function setup(overview = false) {
+async function setup(overview = false, enabled = true) {
   const details = {
     config: {
       enabled: true,
       interval_hours: 24,
       retention_days: 7,
       updated_at: null,
-      email: { ...defaultBackupEmail(), password_configured: true },
+      email: {
+        ...defaultBackupEmail(),
+        enabled,
+        smtp: {
+          ...defaultBackupEmail().smtp,
+          host: "smtp.example.com",
+          username: "backup",
+        },
+        from_address: "backup@example.com",
+        to_addresses: ["recipient@example.com"],
+        password_configured: true,
+      },
     },
     status: {
       directory_path: "/backups",
@@ -69,6 +80,42 @@ function button(wrapper: ReturnType<typeof mount>, text: string) {
   return wrapper.findAll("button").find((value) => value.text() === text)!;
 }
 describe("backup email settings", () => {
+  it("hides configuration and status until enabled and preserves drafts when toggled", async () => {
+    const wrapper = await setup(false, false);
+    expect(wrapper.find('input[id$="-host"]').exists()).toBe(false);
+    expect(wrapper.text()).not.toContain(
+      enAdmin.maintenanceSettings.emailDeliveryStatus,
+    );
+    await wrapper.get('[role="switch"]').trigger("click");
+    await wrapper.get('input[id$="-host"]').setValue("draft.example.com");
+    expect(wrapper.text()).toContain(
+      enAdmin.maintenanceSettings.emailDeliveryStatus,
+    );
+    await wrapper.get('[role="switch"]').trigger("click");
+    expect(wrapper.find('input[id$="-host"]').exists()).toBe(false);
+    expect(
+      button(wrapper, enAdmin.maintenanceSettings.emailSave).attributes(
+        "disabled",
+      ),
+    ).toBeUndefined();
+    await wrapper.get('[role="switch"]').trigger("click");
+    expect(
+      (wrapper.get('input[id$="-host"]').element as HTMLInputElement).value,
+    ).toBe("draft.example.com");
+  });
+  it("can save disabling email with the configuration hidden", async () => {
+    const wrapper = await setup();
+    await wrapper.get('[role="switch"]').trigger("click");
+    await button(wrapper, enAdmin.maintenanceSettings.emailSave).trigger(
+      "click",
+    );
+    await flushPromises();
+    expect(
+      vi.mocked(MaintenanceAPI.updateAutomaticBackupConfig).mock.calls[0]![0]
+        .email?.enabled,
+    ).toBe(false);
+  });
+
   it("keeps saved credentials private and resets draft edits", async () => {
     const wrapper = await setup();
     const input = wrapper.get('input[type="password"]');

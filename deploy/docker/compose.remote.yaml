@@ -21,6 +21,7 @@ services:
     ports:
       - "${ADMIN_VIEW_PORT:-7991}:${ADMIN_VIEW_PORT:-7991}"
       - "${GO_REPROXY_PORT:-7999}:${GO_REPROXY_PORT:-7999}"
+      - "${GO_REPROXY_PORT:-7999}:${GO_REPROXY_PORT:-7999}/udp"
     ulimits:
       nofile:
         soft: 1048576

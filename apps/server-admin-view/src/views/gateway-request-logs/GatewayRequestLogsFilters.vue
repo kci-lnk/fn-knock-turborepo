@@ -52,7 +52,6 @@ const { t } = useI18n();
         @update:model-value="emit('update:searchQuery', $event)"
         @search="handleSearch"
       />
-
       <div
         class="grid min-w-0 flex-1 grid-cols-2 items-center gap-2 sm:flex sm:flex-wrap sm:justify-end"
       >

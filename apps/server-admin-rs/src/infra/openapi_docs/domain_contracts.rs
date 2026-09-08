@@ -686,6 +686,8 @@ struct BackupImportResultData {
     GatewayPortalUpdateData,
     GatewayUnmatchedRouteData,
     GatewayUnmatchedRouteUpdateData,
+    GatewayHttp3Data,
+    GatewayHttp3UpdateData,
     GatewayProxyProtocolData,
     GatewayProxyProtocolUpdateData,
     GatewaySettingsData,

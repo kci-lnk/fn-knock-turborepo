@@ -286,6 +286,7 @@ mod compile;
 mod details;
 mod handlers;
 mod hosts;
+mod http3;
 mod migrate;
 mod normalize;
 mod patch;

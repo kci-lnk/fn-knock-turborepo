@@ -10,7 +10,7 @@ import "google/protobuf/empty.proto";
 // Generated clients and packaging tools consume this stable enum member.
 enum ControlApiVersion {
   CONTROL_API_VERSION_UNSPECIFIED = 0;
-  CONTROL_API_VERSION_CURRENT = 23;
+  CONTROL_API_VERSION_CURRENT = 24;
 }
 
 message RpcStatus {
@@ -1030,6 +1030,21 @@ message GatewayMemoryConfig {
   int64 memory_limit_bytes = 2;
 }
 
+message GatewayHttp3Config {
+  bool enabled = 1;
+  // Zero derives the advertised UDP port from the request authority.
+  uint32 advertised_port = 2;
+}
+
+message GatewayHttp3Status {
+  GatewayHttp3Config config = 1;
+  string state = 2;
+  repeated string listen_addresses = 3;
+  string error = 4;
+  uint64 active_connections = 5;
+  uint64 handshake_failures = 6;
+}
+
 message GatewayListenerConfig {
   // Supported values are "loopback" and "all".
   string scope = 1;
@@ -1317,6 +1332,8 @@ service GatewayControlService {
   rpc GetRuntimeInfo(google.protobuf.Empty) returns (GatewayRuntimeInfo);
   rpc SetGatewayMemoryConfig(GatewayMemoryConfig) returns (GatewayMemoryConfig);
   rpc ReclaimGatewayMemory(google.protobuf.Empty) returns (GatewayRuntimeInfo);
+  rpc GetGatewayHttp3Status(google.protobuf.Empty) returns (GatewayHttp3Status);
+  rpc SetGatewayHttp3Config(GatewayHttp3Config) returns (GatewayHttp3Status);
   rpc GetGatewayListenerConfig(google.protobuf.Empty) returns (GatewayListenerConfig);
   rpc SetGatewayListenerConfig(GatewayListenerConfig) returns (GatewayListenerConfig);
   rpc GetGatewayProxyProtocolConfig(google.protobuf.Empty) returns (GatewayProxyProtocolConfig);

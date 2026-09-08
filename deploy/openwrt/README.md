@@ -47,3 +47,7 @@ bash scripts/tests/test-openwrt-tar-compat.sh
 OpenWrt 21.02.7 的同一套 helper 测试可验证 fw3 年代的运行环境。
 容器没有内核 iptables filter 表时，明确跳过 fw3 规则生成。
 实际 fw3/fw4 防火墙重载、IPv4/IPv6 外部连通性和整机重启后的持久性仍需在路由器上验收。
+
+### HTTP/3
+
+HTTP/3 默认关闭。启用前需要 TLS 证书，并额外放行网关的 UDP 端口（默认 `7999/udp`），保留 TCP 入口。公网端口映射与验证方式见 [HTTP/3 部署说明](../../docs/http3.md)。

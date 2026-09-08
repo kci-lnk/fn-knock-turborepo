@@ -25,3 +25,7 @@ macOS 压缩包不使用 Apple Developer ID 签名或公证。手动从浏览器
 GitHub Actions 中的 `macOS Supplemental Release` 可为当前稳定版本单独构建并补发 Intel、Apple Silicon 两个包。手动运行时，`publish=false` 只构建并生成 7 天有效的发布计划；确认后以 `publish=true` 重新运行才会修改线上状态。
 
 补发严格要求仓库 `version.json`、现有 GitHub Release 标签和线上 `latest.json.version` 三者一致。流程仅替换 `latest.json.packages.macos`，保留根字段和其他平台；同版本 COS 或 GitHub 资产若已存在但 SHA-256 不同会拒绝覆盖。Mac 单独补发不能推进稳定版版本号，新版本必须使用完整的 `release.yml` 发布。
+
+### HTTP/3
+
+HTTP/3 默认关闭。启用前需要 TLS 证书，并额外放行网关的 UDP 端口（默认 `7999/udp`），保留 TCP 入口。公网端口映射与验证方式见 [HTTP/3 部署说明](../../docs/http3.md)。

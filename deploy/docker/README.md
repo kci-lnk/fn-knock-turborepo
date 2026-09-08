@@ -592,3 +592,7 @@ npm run fn-knock:docker:hub-publish
 
 管理入口监听 `ADMIN_VIEW_PORT`，并在完成管理面板密码验证后，把请求代理到
 仅监听 `127.0.0.1:${BACKEND_PORT}` 的内部 Rust 后端。
+
+### HTTP/3
+
+HTTP/3 默认关闭。启用前需要 TLS 证书，并额外放行网关的 UDP 端口（默认 `7999/udp`），保留 TCP 入口。公网端口映射与验证方式见 [HTTP/3 部署说明](../../docs/http3.md)。

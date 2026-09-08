@@ -62,3 +62,7 @@ sudo knock reset-panel-password  # clear panel password, sessions, and login bac
 
 The password reset command asks for confirmation. After it completes, the next
 visit to the management panel enters the first-time password setup flow again.
+
+### HTTP/3
+
+HTTP/3 默认关闭。启用前需要 TLS 证书，并额外放行网关的 UDP 端口（默认 `7999/udp`），保留 TCP 入口。公网端口映射与验证方式见 [HTTP/3 部署说明](../../docs/http3.md)。

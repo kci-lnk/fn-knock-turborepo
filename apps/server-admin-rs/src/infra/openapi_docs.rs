@@ -3010,6 +3010,11 @@ pub(crate) fn build_openapi_document() -> Value {
             "GatewayHostResponseUpdateData",
         ),
         (
+            "/api/admin/config/gateway/http3",
+            "GatewayHttp3Data",
+            "GatewayHttp3UpdateData",
+        ),
+        (
             "/api/admin/config/gateway/proxy-protocol",
             "GatewayProxyProtocolData",
             "GatewayProxyProtocolUpdateData",

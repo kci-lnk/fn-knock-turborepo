@@ -236,3 +236,20 @@ pub(super) struct GatewayHostResponseDetailsData {
     items: Vec<GatewayHostResponseItemData>,
     summary: GatewayHostResponseSummaryData,
 }
+
+#[derive(Serialize, ToSchema)]
+pub(super) struct GatewayHttp3UpdateData {
+    enabled: bool,
+    #[schema(minimum = 0, maximum = 65535)]
+    advertised_port: Option<u32>,
+}
+#[derive(Serialize, ToSchema)]
+pub(super) struct GatewayHttp3Data {
+    enabled: bool,
+    advertised_port: u32,
+    state: String,
+    listen_addresses: Vec<String>,
+    error: String,
+    active_connections: u64,
+    handshake_failures: u64,
+}

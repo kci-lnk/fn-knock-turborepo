@@ -792,6 +792,28 @@ export const koKRAdmin = {
     },
   },
   gatewaySettings: {
+    http3: {
+      title: "HTTP/3",
+      description:
+        "HTTPS 직접 연결에 HTTP/3를 허용합니다. HTTP/1.1과 HTTP/2도 유지됩니다. auto 모드 호스트에만 적용됩니다.",
+      port: "공개 UDP 포트",
+      portHint:
+        "0은 HTTPS 요청 포트를 사용합니다. 공개 UDP 포트를 게이트웨이 포트(기본 7999)로 전달하세요.",
+      reachability:
+        "이 상태는 로컬 수신만 확인합니다. 공개 UDP 전달과 방화벽 규칙은 별도로 확인하세요.",
+      metrics: "QUIC 연결: {active} · 핸드셰이크 실패: {failed}",
+      save: "HTTP/3 설정 저장",
+      refresh: "새로 고침 / 초기화",
+      states: {
+        running: "로컬 수신 중",
+        disabled: "비활성화",
+        suspended_frp: "관리 FRP로 일시 중지",
+        waiting_certificate: "TLS 인증서 대기",
+        waiting_bridge: "인증 브리지 대기",
+        error: "수신 오류",
+        unknown: "상태 확인 불가",
+      },
+    },
     loadFailed: "불러오기 실패",
     loadFailedDescription: "게이트웨이 설정을 불러오지 못했습니다.",
     saveFailed: "저장 실패",

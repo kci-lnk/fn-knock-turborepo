@@ -309,7 +309,8 @@ async fn sync_gateway_runtime_locked(state: &AppState, config: &Value) -> Result
         .set_gateway_unmatched_route_config(&unmatched_route)
         .await
         .map_err(|error| error.to_string())?;
-    ensure_gateway_unmatched_route_applied(&unmatched_route, unmatched_route_response)
+    ensure_gateway_unmatched_route_applied(&unmatched_route, unmatched_route_response)?;
+    http3::sync_http3(state, config).await
 }
 
 pub(super) fn effective_gateway_portal(config: &Value) -> Value {

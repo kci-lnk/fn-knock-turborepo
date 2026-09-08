@@ -800,6 +800,29 @@ export const enAdmin = {
     },
   },
   gatewaySettings: {
+    http3: {
+      title: "HTTP/3",
+      description:
+        "Allow direct HTTPS visitors to use HTTP/3. HTTP/1.1 and HTTP/2 remain available. Only auto-mode hosts participate.",
+      port: "Public UDP port",
+      portHint:
+        "0 uses the HTTPS request port. Forward the public UDP port to the gateway port (default 7999).",
+      reachability:
+        "This status only confirms the local listener. Verify public UDP forwarding and firewall rules separately.",
+      metrics:
+        "Active QUIC connections: {active} · Failed handshakes: {failed}",
+      save: "Save HTTP/3 settings",
+      refresh: "Refresh / reset",
+      states: {
+        running: "Listening locally",
+        disabled: "Disabled",
+        suspended_frp: "Paused: managed FRP",
+        waiting_certificate: "Waiting for TLS certificate",
+        waiting_bridge: "Waiting for authentication bridge",
+        error: "Listener error",
+        unknown: "Status unavailable",
+      },
+    },
     loadFailed: "Load failed",
     loadFailedDescription: "Failed to get gateway settings",
     saveFailed: "Save failed",

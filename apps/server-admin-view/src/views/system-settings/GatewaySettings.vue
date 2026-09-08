@@ -11,6 +11,7 @@ import {
 } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import FloatingActionDock from "@admin-shared/components/common/FloatingActionDock.vue";
+import GatewayHttp3Settings from "./GatewayHttp3Settings.vue";
 import FeatureSwitchRow from "./FeatureSwitchRow.vue";
 import GatewayEditorRow from "./GatewayEditorRow.vue";
 import GatewayNumberSettingRow from "./GatewayNumberSettingRow.vue";
@@ -73,6 +74,7 @@ const {
     </CardContent>
 
     <CardContent v-else-if="!isLoading" class="border-t p-0 divide-y">
+      <GatewayHttp3Settings />
       <GatewayNumberSettingRow
         v-model="form.auth_cache_ttl_seconds"
         :title="t('admin.gatewaySettings.authCacheTitle')"

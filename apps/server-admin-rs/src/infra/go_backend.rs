@@ -2842,3 +2842,5 @@ mod tests {
         );
     }
 }
+
+mod http3;

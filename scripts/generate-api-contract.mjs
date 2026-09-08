@@ -34,6 +34,8 @@ function validateContract(openapiPath) {
     throw new Error(`expected OpenAPI 3.1.0, got ${document.openapi}`);
   }
   const typedDomainOperations = new Map([
+    ["get /api/admin/config/gateway/http3", null],
+    ["post /api/admin/config/gateway/http3", "GatewayHttp3UpdateData"],
     ["get /api/admin/panel-sync/providers", null],
     ["get /api/admin/panel-sync/connections", null],
     ["post /api/admin/panel-sync/connections", "ConnectionInput"],

@@ -4,6 +4,7 @@ use utoipa_axum::{router::OpenApiRouter, routes};
 
 pub(super) fn routes() -> OpenApiRouter<AppState> {
     OpenApiRouter::new()
+        .routes(routes!(get_gateway_http3, update_gateway_http3))
         .routes(routes!(get_gateway, update_gateway))
         .routes(routes!(get_gateway_visibility, update_gateway_visibility))
         .routes(routes!(
@@ -422,6 +423,34 @@ pub(super) async fn update_gateway_host_response(
                 "server.gatewayHostResponse.updateFailedRolledBack",
             );
             response::error(StatusCode::BAD_GATEWAY, message)
+        }
+    }
+}
+
+#[utoipa::path(get, path = "/api/admin/config/gateway/http3", tag = "config", operation_id = "get_api_admin_config_gateway_http3", responses((status = 200, description = "HTTP/3 configuration and local listener status")))]
+pub(super) async fn get_gateway_http3(State(state): State<AppState>) -> Response {
+    match state.gateway.client.get_gateway_http3().await {
+        Ok(data) => response::ok(data).into_response(),
+        Err(error) => {
+            tracing::warn!(%error,"failed to load HTTP/3 status");
+            response::error(StatusCode::BAD_GATEWAY, "Failed to load HTTP/3 status")
+        }
+    }
+}
+#[utoipa::path(post, path = "/api/admin/config/gateway/http3", tag = "config", operation_id = "post_api_admin_config_gateway_http3", responses((status = 200, description = "Updated HTTP/3 configuration and local listener status")))]
+pub(super) async fn update_gateway_http3(
+    State(state): State<AppState>,
+    Json(body): Json<Value>,
+) -> Response {
+    let config = match http3::http3_config(&body) {
+        Ok(config) => config,
+        Err(error) => return response::error(StatusCode::BAD_REQUEST, error),
+    };
+    match http3::update_http3(&state, config).await {
+        Ok(data) => response::ok(data).into_response(),
+        Err(error) => {
+            tracing::warn!(%error,"failed to update HTTP/3 configuration");
+            response::error(StatusCode::BAD_GATEWAY, error)
         }
     }
 }

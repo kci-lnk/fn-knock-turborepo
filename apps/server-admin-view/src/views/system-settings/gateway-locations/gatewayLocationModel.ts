@@ -35,7 +35,10 @@ export const createDefaultLocationForm = (): GatewayLocationForm => ({
 
 export const cloneLocation = (location: HostLocation): HostLocation => ({
   ...location,
-  auth_mode: location.auth_mode === "public" ? "public" : "inherit",
+  auth_mode:
+    location.auth_mode === "public" || location.auth_mode === "require_login"
+      ? location.auth_mode
+      : "inherit",
   response: {
     status: location.response?.status ?? 200,
     content_type:

@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { hostMappingUsesAuth } from "@/lib/host-mapping-auth";
 import { useI18n } from "vue-i18n";
 import {
   Activity,
@@ -124,7 +125,10 @@ const { t } = useI18n();
             }}
           </DropdownMenuItem>
           <DropdownMenuItem
-            v-if="!isAuthServiceTarget(mapping.target) && mapping.use_auth"
+            v-if="
+              !isAuthServiceTarget(mapping.target) &&
+              hostMappingUsesAuth(mapping)
+            "
             @select="emit('open-advanced-auth', mapping.host)"
           >
             <ShieldOff class="mr-2 h-4 w-4" />

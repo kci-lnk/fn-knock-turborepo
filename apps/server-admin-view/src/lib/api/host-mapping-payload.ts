@@ -135,7 +135,11 @@ export const toHostMappingUpdatePayload = (
       target: location.target.trim(),
       strip_path: location.strip_path,
       rewrite_html: location.rewrite_html,
-      auth_mode: location.auth_mode === "public" ? "public" : "inherit",
+      auth_mode:
+        location.auth_mode === "public" ||
+        location.auth_mode === "require_login"
+          ? location.auth_mode
+          : "inherit",
       response: {
         status: location.response.status,
         content_type: location.response.content_type.trim(),

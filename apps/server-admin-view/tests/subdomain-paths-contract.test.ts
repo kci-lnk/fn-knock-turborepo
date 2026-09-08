@@ -5,7 +5,12 @@ import { readFileSync } from "node:fs";
 import { describe, it } from "node:test";
 import { toHostMappingUpdatePayload } from "../src/lib/api/host-mapping-payload";
 import { createDefaultMapping } from "../src/views/subdomain-proxy/model";
-import { createDefaultLocation } from "../src/views/system-settings/gateway-locations/gatewayLocationModel";
+import { hostMappingUsesAuth } from "../src/lib/host-mapping-auth";
+import {
+  cloneLocation,
+  snapshotLocations,
+  createDefaultLocation,
+} from "../src/views/system-settings/gateway-locations/gatewayLocationModel";
 
 const source = (path: string) =>
   readFileSync(new URL(path, import.meta.url), "utf8");
@@ -52,6 +57,7 @@ describe("subdomain path rules", () => {
     assert.match(accessSection, /v-model="form\.auth_mode"/u);
     assert.match(accessSection, /value="inherit"/u);
     assert.match(accessSection, /value="public"/u);
+    assert.match(accessSection, /value="require_login"/u);
     assert.match(table, /formatAuthMode\(location\)/u);
   });
 
@@ -110,5 +116,27 @@ describe("subdomain path rules", () => {
     const locations = toHostMappingUpdatePayload(mapping).locations;
     assert.equal(locations[0]?.auth_mode, "inherit");
     assert.equal(locations[1]?.auth_mode, "public");
+  });
+  it("preserves require_login across edit, snapshot and save on a public Host", () => {
+    const mapping = createDefaultMapping();
+    mapping.use_auth = false;
+    const location = {
+      ...createDefaultLocation(),
+      path: "/admin",
+      auth_mode: "require_login" as const,
+    };
+    mapping.locations = [cloneLocation(location)];
+    const saved = toHostMappingUpdatePayload(mapping);
+    assert.equal(saved.use_auth, false);
+    assert.equal(saved.locations[0]?.auth_mode, "require_login");
+    const reloaded = JSON.parse(snapshotLocations(saved.locations));
+    assert.equal(cloneLocation(reloaded[0]).auth_mode, "require_login");
+    assert.equal(hostMappingUsesAuth(mapping), true);
+    mapping.locations[0]!.auth_mode = "public";
+    assert.equal(hostMappingUsesAuth(mapping), false);
+    mapping.use_auth = true;
+    assert.equal(hostMappingUsesAuth(mapping), true);
+    mapping.service_role = "auth";
+    assert.equal(hostMappingUsesAuth(mapping), false);
   });
 });

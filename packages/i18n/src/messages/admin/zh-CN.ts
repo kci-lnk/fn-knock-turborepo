@@ -1702,6 +1702,9 @@ export const zhCNAdmin = {
     pathPrefix: "路径前缀",
     exactPathDescription: "仅匹配这个完整请求路径。",
     pathPrefixDescription: "匹配这个路径前缀及其下级路径。",
+    authRequireLogin: "要求登录",
+    authRequireLoginDescription:
+      "该路径要求 Fn-Knock 鉴权，即使当前 Host 公开；沿用 Host 的白名单和高级鉴权策略。",
     authBehavior: "鉴权行为",
     authInherit: "继承子域映射",
     authPublic: "公开访问",
@@ -1735,7 +1738,7 @@ export const zhCNAdmin = {
     addRuleDialog: "添加路径规则",
     editRuleDialog: "编辑路径规则",
     ruleDialogDescription:
-      "这条规则会继承当前 Host 的登录、白名单、Host 响应和凭证注入设置。",
+      "可单独设置该路径的鉴权行为；Host 响应和凭证注入设置仍继承当前 Host。",
     stripMatchedPath: "剥离匹配路径",
     pathForwarding: "转发路径",
     pathForwardingStrip: "剥离匹配路径",

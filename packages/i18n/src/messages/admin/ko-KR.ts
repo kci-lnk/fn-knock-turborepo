@@ -1843,6 +1843,9 @@ export const koKRAdmin = {
     pathPrefix: "경로 접두사",
     exactPathDescription: "이 전체 요청 경로에만 일치합니다.",
     pathPrefixDescription: "이 경로 접두사와 모든 하위 경로에 일치합니다.",
+    authRequireLogin: "로그인 필수",
+    authRequireLoginDescription:
+      "Host가 공개되어 있어도 이 경로에는 Fn-Knock 인증이 필요하며 Host의 허용 목록과 고급 인증 정책을 적용합니다.",
     authBehavior: "인증 동작",
     authInherit: "서브도메인 매핑 상속",
     authPublic: "공개 액세스",
@@ -1878,7 +1881,7 @@ export const koKRAdmin = {
     addRuleDialog: "경로 규칙 추가",
     editRuleDialog: "경로 규칙 수정",
     ruleDialogDescription:
-      "이 규칙은 현재 Host의 로그인, 허용 목록, Host 응답, 자격 증명 주입 설정을 상속합니다.",
+      "이 경로의 인증 동작을 개별적으로 설정합니다. Host 응답과 자격 증명 주입 설정은 현재 Host에서 상속합니다.",
     stripMatchedPath: "일치한 경로 제거",
     pathForwarding: "전달 경로",
     pathForwardingStrip: "일치 경로 제거",

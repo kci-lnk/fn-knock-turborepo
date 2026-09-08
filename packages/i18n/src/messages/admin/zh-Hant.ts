@@ -1645,6 +1645,9 @@ export const zhHantAdmin = {
     pathPrefix: "路徑前綴",
     exactPathDescription: "僅匹配這個完整請求路徑。",
     pathPrefixDescription: "匹配這個路徑前綴及其下級路徑。",
+    authRequireLogin: "要求登入",
+    authRequireLoginDescription:
+      "此路徑要求 Fn-Knock 鑒權，即使目前 Host 公開；沿用 Host 的白名單和進階鑒權策略。",
     authBehavior: "鑒權行為",
     authInherit: "繼承子域映射",
     authPublic: "公開訪問",
@@ -1678,7 +1681,7 @@ export const zhHantAdmin = {
     addRuleDialog: "添加路徑規則",
     editRuleDialog: "編輯路徑規則",
     ruleDialogDescription:
-      "這條規則會繼承當前 Host 的登入、白名單、Host 響應和憑證注入設定。",
+      "可單獨設定此路徑的鑒權行為；Host 響應和憑證注入設定仍繼承目前 Host。",
     stripMatchedPath: "剝離匹配路徑",
     pathForwarding: "轉發路徑",
     pathForwardingStrip: "剝離匹配路徑",

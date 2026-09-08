@@ -529,14 +529,12 @@ pub(super) fn normalize_host_mappings_for_catalog(
                 "groups": [],
             });
         } else {
-            let should_disable_advanced_auth = !object
-                .get("use_auth")
-                .and_then(Value::as_bool)
-                .unwrap_or(true)
-                && advanced_auth
-                    .get("enabled")
-                    .and_then(Value::as_bool)
-                    .unwrap_or(false);
+            let should_disable_advanced_auth =
+                !crate::shared::proxy_utils::host_mapping_uses_auth(&object)
+                    && advanced_auth
+                        .get("enabled")
+                        .and_then(Value::as_bool)
+                        .unwrap_or(false);
             if should_disable_advanced_auth && let Some(config) = advanced_auth.as_object_mut() {
                 config.insert("enabled".to_string(), Value::Bool(false));
                 config.insert(
@@ -1325,6 +1323,7 @@ pub(super) fn normalize_host_mapping_locations_for_route(
             Some(Value::String(value)) => match value.trim() {
                 "" | "inherit" => "inherit",
                 "public" => "public",
+                "require_login" => "require_login",
                 value => {
                     return Err(format!(
                         "Host mapping {host} location {path} auth mode {value} is invalid"

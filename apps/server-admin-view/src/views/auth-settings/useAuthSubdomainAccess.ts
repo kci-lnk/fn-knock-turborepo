@@ -4,6 +4,7 @@ import {
   useAsyncAction,
 } from "@admin-shared/composables/useAsyncAction";
 import { toast } from "@admin-shared/utils/toast";
+import { hostMappingUsesAuth } from "@/lib/host-mapping-auth";
 import { ConfigAPI } from "@/lib/api/config";
 import type {
   AuthAccount,
@@ -222,7 +223,7 @@ export function useAuthSubdomainAccess({
     }
 
     for (const mapping of hostMappings.value) {
-      if (mapping.service_role === "auth" || mapping.use_auth !== true) {
+      if (!hostMappingUsesAuth(mapping)) {
         continue;
       }
       const host = normalizeAuthSubdomainHost(mapping.host);

@@ -613,3 +613,50 @@ fn localizes_scanner_and_cidr_route_errors() {
         "当前 CIDR 服务不支持运营商筛选，请升级 CIDR 容器至 0.1.3 或更高版本"
     );
 }
+
+#[test]
+fn scanner_exemption_respects_required_login_path_precedence() {
+    let config = json!({"run_type": 3, "host_mappings": [{
+        "host": "app.example.com", "use_auth": false, "access_mode": "login_first",
+        "locations": [
+            {"path": "/admin", "match": "prefix", "auth_mode": "require_login"},
+            {"path": "/admin/public", "match": "prefix", "auth_mode": "public"},
+            {"path": "/admin/public/private", "match": "exact", "auth_mode": "require_login"},
+            {"path": "/admin/health", "match": "exact", "auth_mode": "public"},
+            {"path": "/exact", "match": "exact", "auth_mode": "require_login"}
+        ]
+    }]});
+    for (path, exempt) in [
+        ("/admin", false),
+        ("/admin/", false),
+        ("/admin/x?query=1", false),
+        ("/%61dmin/x", false),
+        ("/admin%2Fx", false),
+        ("/admin/public", true),
+        ("/admin/public/x", true),
+        ("/admin/public/private", false),
+        ("/admin/public/private/x", true),
+        ("/admin/health", true),
+        ("/admin/health/", false),
+        ("/administrator", true),
+        ("/exact", false),
+        ("/exact/", true),
+        ("/other", true),
+    ] {
+        let headers = HeaderMap::from_iter([
+            (
+                http::header::HeaderName::from_static("x-forwarded-host"),
+                "app.example.com".parse().unwrap(),
+            ),
+            (
+                http::header::HeaderName::from_static("x-forwarded-path"),
+                path.parse().unwrap(),
+            ),
+        ]);
+        assert_eq!(
+            is_request_exempt_from_scan(&headers, &"/api/auth/preflight".parse().unwrap(), &config),
+            exempt,
+            "{path}"
+        );
+    }
+}

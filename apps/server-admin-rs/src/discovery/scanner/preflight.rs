@@ -21,7 +21,7 @@ pub(crate) fn is_request_exempt_from_scan(headers: &HeaderMap, uri: &Uri, config
                 .map(Vec::as_slice)
                 .unwrap_or(&[]),
         );
-        return is_public_host_mapping(matched);
+        return is_public_host_mapping(matched, &forwarded_path);
     }
 
     let proxy_mappings = config
@@ -526,11 +526,61 @@ pub(super) fn find_matching_host_mapping<'a>(
     })
 }
 
-pub(super) fn is_public_host_mapping(mapping: Option<&Value>) -> bool {
+fn is_public_host_mapping(mapping: Option<&Value>, forwarded_path: &str) -> bool {
     mapping.is_some_and(|mapping| {
         mapping.get("use_auth").and_then(Value::as_bool) == Some(false)
             && mapping.get("access_mode").and_then(Value::as_str) != Some("strict_whitelist")
+            && matched_host_location_auth_mode(mapping, forwarded_path) != Some("require_login")
     })
+}
+
+/// Go forwards its canonical RequestURI. Decode it once to match URL.Path,
+/// preserving trailing slashes and exact-before-longest-prefix precedence.
+fn matched_host_location_auth_mode<'a>(
+    mapping: &'a Value,
+    forwarded_path: &str,
+) -> Option<&'a str> {
+    if mapping.get("service_role").and_then(Value::as_str) == Some("auth")
+        || mapping
+            .get("target_type")
+            .and_then(Value::as_str)
+            .unwrap_or("proxy")
+            != "proxy"
+    {
+        return None;
+    }
+    let path = crate::cookies::percent_decode(forwarded_path.split('?').next().unwrap_or("/"));
+    let mut prefix: Option<(&Value, usize)> = None;
+    for location in mapping
+        .get("locations")
+        .and_then(Value::as_array)
+        .into_iter()
+        .flatten()
+    {
+        let Some(location_path) = location
+            .get("path")
+            .and_then(Value::as_str)
+            .filter(|value| !value.is_empty())
+        else {
+            continue;
+        };
+        match location.get("match").and_then(Value::as_str) {
+            Some("exact") if path == location_path => {
+                return location.get("auth_mode").and_then(Value::as_str);
+            }
+            Some("prefix")
+                if (path == location_path
+                    || path.strip_prefix(location_path).is_some_and(|rest| {
+                        location_path.ends_with('/') || rest.starts_with('/')
+                    }))
+                    && prefix.is_none_or(|(_, length)| location_path.len() > length) =>
+            {
+                prefix = Some((location, location_path.len()));
+            }
+            _ => {}
+        }
+    }
+    prefix.and_then(|(location, _)| location.get("auth_mode").and_then(Value::as_str))
 }
 
 pub(super) fn resolve_default_proxy_mapping<'a>(

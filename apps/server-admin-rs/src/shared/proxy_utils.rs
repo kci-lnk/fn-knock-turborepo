@@ -3,6 +3,23 @@ use url::Url;
 
 const DEFAULT_AUTH_SERVICE_PORT: u16 = 7997;
 
+/// Includes paths that opt into authentication on an otherwise public Host.
+pub(crate) fn host_mapping_uses_auth(mapping: &serde_json::Map<String, Value>) -> bool {
+    mapping.get("service_role").and_then(Value::as_str) != Some("auth")
+        && (mapping
+            .get("use_auth")
+            .and_then(Value::as_bool)
+            .unwrap_or(true)
+            || mapping
+                .get("locations")
+                .and_then(Value::as_array)
+                .is_some_and(|locations| {
+                    locations.iter().any(|location| {
+                        location.get("auth_mode").and_then(Value::as_str) == Some("require_login")
+                    })
+                }))
+}
+
 pub(crate) fn is_reverse_proxy_subdomain_mode(config: &Value) -> bool {
     config.get("run_type").and_then(Value::as_i64) == Some(1)
         && config
@@ -110,6 +127,27 @@ fn default_port_for_scheme(scheme: &str) -> Option<u16> {
 mod tests {
     use super::*;
     use serde_json::json;
+
+    #[test]
+    fn host_auth_includes_required_login_paths() {
+        for (use_auth, mode, expected) in [
+            (false, "inherit", false),
+            (false, "public", false),
+            (false, "require_login", true),
+            (true, "inherit", true),
+            (true, "public", true),
+            (true, "require_login", true),
+        ] {
+            let mapping =
+                serde_json::json!({"use_auth": use_auth, "locations": [{"auth_mode": mode}]});
+            assert_eq!(
+                super::host_mapping_uses_auth(mapping.as_object().unwrap()),
+                expected
+            );
+        }
+        let auth = serde_json::json!({"service_role": "auth", "use_auth": true, "locations": [{"auth_mode": "require_login"}]});
+        assert!(!super::host_mapping_uses_auth(auth.as_object().unwrap()));
+    }
 
     #[test]
     fn detects_subdomain_routing_modes() {

@@ -1860,6 +1860,9 @@ export const enAdmin = {
     pathPrefix: "Path prefix",
     exactPathDescription: "Matches only this complete request path.",
     pathPrefixDescription: "Matches this path prefix and all paths below it.",
+    authRequireLogin: "Require login",
+    authRequireLoginDescription:
+      "This path requires Fn-Knock authentication even when the Host is public, using the Host’s whitelist and advanced authentication policies.",
     authBehavior: "Authentication",
     authInherit: "Inherit subdomain mapping",
     authPublic: "Public access",
@@ -1895,7 +1898,7 @@ export const enAdmin = {
     addRuleDialog: "Add path rule",
     editRuleDialog: "Edit path rule",
     ruleDialogDescription:
-      "This rule inherits the current Host's login, whitelist, Host response, and credential injection settings.",
+      "Configure authentication for this path independently. Host response and credential injection settings are inherited from the current Host.",
     stripMatchedPath: "Strip matched path",
     pathForwarding: "Forwarded path",
     pathForwardingStrip: "Strip matched path",

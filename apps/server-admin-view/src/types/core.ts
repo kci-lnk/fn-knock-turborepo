@@ -126,7 +126,7 @@ export interface HostLocationResponse {
   body: string;
 }
 
-export type HostLocationAuthMode = "inherit" | "public";
+export type HostLocationAuthMode = "inherit" | "public" | "require_login";
 
 export interface HostLocation {
   path: string;

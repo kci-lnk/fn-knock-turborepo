@@ -1862,6 +1862,9 @@ export const jaJPAdmin = {
     exactPathDescription: "この完全なリクエストパスだけに一致します。",
     pathPrefixDescription:
       "このパスプレフィックスと、その配下のすべてのパスに一致します。",
+    authRequireLogin: "ログイン必須",
+    authRequireLoginDescription:
+      "Host が公開されていても、このパスには Fn-Knock 認証が必要です。Host のホワイトリストと高度な認証ポリシーを適用します。",
     authBehavior: "認証動作",
     authInherit: "サブドメインマッピングを継承",
     authPublic: "公開アクセス",
@@ -1897,7 +1900,7 @@ export const jaJPAdmin = {
     addRuleDialog: "パスルールを追加",
     editRuleDialog: "パスルールの編集",
     ruleDialogDescription:
-      "このルールは、現在の Host に設定されたログイン、ホワイトリスト、Host ヘッダー、認証情報の挿入設定を継承します。",
+      "このパスの認証動作を個別に設定できます。Host ヘッダーと認証情報の挿入設定は現在の Host から継承します。",
     stripMatchedPath: "一致したパスを除去",
     pathForwarding: "転送するパス",
     pathForwardingStrip: "一致部分を除去",

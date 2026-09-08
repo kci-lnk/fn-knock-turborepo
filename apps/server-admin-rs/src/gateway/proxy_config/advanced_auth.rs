@@ -160,9 +160,8 @@ pub(super) async fn update_advanced_auth(
         return response::error(StatusCode::NOT_FOUND, "Subdomain does not exist");
     };
     if !previous_mappings[index]
-        .get("use_auth")
-        .and_then(Value::as_bool)
-        .unwrap_or(true)
+        .as_object()
+        .is_some_and(crate::shared::proxy_utils::host_mapping_uses_auth)
     {
         return response::error(
             StatusCode::BAD_REQUEST,

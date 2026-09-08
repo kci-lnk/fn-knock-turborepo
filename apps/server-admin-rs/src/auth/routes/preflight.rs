@@ -1175,7 +1175,9 @@ pub(super) fn is_protected_subdomain_auth_host(host: &str, config: &Value) -> bo
         .flatten()
         .any(|mapping| {
             mapping.get("service_role").and_then(Value::as_str) != Some("auth")
-                && mapping.get("use_auth").and_then(Value::as_bool) == Some(true)
+                && mapping
+                    .as_object()
+                    .is_some_and(crate::shared::proxy_utils::host_mapping_uses_auth)
                 && mapping
                     .get("host")
                     .and_then(Value::as_str)
@@ -1313,6 +1315,24 @@ pub(super) fn normalize_credential_header_value(value: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn required_login_path_marks_public_host_as_protected() {
+        let mut config = json!({"host_mappings": [{
+            "host": "app.example.com", "use_auth": false,
+            "locations": [{"path": "/admin", "auth_mode": "require_login"}]
+        }]});
+        assert!(is_protected_subdomain_auth_host("app.example.com", &config));
+        assert!(!is_protected_subdomain_auth_host(
+            "other.example.com",
+            &config
+        ));
+        config["host_mappings"][0]["locations"][0]["auth_mode"] = json!("public");
+        assert!(!is_protected_subdomain_auth_host(
+            "app.example.com",
+            &config
+        ));
+    }
 
     #[test]
     fn password_account_credential_uses_current_account_permissions() {

@@ -1,3 +1,4 @@
+import { hostMappingUsesAuth } from "@/lib/host-mapping-auth";
 import { computed, onMounted, onUnmounted, reactive, ref } from "vue";
 import { onBeforeRouteLeave, useRoute, useRouter } from "vue-router";
 import { useI18n } from "vue-i18n";
@@ -66,7 +67,7 @@ export const useSubdomainAdvancedAuthPage = () => {
       if (
         !mapping ||
         mapping.service_role === "auth" ||
-        mapping.use_auth !== true
+        !hostMappingUsesAuth(mapping)
       ) {
         missing.value = true;
         loadError.value = t("admin.advancedAuth.notFound");

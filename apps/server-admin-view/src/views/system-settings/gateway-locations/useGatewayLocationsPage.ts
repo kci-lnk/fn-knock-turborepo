@@ -160,6 +160,9 @@ export function useGatewayLocationsPage() {
     return location.target;
   };
   const formatAuthMode = (location: HostLocation) => {
+    if (location.auth_mode === "require_login") {
+      return t("admin.gatewayLocationsSettings.authRequireLogin");
+    }
     if (location.auth_mode === "public") {
       return t("admin.gatewayLocationsSettings.authPublic");
     }

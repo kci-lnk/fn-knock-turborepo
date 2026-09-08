@@ -31,6 +31,9 @@ const { t } = useI18n();
             <SelectItem value="inherit">
               {{ t("admin.gatewayLocationsSettings.authInherit") }}
             </SelectItem>
+            <SelectItem value="require_login">
+              {{ t("admin.gatewayLocationsSettings.authRequireLogin") }}
+            </SelectItem>
             <SelectItem value="public">
               {{ t("admin.gatewayLocationsSettings.authPublic") }}
             </SelectItem>
@@ -42,7 +45,9 @@ const { t } = useI18n();
         {{
           form.auth_mode === "public"
             ? t("admin.gatewayLocationsSettings.authPublicDescription")
-            : t("admin.gatewayLocationsSettings.authInheritDescription")
+            : form.auth_mode === "require_login"
+              ? t("admin.gatewayLocationsSettings.authRequireLoginDescription")
+              : t("admin.gatewayLocationsSettings.authInheritDescription")
         }}
       </p>
     </div>

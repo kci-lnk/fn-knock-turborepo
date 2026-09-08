@@ -1,6 +1,8 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import { ref } from "vue";
+import { createDefaultMapping } from "../src/views/subdomain-proxy/model";
+import { createDefaultLocation } from "../src/views/system-settings/gateway-locations/gatewayLocationModel";
 import {
   createAuthStreamAccessKey,
   normalizeAuthSubdomainAccess,
@@ -61,6 +63,18 @@ describe("authentication permission scopes", () => {
         title_override: "",
       },
     ] as HostMapping[]);
+    hostMappings.value.push({
+      ...createDefaultMapping(),
+      host: "path-protected.example.com",
+      use_auth: false,
+      locations: [
+        {
+          ...createDefaultLocation(),
+          path: "/admin",
+          auth_mode: "require_login",
+        },
+      ],
+    });
     const streamMappings = ref<StreamMapping[]>([
       {
         protocol: "tcp",
@@ -92,6 +106,13 @@ describe("authentication permission scopes", () => {
     assert(keys.includes("host:__builtin_select__"));
     assert(keys.includes("host:__builtin_wol__"));
     assert(keys.includes("host:protected.example.com"));
+    assert(keys.includes("host:path-protected.example.com"));
+    assert.equal(
+      access.subdomainAccessOptions.value.find(
+        (option) => option.key === "host:path-protected.example.com",
+      )?.stale,
+      false,
+    );
     assert(
       keys.includes(
         createAuthStreamAccessKey({

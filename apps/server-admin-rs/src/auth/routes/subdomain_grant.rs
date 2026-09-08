@@ -108,9 +108,8 @@ fn mapping_policy(config: &Value, host: &str, policy_version: &str, group_id: &s
         })
         .filter(|mapping| {
             mapping
-                .get("use_auth")
-                .and_then(Value::as_bool)
-                .unwrap_or(true)
+                .as_object()
+                .is_some_and(crate::shared::proxy_utils::host_mapping_uses_auth)
         })
         .and_then(|mapping| mapping.get("advanced_auth"))
         .is_some_and(|policy| {
@@ -222,9 +221,8 @@ fn probe_match_from_claims(
             ) == current_host
         })?;
     if !mapping
-        .get("use_auth")
-        .and_then(Value::as_bool)
-        .unwrap_or(true)
+        .as_object()
+        .is_some_and(crate::shared::proxy_utils::host_mapping_uses_auth)
     {
         return None;
     }
@@ -729,6 +727,43 @@ mod tests {
             ..matched
         };
         assert!(!match_is_valid(&config, "app.example.com", &stale));
+    }
+
+    #[tokio::test]
+    async fn required_login_path_supports_grant_probe_issue_and_reuse() {
+        let (_directory, state) = test_state("required-login-path").await;
+        let mut config = test_config(serde_json::json!([{"id": "group-1", "conditions": []}]));
+        config["host_mappings"][0]["use_auth"] = serde_json::json!(false);
+        config["host_mappings"][0]["locations"] = serde_json::json!([
+            {"path": "/admin", "match": "prefix", "auth_mode": "require_login"}
+        ]);
+        let matched = test_match("group-1");
+        let mut headers = test_headers();
+        let probe = authorize(&state, &headers, &config, Some(&matched))
+            .await
+            .unwrap()
+            .unwrap();
+        assert_eq!(probe.state, "transient");
+        headers.insert(header::COOKIE, cookie_header(&probe.set_cookie.unwrap()));
+        let issued = authorize(&state, &headers, &config, None)
+            .await
+            .unwrap()
+            .unwrap();
+        assert_eq!(issued.state, "issued");
+        headers.insert(header::COOKIE, cookie_header(&issued.set_cookie.unwrap()));
+        let reused = authorize(&state, &headers, &config, None)
+            .await
+            .unwrap()
+            .unwrap();
+        assert_eq!(reused.state, "reused");
+        config["host_mappings"][0]["locations"][0]["auth_mode"] = serde_json::json!("public");
+        assert!(!match_is_valid(&config, "app.example.com", &matched));
+        assert!(
+            authorize(&state, &headers, &config, None)
+                .await
+                .unwrap()
+                .is_none()
+        );
     }
 
     #[tokio::test]

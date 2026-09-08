@@ -488,6 +488,50 @@ describe("host mapping static target components", () => {
     expect(wrapper.get("span[title]").classes()).toContain("truncate");
   });
 
+  it("opens advanced authentication for a required-login path on a public Host", async () => {
+    const mapping: HostMapping = {
+      ...createDefaultMapping(),
+      host: "app.example.test",
+      use_auth: false,
+      locations: [
+        {
+          path: "/admin",
+          match: "exact",
+          action: "response",
+          target: "",
+          strip_path: false,
+          rewrite_html: false,
+          auth_mode: "require_login",
+          response: {
+            status: 200,
+            body: "secret",
+            content_type: "text/plain",
+            headers: {},
+          },
+        },
+      ],
+    };
+    const wrapper = mount(SubdomainMappingRowActions, {
+      props: {
+        canUseDeepMonitor: true,
+        deepMonitorActive: false,
+        groups: [],
+        isAuthServiceTarget: () => false,
+        isDefaultDomainAvailable: true,
+        isSavingMappings: false,
+        mapping,
+      },
+      global: { plugins: [createTestI18n()], stubs: dropdownStubs },
+    });
+    expect(wrapper.text()).toContain("Advanced authentication");
+    await findButton(wrapper, "Advanced authentication")?.trigger("click");
+    expect(wrapper.emitted("open-advanced-auth")).toEqual([
+      ["app.example.test"],
+    ]);
+    await wrapper.setProps({ mapping: { ...mapping, locations: [] } });
+    expect(wrapper.text()).not.toContain("Advanced authentication");
+  });
+
   it("hides proxy-only row actions for static mappings and keeps shared actions", async () => {
     const mapping: HostMapping = {
       ...createDefaultMapping(),

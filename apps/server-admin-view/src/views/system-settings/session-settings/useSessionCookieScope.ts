@@ -1,7 +1,7 @@
 import { computed } from "vue";
 import { isAnySubdomainRoutingMode } from "@/lib/reverse-proxy-submode";
 import { useConfigStore } from "@/store/config";
-import type { HostMapping } from "@/types";
+import { hostMappingUsesAuth } from "@/lib/host-mapping-auth";
 
 const normalizeDomainName = (value: string | null | undefined) =>
   String(value ?? "")
@@ -20,9 +20,6 @@ const isHostWithinDomain = (host: string, domain: string): boolean => {
   );
 };
 
-const isAuthServiceMapping = (mapping: HostMapping): boolean =>
-  mapping.service_role === "auth";
-
 export const useSessionCookieScope = () => {
   const configStore = useConfigStore();
   const isDirectMode = computed(() => configStore.config?.run_type === 0);
@@ -38,7 +35,7 @@ export const useSessionCookieScope = () => {
     if (!isSubdomainRoutingMode.value) return [];
     const sharedDomain = normalizeDomainName(effectiveSharedCookieDomain.value);
     return (configStore.config?.host_mappings ?? [])
-      .filter((mapping) => mapping.use_auth && !isAuthServiceMapping(mapping))
+      .filter(hostMappingUsesAuth)
       .map((mapping) => normalizeDomainName(mapping.host))
       .filter(
         (host): host is string =>

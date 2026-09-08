@@ -407,6 +407,41 @@ async fn static_path_browse_sanitizes_gateway_unavailability() {
 }
 
 #[test]
+fn required_login_path_preserves_public_host_auth_policy() {
+    let previous = json!({"host_mappings": [{
+        "host": "app.example.com", "target": "http://127.0.0.1:8080",
+        "use_auth": true,
+        "advanced_auth": {"enabled": true, "policy_version": "existing", "groups": []}
+    }]});
+    let input = json!({
+        "host": "app.example.com", "target": "http://127.0.0.1:8080",
+        "use_auth": false, "access_mode": "strict_whitelist",
+        "locations": [{"path": "/admin", "match": "exact", "action": "response", "auth_mode": "require_login"}]
+    });
+    let normalized = normalize_host_mappings_for_route(vec![input], &previous).unwrap();
+    assert_eq!(normalized[0]["use_auth"], false);
+    assert_eq!(normalized[0]["access_mode"], "strict_whitelist");
+    assert_eq!(normalized[0]["advanced_auth"]["enabled"], true);
+    assert_eq!(normalized[0]["advanced_auth"]["policy_version"], "existing");
+    let payload = build_host_rules_payload(&normalized);
+    assert_eq!(payload[0]["locations"][0]["auth_mode"], "require_login");
+    assert_eq!(payload[0]["advanced_auth"]["enabled"], true);
+    let persisted = json!({"host_mappings": normalized});
+    let reloaded = normalize_host_mappings_for_route(
+        persisted["host_mappings"].as_array().unwrap().clone(),
+        &persisted,
+    )
+    .unwrap();
+    assert_eq!(reloaded[0]["locations"][0]["auth_mode"], "require_login");
+    assert_eq!(reloaded[0]["advanced_auth"]["enabled"], true);
+
+    let mut public = reloaded[0].clone();
+    public["locations"][0]["auth_mode"] = json!("public");
+    let normalized = normalize_host_mappings_for_route(vec![public], &persisted).unwrap();
+    assert_eq!(normalized[0]["advanced_auth"]["enabled"], false);
+}
+
+#[test]
 fn validates_host_location_auth_modes() {
     let mappings = normalize_host_mappings_for_route(
         vec![json!({

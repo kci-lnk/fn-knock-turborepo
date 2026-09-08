@@ -56,6 +56,7 @@ struct GatewayLogAnalyticsQuery {
 
 #[derive(Deserialize, utoipa::ToSchema)]
 struct GatewayLoggingConfigBody {
+    custom_logs_dir: Option<String>,
     enabled: bool,
     #[serde(default)]
     record_localhost: bool,
@@ -116,57 +117,104 @@ async fn update_config(
     Json(body): Json<GatewayLoggingConfigBody>,
 ) -> Response {
     let translator = Translator::from_state(&state).await;
-    let settings = GatewayLoggingSettings {
-        enabled: body.enabled,
-        record_localhost: body.record_localhost,
-        max_days: normalize_gateway_logging_max_days(body.max_days),
-    };
-    let mut config = match state.storage.store.get_config().await {
+    // Serialize updates so a failed panel save can safely restore the gateway.
+    static UPDATE_LOCK: tokio::sync::Mutex<()> = tokio::sync::Mutex::const_new(());
+    let _guard = UPDATE_LOCK.lock().await;
+    let config = match state.storage.store.get_config().await {
         Ok(config) => config,
         Err(error) => {
-            tracing::warn!(%error, "failed to read config before gateway logging update");
+            tracing::warn!(%error, "failed to read gateway logging config");
             return response::error(
                 StatusCode::INTERNAL_SERVER_ERROR,
                 gateway_logs_text(&translator, "configLoadFailed"),
             );
         }
     };
-    ensure_object(&mut config).insert(
-        "gateway_logging".to_string(),
-        json!({
-            "enabled": settings.enabled,
-            "record_localhost": settings.record_localhost,
-            "max_days": settings.max_days
-        }),
-    );
-    if let Err(error) = state.storage.store.save_config(&config).await {
+    let previous = config
+        .get("gateway_logging")
+        .cloned()
+        .unwrap_or_else(|| json!({"enabled": false, "max_days": 7, "custom_logs_dir": ""}));
+    let custom_logs_dir = body.custom_logs_dir.unwrap_or_else(|| {
+        previous
+            .get("custom_logs_dir")
+            .and_then(Value::as_str)
+            .unwrap_or("")
+            .to_string()
+    });
+    let settings = GatewayLoggingSettings {
+        enabled: body.enabled,
+        record_localhost: body.record_localhost,
+        max_days: normalize_gateway_logging_max_days(body.max_days),
+        custom_logs_dir,
+    };
+    let payload = json!({
+        "enabled": settings.enabled,
+        "record_localhost": settings.record_localhost,
+        "max_days": settings.max_days,
+        "custom_logs_dir": settings.custom_logs_dir,
+    });
+    // The gateway validates and persists first; invalid paths never enter panel storage.
+    let data = match state
+        .gateway
+        .client
+        .set_gateway_logging_config(&payload)
+        .await
+        .and_then(go_backend_data)
+    {
+        Ok(data) => data,
+        Err(error) => {
+            tracing::warn!(%error, "failed to apply gateway logging config");
+            return response::error(
+                StatusCode::BAD_GATEWAY,
+                format!(
+                    "{}: {error}",
+                    gateway_logs_text(&translator, "configSaveFailed")
+                ),
+            );
+        }
+    };
+    let settings = GatewayLoggingSettings {
+        custom_logs_dir: data
+            .get("custom_logs_dir")
+            .and_then(Value::as_str)
+            .unwrap_or(&settings.custom_logs_dir)
+            .to_string(),
+        ..settings
+    };
+    let mut persisted = payload;
+    persisted["custom_logs_dir"] = json!(settings.custom_logs_dir);
+    // Merge into the latest snapshot instead of replacing unrelated settings
+    // read before the potentially slow gateway operation.
+    if let Err(error) = state
+        .storage
+        .store
+        .set_config_top_level_value("gateway_logging", persisted)
+        .await
+    {
         tracing::warn!(%error, "failed to save gateway logging config");
+        let mut rollback = previous;
+        if rollback.get("custom_logs_dir").is_none() {
+            ensure_object(&mut rollback).insert("custom_logs_dir".to_string(), json!(""));
+        }
+        if let Err(rollback_error) = state
+            .gateway
+            .client
+            .set_gateway_logging_config(&rollback)
+            .await
+            .and_then(go_backend_data)
+        {
+            tracing::error!(%rollback_error, "failed to restore gateway logging config");
+            return response::error(
+                StatusCode::BAD_GATEWAY,
+                gateway_logs_text(&translator, "configRollbackFailed"),
+            );
+        }
         return response::error(
             StatusCode::INTERNAL_SERVER_ERROR,
             gateway_logs_text(&translator, "configSaveFailed"),
         );
     }
-
-    match state
-        .gateway
-        .client
-        .set_gateway_logging_config(&json!({
-            "enabled": settings.enabled,
-            "record_localhost": settings.record_localhost,
-            "max_days": settings.max_days
-        }))
-        .await
-        .and_then(go_backend_data)
-    {
-        Ok(data) => response::ok(gateway_logging_config_response(settings, &data)).into_response(),
-        Err(error) => {
-            tracing::warn!(%error, "failed to sync gateway logging config to Go backend");
-            response::error(
-                StatusCode::BAD_GATEWAY,
-                gateway_logs_text(&translator, "configSyncFailed"),
-            )
-        }
-    }
+    response::ok(gateway_logging_config_response(settings, &data)).into_response()
 }
 
 #[utoipa::path(get, path = "/api/admin/gateway-logs/directory", tag = "gateway-logs", operation_id = "get_api_admin_gateway_logs_directory", responses((status = 200, description = "Gateway log directory")))]
@@ -616,8 +664,9 @@ fn go_data_response(
     }
 }
 
-#[derive(Clone, Copy)]
+#[derive(Clone)]
 struct GatewayLoggingSettings {
+    custom_logs_dir: String,
     enabled: bool,
     record_localhost: bool,
     max_days: i64,
@@ -633,6 +682,11 @@ async fn gateway_logging_settings(
         .cloned()
         .unwrap_or_default();
     Ok(GatewayLoggingSettings {
+        custom_logs_dir: raw
+            .get("custom_logs_dir")
+            .and_then(Value::as_str)
+            .unwrap_or("")
+            .to_string(),
         enabled: raw.get("enabled").and_then(Value::as_bool).unwrap_or(false),
         record_localhost: raw
             .get("record_localhost")
@@ -697,6 +751,8 @@ fn gateway_logging_config_response(settings: GatewayLoggingSettings, runtime: &V
         "enabled": settings.enabled,
         "record_localhost": settings.record_localhost,
         "max_days": settings.max_days,
+        "custom_logs_dir": settings.custom_logs_dir,
+        "default_logs_dir": runtime.get("default_logs_dir").and_then(Value::as_str).unwrap_or(""),
         "logs_dir": runtime.get("logs_dir").and_then(Value::as_str).unwrap_or(""),
         "dropped_entries": runtime_u64_field(runtime, "dropped_entries"),
         "queue_size": runtime_i64_field(runtime, "queue_size"),
@@ -957,6 +1013,29 @@ mod tests {
     }
 
     #[test]
+    fn gateway_logging_preserves_custom_and_active_directory_distinction() {
+        let payload = gateway_logging_config_response(
+            GatewayLoggingSettings {
+                enabled: true,
+                record_localhost: false,
+                max_days: 7,
+                custom_logs_dir: "/saved/logs".into(),
+            },
+            &json!({"logs_dir": "/active/logs", "default_logs_dir": "/default/logs"}),
+        );
+        assert_eq!(payload["custom_logs_dir"], "/saved/logs");
+        assert_eq!(payload["logs_dir"], "/active/logs");
+        assert_eq!(payload["default_logs_dir"], "/default/logs");
+        let legacy: GatewayLoggingConfigBody =
+            serde_json::from_value(json!({"enabled": true, "max_days": 7})).unwrap();
+        assert!(legacy.custom_logs_dir.is_none());
+        let reset: GatewayLoggingConfigBody =
+            serde_json::from_value(json!({"enabled": true, "max_days": 7, "custom_logs_dir": ""}))
+                .unwrap();
+        assert_eq!(reset.custom_logs_dir.as_deref(), Some(""));
+    }
+
+    #[test]
     fn gateway_logging_max_days_matches_node_bounds() {
         assert_eq!(normalize_gateway_logging_max_days(-5), 1);
         assert_eq!(normalize_gateway_logging_max_days(0), 1);
@@ -968,6 +1047,7 @@ mod tests {
     fn gateway_logging_config_response_merges_runtime_metrics() {
         let payload = gateway_logging_config_response(
             GatewayLoggingSettings {
+                custom_logs_dir: String::new(),
                 enabled: true,
                 record_localhost: true,
                 max_days: 14,
@@ -975,6 +1055,8 @@ mod tests {
             &json!({
                 "enabled": false,
                 "max_days": 1,
+                "custom_logs_dir": "",
+                "default_logs_dir": "",
                 "logs_dir": "/runtime/logs",
                 "dropped_entries": 5,
                 "queue_size": 4096,
@@ -988,6 +1070,8 @@ mod tests {
                 "enabled": true,
                 "record_localhost": true,
                 "max_days": 14,
+                "custom_logs_dir": "",
+                "default_logs_dir": "",
                 "logs_dir": "/runtime/logs",
                 "dropped_entries": 5,
                 "queue_size": 4096,
@@ -1000,6 +1084,7 @@ mod tests {
     fn gateway_logging_config_response_defaults_runtime_metrics() {
         let payload = gateway_logging_config_response(
             GatewayLoggingSettings {
+                custom_logs_dir: String::new(),
                 enabled: false,
                 record_localhost: false,
                 max_days: 7,

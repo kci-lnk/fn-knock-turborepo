@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { RouterLink } from "vue-router";
 import { useI18n } from "vue-i18n";
 import SearchInput from "@admin-shared/components/SearchInput.vue";
 import {
@@ -55,17 +56,26 @@ const { t } = useI18n();
       <div
         class="grid min-w-0 flex-1 grid-cols-2 items-center gap-2 sm:flex sm:flex-wrap sm:justify-end"
       >
-        <Select :model-value="selectedDate" @update:model-value="handleDateChange">
+        <Select
+          :model-value="selectedDate"
+          @update:model-value="handleDateChange"
+        >
           <div class="order-1 w-full min-w-0 sm:order-none sm:w-[148px]">
             <SelectTrigger
               :aria-label="t('admin.gatewayRequestLogs.datePlaceholder')"
               class="w-full min-w-0"
             >
-              <SelectValue :placeholder="t('admin.gatewayRequestLogs.datePlaceholder')" />
+              <SelectValue
+                :placeholder="t('admin.gatewayRequestLogs.datePlaceholder')"
+              />
             </SelectTrigger>
           </div>
           <SelectContent>
-            <SelectItem v-for="date in availableDates" :key="date" :value="date">
+            <SelectItem
+              v-for="date in availableDates"
+              :key="date"
+              :value="date"
+            >
               {{ date }}
             </SelectItem>
           </SelectContent>
@@ -80,7 +90,9 @@ const { t } = useI18n();
               :aria-label="t('admin.gatewayRequestLogs.statusPlaceholder')"
               class="w-full min-w-0"
             >
-              <SelectValue :placeholder="t('admin.gatewayRequestLogs.statusPlaceholder')" />
+              <SelectValue
+                :placeholder="t('admin.gatewayRequestLogs.statusPlaceholder')"
+              />
             </SelectTrigger>
           </div>
           <SelectContent>
@@ -103,7 +115,9 @@ const { t } = useI18n();
               :aria-label="t('admin.gatewayRequestLogs.loginPlaceholder')"
               class="w-full min-w-0"
             >
-              <SelectValue :placeholder="t('admin.gatewayRequestLogs.loginPlaceholder')" />
+              <SelectValue
+                :placeholder="t('admin.gatewayRequestLogs.loginPlaceholder')"
+              />
             </SelectTrigger>
           </div>
           <SelectContent>
@@ -129,7 +143,9 @@ const { t } = useI18n();
               class="w-full min-w-0"
             >
               <SelectValue
-                :placeholder="t('admin.gatewayRequestLogs.credentialPlaceholder')"
+                :placeholder="
+                  t('admin.gatewayRequestLogs.credentialPlaceholder')
+                "
               />
             </SelectTrigger>
           </div>
@@ -156,7 +172,9 @@ const { t } = useI18n();
               :aria-label="t('admin.gatewayRequestLogs.wafPlaceholder')"
               class="w-full min-w-0"
             >
-              <SelectValue :placeholder="t('admin.gatewayRequestLogs.wafPlaceholder')" />
+              <SelectValue
+                :placeholder="t('admin.gatewayRequestLogs.wafPlaceholder')"
+              />
             </SelectTrigger>
           </div>
           <SelectContent>
@@ -192,13 +210,22 @@ const { t } = useI18n();
           })
         }}
       </span>
-      <span class="hidden break-all sm:inline">
+      <span class="break-all">
         {{
           t("admin.gatewayRequestLogs.directoryLabel", {
             directory: logsDir || "-",
           })
         }}
       </span>
+      <RouterLink
+        :to="{
+          path: '/system',
+          query: { tab: 'gateway-logging' },
+          hash: '#gateway-log-directory',
+        }"
+        class="text-primary underline underline-offset-4 hover:opacity-80"
+        >{{ t("admin.gatewayLogging.changeDirectoryLink") }}</RouterLink
+      >
     </div>
   </div>
 </template>

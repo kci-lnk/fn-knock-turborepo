@@ -446,7 +446,8 @@ export const zhHantAdmin = {
   },
   route: {
     resourceLoadFailed: "頁面資源載入失敗",
-    resourceLoadFailedDescription: "應用程式更新或網路異常可能導致資源載入失敗，請重新載入頁面。",
+    resourceLoadFailedDescription:
+      "應用程式更新或網路異常可能導致資源載入失敗，請重新載入頁面。",
     reloadPage: "重新載入",
     navigationFailed: "頁面跳轉失敗",
     loadFailedRetry: "頁面載入失敗，請稍後重試",
@@ -2287,6 +2288,19 @@ export const zhHantAdmin = {
       "配置目標已關閉，但目前核心值仍為 {value}，這是啟用前狀態或系統其它配置。",
   },
   gatewayLogging: {
+    directoryLabel: "儲存目錄",
+    browseDirectory: "選擇資料夾",
+    restoreDefaultDirectory: "恢復預設位置",
+    actualDirectory: "目前實際位置：{path}",
+    defaultDirectory: "預設位置：{path}",
+    directoryHelp:
+      "留空使用預設位置。記憶體目錄中的日誌會在重新啟動後遺失；外接儲存可減少內部 FLASH 寫入。舊日誌保留原處，儲存後僅查看與清理目前目錄的日誌。",
+    directoryBrowserHelp: "選擇閘道可存取的目錄；Docker 顯示的是容器內的目錄。",
+    selectDirectory: "使用此資料夾",
+    changeDirectoryLink: "修改日誌儲存路徑",
+    storageDescription:
+      "按天儲存 JSON 請求日誌，支援按日期查詢、搜尋與查看詳情。",
+
     loadFailed: "載入失敗",
     loadDescription: "無法獲取請求日誌設定",
     saveFailed: "保存失敗",

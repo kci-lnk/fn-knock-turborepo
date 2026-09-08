@@ -19,6 +19,7 @@ import FloatingActionDock from "@admin-shared/components/common/FloatingActionDo
 import { toast } from "@admin-shared/utils/toast";
 import { GatewayLogsAPI } from "@/lib/api/gateway";
 import { docsUrls } from "../../lib/docs";
+import GatewayLoggingDirectory from "./GatewayLoggingDirectory.vue";
 import type { GatewayLoggingConfig } from "../../types";
 import {
   extractErrorMessage,
@@ -35,13 +36,13 @@ const settings = ref<GatewayLoggingConfig | null>(null);
 const form = reactive<
   Pick<
     GatewayLoggingConfig,
-    "enabled" | "record_localhost" | "max_days" | "logs_dir"
+    "enabled" | "record_localhost" | "max_days" | "custom_logs_dir"
   >
 >({
   enabled: false,
   record_localhost: false,
   max_days: 7,
-  logs_dir: "",
+  custom_logs_dir: "",
 });
 
 const { isPending: isLoading, run: runLoadSettings } = useAsyncAction({
@@ -71,7 +72,8 @@ const isDirty = computed(() => {
   return (
     settings.value.enabled !== form.enabled ||
     settings.value.record_localhost !== form.record_localhost ||
-    settings.value.max_days !== Number(form.max_days)
+    settings.value.max_days !== Number(form.max_days) ||
+    settings.value.custom_logs_dir !== form.custom_logs_dir
   );
 });
 const droppedEntries = computed(() =>
@@ -84,7 +86,7 @@ const applyFromSettings = (data: GatewayLoggingConfig) => {
   form.enabled = data.enabled;
   form.record_localhost = data.record_localhost;
   form.max_days = data.max_days;
-  form.logs_dir = data.logs_dir || "";
+  form.custom_logs_dir = data.custom_logs_dir || "";
 };
 
 const fetchSettings = async () => {
@@ -100,12 +102,26 @@ const resetForm = () => {
 
 const saveSettings = async () => {
   await runSaveSettings(
-    () =>
-      GatewayLogsAPI.updateConfig({
-        enabled: form.enabled,
-        record_localhost: form.record_localhost,
-        max_days: Math.max(1, Math.floor(Number(form.max_days) || 1)),
-      }),
+    async () => {
+      try {
+        return await GatewayLogsAPI.updateConfig({
+          custom_logs_dir: form.custom_logs_dir,
+          enabled: form.enabled,
+          record_localhost: form.record_localhost,
+          max_days: Math.max(1, Math.floor(Number(form.max_days) || 1)),
+        });
+      } catch (error) {
+        // A timeout or failed rollback may leave the gateway on another directory.
+        // Refresh actual state without discarding the user's unsaved draft.
+        try {
+          settings.value = await GatewayLogsAPI.getConfig();
+        } catch {
+          if (settings.value)
+            settings.value = { ...settings.value, logs_dir: "" };
+        }
+        throw error;
+      }
+    },
     {
       onSuccess: async (data) => {
         applyFromSettings(data);
@@ -128,9 +144,7 @@ onMounted(fetchSettings);
             {{ t("admin.gatewayLogging.title") }}
           </CardTitle>
           <CardDescription>
-            {{ t("admin.gatewayLogging.descriptionPrefix") }}
-            <code>logs</code>
-            {{ t("admin.gatewayLogging.descriptionSuffix") }}
+            {{ t("admin.gatewayLogging.storageDescription") }}
           </CardDescription>
         </div>
         <DocsLinkButton :href="docsUrls.guides.requestLogs" />
@@ -211,6 +225,13 @@ onMounted(fetchSettings);
           }}</span>
         </div>
       </div>
+
+      <GatewayLoggingDirectory
+        v-model="form.custom_logs_dir"
+        :actual-directory="settings?.logs_dir || ''"
+        :default-directory="settings?.default_logs_dir || ''"
+        :disabled="isSaving"
+      />
 
       <div v-if="droppedEntries > 0" class="p-6">
         <Alert class="border-amber-200 bg-amber-50 text-amber-950">

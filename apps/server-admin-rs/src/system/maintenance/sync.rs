@@ -48,13 +48,20 @@ pub(super) async fn sync_runtime_after_import(
     }
 
     let gateway_logging_label = maintenance_backup_text(translator, "syncSteps.gatewayLogging");
-    let gateway_logging = config.get("gateway_logging").cloned().unwrap_or_else(|| {
-        json!({
-            "enabled": true,
-            "record_localhost": false,
-            "max_days": 7
-        })
-    });
+    let mut gateway_logging = config
+        .get("gateway_logging")
+        .filter(|value| value.is_object())
+        .cloned()
+        .unwrap_or_else(|| {
+            json!({
+                "enabled": true,
+                "record_localhost": false,
+                "max_days": 7
+            })
+        });
+    if gateway_logging.get("custom_logs_dir").is_none() {
+        gateway_logging["custom_logs_dir"] = json!("");
+    }
     match state
         .gateway
         .client

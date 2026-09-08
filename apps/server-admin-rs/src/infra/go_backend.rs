@@ -294,6 +294,7 @@ impl GoBackendClient {
             "stream_strict_validation_v1",
             "stream_bypass_policy_v1",
             "static_path_browse_v1",
+            "gateway_log_directory_v1",
         ] {
             if !capabilities
                 .iter()
@@ -1558,6 +1559,11 @@ fn parse_logging(value: &Value) -> LoggingConfig {
         record_localhost: bool_field(value, "record_localhost", false),
         max_days: i32_field(value, "max_days", 0),
         logs_dir: string_field(value, "logs_dir"),
+        custom_logs_dir: value
+            .get("custom_logs_dir")
+            .and_then(Value::as_str)
+            .map(str::to_string),
+        default_logs_dir: String::new(),
         dropped_entries: 0,
         queue_size: 0,
         queue_depth: 0,
@@ -1920,6 +1926,8 @@ fn logging_to_json(config: LoggingConfig) -> Value {
         "record_localhost": config.record_localhost,
         "max_days": config.max_days,
         "logs_dir": config.logs_dir,
+        "custom_logs_dir": config.custom_logs_dir.unwrap_or_default(),
+        "default_logs_dir": config.default_logs_dir,
         "dropped_entries": config.dropped_entries,
         "queue_size": config.queue_size,
         "queue_depth": config.queue_depth
@@ -2557,6 +2565,8 @@ mod tests {
             record_localhost: true,
             max_days: 9,
             logs_dir: "/var/log/fn-knock".to_string(),
+            custom_logs_dir: Some(String::new()),
+            default_logs_dir: String::new(),
             dropped_entries: 12,
             queue_size: 4096,
             queue_depth: 7,
@@ -2569,6 +2579,8 @@ mod tests {
                 "record_localhost": true,
                 "max_days": 9,
                 "logs_dir": "/var/log/fn-knock",
+                "custom_logs_dir": "",
+                "default_logs_dir": "",
                 "dropped_entries": 12,
                 "queue_size": 4096,
                 "queue_depth": 7
@@ -2652,6 +2664,23 @@ mod tests {
         );
         assert_eq!(value.pointer("/dimensions/paths/0/key"), Some(&json!("/")));
         assert_eq!(value.pointer("/clients/0/ip"), Some(&json!("203.0.113.7")));
+    }
+
+    #[test]
+    fn logging_directory_wire_format_preserves_omission_and_reset() {
+        assert!(parse_logging(&json!({})).custom_logs_dir.is_none());
+        assert_eq!(
+            parse_logging(&json!({"custom_logs_dir": ""}))
+                .custom_logs_dir
+                .as_deref(),
+            Some("")
+        );
+        assert_eq!(
+            parse_logging(&json!({"custom_logs_dir": "C:\\Logs"}))
+                .custom_logs_dir
+                .as_deref(),
+            Some("C:\\Logs")
+        );
     }
 
     #[test]

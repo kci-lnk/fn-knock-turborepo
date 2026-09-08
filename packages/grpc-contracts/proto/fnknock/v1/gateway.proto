@@ -318,6 +318,8 @@ message LoggingConfig {
   int32 queue_size = 5;
   int32 queue_depth = 6;
   bool record_localhost = 7;
+  optional string custom_logs_dir = 8;
+  string default_logs_dir = 9;
 }
 
 message ReverseProxyThrottleConfig {

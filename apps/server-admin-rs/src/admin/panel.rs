@@ -297,6 +297,11 @@ async fn config(State(state): State<AppState>) -> Response {
 
 async fn enrich_gateway_logging_config(state: &AppState, config: &mut Value) {
     let current = config.get("gateway_logging");
+    let custom_logs_dir = current
+        .and_then(|v| v.get("custom_logs_dir"))
+        .and_then(Value::as_str)
+        .unwrap_or("")
+        .to_string();
     let enabled = current
         .and_then(|value| value.get("enabled"))
         .and_then(Value::as_bool)
@@ -335,6 +340,8 @@ async fn enrich_gateway_logging_config(state: &AppState, config: &mut Value) {
                 "enabled": enabled,
                 "record_localhost": record_localhost,
                 "max_days": max_days,
+                "custom_logs_dir": custom_logs_dir,
+                "default_logs_dir": runtime.get("default_logs_dir").and_then(Value::as_str).unwrap_or(""),
                 "logs_dir": runtime.get("logs_dir").and_then(Value::as_str).unwrap_or(""),
                 "dropped_entries": runtime.get("dropped_entries").and_then(Value::as_u64).unwrap_or(0),
                 "queue_size": runtime.get("queue_size").and_then(Value::as_i64).unwrap_or(0),

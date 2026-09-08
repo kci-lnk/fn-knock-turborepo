@@ -567,7 +567,8 @@ export const enAdmin = {
   },
   route: {
     resourceLoadFailed: "Page resources failed to load",
-    resourceLoadFailedDescription: "An application update or network issue may have prevented resources from loading. Please reload the page.",
+    resourceLoadFailedDescription:
+      "An application update or network issue may have prevented resources from loading. Please reload the page.",
     reloadPage: "Reload",
     navigationFailed: "Navigation failed",
     loadFailedRetry: "Failed to load the page. Please try again later.",
@@ -2539,6 +2540,20 @@ export const enAdmin = {
       "The target is disabled, but the current kernel value is still {value}. This is the pre-enable state or another system setting.",
   },
   gatewayLogging: {
+    directoryLabel: "Storage directory",
+    browseDirectory: "Browse folders",
+    restoreDefaultDirectory: "Restore default location",
+    actualDirectory: "Active location: {path}",
+    defaultDirectory: "Default location: {path}",
+    directoryHelp:
+      "Leave empty to use the default location. Logs in memory are lost after restart; external storage can reduce internal flash writes. Existing logs stay in place. After saving, viewing and retention cleanup use only the active directory.",
+    directoryBrowserHelp:
+      "Select a directory accessible to the gateway. Docker shows directories inside the container.",
+    selectDirectory: "Use this folder",
+    changeDirectoryLink: "Change log storage path",
+    storageDescription:
+      "Save daily JSON request logs for browsing by date, searching, and inspecting details.",
+
     loadFailed: "Load failed",
     loadDescription: "Failed to load request log settings",
     saveFailed: "Save failed",

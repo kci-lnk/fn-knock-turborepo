@@ -1216,11 +1216,11 @@ fn normalizes_gateway_logging_like_node_parse_int_without_upper_cap() {
             "record_localhost": true,
             "max_days": "2x",
         }))),
-        json!({ "enabled": true, "record_localhost": true, "max_days": 2 })
+        json!({ "enabled": true, "record_localhost": true, "max_days": 2, "custom_logs_dir": "" })
     );
     assert_eq!(
         normalize_gateway_logging(None),
-        json!({ "enabled": false, "record_localhost": false, "max_days": 7 })
+        json!({ "enabled": false, "record_localhost": false, "max_days": 7, "custom_logs_dir": "" })
     );
     assert_eq!(
         normalize_gateway_logging(Some(&json!({

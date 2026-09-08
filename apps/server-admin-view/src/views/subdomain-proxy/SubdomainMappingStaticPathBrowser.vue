@@ -20,7 +20,8 @@ import { useConfigStore } from "@/store/config";
 import type { StaticPathBrowseEntry } from "@/lib/api/config";
 import type { useStaticPathBrowser } from "./useStaticPathBrowser";
 
-const { editor } = defineProps<{
+const { editor, hint } = defineProps<{
+  hint?: string;
   editor: UnwrapNestedRefs<ReturnType<typeof useStaticPathBrowser>>;
 }>();
 const { locale, t } = useI18n();
@@ -80,7 +81,7 @@ const handlePathEnter = (event: KeyboardEvent) => {
   <div class="space-y-4 pb-5 pt-5" data-testid="static-path-browser">
     <div class="space-y-1">
       <p class="text-sm text-muted-foreground">
-        {{ t("admin.subdomainProxy.staticServe.browser.hint") }}
+        {{ hint ?? t("admin.subdomainProxy.staticServe.browser.hint") }}
       </p>
       <p
         v-if="configStore.isDockerDeployment"

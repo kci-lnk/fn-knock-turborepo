@@ -615,6 +615,8 @@ export const koKRServer = {
     },
   },
   gatewayLogs: {
+    configRollbackFailed:
+      "패널 설정 저장에 실패했으며 게이트웨이 설정도 복원하지 못했습니다. 저장된 위치와 실제 적용 위치가 다를 수 있습니다. 새로고침하여 확인하세요.",
     configLoadFailed: "요청 로그 설정을 읽지 못했습니다.",
     configSaveFailed: "요청 로그 설정을 저장하지 못했습니다.",
     configSyncFailed:

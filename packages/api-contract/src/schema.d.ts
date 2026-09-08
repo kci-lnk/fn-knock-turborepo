@@ -10282,6 +10282,8 @@ export interface components {
             x_real_ip: string;
         };
         GatewayLoggingConfigData: {
+            custom_logs_dir: string;
+            default_logs_dir: string;
             /** Format: int64 */
             dropped_entries: number;
             enabled: boolean;
@@ -10295,6 +10297,7 @@ export interface components {
             record_localhost: boolean;
         };
         GatewayLoggingConfigUpdateData: {
+            custom_logs_dir?: string | null;
             enabled: boolean;
             /** Format: int64 */
             max_days: number;

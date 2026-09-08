@@ -525,6 +525,8 @@ export const zhCNServer = {
     },
   },
   gatewayLogs: {
+    configRollbackFailed:
+      "面板配置保存失败，且无法恢复网关原配置；保存位置可能与实际生效位置不同，请刷新检查。",
     configLoadFailed: "读取请求日志配置失败",
     configSaveFailed: "保存请求日志配置失败",
     configSyncFailed: "请求日志设置已保存，但同步到网关失败",

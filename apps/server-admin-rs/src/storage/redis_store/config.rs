@@ -54,6 +54,7 @@ pub fn default_config() -> Value {
         "last_error": null
     });
     let gateway_logging = json!({
+        "custom_logs_dir": "",
         "enabled": false,
         "record_localhost": false,
         "max_days": 7

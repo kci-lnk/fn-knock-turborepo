@@ -2557,6 +2557,7 @@ function validateContract(openapiPath) {
     {};
   for (const runtimeProperty of [
     "logs_dir",
+    "default_logs_dir",
     "dropped_entries",
     "queue_size",
     "queue_depth",

@@ -493,7 +493,8 @@
       "deleteEntriesFailed": "删除请求日志失败",
       "invalidJsonObject": "请求体不是有效的 JSON 对象",
       "geoRefreshActive": "IP 归属地识别队列正在运行",
-      "geoRefreshFailed": "启动 IP 归属地识别队列失败"
+      "geoRefreshFailed": "启动 IP 归属地识别队列失败",
+      "configRollbackFailed": "面板配置保存失败，且无法恢复网关原配置；保存位置可能与实际生效位置不同，请刷新检查。"
     },
     "backoffRoutes": {
       "ipRequired": "ip 参数缺失",
@@ -3737,7 +3738,8 @@
       "deleteEntriesFailed": "刪除請求日誌失敗",
       "invalidJsonObject": "請求體不是有效的 JSON 物件",
       "geoRefreshActive": "IP 歸屬地識別佇列正在執行",
-      "geoRefreshFailed": "啟動 IP 歸屬地識別佇列失敗"
+      "geoRefreshFailed": "啟動 IP 歸屬地識別佇列失敗",
+      "configRollbackFailed": "面板設定儲存失敗，且無法還原閘道原設定；儲存位置可能與實際生效位置不同，請重新整理確認。"
     },
     "backoffRoutes": {
       "ipRequired": "ip 參數缺失",
@@ -6981,7 +6983,8 @@
       "deleteEntriesFailed": "Failed to delete request logs",
       "invalidJsonObject": "Request body is not a valid JSON object",
       "geoRefreshActive": "The IP location lookup queue is already running",
-      "geoRefreshFailed": "Failed to start the IP location lookup queue"
+      "geoRefreshFailed": "Failed to start the IP location lookup queue",
+      "configRollbackFailed": "Panel settings could not be saved and the gateway configuration could not be restored. Saved and active locations may differ; refresh to check."
     },
     "backoffRoutes": {
       "ipRequired": "ip parameter is missing",
@@ -10225,7 +10228,8 @@
       "deleteEntriesFailed": "요청 로그를 삭제하지 못했습니다.",
       "invalidJsonObject": "요청 본문이 유효한 JSON 객체가 아닙니다.",
       "geoRefreshActive": "IP 위치 조회 대기열이 이미 실행 중입니다.",
-      "geoRefreshFailed": "IP 위치 조회 대기열을 시작하지 못했습니다."
+      "geoRefreshFailed": "IP 위치 조회 대기열을 시작하지 못했습니다.",
+      "configRollbackFailed": "패널 설정 저장에 실패했으며 게이트웨이 설정도 복원하지 못했습니다. 저장된 위치와 실제 적용 위치가 다를 수 있습니다. 새로고침하여 확인하세요."
     },
     "backoffRoutes": {
       "ipRequired": "IP 매개변수가 누락되었습니다",
@@ -13469,7 +13473,8 @@
       "deleteEntriesFailed": "リクエストログの削除に失敗しました",
       "invalidJsonObject": "リクエスト本文は有効な JSON オブジェクトではありません",
       "geoRefreshActive": "IP 所在地の検索キューはすでに実行中です",
-      "geoRefreshFailed": "IP 所在地の検索キューを開始できませんでした"
+      "geoRefreshFailed": "IP 所在地の検索キューを開始できませんでした",
+      "configRollbackFailed": "パネル設定を保存できず、ゲートウェイの設定も元に戻せませんでした。保存済みの場所と実際の保存先が異なる可能性があります。再読み込みして確認してください。"
     },
     "backoffRoutes": {
       "ipRequired": "ip パラメータがありません",

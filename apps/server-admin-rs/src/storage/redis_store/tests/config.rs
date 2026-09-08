@@ -796,3 +796,20 @@ async fn config_generation_fence_handles_missing_reset_and_explicit_full_replace
     let persisted_raw = store.get_string_value(CONFIG_KEY).await.unwrap().unwrap();
     assert!(!persisted_raw.contains(CONFIG_GENERATION_MARKER));
 }
+
+#[tokio::test]
+async fn gateway_logging_section_save_preserves_interleaved_settings() {
+    let (_dir, store) = open_test_store().await;
+    let before_gateway_call = store.get_config().await.unwrap();
+    let mut unrelated_update = before_gateway_call.clone();
+    unrelated_update["locale"] = json!({"default_locale": "ja-JP"});
+    store.save_config(&unrelated_update).await.unwrap();
+    let saved = store.set_config_top_level_value("gateway_logging", json!({
+        "enabled": true, "record_localhost": false, "max_days": 7, "custom_logs_dir": "/mnt/logs"
+    })).await.unwrap();
+    assert_eq!(saved["locale"]["default_locale"], "ja-JP");
+    assert_eq!(
+        store.get_config().await.unwrap()["gateway_logging"]["custom_logs_dir"],
+        "/mnt/logs"
+    );
+}

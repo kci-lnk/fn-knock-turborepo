@@ -560,7 +560,8 @@ export const koKRAdmin = {
   },
   route: {
     resourceLoadFailed: "페이지 리소스를 불러오지 못했습니다",
-    resourceLoadFailedDescription: "앱 업데이트 또는 네트워크 문제로 리소스를 불러오지 못했을 수 있습니다. 페이지를 새로고침해 주세요.",
+    resourceLoadFailedDescription:
+      "앱 업데이트 또는 네트워크 문제로 리소스를 불러오지 못했을 수 있습니다. 페이지를 새로고침해 주세요.",
     reloadPage: "새로고침",
     navigationFailed: "페이지 이동 실패",
     loadFailedRetry:
@@ -2520,6 +2521,20 @@ export const koKRAdmin = {
       "설정 목표는 꺼짐이지만 현재 커널 값은 여전히 {value}입니다. 활성화 전 상태이거나 다른 시스템 설정일 수 있습니다.",
   },
   gatewayLogging: {
+    directoryLabel: "저장 디렉터리",
+    browseDirectory: "폴더 선택",
+    restoreDefaultDirectory: "기본 위치로 복원",
+    actualDirectory: "현재 적용 위치: {path}",
+    defaultDirectory: "기본 위치: {path}",
+    directoryHelp:
+      "비워 두면 기본 위치를 사용합니다. 메모리의 로그는 재시작 후 사라집니다. 외부 저장소를 사용하면 내부 FLASH 쓰기를 줄일 수 있습니다. 기존 로그는 이동하지 않으며, 저장 후 현재 디렉터리의 로그만 조회하고 정리합니다.",
+    directoryBrowserHelp:
+      "게이트웨이가 접근할 수 있는 디렉터리를 선택하세요. Docker에서는 컨테이너 내부 디렉터리가 표시됩니다.",
+    selectDirectory: "이 폴더 사용",
+    changeDirectoryLink: "로그 저장 경로 변경",
+    storageDescription:
+      "JSON 요청 로그를 날짜별로 저장하여 조회, 검색 및 상세 확인을 지원합니다.",
+
     loadFailed: "불러오기 실패",
     loadDescription: "요청 로그 설정을 불러오지 못했습니다.",
     saveFailed: "저장 실패",

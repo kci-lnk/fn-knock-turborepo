@@ -525,6 +525,8 @@ export const zhHantServer = {
     },
   },
   gatewayLogs: {
+    configRollbackFailed:
+      "面板設定儲存失敗，且無法還原閘道原設定；儲存位置可能與實際生效位置不同，請重新整理確認。",
     configLoadFailed: "讀取請求日誌配置失敗",
     configSaveFailed: "保存請求日誌配置失敗",
     configSyncFailed: "請求日誌設定已保存，但同步到網關失敗",

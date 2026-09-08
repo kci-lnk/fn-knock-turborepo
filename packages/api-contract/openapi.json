@@ -11834,6 +11834,12 @@
       },
       "GatewayLoggingConfigData": {
         "properties": {
+          "custom_logs_dir": {
+            "type": "string"
+          },
+          "default_logs_dir": {
+            "type": "string"
+          },
           "dropped_entries": {
             "format": "int64",
             "minimum": 0,
@@ -11866,6 +11872,8 @@
           "record_localhost",
           "max_days",
           "logs_dir",
+          "custom_logs_dir",
+          "default_logs_dir",
           "dropped_entries",
           "queue_size",
           "queue_depth"
@@ -11874,6 +11882,12 @@
       },
       "GatewayLoggingConfigUpdateData": {
         "properties": {
+          "custom_logs_dir": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
           "enabled": {
             "type": "boolean"
           },

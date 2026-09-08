@@ -565,7 +565,8 @@ export const jaJPAdmin = {
   },
   route: {
     resourceLoadFailed: "ページのリソースを読み込めませんでした",
-    resourceLoadFailedDescription: "アプリの更新またはネットワークの問題により、リソースを読み込めなかった可能性があります。ページを再読み込みしてください。",
+    resourceLoadFailedDescription:
+      "アプリの更新またはネットワークの問題により、リソースを読み込めなかった可能性があります。ページを再読み込みしてください。",
     reloadPage: "再読み込み",
     navigationFailed: "ページの移動に失敗しました",
     loadFailedRetry:
@@ -2539,6 +2540,20 @@ export const jaJPAdmin = {
       "設定上は無効ですが、現在のカーネル値は {value} のままです。有効化前からの値か、別のシステム設定による可能性があります。",
   },
   gatewayLogging: {
+    directoryLabel: "保存ディレクトリ",
+    browseDirectory: "フォルダーを選択",
+    restoreDefaultDirectory: "既定の場所に戻す",
+    actualDirectory: "現在の保存先：{path}",
+    defaultDirectory: "既定の保存先：{path}",
+    directoryHelp:
+      "空欄の場合は既定の場所を使用します。メモリ上のログは再起動で失われます。外部ストレージを使うと内部 FLASH への書き込みを減らせます。既存のログは移動せず、保存後は現在のディレクトリのみを表示・整理します。",
+    directoryBrowserHelp:
+      "ゲートウェイがアクセスできるディレクトリを選択します。Docker ではコンテナ内のディレクトリが表示されます。",
+    selectDirectory: "このフォルダーを使用",
+    changeDirectoryLink: "ログの保存先を変更",
+    storageDescription:
+      "JSON リクエストログを日別に保存し、日付別の表示、検索、詳細の確認ができます。",
+
     loadFailed: "読み込みに失敗しました",
     loadDescription: "リクエストログ設定を読み込めませんでした",
     saveFailed: "保存に失敗しました",

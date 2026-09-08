@@ -642,6 +642,8 @@ export const jaJPServer = {
     },
   },
   gatewayLogs: {
+    configRollbackFailed:
+      "パネル設定を保存できず、ゲートウェイの設定も元に戻せませんでした。保存済みの場所と実際の保存先が異なる可能性があります。再読み込みして確認してください。",
     configLoadFailed: "リクエストログ設定の読み取りに失敗しました",
     configSaveFailed: "リクエストログ設定の保存に失敗しました",
     configSyncFailed:

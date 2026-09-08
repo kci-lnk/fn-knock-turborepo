@@ -7,6 +7,8 @@ pub(super) struct GatewayLoggingConfigData {
     record_localhost: bool,
     max_days: i64,
     logs_dir: String,
+    custom_logs_dir: String,
+    default_logs_dir: String,
     dropped_entries: u64,
     queue_size: i64,
     queue_depth: i64,
@@ -14,6 +16,7 @@ pub(super) struct GatewayLoggingConfigData {
 
 #[derive(Serialize, ToSchema)]
 pub(super) struct GatewayLoggingConfigUpdateData {
+    custom_logs_dir: Option<String>,
     enabled: bool,
     record_localhost: Option<bool>,
     max_days: i64,

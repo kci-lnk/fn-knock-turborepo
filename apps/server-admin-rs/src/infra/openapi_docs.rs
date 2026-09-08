@@ -6957,7 +6957,13 @@ mod tests {
                 .is_none(),
             "raw analytics client IPs are internal hydration inputs only"
         );
-        for runtime_property in ["logs_dir", "dropped_entries", "queue_size", "queue_depth"] {
+        for runtime_property in [
+            "logs_dir",
+            "default_logs_dir",
+            "dropped_entries",
+            "queue_size",
+            "queue_depth",
+        ] {
             assert!(
                 document
                     .pointer(&format!(

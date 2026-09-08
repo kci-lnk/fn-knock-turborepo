@@ -512,7 +512,8 @@ export const zhCNAdmin = {
   },
   route: {
     resourceLoadFailed: "页面资源加载失败",
-    resourceLoadFailedDescription: "应用更新或网络异常可能导致资源加载失败，请重新加载页面。",
+    resourceLoadFailedDescription:
+      "应用更新或网络异常可能导致资源加载失败，请重新加载页面。",
     reloadPage: "重新加载",
     navigationFailed: "页面跳转失败",
     loadFailedRetry: "页面加载失败，请稍后重试",
@@ -2343,6 +2344,20 @@ export const zhCNAdmin = {
       "配置目标已关闭，但当前内核值仍为 {value}，这是启用前状态或系统其它配置。",
   },
   gatewayLogging: {
+    directoryLabel: "保存目录",
+    browseDirectory: "选择文件夹",
+    restoreDefaultDirectory: "恢复默认位置",
+    actualDirectory: "当前实际位置：{path}",
+    defaultDirectory: "默认位置：{path}",
+    directoryHelp:
+      "留空使用默认位置。内存目录中的日志在重启后会丢失；外置存储可减少内部 FLASH 写入。旧日志保留原处，保存后仅查看和清理当前目录的日志。",
+    directoryBrowserHelp:
+      "选择网关可访问的目录；Docker 中显示的是容器内的目录。",
+    selectDirectory: "使用此文件夹",
+    changeDirectoryLink: "修改日志保存路径",
+    storageDescription:
+      "按天保存 JSON 请求日志，支持按日期查询、搜索和查看详情。",
+
     loadFailed: "加载失败",
     loadDescription: "无法获取请求日志设置",
     saveFailed: "保存失败",

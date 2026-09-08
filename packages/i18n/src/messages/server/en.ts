@@ -613,6 +613,8 @@ export const enServer = {
     },
   },
   gatewayLogs: {
+    configRollbackFailed:
+      "Panel settings could not be saved and the gateway configuration could not be restored. Saved and active locations may differ; refresh to check.",
     configLoadFailed: "Failed to read request log settings",
     configSaveFailed: "Failed to save request log settings",
     configSyncFailed:

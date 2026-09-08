@@ -189,6 +189,11 @@ const router = createRouter({
           component: () => import("../views/SystemSettings.vue"),
         },
         {
+          path: "system/backup-email",
+          name: "BackupEmailSettings",
+          component: () => import("../views/system-settings/BackupEmailPage.vue"),
+        },
+        {
           path: "system/scanner-path-whitelist",
           name: "ScannerPathWhitelistSettings",
           component: () =>

@@ -4,6 +4,15 @@ import { useI18n } from "vue-i18n";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Switch } from "@/components/ui/switch";
 import { MaintenanceAPI } from "@/lib/api/config";
 import { isBackupEmailValid, type BackupEmailForm } from "@/lib/backup-email";
@@ -22,7 +31,21 @@ const recipients = computed({
       .filter(Boolean);
   },
 });
-const fields = ["host", "username"] as const;
+function setSecurity(value: unknown) {
+  if (
+    typeof value !== "string" ||
+    !["ssl_tls", "starttls", "none"].includes(value)
+  )
+    return;
+  const ports: Record<string, number> = {
+    ssl_tls: 465,
+    starttls: 587,
+    none: 25,
+  };
+  if (model.value.smtp.port === ports[model.value.smtp.security])
+    model.value.smtp.port = ports[value]!;
+  model.value.smtp.security = value;
+}
 async function test() {
   testing.value = true;
   result.value = "";
@@ -37,177 +60,227 @@ async function test() {
 }
 </script>
 <template>
-  <fieldset
-    class="mt-6 space-y-4 border-t pt-6"
-    :disabled="disabled || testing"
-  >
-    <legend class="text-sm font-medium">
+  <fieldset class="space-y-5" :disabled="disabled || testing">
+    <legend class="sr-only">
       {{ t("admin.maintenanceSettings.emailTitle") }}
     </legend>
-    <div class="flex items-center gap-3">
+    <div
+      class="flex items-center justify-between gap-4 rounded-xl border bg-muted/10 p-5"
+    >
+      <Label :for="`${id}-enabled`" class="text-base">{{
+        t("admin.maintenanceSettings.emailEnabled")
+      }}</Label>
       <Switch
         :id="`${id}-enabled`"
         v-model="model.enabled"
         :disabled="disabled || testing"
       />
-      <Label :for="`${id}-enabled`">{{
-        t("admin.maintenanceSettings.emailEnabled")
-      }}</Label>
     </div>
-    <p class="text-xs text-muted-foreground">
-      {{ t("admin.maintenanceSettings.emailDescription") }}
-    </p>
-    <div class="grid gap-4 sm:grid-cols-2">
-      <div v-for="field in fields" :key="field" class="space-y-2">
-        <Label :for="`${id}-${field}`">{{
-          t(`admin.maintenanceSettings.email_${field}`)
-        }}</Label>
-        <Input
-          :id="`${id}-${field}`"
-          v-model="model.smtp[field]"
-          autocomplete="off"
-        />
-      </div>
-      <div class="space-y-2">
-        <Label :for="`${id}-security`">{{
-          t("admin.maintenanceSettings.emailSecurity")
-        }}</Label>
-        <select
-          :id="`${id}-security`"
-          v-model="model.smtp.security"
-          class="h-9 w-full rounded-md border bg-background px-3"
-          @change="
-            model.smtp.port =
-              model.smtp.security === 'ssl_tls'
-                ? 465
-                : model.smtp.security === 'starttls'
-                  ? 587
-                  : 25
-          "
-        >
-          <option value="ssl_tls">TLS</option>
-          <option value="starttls">STARTTLS</option>
-          <option value="none">
-            {{ t("admin.maintenanceSettings.emailNoTls") }}
-          </option>
-        </select>
-      </div>
-      <div class="space-y-2">
-        <Label :for="`${id}-port`">{{
-          t("admin.maintenanceSettings.emailPort")
-        }}</Label
-        ><Input
-          :id="`${id}-port`"
-          v-model.number="model.smtp.port"
-          type="number"
-          min="1"
-          max="65535"
-        />
-      </div>
-      <div class="space-y-2">
-        <Label :for="`${id}-auth`">{{
-          t("admin.maintenanceSettings.emailAuth")
-        }}</Label>
-        <select
-          :id="`${id}-auth`"
-          v-model="model.smtp.auth_mode"
-          class="h-9 w-full rounded-md border bg-background px-3"
-        >
-          <option value="auto">
-            {{ t("admin.maintenanceSettings.emailAuto") }}
-          </option>
-          <option value="plain">PLAIN</option>
-          <option value="login">LOGIN</option>
-          <option value="none">
-            {{ t("admin.maintenanceSettings.emailNoAuth") }}
-          </option>
-        </select>
-      </div>
-      <div class="space-y-2">
-        <Label :for="`${id}-password`">{{
-          t("admin.maintenanceSettings.emailPassword")
-        }}</Label>
-        <Input
-          :id="`${id}-password`"
-          v-model="model.password"
-          type="password"
-          autocomplete="new-password"
-          :disabled="model.clear_password"
-          :placeholder="
-            model.password_configured
-              ? t('admin.maintenanceSettings.emailPasswordSaved')
-              : ''
-          "
-        />
-        <div class="flex items-center gap-2">
-          <input
-            :id="`${id}-clear`"
-            v-model="model.clear_password"
-            type="checkbox"
-            @change="model.password = undefined"
-          /><Label :for="`${id}-clear`">{{
-            t("admin.maintenanceSettings.emailClearPassword")
-          }}</Label>
+    <Card class="border-border/60 shadow-none">
+      <CardHeader
+        ><CardTitle class="text-base">{{
+          t("admin.maintenanceSettings.emailConnection")
+        }}</CardTitle></CardHeader
+      >
+      <CardContent class="grid gap-5 sm:grid-cols-2">
+        <div class="space-y-2 sm:col-span-2">
+          <Label :for="`${id}-host`">{{
+            t("admin.maintenanceSettings.email_host")
+          }}</Label
+          ><Input
+            :id="`${id}-host`"
+            v-model="model.smtp.host"
+            placeholder="smtp.example.com"
+            autocomplete="off"
+          />
         </div>
-      </div>
-      <div class="space-y-2">
-        <Label :for="`${id}-from`">{{
-          t("admin.maintenanceSettings.emailFrom")
-        }}</Label
-        ><Input :id="`${id}-from`" v-model="model.from_address" type="email" />
-      </div>
-      <div class="space-y-2">
-        <Label :for="`${id}-name`">{{
-          t("admin.maintenanceSettings.emailName")
-        }}</Label
-        ><Input :id="`${id}-name`" v-model="model.from_name" />
-      </div>
-      <div class="space-y-2 sm:col-span-2">
-        <Label :for="`${id}-to`">{{
-          t("admin.maintenanceSettings.emailTo")
-        }}</Label
-        ><Input :id="`${id}-to`" v-model="recipients" />
-      </div>
-      <div class="space-y-2">
-        <Label :for="`${id}-timeout`">{{
-          t("admin.maintenanceSettings.emailTimeout")
-        }}</Label
-        ><Input
-          :id="`${id}-timeout`"
-          v-model.number="model.smtp.timeout_seconds"
-          type="number"
-          min="1"
-          max="120"
-        />
-      </div>
-      <div class="space-y-2">
-        <Label :for="`${id}-limit`">{{
-          t("admin.maintenanceSettings.emailLimit")
-        }}</Label
-        ><Input
-          :id="`${id}-limit`"
-          v-model.number="model.attachment_limit_mib"
-          type="number"
-          min="1"
-          max="100"
-        />
-      </div>
-    </div>
-    <Button
-      type="button"
-      variant="outline"
-      :disabled="
-        disabled || testing || !isBackupEmailValid({ ...model, enabled: true })
-      "
-      @click="test"
-      >{{
-        t(
-          testing
-            ? "admin.maintenanceSettings.emailTesting"
-            : "admin.maintenanceSettings.emailTest",
-        )
-      }}</Button
-    >
-    <p role="status" class="text-sm">{{ result }}</p>
+        <div class="space-y-2">
+          <Label :for="`${id}-security`">{{
+            t("admin.maintenanceSettings.emailSecurity")
+          }}</Label>
+          <Select
+            :model-value="model.smtp.security"
+            :disabled="disabled || testing"
+            @update:model-value="setSecurity"
+          >
+            <SelectTrigger :id="`${id}-security`" class="w-full"
+              ><SelectValue
+            /></SelectTrigger>
+            <SelectContent
+              ><SelectItem value="ssl_tls">TLS</SelectItem
+              ><SelectItem value="starttls">STARTTLS</SelectItem
+              ><SelectItem value="none">{{
+                t("admin.maintenanceSettings.emailNoTls")
+              }}</SelectItem></SelectContent
+            >
+          </Select>
+        </div>
+        <div class="space-y-2">
+          <Label :for="`${id}-port`">{{
+            t("admin.maintenanceSettings.emailPort")
+          }}</Label
+          ><Input
+            :id="`${id}-port`"
+            v-model.number="model.smtp.port"
+            type="number"
+            min="1"
+            max="65535"
+          />
+        </div>
+        <div class="space-y-2">
+          <Label :for="`${id}-auth`">{{
+            t("admin.maintenanceSettings.emailAuth")
+          }}</Label>
+          <Select
+            v-model="model.smtp.auth_mode"
+            :disabled="disabled || testing"
+          >
+            <SelectTrigger :id="`${id}-auth`" class="w-full"
+              ><SelectValue
+            /></SelectTrigger>
+            <SelectContent
+              ><SelectItem value="auto">{{
+                t("admin.maintenanceSettings.emailAuto")
+              }}</SelectItem
+              ><SelectItem value="plain">PLAIN</SelectItem
+              ><SelectItem value="login">LOGIN</SelectItem
+              ><SelectItem value="none">{{
+                t("admin.maintenanceSettings.emailNoAuth")
+              }}</SelectItem></SelectContent
+            >
+          </Select>
+        </div>
+        <div class="space-y-2">
+          <Label :for="`${id}-username`">{{
+            t("admin.maintenanceSettings.email_username")
+          }}</Label
+          ><Input
+            :id="`${id}-username`"
+            v-model="model.smtp.username"
+            autocomplete="off"
+          />
+        </div>
+        <div class="space-y-3 sm:col-span-2">
+          <Label :for="`${id}-password`">{{
+            t("admin.maintenanceSettings.emailPassword")
+          }}</Label>
+          <Input
+            :id="`${id}-password`"
+            v-model="model.password"
+            type="password"
+            autocomplete="new-password"
+            :disabled="disabled || testing || model.clear_password"
+            :placeholder="
+              model.password_configured
+                ? t('admin.maintenanceSettings.emailPasswordSaved')
+                : ''
+            "
+          />
+          <div class="flex items-center gap-2">
+            <Checkbox
+              :id="`${id}-clear`"
+              :model-value="model.clear_password === true"
+              :disabled="disabled || testing"
+              @update:model-value="
+                model.clear_password = $event === true;
+                model.password = undefined;
+              "
+            /><Label
+              :for="`${id}-clear`"
+              class="text-sm text-muted-foreground"
+              >{{ t("admin.maintenanceSettings.emailClearPassword") }}</Label
+            >
+          </div>
+        </div>
+      </CardContent>
+    </Card>
+    <Card class="border-border/60 shadow-none">
+      <CardHeader
+        ><CardTitle class="text-base">{{
+          t("admin.maintenanceSettings.emailAddresses")
+        }}</CardTitle></CardHeader
+      >
+      <CardContent class="grid gap-5 sm:grid-cols-2">
+        <div class="space-y-2">
+          <Label :for="`${id}-from`">{{
+            t("admin.maintenanceSettings.emailFrom")
+          }}</Label
+          ><Input
+            :id="`${id}-from`"
+            v-model="model.from_address"
+            type="email"
+          />
+        </div>
+        <div class="space-y-2">
+          <Label :for="`${id}-name`">{{
+            t("admin.maintenanceSettings.emailName")
+          }}</Label
+          ><Input :id="`${id}-name`" v-model="model.from_name" />
+        </div>
+        <div class="space-y-2 sm:col-span-2">
+          <Label :for="`${id}-to`">{{
+            t("admin.maintenanceSettings.emailTo")
+          }}</Label
+          ><Input :id="`${id}-to`" v-model="recipients" />
+        </div>
+      </CardContent>
+    </Card>
+    <Card class="border-border/60 shadow-none">
+      <CardHeader
+        ><CardTitle class="text-base">{{
+          t("admin.maintenanceSettings.emailLimits")
+        }}</CardTitle></CardHeader
+      >
+      <CardContent class="grid gap-5 sm:grid-cols-2">
+        <div class="space-y-2">
+          <Label :for="`${id}-timeout`">{{
+            t("admin.maintenanceSettings.emailTimeout")
+          }}</Label
+          ><Input
+            :id="`${id}-timeout`"
+            v-model.number="model.smtp.timeout_seconds"
+            type="number"
+            min="1"
+            max="120"
+          />
+        </div>
+        <div class="space-y-2">
+          <Label :for="`${id}-limit`">{{
+            t("admin.maintenanceSettings.emailLimit")
+          }}</Label
+          ><Input
+            :id="`${id}-limit`"
+            v-model.number="model.attachment_limit_mib"
+            type="number"
+            min="1"
+            max="100"
+          />
+        </div>
+        <div
+          class="flex flex-wrap items-center gap-3 border-t pt-4 sm:col-span-2"
+        >
+          <Button
+            type="button"
+            variant="outline"
+            :disabled="
+              disabled ||
+              testing ||
+              !isBackupEmailValid({ ...model, enabled: true })
+            "
+            @click="test"
+            >{{
+              t(
+                testing
+                  ? "admin.maintenanceSettings.emailTesting"
+                  : "admin.maintenanceSettings.emailTest",
+              )
+            }}</Button
+          >
+          <p role="status" class="text-sm text-muted-foreground">
+            {{ result }}
+          </p>
+        </div>
+      </CardContent>
+    </Card>
   </fieldset>
 </template>

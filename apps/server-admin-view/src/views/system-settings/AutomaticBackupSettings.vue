@@ -1,244 +1,35 @@
 <script setup lang="ts">
-import {
-  computed,
-  onBeforeUnmount,
-  onMounted,
-  reactive,
-  ref,
-  useId,
-} from "vue";
-import { useI18n } from "vue-i18n";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
-import { DatabaseBackup, Loader2, RotateCcw, Save } from "lucide-vue-next";
-import { toast } from "@admin-shared/utils/toast";
-import { extractErrorMessage } from "@admin-shared/composables/useAsyncAction";
-import { MaintenanceAPI } from "@/lib/api/config";
 import {
-  AUTOMATIC_BACKUP_INTERVAL_RANGE,
-  AUTOMATIC_BACKUP_RESULT_POLL_LIMIT,
-  AUTOMATIC_BACKUP_RETENTION_RANGE,
-  automaticBackupAttemptCompleted,
-  automaticBackupAttemptSucceeded,
-  isAutomaticBackupConfigValid,
-} from "@/lib/automatic-backup";
-import type { AutomaticBackupDetails } from "@/types";
-
-import BackupEmailSettings from "./BackupEmailSettings.vue";
-import BackupEmailStatus from "./BackupEmailStatus.vue";
-import {
-  defaultBackupEmail,
-  backupEmailPayload,
-  isBackupEmailValid,
-  type BackupEmailForm,
-} from "@/lib/backup-email";
-const emailForm = ref<BackupEmailForm>(defaultBackupEmail());
-
+  DatabaseBackup,
+  Loader2,
+  RotateCcw,
+  Save,
+  Mail,
+  ChevronRight,
+} from "lucide-vue-next";
+import { useAutomaticBackupSettings } from "./useAutomaticBackupSettings";
 const emit = defineEmits<{ filesChanged: [] }>();
-const { locale, t } = useI18n();
-const a11yId = useId();
-const details = ref<AutomaticBackupDetails | null>(null);
-const isLoading = ref(false);
-const isSaving = ref(false);
-const loadErrorMessage = ref("");
-const saveErrorMessage = ref("");
-let refreshTimer: number | null = null;
-let disposed = false;
-let statusGeneration = 0;
-let statusPolling = false;
-
-async function refreshStatus(): Promise<AutomaticBackupDetails | undefined> {
-  if (disposed || statusPolling || isSaving.value || isLoading.value) return;
-  statusPolling = true;
-  const generation = statusGeneration;
-  try {
-    const next = await MaintenanceAPI.getAutomaticBackupDetails();
-    if (disposed || generation !== statusGeneration) return;
-    if (details.value) details.value.status = next.status;
-    return next;
-  } finally {
-    statusPolling = false;
-  }
-}
-
-const form = reactive({
-  enabled: false,
-  interval_hours: 24,
-  retention_days: 7,
-});
-
-const isValid = computed(
-  () =>
-    isAutomaticBackupConfigValid(form.interval_hours, form.retention_days) &&
-    isBackupEmailValid(emailForm.value),
-);
-const intervalIsInvalid = computed(
-  () =>
-    !Number.isInteger(form.interval_hours) ||
-    form.interval_hours < AUTOMATIC_BACKUP_INTERVAL_RANGE.min ||
-    form.interval_hours > AUTOMATIC_BACKUP_INTERVAL_RANGE.max,
-);
-const retentionIsInvalid = computed(
-  () =>
-    !Number.isInteger(form.retention_days) ||
-    form.retention_days < AUTOMATIC_BACKUP_RETENTION_RANGE.min ||
-    form.retention_days > AUTOMATIC_BACKUP_RETENTION_RANGE.max,
-);
-const requestErrorMessage = computed(
-  () => saveErrorMessage.value || loadErrorMessage.value,
-);
-const isDirty = computed(() => {
-  const config = details.value?.config;
-  return (
-    !!config &&
-    (JSON.stringify(backupEmailPayload(emailForm.value)) !==
-      JSON.stringify(
-        backupEmailPayload(config.email ?? defaultBackupEmail()),
-      ) ||
-      form.enabled !== config.enabled ||
-      form.interval_hours !== config.interval_hours ||
-      form.retention_days !== config.retention_days)
-  );
-});
-
-function applyDetails(value: AutomaticBackupDetails) {
-  if (disposed) return;
-  details.value = value;
-  const email = value.config.email ?? defaultBackupEmail();
-  emailForm.value = {
-    ...email,
-    smtp: { ...email.smtp },
-    to_addresses: [...email.to_addresses],
-  };
-  form.enabled = value.config.enabled;
-  form.interval_hours = value.config.interval_hours;
-  form.retention_days = value.config.retention_days;
-}
-
-async function load() {
-  statusGeneration += 1;
-  isLoading.value = true;
-  loadErrorMessage.value = "";
-  try {
-    applyDetails(await MaintenanceAPI.getAutomaticBackupDetails());
-  } catch (error) {
-    loadErrorMessage.value = extractErrorMessage(
-      error,
-      t("admin.maintenanceSettings.automaticLoadFailedDescription"),
-    );
-    toast.error(t("admin.maintenanceSettings.automaticLoadFailed"), {
-      description: loadErrorMessage.value,
-    });
-  } finally {
-    isLoading.value = false;
-  }
-}
-
-function reset() {
-  if (details.value) applyDetails(details.value);
-}
-
-async function save() {
-  if (!isValid.value) {
-    toast.error(t("admin.maintenanceSettings.automaticValidationFailed"));
-    return;
-  }
-  const previousAttempt = details.value?.status.last_attempt_at;
-  const previousSuccess = details.value?.status.last_success_at;
-  const shouldWatchFirstBackup =
-    form.enabled && details.value?.config.enabled !== true;
-  statusGeneration += 1;
-  isSaving.value = true;
-  saveErrorMessage.value = "";
-  try {
-    applyDetails(
-      await MaintenanceAPI.updateAutomaticBackupConfig({
-        email: backupEmailPayload(emailForm.value),
-        enabled: form.enabled,
-        interval_hours: form.interval_hours,
-        retention_days: form.retention_days,
-      }),
-    );
-    toast.success(t("admin.maintenanceSettings.automaticSaved"));
-    if (shouldWatchFirstBackup)
-      pollForBackupResult(previousAttempt, previousSuccess, 0);
-  } catch (error) {
-    saveErrorMessage.value = extractErrorMessage(
-      error,
-      t("admin.maintenanceSettings.automaticSaveFailedDescription"),
-    );
-    toast.error(t("admin.maintenanceSettings.automaticSaveFailed"), {
-      description: saveErrorMessage.value,
-    });
-  } finally {
-    isSaving.value = false;
-  }
-}
-
-function pollForBackupResult(
-  previousAttempt: string | null | undefined,
-  previousSuccess: string | null | undefined,
-  attempt: number,
-) {
-  if (disposed) return;
-  if (refreshTimer !== null) window.clearTimeout(refreshTimer);
-  if (attempt >= AUTOMATIC_BACKUP_RESULT_POLL_LIMIT) return;
-  refreshTimer = window.setTimeout(async () => {
-    try {
-      const next = await refreshStatus();
-      if (
-        next &&
-        automaticBackupAttemptCompleted(
-          previousAttempt,
-          next.status.last_attempt_at,
-        )
-      ) {
-        if (
-          automaticBackupAttemptSucceeded(
-            previousSuccess,
-            next.status.last_success_at,
-          )
-        )
-          emit("filesChanged");
-        return;
-      }
-    } catch {
-      // A transient status request must not stop first-backup monitoring.
-    }
-    pollForBackupResult(previousAttempt, previousSuccess, attempt + 1);
-  }, 1000);
-}
-
-function formatDate(value: string | null | undefined) {
-  if (!value) return t("admin.maintenanceSettings.notAvailable");
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return value;
-  return new Intl.DateTimeFormat(locale.value, {
-    dateStyle: "medium",
-    timeStyle: "short",
-  }).format(date);
-}
-
-let emailRefreshTimer: ReturnType<typeof setInterval> | undefined;
-onMounted(() => {
-  void load();
-  emailRefreshTimer = setInterval(async () => {
-    if (!details.value || isSaving.value || isLoading.value) return;
-    try {
-      await refreshStatus();
-    } catch {
-      /* Retry on the next status poll. */
-    }
-  }, 5000);
-});
-onBeforeUnmount(() => {
-  disposed = true;
-  statusGeneration += 1;
-  if (emailRefreshTimer) clearInterval(emailRefreshTimer);
-  if (refreshTimer !== null) window.clearTimeout(refreshTimer);
-});
+const {
+  t,
+  a11yId,
+  details,
+  form,
+  isLoading,
+  isSaving,
+  isDirty,
+  isValid,
+  intervalIsInvalid,
+  retentionIsInvalid,
+  requestErrorMessage,
+  formatDate,
+  reset,
+  save,
+} = useAutomaticBackupSettings(false, () => emit("filesChanged"));
 </script>
 
 <template>
@@ -422,14 +213,34 @@ onBeforeUnmount(() => {
       </p>
     </div>
 
-    <BackupEmailSettings
-      v-model="emailForm"
-      :disabled="isLoading || isSaving || !details"
-    />
-    <BackupEmailStatus
-      v-if="details?.status.email"
-      :status="details.status.email"
-    />
+    <a
+      href="#/system/backup-email"
+      class="group mt-6 flex items-center gap-4 rounded-xl border p-4 transition-colors hover:bg-muted/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+      data-testid="backup-email-entry"
+    >
+      <span class="rounded-lg bg-muted p-2.5"
+        ><Mail class="h-5 w-5" aria-hidden="true"
+      /></span>
+      <span class="min-w-0 flex-1 space-y-1">
+        <span class="flex flex-wrap items-center gap-2 font-medium">
+          {{ t("admin.maintenanceSettings.emailTitle") }}
+          <Badge variant="secondary">{{
+            t(
+              details?.config.email?.enabled
+                ? "admin.maintenanceSettings.emailStateEnabled"
+                : "admin.maintenanceSettings.emailStateDisabled",
+            )
+          }}</Badge>
+        </span>
+        <span class="block text-sm text-muted-foreground">{{
+          t("admin.maintenanceSettings.emailEntryDescription")
+        }}</span>
+      </span>
+      <ChevronRight
+        class="h-4 w-4 shrink-0 text-muted-foreground"
+        aria-hidden="true"
+      />
+    </a>
 
     <div class="mt-5 flex justify-end gap-3">
       <Button

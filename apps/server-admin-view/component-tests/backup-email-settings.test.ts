@@ -2,6 +2,8 @@ import { flushPromises, mount } from "@vue/test-utils";
 import { createI18n } from "vue-i18n";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { MaintenanceAPI } from "../src/lib/api/config";
+import BackupEmailPage from "../src/views/system-settings/BackupEmailPage.vue";
+import { Select } from "@/components/ui/select";
 import AutomaticBackupSettings from "../src/views/system-settings/AutomaticBackupSettings.vue";
 import { defaultBackupEmail } from "../src/lib/backup-email";
 import { enAdmin } from "../../../packages/i18n/src/messages/admin/en";
@@ -15,7 +17,7 @@ afterEach(() => {
   vi.restoreAllMocks();
   vi.useRealTimers();
 });
-async function setup() {
+async function setup(overview = false) {
   const details = {
     config: {
       enabled: true,
@@ -48,7 +50,7 @@ async function setup() {
     details,
   );
   vi.spyOn(MaintenanceAPI, "testBackupEmail").mockResolvedValue(undefined);
-  const wrapper = mount(AutomaticBackupSettings, {
+  const wrapper = mount(overview ? AutomaticBackupSettings : BackupEmailPage, {
     global: {
       plugins: [
         createI18n({
@@ -84,13 +86,13 @@ describe("backup email settings", () => {
       enAdmin.maintenanceSettings.emailErrorTimeout,
     );
     expect(wrapper.text()).toContain(
-      enAdmin.maintenanceSettings.automaticLastSuccess,
+      enAdmin.maintenanceSettings.emailLastSuccess,
     );
   });
   it("submits password changes only when explicitly entered", async () => {
     const wrapper = await setup();
     await wrapper.get('input[type="password"]').setValue("replacement");
-    await button(wrapper, enAdmin.maintenanceSettings.saveAutomatic).trigger(
+    await button(wrapper, enAdmin.maintenanceSettings.emailSave).trigger(
       "click",
     );
     await flushPromises();
@@ -106,7 +108,11 @@ describe("backup email settings", () => {
     await wrapper
       .get('input[id$="-to"]')
       .setValue("one@example.com, two@example.com");
-    await wrapper.get('select[id$="-auth"]').setValue("none");
+    wrapper
+      .findAllComponents(Select)
+      .find((select) => select.props("modelValue") === "auto")!
+      .vm.$emit("update:modelValue", "none");
+    await flushPromises();
     await button(wrapper, enAdmin.maintenanceSettings.emailTest).trigger(
       "click",
     );
@@ -142,7 +148,7 @@ describe("backup email settings", () => {
       },
     );
     await wrapper.get('input[type="password"]').setValue("replacement");
-    await button(wrapper, enAdmin.maintenanceSettings.saveAutomatic).trigger(
+    await button(wrapper, enAdmin.maintenanceSettings.emailSave).trigger(
       "click",
     );
     await flushPromises();
@@ -156,5 +162,28 @@ describe("backup email settings", () => {
     await flushPromises();
     expect(wrapper.text()).toContain("saved-file.knock");
     expect(wrapper.text()).not.toContain("stale-file.knock");
+  });
+  it("shows an entry instead of email fields on the overview", async () => {
+    const wrapper = await setup(true);
+    expect(wrapper.find('input[type="password"]').exists()).toBe(false);
+    expect(wrapper.find('[role="combobox"]').exists()).toBe(false);
+    expect(
+      wrapper.get('[data-testid="backup-email-entry"]').attributes("href"),
+    ).toBe("#/system/backup-email");
+  });
+  it("uses project controls and preserves a custom SMTP port", async () => {
+    const wrapper = await setup();
+    expect(wrapper.find("select").exists()).toBe(false);
+    expect(wrapper.findAll('[role="combobox"]')).toHaveLength(2);
+    expect(wrapper.find('[role="checkbox"]').exists()).toBe(true);
+    await wrapper.get('input[id$="-port"]').setValue("2525");
+    wrapper
+      .findAllComponents(Select)
+      .find((select) => select.props("modelValue") === "ssl_tls")!
+      .vm.$emit("update:modelValue", "starttls");
+    await flushPromises();
+    expect(
+      (wrapper.get('input[id$="-port"]').element as HTMLInputElement).value,
+    ).toBe("2525");
   });
 });

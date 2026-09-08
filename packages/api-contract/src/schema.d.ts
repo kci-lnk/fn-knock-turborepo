@@ -12725,6 +12725,7 @@ export interface components {
         };
         StaticPathBrowseBodyData: {
             cursor?: string | null;
+            for_log_storage?: boolean | null;
             path?: string | null;
             target_type: components["schemas"]["StaticPathTargetTypeData"];
         };
@@ -12757,6 +12758,7 @@ export interface components {
             target_type: components["schemas"]["StaticPathTargetTypeData"];
         };
         StaticPathProbeBodyData: {
+            for_log_storage?: boolean | null;
             path: string;
             target_type: components["schemas"]["StaticPathTargetTypeData"];
         };

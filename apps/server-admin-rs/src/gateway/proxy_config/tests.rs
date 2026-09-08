@@ -4198,3 +4198,42 @@ fn gateway_auth_config_omits_stale_origin_port_for_cloudflared() {
         Some(0)
     );
 }
+
+#[tokio::test]
+async fn static_path_log_storage_requires_directory_target() {
+    let (_directory, state) = proxy_config_test_state("127.0.0.1:1".to_string()).await;
+    for endpoint in ["static_path_probe", "static_path_browse"] {
+        let response = proxy_config_routes()
+            .with_state(state.clone())
+            .oneshot(
+                Request::post(format!("/api/admin/config/host_mappings/{endpoint}"))
+                    .header(header::CONTENT_TYPE, "application/json")
+                    .body(Body::from(
+                        json!({
+                            "target_type": "file",
+                            "path": "/usr/local/etc/fn-knock/logs",
+                            "for_log_storage": true
+                        })
+                        .to_string(),
+                    ))
+                    .unwrap(),
+            )
+            .await
+            .expect("log storage route response");
+        assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+    }
+    for flag in [
+        json!({}),
+        json!({"for_log_storage": null}),
+        json!({"for_log_storage": false}),
+    ] {
+        let mut body = json!({"target_type": "directory", "path": "/usr/local/etc/fn-knock/logs"});
+        body.as_object_mut()
+            .unwrap()
+            .extend(flag.as_object().unwrap().clone());
+        let probe: StaticPathProbeBody = serde_json::from_value(body.clone()).unwrap();
+        let browse: StaticPathBrowseBody = serde_json::from_value(body).unwrap();
+        assert!(!probe.for_log_storage.unwrap_or(false));
+        assert!(!browse.for_log_storage.unwrap_or(false));
+    }
+}

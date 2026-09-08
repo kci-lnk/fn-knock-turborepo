@@ -21694,6 +21694,12 @@
               "null"
             ]
           },
+          "for_log_storage": {
+            "type": [
+              "boolean",
+              "null"
+            ]
+          },
           "path": {
             "maxLength": 4096,
             "type": [
@@ -21865,6 +21871,12 @@
       },
       "StaticPathProbeBodyData": {
         "properties": {
+          "for_log_storage": {
+            "type": [
+              "boolean",
+              "null"
+            ]
+          },
           "path": {
             "type": "string"
           },

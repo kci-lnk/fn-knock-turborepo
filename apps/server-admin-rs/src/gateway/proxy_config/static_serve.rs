@@ -103,11 +103,12 @@ pub(super) fn rejected_static_path_browse_result(target_type: &str, error_code: 
 pub(super) async fn browse_static_path_with_gateway(
     state: &AppState,
     spec: &StaticPathBrowseSpec,
+    for_log_storage: bool,
 ) -> Result<Value, &'static str> {
     let result = state
         .gateway
         .client
-        .browse_static_path(&spec.target_type, &spec.path, &spec.cursor)
+        .browse_static_path(&spec.target_type, &spec.path, &spec.cursor, for_log_storage)
         .await
         .map_err(|_| "Static path browse request failed")?;
     sanitize_static_path_browse_result(spec, &result)
@@ -1041,11 +1042,12 @@ pub(super) fn rejected_static_path_probe_result(target_type: &str) -> Value {
 pub(super) async fn probe_static_path_with_gateway(
     state: &AppState,
     spec: &StaticPathSpec,
+    for_log_storage: bool,
 ) -> Result<Value, String> {
     let result = state
         .gateway
         .client
-        .probe_static_path(&spec.target_type, &spec.path)
+        .probe_static_path(&spec.target_type, &spec.path, for_log_storage)
         .await
         .map_err(|_| "Static path probe request failed".to_string())?;
     sanitize_static_path_probe_result(spec, &result)
@@ -1146,7 +1148,7 @@ pub(super) async fn probe_changed_static_paths(
     // the gateway revalidates protected paths and object types when applying
     // rules and again for every request to close the unavoidable TOCTOU gap.
     for (host, spec) in changed_static_path_specs(previous_mappings, next_mappings) {
-        let result = match probe_static_path_with_gateway(state, &spec).await {
+        let result = match probe_static_path_with_gateway(state, &spec, false).await {
             Ok(result) => result,
             Err(_) => {
                 tracing::warn!(host, "failed to validate static mapping path");

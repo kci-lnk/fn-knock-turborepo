@@ -22,6 +22,7 @@ const isSuccessfulProbe = (
 
 export const useStaticPathBrowser = ({
   active,
+  forLogStorage = false,
   applyPath,
   currentTargetType,
   isDialogOpen,
@@ -30,6 +31,7 @@ export const useStaticPathBrowser = ({
   translate,
 }: {
   active: ComputedRef<boolean>;
+  forLogStorage?: boolean;
   applyPath: (path: string) => void;
   currentTargetType: ComputedRef<StaticPathProbeTargetType | null>;
   isDialogOpen: Ref<boolean>;
@@ -120,6 +122,7 @@ export const useStaticPathBrowser = ({
         requestedTargetType,
         path,
         cursor,
+        ...(forLogStorage ? ([true] as const) : ([] as const)),
       );
       if (
         requestId !== browseRequestId ||
@@ -242,6 +245,7 @@ export const useStaticPathBrowser = ({
       const probe = await ConfigAPI.probeHostMappingStaticPath(
         requestedTargetType,
         path,
+        ...(forLogStorage ? ([true] as const) : ([] as const)),
       );
       if (
         requestId !== confirmRequestId ||

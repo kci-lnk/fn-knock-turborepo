@@ -164,6 +164,8 @@ message HostRule {
 message StaticPathProbeRequest {
   HostRuleTargetType requested_type = 1;
   string path = 2;
+  // Administrator-only directory selection, never used to authorize static serving.
+  bool for_log_storage = 3;
 }
 
 message StaticPathProbeResult {
@@ -179,6 +181,7 @@ message StaticPathBrowseRequest {
   HostRuleTargetType target_type = 1;
   string path = 2;
   string cursor = 3;
+  bool for_log_storage = 4;
 }
 
 message StaticPathBreadcrumb {

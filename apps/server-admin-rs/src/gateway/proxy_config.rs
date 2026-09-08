@@ -978,6 +978,8 @@ pub(crate) struct MappingsBody {
 
 #[derive(Deserialize, utoipa::ToSchema)]
 pub(crate) struct StaticPathProbeBody {
+    #[serde(default)]
+    for_log_storage: Option<bool>,
     target_type: String,
     path: String,
 }
@@ -985,6 +987,8 @@ pub(crate) struct StaticPathProbeBody {
 #[derive(Deserialize, utoipa::ToSchema)]
 #[serde(deny_unknown_fields)]
 pub(crate) struct StaticPathBrowseBody {
+    #[serde(default)]
+    for_log_storage: Option<bool>,
     target_type: String,
     #[serde(default)]
     path: Option<String>,
@@ -1366,6 +1370,9 @@ async fn static_path_probe(
     State(state): State<AppState>,
     Json(body): Json<StaticPathProbeBody>,
 ) -> Response {
+    if body.for_log_storage.unwrap_or(false) && body.target_type != "directory" {
+        return response::error(StatusCode::BAD_REQUEST, "Log storage requires a directory");
+    }
     let spec = match static_path_probe_spec(&body.target_type, &body.path) {
         Ok(spec) => spec,
         Err(_) => {
@@ -1373,7 +1380,8 @@ async fn static_path_probe(
                 .into_response();
         }
     };
-    match probe_static_path_with_gateway(&state, &spec).await {
+    match probe_static_path_with_gateway(&state, &spec, body.for_log_storage.unwrap_or(false)).await
+    {
         Ok(result) => response::ok(result).into_response(),
         Err(_) => {
             // Do not export a gateway diagnostic here: a remote/older gateway
@@ -1412,6 +1420,9 @@ async fn static_path_browse(
             );
         }
     };
+    if body.for_log_storage.unwrap_or(false) && body.target_type != "directory" {
+        return response::error(StatusCode::BAD_REQUEST, "Log storage requires a directory");
+    }
     let Some(target_type) = static_path_browse_target_type(&body.target_type) else {
         return response::error(
             StatusCode::BAD_REQUEST,
@@ -1426,7 +1437,9 @@ async fn static_path_browse(
                     .into_response();
             }
         };
-    match browse_static_path_with_gateway(&state, &spec).await {
+    match browse_static_path_with_gateway(&state, &spec, body.for_log_storage.unwrap_or(false))
+        .await
+    {
         Ok(result) => response::ok(result).into_response(),
         Err(_) => {
             // Never expose tonic status text or a gateway-provided path. A

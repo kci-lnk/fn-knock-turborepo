@@ -173,6 +173,7 @@ describe("request log storage settings", () => {
       "directory",
       "/mnt/old",
       null,
+      true,
     );
     const choose = [...document.querySelectorAll("button")].find(
       (item) => item.textContent?.trim() === "Use this folder",
@@ -183,6 +184,7 @@ describe("request log storage settings", () => {
     expect(ConfigAPI.probeHostMappingStaticPath).toHaveBeenCalledWith(
       "directory",
       "/mnt/new",
+      true,
     );
     expect(
       (wrapper.get("#gateway-log-directory").element as HTMLInputElement).value,

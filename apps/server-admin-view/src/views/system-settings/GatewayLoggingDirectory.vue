@@ -27,6 +27,7 @@ const route = useRoute();
 const open = ref(false);
 const editor = reactive(
   useStaticPathBrowser({
+    forLogStorage: true,
     active: computed(() => open.value),
     applyPath: (path) => {
       model.value = path;

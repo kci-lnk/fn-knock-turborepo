@@ -216,6 +216,7 @@ pub(super) enum StaticPathActualTypeData {
 
 #[derive(Serialize, ToSchema)]
 pub(super) struct StaticPathProbeBodyData {
+    for_log_storage: Option<bool>,
     target_type: StaticPathTargetTypeData,
     path: String,
 }
@@ -257,6 +258,7 @@ pub(super) enum StaticPathBrowseErrorCodeData {
 #[derive(Serialize, ToSchema)]
 #[serde(deny_unknown_fields)]
 pub(super) struct StaticPathBrowseBodyData {
+    for_log_storage: Option<bool>,
     target_type: StaticPathTargetTypeData,
     #[schema(max_length = 4096)]
     path: Option<String>,

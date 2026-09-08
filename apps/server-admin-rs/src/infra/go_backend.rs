@@ -517,12 +517,14 @@ impl GoBackendClient {
         &self,
         requested_type: &str,
         path: &str,
+        for_log_storage: bool,
     ) -> anyhow::Result<Value> {
         let mut client = self.control.clone();
         let response = client
             .probe_static_path(self.request(StaticPathProbeRequest {
                 requested_type: host_rule_target_type_to_proto(requested_type),
                 path: path.to_string(),
+                for_log_storage,
             }))
             .await
             .context("probe static path")?
@@ -542,6 +544,7 @@ impl GoBackendClient {
         target_type: &str,
         path: &str,
         cursor: &str,
+        for_log_storage: bool,
     ) -> anyhow::Result<Value> {
         let mut client = self.control.clone();
         let response = client
@@ -549,6 +552,7 @@ impl GoBackendClient {
                 target_type: host_rule_target_type_to_proto(target_type),
                 path: path.to_string(),
                 cursor: cursor.to_string(),
+                for_log_storage,
             }))
             .await
             .context("browse static path")?

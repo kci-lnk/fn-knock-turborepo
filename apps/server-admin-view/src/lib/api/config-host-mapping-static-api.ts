@@ -22,11 +22,13 @@ export const configHostMappingStaticApi = {
     targetType: StaticPathProbeTargetType,
     path: string | null = null,
     cursor: string | null = null,
+    forLogStorage = false,
   ): Promise<StaticPathBrowseResult> {
     const body = {
       target_type: targetType,
       path,
       cursor,
+      ...(forLogStorage ? { for_log_storage: true } : {}),
     } satisfies StaticPathBrowseBody;
     const res = await apiClient.post(
       "/config/host_mappings/static_path_browse",
@@ -37,10 +39,12 @@ export const configHostMappingStaticApi = {
   async probeHostMappingStaticPath(
     targetType: StaticPathProbeTargetType,
     path: string,
+    forLogStorage = false,
   ): Promise<StaticPathProbeResult> {
     const body = {
       target_type: targetType,
       path,
+      ...(forLogStorage ? { for_log_storage: true } : {}),
     } satisfies StaticPathProbeBody;
     const res = await apiClient.post(
       "/config/host_mappings/static_path_probe",

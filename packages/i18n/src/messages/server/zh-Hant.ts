@@ -525,6 +525,8 @@ export const zhHantServer = {
     },
   },
   gatewayLogs: {
+    cursorExpired: "日誌已被輪替清理，請重新整理清單後再試。",
+    invalidCapacity: "請輸入 1–1048576 的整數，總容量不能小於每日容量。",
     configRollbackFailed:
       "面板設定儲存失敗，且無法還原閘道原設定；儲存位置可能與實際生效位置不同，請重新整理確認。",
     configLoadFailed: "讀取請求日誌配置失敗",

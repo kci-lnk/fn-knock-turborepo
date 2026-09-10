@@ -29,9 +29,8 @@ vi.mock("../src/lib/api/config", async (importOriginal) => {
 });
 
 vi.mock("../src/lib/api/gateway", async (importOriginal) => {
-  const actual = await importOriginal<
-    typeof import("../src/lib/api/gateway")
-  >();
+  const actual =
+    await importOriginal<typeof import("../src/lib/api/gateway")>();
   return {
     ...actual,
     GatewayLogsAPI: {
@@ -126,10 +125,32 @@ beforeEach(() => {
 });
 
 describe("latest log requests", () => {
-  it("keeps a slow gateway response from overwriting a newer filter", async () => {
-    const { resource, wrapper } = mountResource(
-      useGatewayRequestLogsResource,
+  it("resets an expired gateway segment cursor so refresh can start over", async () => {
+    api.getGatewayEntries.mockResolvedValueOnce({
+      available_dates: ["2026-08-14"],
+      date: "2026-08-14",
+      items: [],
+      logs_dir: "",
+      next_cursor: "2026-08-14.00000000000000000001.log:100",
+    });
+    const { resource, wrapper } = mountResource(useGatewayRequestLogsResource);
+    await flushPromises();
+    api.getGatewayEntries.mockRejectedValueOnce({
+      isAxiosError: true,
+      response: { status: 409 },
+    });
+    await resource.handleLoadOlder();
+    expect(resource.currentCursor.value).toBe("");
+    expect(resource.canLoadNewer.value).toBe(false);
+    await resource.refreshAll();
+    expect(api.getGatewayEntries).toHaveBeenLastCalledWith(
+      expect.objectContaining({ cursor: undefined }),
     );
+    wrapper.unmount();
+  });
+
+  it("keeps a slow gateway response from overwriting a newer filter", async () => {
+    const { resource, wrapper } = mountResource(useGatewayRequestLogsResource);
     await flushPromises();
     const first = deferred<Record<string, unknown>>();
     const second = deferred<Record<string, unknown>>();

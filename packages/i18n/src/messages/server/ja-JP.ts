@@ -642,6 +642,9 @@ export const jaJPServer = {
     },
   },
   gatewayLogs: {
+    cursorExpired: "ログはローテーションで削除されました。一覧を更新してください。",
+    invalidCapacity:
+      "1〜1048576の整数を入力してください。合計容量は1日の容量以上にしてください。",
     configRollbackFailed:
       "パネル設定を保存できず、ゲートウェイの設定も元に戻せませんでした。保存済みの場所と実際の保存先が異なる可能性があります。再読み込みして確認してください。",
     configLoadFailed: "リクエストログ設定の読み取りに失敗しました",

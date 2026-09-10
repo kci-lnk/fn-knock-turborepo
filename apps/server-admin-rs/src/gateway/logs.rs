@@ -61,6 +61,8 @@ struct GatewayLoggingConfigBody {
     #[serde(default)]
     record_localhost: bool,
     max_days: i64,
+    max_daily_size_mb: Option<i64>,
+    max_total_size_mb: Option<i64>,
 }
 
 const GATEWAY_LOGS_JSON_BODY_LIMIT_BYTES: usize = 1024 * 1024;
@@ -130,10 +132,17 @@ async fn update_config(
             );
         }
     };
-    let previous = config
+    let mut previous = config
         .get("gateway_logging")
         .cloned()
         .unwrap_or_else(|| json!({"enabled": false, "max_days": 7, "custom_logs_dir": ""}));
+    // Rollback must send explicit old defaults; omitted fields are PATCH inputs
+    // at the gateway and would otherwise preserve the newly applied limits.
+    for (key, fallback) in [("max_daily_size_mb", 256), ("max_total_size_mb", 1024)] {
+        if previous.get(key).is_none() {
+            ensure_object(&mut previous).insert(key.to_string(), json!(fallback));
+        }
+    }
     let custom_logs_dir = body.custom_logs_dir.unwrap_or_else(|| {
         previous
             .get("custom_logs_dir")
@@ -141,7 +150,27 @@ async fn update_config(
             .unwrap_or("")
             .to_string()
     });
+    let daily = body.max_daily_size_mb.unwrap_or_else(|| {
+        previous
+            .get("max_daily_size_mb")
+            .and_then(Value::as_i64)
+            .unwrap_or(256)
+    });
+    let total = body.max_total_size_mb.unwrap_or_else(|| {
+        previous
+            .get("max_total_size_mb")
+            .and_then(Value::as_i64)
+            .unwrap_or(1024)
+    });
+    if !valid_gateway_logging_capacity(daily, total) {
+        return response::error(
+            StatusCode::BAD_REQUEST,
+            gateway_logs_text(&translator, "invalidCapacity"),
+        );
+    }
     let settings = GatewayLoggingSettings {
+        max_daily_size_mb: daily,
+        max_total_size_mb: total,
         enabled: body.enabled,
         record_localhost: body.record_localhost,
         max_days: normalize_gateway_logging_max_days(body.max_days),
@@ -151,6 +180,8 @@ async fn update_config(
         "enabled": settings.enabled,
         "record_localhost": settings.record_localhost,
         "max_days": settings.max_days,
+        "max_daily_size_mb": settings.max_daily_size_mb,
+        "max_total_size_mb": settings.max_total_size_mb,
         "custom_logs_dir": settings.custom_logs_dir,
     });
     // The gateway validates and persists first; invalid paths never enter panel storage.
@@ -247,7 +278,7 @@ async fn dates(State(state): State<AppState>) -> Response {
     )
 }
 
-#[utoipa::path(get, path = "/api/admin/gateway-logs/entries", tag = "gateway-logs", operation_id = "get_api_admin_gateway_logs_entries", responses((status = 200, description = "Gateway log entries")))]
+#[utoipa::path(get, path = "/api/admin/gateway-logs/entries", tag = "gateway-logs", operation_id = "get_api_admin_gateway_logs_entries", responses((status = 200, description = "Gateway log entries"), (status = 409, description = "Log cursor expired; refresh the log list")))]
 async fn entries(State(state): State<AppState>, Query(query): Query<GatewayLogQuery>) -> Response {
     let translator = Translator::from_state(&state).await;
     let trace_id = query
@@ -271,12 +302,22 @@ async fn entries(State(state): State<AppState>, Query(query): Query<GatewayLogQu
         Ok(data) => response::ok(hydrate_entries_response(data)).into_response(),
         Err(error) => {
             tracing::warn!(%error, "failed to read gateway log entries");
-            response::error(
-                StatusCode::BAD_REQUEST,
-                gateway_logs_text(&translator, "readEntriesFailed"),
-            )
+            gateway_log_entries_error(&translator, &error)
         }
     }
+}
+
+fn gateway_log_entries_error(translator: &Translator, error: &anyhow::Error) -> Response {
+    if error.to_string().contains("log cursor expired") {
+        return response::error(
+            StatusCode::CONFLICT,
+            gateway_logs_text(translator, "cursorExpired"),
+        );
+    }
+    response::error(
+        StatusCode::BAD_REQUEST,
+        gateway_logs_text(translator, "readEntriesFailed"),
+    )
 }
 
 async fn find_gateway_log_entry(state: &AppState, trace_id: &str) -> anyhow::Result<Value> {
@@ -437,7 +478,7 @@ async fn get_entries_with_waf_filter(
     let initial_cursor = normalize_optional_cursor(query.cursor.as_deref());
     let mut items = Vec::<Value>::new();
     let mut base_data: Option<Value> = None;
-    let mut raw_cursor = initial_cursor.map(|value| value.to_string());
+    let mut raw_cursor = initial_cursor.clone();
     let mut next_cursor = String::new();
     let mut has_more = false;
     query.pagination = Some("cursor".to_string());
@@ -664,12 +705,14 @@ fn go_data_response(
     }
 }
 
-#[derive(Clone)]
+#[derive(Clone, Default)]
 struct GatewayLoggingSettings {
     custom_logs_dir: String,
     enabled: bool,
     record_localhost: bool,
     max_days: i64,
+    max_daily_size_mb: i64,
+    max_total_size_mb: i64,
 }
 
 async fn gateway_logging_settings(
@@ -692,6 +735,14 @@ async fn gateway_logging_settings(
             .get("record_localhost")
             .and_then(Value::as_bool)
             .unwrap_or(false),
+        max_daily_size_mb: raw
+            .get("max_daily_size_mb")
+            .and_then(Value::as_i64)
+            .unwrap_or(256),
+        max_total_size_mb: raw
+            .get("max_total_size_mb")
+            .and_then(Value::as_i64)
+            .unwrap_or(1024),
         max_days: raw
             .get("max_days")
             .and_then(Value::as_i64)
@@ -751,12 +802,18 @@ fn gateway_logging_config_response(settings: GatewayLoggingSettings, runtime: &V
         "enabled": settings.enabled,
         "record_localhost": settings.record_localhost,
         "max_days": settings.max_days,
+        "max_daily_size_mb": settings.max_daily_size_mb,
+        "max_total_size_mb": settings.max_total_size_mb,
         "custom_logs_dir": settings.custom_logs_dir,
         "default_logs_dir": runtime.get("default_logs_dir").and_then(Value::as_str).unwrap_or(""),
         "logs_dir": runtime.get("logs_dir").and_then(Value::as_str).unwrap_or(""),
         "dropped_entries": runtime_u64_field(runtime, "dropped_entries"),
         "queue_size": runtime_i64_field(runtime, "queue_size"),
-        "queue_depth": runtime_i64_field(runtime, "queue_depth")
+        "queue_depth": runtime_i64_field(runtime, "queue_depth"),
+        "today_size_bytes": runtime_u64_field(runtime, "today_size_bytes"),
+        "total_size_bytes": runtime_u64_field(runtime, "total_size_bytes"),
+        "capacity_dropped_entries": runtime_u64_field(runtime, "capacity_dropped_entries"),
+        "cleanup_error": runtime.get("cleanup_error").and_then(Value::as_str).unwrap_or("")
     })
 }
 
@@ -904,12 +961,15 @@ fn normalize_positive_integer(value: Option<&str>, fallback: i64, max: i64) -> i
         .unwrap_or(fallback)
 }
 
-fn normalize_optional_cursor(value: Option<&str>) -> Option<i64> {
-    let value = value?.trim();
-    if value.is_empty() {
-        return None;
-    }
-    crate::node_compat::parse_i64_prefix(value).filter(|value| *value >= 0)
+fn normalize_optional_cursor(value: Option<&str>) -> Option<String> {
+    value
+        .map(str::trim)
+        .filter(|v| !v.is_empty())
+        .map(str::to_owned)
+}
+
+fn valid_gateway_logging_capacity(daily: i64, total: i64) -> bool {
+    (1..=1_048_576).contains(&daily) && (daily..=1_048_576).contains(&total)
 }
 
 fn normalize_gateway_logging_max_days(value: i64) -> i64 {
@@ -1007,9 +1067,22 @@ mod tests {
 
         assert_eq!(normalize_optional_cursor(None), None);
         assert_eq!(normalize_optional_cursor(Some("")), None);
-        assert_eq!(normalize_optional_cursor(Some("2x")), Some(2));
-        assert_eq!(normalize_optional_cursor(Some("  +3.9")), Some(3));
-        assert_eq!(normalize_optional_cursor(Some("-1")), None);
+        assert_eq!(
+            normalize_optional_cursor(Some("2x")),
+            Some("2x".to_string())
+        );
+        assert_eq!(
+            normalize_optional_cursor(Some("  +3.9")),
+            Some("+3.9".to_string())
+        );
+        assert_eq!(
+            normalize_optional_cursor(Some("-1")),
+            Some("-1".to_string())
+        );
+        assert_eq!(
+            normalize_optional_cursor(Some("2026-09-10.01750000000000000000.log:123")),
+            Some("2026-09-10.01750000000000000000.log:123".to_string())
+        );
     }
 
     #[test]
@@ -1019,6 +1092,8 @@ mod tests {
                 enabled: true,
                 record_localhost: false,
                 max_days: 7,
+                max_daily_size_mb: 256,
+                max_total_size_mb: 1024,
                 custom_logs_dir: "/saved/logs".into(),
             },
             &json!({"logs_dir": "/active/logs", "default_logs_dir": "/default/logs"}),
@@ -1033,6 +1108,42 @@ mod tests {
             serde_json::from_value(json!({"enabled": true, "max_days": 7, "custom_logs_dir": ""}))
                 .unwrap();
         assert_eq!(reset.custom_logs_dir.as_deref(), Some(""));
+    }
+
+    #[test]
+    fn gateway_logging_expired_cursor_is_actionable() {
+        let translator = Translator::new("zh-CN");
+        let error = anyhow::anyhow!(
+            "go backend gRPC request failed: log cursor expired; refresh the log list"
+        );
+        assert_eq!(
+            gateway_log_entries_error(&translator, &error).status(),
+            StatusCode::CONFLICT
+        );
+        assert_eq!(
+            gateway_log_entries_error(&translator, &anyhow::anyhow!("read failed")).status(),
+            StatusCode::BAD_REQUEST
+        );
+    }
+
+    #[test]
+    fn gateway_logging_capacity_rejects_invalid_limits_and_preserves_optional_inputs() {
+        for (daily, total) in [(0, 1024), (-1, 1024), (256, 255), (256, 1_048_577)] {
+            assert!(!valid_gateway_logging_capacity(daily, total));
+        }
+        for (daily, total) in [(1, 1), (256, 1024), (1_048_576, 1_048_576)] {
+            assert!(valid_gateway_logging_capacity(daily, total));
+        }
+        let old: GatewayLoggingConfigBody =
+            serde_json::from_value(json!({"enabled": true, "max_days": 7})).unwrap();
+        assert!(old.max_daily_size_mb.is_none());
+        assert!(old.max_total_size_mb.is_none());
+        assert!(
+            serde_json::from_value::<GatewayLoggingConfigBody>(
+                json!({"enabled": true, "max_days": 7, "max_daily_size_mb": 1.5})
+            )
+            .is_err()
+        );
     }
 
     #[test]
@@ -1051,6 +1162,8 @@ mod tests {
                 enabled: true,
                 record_localhost: true,
                 max_days: 14,
+                max_daily_size_mb: 256,
+                max_total_size_mb: 1024,
             },
             &json!({
                 "enabled": false,
@@ -1075,7 +1188,9 @@ mod tests {
                 "logs_dir": "/runtime/logs",
                 "dropped_entries": 5,
                 "queue_size": 4096,
-                "queue_depth": 12
+                "queue_depth": 12,
+                "max_daily_size_mb": 256, "max_total_size_mb": 1024,
+                "today_size_bytes": 0, "total_size_bytes": 0, "capacity_dropped_entries": 0, "cleanup_error": ""
             })
         );
     }
@@ -1088,6 +1203,8 @@ mod tests {
                 enabled: false,
                 record_localhost: false,
                 max_days: 7,
+                max_daily_size_mb: 256,
+                max_total_size_mb: 1024,
             },
             &Value::Null,
         );

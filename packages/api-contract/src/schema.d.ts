@@ -10389,6 +10389,9 @@ export interface components {
             x_real_ip: string;
         };
         GatewayLoggingConfigData: {
+            /** Format: int64 */
+            capacity_dropped_entries: number;
+            cleanup_error: string;
             custom_logs_dir: string;
             default_logs_dir: string;
             /** Format: int64 */
@@ -10396,18 +10399,30 @@ export interface components {
             enabled: boolean;
             logs_dir: string;
             /** Format: int64 */
+            max_daily_size_mb: number;
+            /** Format: int64 */
             max_days: number;
+            /** Format: int64 */
+            max_total_size_mb: number;
             /** Format: int64 */
             queue_depth: number;
             /** Format: int64 */
             queue_size: number;
             record_localhost: boolean;
+            /** Format: int64 */
+            today_size_bytes: number;
+            /** Format: int64 */
+            total_size_bytes: number;
         };
         GatewayLoggingConfigUpdateData: {
             custom_logs_dir?: string | null;
             enabled: boolean;
             /** Format: int64 */
+            max_daily_size_mb?: number | null;
+            /** Format: int64 */
             max_days: number;
+            /** Format: int64 */
+            max_total_size_mb?: number | null;
             record_localhost?: boolean | null;
         };
         GatewayMemoryConfigData: {

@@ -2596,6 +2596,20 @@ export const koKRAdmin = {
       "설정 목표는 꺼짐이지만 현재 커널 값은 여전히 {value}입니다. 활성화 전 상태이거나 다른 시스템 설정일 수 있습니다.",
   },
   gatewayLogging: {
+    dailyCapacity: "일일 용량 한도",
+    totalCapacity: "전체 용량 한도",
+    capacityDescription:
+      "용량 또는 보관 기간 한도에 도달하면 가장 오래된 로그를 삭제합니다. 한도를 낮추면 기존 기록이 즉시 삭제되며 복원할 수 없습니다.",
+    invalidCapacity:
+      "1~1048576 사이의 정수를 입력하세요. 전체 용량은 일일 용량 이상이어야 합니다.",
+    capacityUsage:
+      "사용량: 오늘 {today} MiB, 전체 {total} MiB (불러오기 또는 저장 시 갱신).",
+    retainedOnly:
+      "조회 및 통계는 보관 중인 로그만 포함합니다. 파일 단위로 삭제하므로 보관량이 한도보다 작을 수 있습니다.",
+    capacityWarning: "요청 로그 용량 또는 저장소 문제",
+    capacityDropped:
+      "용량 또는 저장소 문제로 {count}개의 로그가 기록되지 않았습니다.",
+    cursorExpired: "로그가 순환 삭제되었습니다. 목록을 새로 고침하세요.",
     directoryLabel: "저장 디렉터리",
     browseDirectory: "폴더 선택",
     restoreDefaultDirectory: "기본 위치로 복원",
@@ -2633,7 +2647,7 @@ export const koKRAdmin = {
       "현재 비동기 쓰기 큐: {queue} · 기록하지 못한 로그: {dropped}건",
     dropWarningTitle: "일부 요청 로그를 기록하지 못하고 있습니다.",
     dropWarningDescription:
-      "비동기 쓰기 큐가 혼잡해 {count}건의 요청 로그가 디스크에 기록되지 않았습니다.",
+      "쓰기 대기열 혼잡 또는 로그 설정 변경으로 {count}개의 요청 로그가 기록되지 않았습니다.",
     daysUnit: "일",
     reset: "재설정",
     saveSettings: "설정 저장",

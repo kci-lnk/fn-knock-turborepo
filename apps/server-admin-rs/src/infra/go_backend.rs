@@ -1562,6 +1562,12 @@ fn parse_logging(value: &Value) -> LoggingConfig {
         enabled: bool_field(value, "enabled", false),
         record_localhost: bool_field(value, "record_localhost", false),
         max_days: i32_field(value, "max_days", 0),
+        max_daily_size_mb: value.get("max_daily_size_mb").and_then(Value::as_i64),
+        max_total_size_mb: value.get("max_total_size_mb").and_then(Value::as_i64),
+        today_size_bytes: 0,
+        total_size_bytes: 0,
+        capacity_dropped_entries: 0,
+        cleanup_error: String::new(),
         logs_dir: string_field(value, "logs_dir"),
         custom_logs_dir: value
             .get("custom_logs_dir")
@@ -1929,6 +1935,10 @@ fn logging_to_json(config: LoggingConfig) -> Value {
         "enabled": config.enabled,
         "record_localhost": config.record_localhost,
         "max_days": config.max_days,
+        "max_daily_size_mb": config.max_daily_size_mb.unwrap_or(256),
+        "max_total_size_mb": config.max_total_size_mb.unwrap_or(1024),
+        "today_size_bytes": config.today_size_bytes, "total_size_bytes": config.total_size_bytes,
+        "capacity_dropped_entries": config.capacity_dropped_entries, "cleanup_error": config.cleanup_error,
         "logs_dir": config.logs_dir,
         "custom_logs_dir": config.custom_logs_dir.unwrap_or_default(),
         "default_logs_dir": config.default_logs_dir,
@@ -2574,6 +2584,7 @@ mod tests {
             dropped_entries: 12,
             queue_size: 4096,
             queue_depth: 7,
+            ..Default::default()
         });
 
         assert_eq!(
@@ -2587,7 +2598,9 @@ mod tests {
                 "default_logs_dir": "",
                 "dropped_entries": 12,
                 "queue_size": 4096,
-                "queue_depth": 7
+                "queue_depth": 7,
+                "max_daily_size_mb": 256, "max_total_size_mb": 1024,
+                "today_size_bytes": 0, "total_size_bytes": 0, "capacity_dropped_entries": 0, "cleanup_error": ""
             })
         );
     }

@@ -25,6 +25,12 @@ const initial = {
   enabled: true,
   record_localhost: false,
   max_days: 7,
+  max_daily_size_mb: 256,
+  max_total_size_mb: 1024,
+  today_size_bytes: 1048576,
+  total_size_bytes: 2097152,
+  capacity_dropped_entries: 0,
+  cleanup_error: "",
   logs_dir: "/mnt/old",
   custom_logs_dir: "/mnt/old",
   default_logs_dir: "/runtime/logs",
@@ -102,6 +108,8 @@ describe("request log storage settings", () => {
       enabled: true,
       record_localhost: false,
       max_days: 7,
+      max_daily_size_mb: 256,
+      max_total_size_mb: 1024,
       custom_logs_dir: "",
     });
     expect(wrapper.text()).toContain("Active location: /runtime/logs");
@@ -196,5 +204,44 @@ describe("request log storage settings", () => {
     expect(document.activeElement).toBe(
       wrapper.get("#gateway-log-directory").element,
     );
+  });
+});
+
+describe("request log capacity controls", () => {
+  it("saves custom limits and shows usage and destructive cleanup explanation", async () => {
+    const wrapper = await setup();
+    expect(wrapper.text()).toContain("today 1 MiB, total 2 MiB");
+    expect(wrapper.text()).toContain("deleted records cannot be restored");
+    await wrapper.get('[data-testid="max_daily_size_mb"]').setValue("100");
+    await wrapper.get('[data-testid="max_total_size_mb"]').setValue("500");
+    await button(wrapper, enAdmin.gatewayLogging.saveSettings).trigger("click");
+    await flushPromises();
+    expect(GatewayLogsAPI.updateConfig).toHaveBeenCalledWith(
+      expect.objectContaining({
+        max_daily_size_mb: 100,
+        max_total_size_mb: 500,
+      }),
+    );
+  });
+  it("rejects zero, fractional, and inconsistent limits without saving", async () => {
+    const wrapper = await setup();
+    for (const daily of ["0", "1.5", "2048"]) {
+      await wrapper.get('[data-testid="max_daily_size_mb"]').setValue(daily);
+      await button(wrapper, enAdmin.gatewayLogging.saveSettings).trigger(
+        "click",
+      );
+      expect(GatewayLogsAPI.updateConfig).not.toHaveBeenCalled();
+      expect(wrapper.text()).toContain(enAdmin.gatewayLogging.invalidCapacity);
+    }
+  });
+  it("shows cleanup failures separately from queue drops", async () => {
+    vi.mocked(GatewayLogsAPI.getConfig).mockResolvedValue({
+      ...initial,
+      cleanup_error: "permission denied",
+      capacity_dropped_entries: 4,
+    });
+    const wrapper = await setup();
+    expect(wrapper.text()).toContain("permission denied");
+    expect(wrapper.text()).toContain("4 entries were not written");
   });
 });

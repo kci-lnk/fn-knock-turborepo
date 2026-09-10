@@ -495,7 +495,10 @@ pub(super) fn normalize_smart_connect_runtime(value: Option<&Value>) -> Value {
 }
 
 pub(super) fn normalize_gateway_logging(value: Option<&Value>) -> Value {
+    let daily = int_field(value, "max_daily_size_mb", 256, 1, 1_048_576);
+    let total = int_field(value, "max_total_size_mb", 1024, 1, 1_048_576).max(daily);
     json!({
+        "max_daily_size_mb": daily, "max_total_size_mb": total,
         "custom_logs_dir": value.and_then(|v| v.get("custom_logs_dir")).and_then(Value::as_str).unwrap_or(""),
         "enabled": bool_field(value, "enabled", false),
         "record_localhost": bool_field(value, "record_localhost", false),

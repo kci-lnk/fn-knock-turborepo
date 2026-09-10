@@ -59,6 +59,11 @@ pub(super) async fn sync_runtime_after_import(
                 "max_days": 7
             })
         });
+    for (key, default) in [("max_daily_size_mb", 256), ("max_total_size_mb", 1024)] {
+        if gateway_logging.get(key).is_none() {
+            gateway_logging[key] = json!(default);
+        }
+    }
     if gateway_logging.get("custom_logs_dir").is_none() {
         gateway_logging["custom_logs_dir"] = json!("");
     }

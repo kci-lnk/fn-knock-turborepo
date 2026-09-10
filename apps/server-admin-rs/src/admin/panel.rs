@@ -296,7 +296,8 @@ async fn config(State(state): State<AppState>) -> Response {
 }
 
 async fn enrich_gateway_logging_config(state: &AppState, config: &mut Value) {
-    let current = config.get("gateway_logging");
+    let logging_snapshot = config.get("gateway_logging").cloned();
+    let current = logging_snapshot.as_ref();
     let custom_logs_dir = current
         .and_then(|v| v.get("custom_logs_dir"))
         .and_then(Value::as_str)
@@ -340,6 +341,12 @@ async fn enrich_gateway_logging_config(state: &AppState, config: &mut Value) {
                 "enabled": enabled,
                 "record_localhost": record_localhost,
                 "max_days": max_days,
+                "max_daily_size_mb": current.and_then(|v| v.get("max_daily_size_mb")).and_then(Value::as_i64).unwrap_or(256),
+                "max_total_size_mb": current.and_then(|v| v.get("max_total_size_mb")).and_then(Value::as_i64).unwrap_or(1024),
+                "today_size_bytes": runtime.get("today_size_bytes").and_then(Value::as_u64).unwrap_or(0),
+                "total_size_bytes": runtime.get("total_size_bytes").and_then(Value::as_u64).unwrap_or(0),
+                "capacity_dropped_entries": runtime.get("capacity_dropped_entries").and_then(Value::as_u64).unwrap_or(0),
+                "cleanup_error": runtime.get("cleanup_error").and_then(Value::as_str).unwrap_or(""),
                 "custom_logs_dir": custom_logs_dir,
                 "default_logs_dir": runtime.get("default_logs_dir").and_then(Value::as_str).unwrap_or(""),
                 "logs_dir": runtime.get("logs_dir").and_then(Value::as_str).unwrap_or(""),

@@ -615,6 +615,9 @@ export const koKRServer = {
     },
   },
   gatewayLogs: {
+    cursorExpired: "로그가 순환 삭제되었습니다. 목록을 새로 고침하세요.",
+    invalidCapacity:
+      "1~1048576 사이의 정수를 입력하세요. 전체 용량은 일일 용량 이상이어야 합니다.",
     configRollbackFailed:
       "패널 설정 저장에 실패했으며 게이트웨이 설정도 복원하지 못했습니다. 저장된 위치와 실제 적용 위치가 다를 수 있습니다. 새로고침하여 확인하세요.",
     configLoadFailed: "요청 로그 설정을 읽지 못했습니다.",

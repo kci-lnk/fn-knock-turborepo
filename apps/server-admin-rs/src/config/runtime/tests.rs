@@ -1216,11 +1216,11 @@ fn normalizes_gateway_logging_like_node_parse_int_without_upper_cap() {
             "record_localhost": true,
             "max_days": "2x",
         }))),
-        json!({ "enabled": true, "record_localhost": true, "max_days": 2, "custom_logs_dir": "" })
+        json!({ "enabled": true, "record_localhost": true, "max_days": 2, "custom_logs_dir": "", "max_daily_size_mb": 256, "max_total_size_mb": 1024 })
     );
     assert_eq!(
         normalize_gateway_logging(None),
-        json!({ "enabled": false, "record_localhost": false, "max_days": 7, "custom_logs_dir": "" })
+        json!({ "enabled": false, "record_localhost": false, "max_days": 7, "custom_logs_dir": "", "max_daily_size_mb": 256, "max_total_size_mb": 1024 })
     );
     assert_eq!(
         normalize_gateway_logging(Some(&json!({
@@ -2168,4 +2168,20 @@ fn localizes_runtime_config_route_and_fnos_network_errors() {
         ),
         "设置 net.ipv4.tcp_mtu_probing 失败"
     );
+}
+
+#[test]
+fn normalizes_gateway_logging_capacity_for_old_backups_and_runtime_sync() {
+    let defaults = normalize_gateway_logging(None);
+    assert_eq!(defaults["max_daily_size_mb"], 256);
+    assert_eq!(defaults["max_total_size_mb"], 1024);
+    let custom = normalize_gateway_logging(Some(
+        &json!({"max_daily_size_mb": 100, "max_total_size_mb": 500}),
+    ));
+    assert_eq!(custom["max_daily_size_mb"], 100);
+    assert_eq!(custom["max_total_size_mb"], 500);
+    let bounded = normalize_gateway_logging(Some(
+        &json!({"max_daily_size_mb": 2048, "max_total_size_mb": 0}),
+    ));
+    assert_eq!(bounded["max_total_size_mb"], 2048);
 }

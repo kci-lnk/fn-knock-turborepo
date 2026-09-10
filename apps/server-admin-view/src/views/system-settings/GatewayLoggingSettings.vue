@@ -36,12 +36,19 @@ const settings = ref<GatewayLoggingConfig | null>(null);
 const form = reactive<
   Pick<
     GatewayLoggingConfig,
-    "enabled" | "record_localhost" | "max_days" | "custom_logs_dir"
+    | "enabled"
+    | "record_localhost"
+    | "max_days"
+    | "custom_logs_dir"
+    | "max_daily_size_mb"
+    | "max_total_size_mb"
   >
 >({
   enabled: false,
   record_localhost: false,
   max_days: 7,
+  max_daily_size_mb: 256,
+  max_total_size_mb: 1024,
   custom_logs_dir: "",
 });
 
@@ -73,6 +80,10 @@ const isDirty = computed(() => {
     settings.value.enabled !== form.enabled ||
     settings.value.record_localhost !== form.record_localhost ||
     settings.value.max_days !== Number(form.max_days) ||
+    (settings.value.max_daily_size_mb ?? 256) !==
+      Number(form.max_daily_size_mb) ||
+    (settings.value.max_total_size_mb ?? 1024) !==
+      Number(form.max_total_size_mb) ||
     settings.value.custom_logs_dir !== form.custom_logs_dir
   );
 });
@@ -86,6 +97,8 @@ const applyFromSettings = (data: GatewayLoggingConfig) => {
   form.enabled = data.enabled;
   form.record_localhost = data.record_localhost;
   form.max_days = data.max_days;
+  form.max_daily_size_mb = data.max_daily_size_mb ?? 256;
+  form.max_total_size_mb = data.max_total_size_mb ?? 1024;
   form.custom_logs_dir = data.custom_logs_dir || "";
 };
 
@@ -100,7 +113,23 @@ const resetForm = () => {
   if (settings.value) applyFromSettings(settings.value);
 };
 
+const validCapacity = computed(
+  () =>
+    Number.isInteger(form.max_daily_size_mb) &&
+    Number.isInteger(form.max_total_size_mb) &&
+    form.max_daily_size_mb >= 1 &&
+    form.max_total_size_mb >= form.max_daily_size_mb &&
+    form.max_total_size_mb <= 1_048_576,
+);
+const formatMiB = (bytes: number | undefined) =>
+  new Intl.NumberFormat(undefined, { maximumFractionDigits: 1 }).format(
+    (bytes ?? 0) / 1048576,
+  );
 const saveSettings = async () => {
+  if (!validCapacity.value) {
+    toast.error(t("admin.gatewayLogging.invalidCapacity"));
+    return;
+  }
   await runSaveSettings(
     async () => {
       try {
@@ -109,6 +138,8 @@ const saveSettings = async () => {
           enabled: form.enabled,
           record_localhost: form.record_localhost,
           max_days: Math.max(1, Math.floor(Number(form.max_days) || 1)),
+          max_daily_size_mb: form.max_daily_size_mb,
+          max_total_size_mb: form.max_total_size_mb,
         });
       } catch (error) {
         // A timeout or failed rollback may leave the gateway on another directory.
@@ -224,6 +255,72 @@ onMounted(fetchSettings);
             t("admin.gatewayLogging.daysUnit")
           }}</span>
         </div>
+      </div>
+
+      <div class="space-y-4 p-6">
+        <p class="text-sm text-muted-foreground">
+          {{ t("admin.gatewayLogging.capacityDescription") }}
+        </p>
+        <div class="grid gap-4 sm:grid-cols-2">
+          <div
+            v-for="field in ['max_daily_size_mb', 'max_total_size_mb'] as const"
+            :key="field"
+            class="space-y-2"
+          >
+            <Label :for="`${a11yId}-${field}`">{{
+              t(
+                `admin.gatewayLogging.${field === "max_daily_size_mb" ? "dailyCapacity" : "totalCapacity"}`,
+              )
+            }}</Label>
+            <div class="flex items-center gap-2">
+              <Input
+                :id="`${a11yId}-${field}`"
+                v-model.number="form[field]"
+                :data-testid="field"
+                type="number"
+                min="1"
+                max="1048576"
+                step="1"
+                :disabled="isSaving"
+                :aria-invalid="!validCapacity"
+                class="w-36"
+              />
+              <span class="text-sm text-muted-foreground">MiB</span>
+            </div>
+          </div>
+        </div>
+        <p v-if="!validCapacity" role="alert" class="text-sm text-destructive">
+          {{ t("admin.gatewayLogging.invalidCapacity") }}
+        </p>
+        <p class="text-sm text-muted-foreground">
+          {{
+            t("admin.gatewayLogging.capacityUsage", {
+              today: formatMiB(settings?.today_size_bytes),
+              total: formatMiB(settings?.total_size_bytes),
+            })
+          }}
+        </p>
+        <p class="text-sm text-muted-foreground">
+          {{ t("admin.gatewayLogging.retainedOnly") }}
+        </p>
+        <Alert
+          v-if="settings?.cleanup_error || settings?.capacity_dropped_entries"
+          variant="destructive"
+        >
+          <AlertTitle>{{
+            t("admin.gatewayLogging.capacityWarning")
+          }}</AlertTitle>
+          <AlertDescription>
+            {{
+              t("admin.gatewayLogging.capacityDropped", {
+                count: formatCount(settings?.capacity_dropped_entries ?? 0),
+              })
+            }}
+            <span v-if="settings?.cleanup_error" class="block break-all">{{
+              settings.cleanup_error
+            }}</span>
+          </AlertDescription>
+        </Alert>
       </div>
 
       <GatewayLoggingDirectory

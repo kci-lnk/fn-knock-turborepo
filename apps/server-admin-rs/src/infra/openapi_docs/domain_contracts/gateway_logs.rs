@@ -6,12 +6,18 @@ pub(super) struct GatewayLoggingConfigData {
     enabled: bool,
     record_localhost: bool,
     max_days: i64,
+    max_daily_size_mb: i64,
+    max_total_size_mb: i64,
     logs_dir: String,
     custom_logs_dir: String,
     default_logs_dir: String,
     dropped_entries: u64,
     queue_size: i64,
     queue_depth: i64,
+    today_size_bytes: u64,
+    total_size_bytes: u64,
+    capacity_dropped_entries: u64,
+    cleanup_error: String,
 }
 
 #[derive(Serialize, ToSchema)]
@@ -19,6 +25,8 @@ pub(super) struct GatewayLoggingConfigUpdateData {
     custom_logs_dir: Option<String>,
     enabled: bool,
     record_localhost: Option<bool>,
+    max_daily_size_mb: Option<i64>,
+    max_total_size_mb: Option<i64>,
     max_days: i64,
 }
 

@@ -613,6 +613,9 @@ export const enServer = {
     },
   },
   gatewayLogs: {
+    cursorExpired: "These logs have been rotated out. Refresh the list and try again.",
+    invalidCapacity:
+      "Enter integers from 1 to 1048576. Total capacity must be at least the daily capacity.",
     configRollbackFailed:
       "Panel settings could not be saved and the gateway configuration could not be restored. Saved and active locations may differ; refresh to check.",
     configLoadFailed: "Failed to read request log settings",

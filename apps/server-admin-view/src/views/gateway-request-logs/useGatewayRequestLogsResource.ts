@@ -1,3 +1,4 @@
+import axios from "axios";
 import { computed, onBeforeUnmount, onMounted, ref } from "vue";
 import { useI18n } from "vue-i18n";
 import {
@@ -208,11 +209,16 @@ export const useGatewayRequestLogsResource = () => {
       entries.value = [];
       trackIps([]);
       nextCursor.value = "";
+      const cursorExpired =
+        axios.isAxiosError(error) && error.response?.status === 409;
+      if (cursorExpired) resetCursorPagination();
       toast.error(t("admin.gatewayRequestLogs.loadFailed"), {
-        description: extractErrorMessage(
-          error,
-          t("admin.gatewayRequestLogs.loadFailedDescription"),
-        ),
+        description: cursorExpired
+          ? t("admin.gatewayLogging.cursorExpired")
+          : extractErrorMessage(
+              error,
+              t("admin.gatewayRequestLogs.loadFailedDescription"),
+            ),
       });
     } finally {
       if (currentRequestId === entriesRequestId) loading.value = false;

@@ -10,7 +10,7 @@ import "google/protobuf/empty.proto";
 // Generated clients and packaging tools consume this stable enum member.
 enum ControlApiVersion {
   CONTROL_API_VERSION_UNSPECIFIED = 0;
-  CONTROL_API_VERSION_CURRENT = 24;
+  CONTROL_API_VERSION_CURRENT = 25;
 }
 
 message RpcStatus {
@@ -323,6 +323,12 @@ message LoggingConfig {
   bool record_localhost = 7;
   optional string custom_logs_dir = 8;
   string default_logs_dir = 9;
+  optional int64 max_daily_size_mb = 10;
+  optional int64 max_total_size_mb = 11;
+  uint64 today_size_bytes = 12;
+  uint64 total_size_bytes = 13;
+  uint64 capacity_dropped_entries = 14;
+  string cleanup_error = 15;
 }
 
 message ReverseProxyThrottleConfig {

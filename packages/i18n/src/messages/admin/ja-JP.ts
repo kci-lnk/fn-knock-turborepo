@@ -2615,6 +2615,21 @@ export const jaJPAdmin = {
       "設定上は無効ですが、現在のカーネル値は {value} のままです。有効化前からの値か、別のシステム設定による可能性があります。",
   },
   gatewayLogging: {
+    dailyCapacity: "1日あたりの容量上限",
+    totalCapacity: "合計容量上限",
+    capacityDescription:
+      "容量または保存期間の上限に達すると、古いログから削除します。上限を下げると既存の記録が直ちに削除され、元に戻せません。",
+    invalidCapacity:
+      "1〜1048576の整数を入力してください。合計容量は1日の容量以上にしてください。",
+    capacityUsage:
+      "使用量：本日 {today} MiB、合計 {total} MiB（読み込み時または保存時に更新）。",
+    retainedOnly:
+      "検索と統計の対象は保持中のログのみです。ファイル単位で削除するため、保持量が上限を下回る場合があります。",
+    capacityWarning: "リクエストログの容量またはストレージの問題",
+    capacityDropped:
+      "容量またはストレージの問題により {count} 件のログが書き込まれませんでした。",
+    cursorExpired:
+      "ログはローテーションで削除されました。一覧を更新してください。",
     directoryLabel: "保存ディレクトリ",
     browseDirectory: "フォルダーを選択",
     restoreDefaultDirectory: "既定の場所に戻す",
@@ -2652,7 +2667,7 @@ export const jaJPAdmin = {
       "現在の非同期書き込みキュー: {queue}、破棄されたリクエストログ: {dropped} 件",
     dropWarningTitle: "リクエストログが破棄されています",
     dropWarningDescription:
-      "非同期書き込みキューが混雑し、{count} 件のリクエストログがディスクに書き込まれませんでした。",
+      "書き込みキューの混雑またはログ設定の更新により、{count} 件のリクエストログが書き込まれませんでした。",
     daysUnit: "日",
     reset: "リセット",
     saveSettings: "設定を保存",

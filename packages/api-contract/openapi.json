@@ -12044,6 +12044,14 @@
       },
       "GatewayLoggingConfigData": {
         "properties": {
+          "capacity_dropped_entries": {
+            "format": "int64",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "cleanup_error": {
+            "type": "string"
+          },
           "custom_logs_dir": {
             "type": "string"
           },
@@ -12061,7 +12069,15 @@
           "logs_dir": {
             "type": "string"
           },
+          "max_daily_size_mb": {
+            "format": "int64",
+            "type": "integer"
+          },
           "max_days": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "max_total_size_mb": {
             "format": "int64",
             "type": "integer"
           },
@@ -12075,18 +12091,34 @@
           },
           "record_localhost": {
             "type": "boolean"
+          },
+          "today_size_bytes": {
+            "format": "int64",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "total_size_bytes": {
+            "format": "int64",
+            "minimum": 0,
+            "type": "integer"
           }
         },
         "required": [
           "enabled",
           "record_localhost",
           "max_days",
+          "max_daily_size_mb",
+          "max_total_size_mb",
           "logs_dir",
           "custom_logs_dir",
           "default_logs_dir",
           "dropped_entries",
           "queue_size",
-          "queue_depth"
+          "queue_depth",
+          "today_size_bytes",
+          "total_size_bytes",
+          "capacity_dropped_entries",
+          "cleanup_error"
         ],
         "type": "object"
       },
@@ -12101,9 +12133,23 @@
           "enabled": {
             "type": "boolean"
           },
+          "max_daily_size_mb": {
+            "format": "int64",
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
           "max_days": {
             "format": "int64",
             "type": "integer"
+          },
+          "max_total_size_mb": {
+            "format": "int64",
+            "type": [
+              "integer",
+              "null"
+            ]
           },
           "record_localhost": {
             "type": [

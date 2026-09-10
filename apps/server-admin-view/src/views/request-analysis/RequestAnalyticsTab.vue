@@ -16,6 +16,9 @@ const model = useRequestAnalyticsPage();
 <template>
   <div class="space-y-3 sm:space-y-4">
     <RequestAnalyticsActions :model="model" />
+    <p class="text-xs text-muted-foreground">
+      {{ t("admin.gatewayLogging.retainedOnly") }}
+    </p>
 
     <div v-if="model.loading && !model.data" class="space-y-4">
       <div

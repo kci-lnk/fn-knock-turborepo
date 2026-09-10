@@ -2419,6 +2419,18 @@ export const zhCNAdmin = {
       "配置目标已关闭，但当前内核值仍为 {value}，这是启用前状态或系统其它配置。",
   },
   gatewayLogging: {
+    dailyCapacity: "每日容量上限",
+    totalCapacity: "总容量上限",
+    capacityDescription:
+      "超过容量或保留天数时，自动删除最旧日志并继续记录。调低上限会立即清理已有记录，清理后无法恢复。",
+    invalidCapacity: "请输入 1–1048576 的整数，总容量不能小于每日容量。",
+    capacityUsage:
+      "当前占用：今日 {today} MiB，总计 {total} MiB（加载或保存时更新）。",
+    retainedOnly:
+      "查询和统计仅覆盖仍保留的日志。按分片清理，实际保留量可能低于上限。",
+    capacityWarning: "请求日志容量或存储异常",
+    capacityDropped: "累计有 {count} 条日志因容量或存储异常未写入。",
+    cursorExpired: "日志已被滚动清理，请刷新列表后重试。",
     directoryLabel: "保存目录",
     browseDirectory: "选择文件夹",
     restoreDefaultDirectory: "恢复默认位置",
@@ -2455,7 +2467,7 @@ export const zhCNAdmin = {
     runtimeDescription: "当前异步写入队列：{queue}，累计丢弃 {dropped} 条。",
     dropWarningTitle: "请求日志正在丢弃",
     dropWarningDescription:
-      "异步写入队列已发生拥塞，已有 {count} 条请求日志未写入磁盘。",
+      "异步写入队列拥塞或日志配置更新期间，已有 {count} 条请求日志未写入磁盘。",
     daysUnit: "天",
     reset: "重置",
     saveSettings: "保存设置",

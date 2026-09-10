@@ -2616,6 +2616,21 @@ export const enAdmin = {
       "The target is disabled, but the current kernel value is still {value}. This is the pre-enable state or another system setting.",
   },
   gatewayLogging: {
+    dailyCapacity: "Daily capacity limit",
+    totalCapacity: "Total capacity limit",
+    capacityDescription:
+      "The oldest logs are deleted when capacity or retention limits are reached. Lowering a limit immediately removes existing records; deleted records cannot be restored.",
+    invalidCapacity:
+      "Enter integers from 1 to 1048576. Total capacity must be at least the daily capacity.",
+    capacityUsage:
+      "Storage used: today {today} MiB, total {total} MiB (updated on load or save).",
+    retainedOnly:
+      "Queries and statistics cover retained logs only. Whole segments are removed, so retained data may be below the limit.",
+    capacityWarning: "Request log capacity or storage issue",
+    capacityDropped:
+      "{count} entries were not written due to capacity or storage issues.",
+    cursorExpired:
+      "These logs have been rotated out. Refresh the list and try again.",
     directoryLabel: "Storage directory",
     browseDirectory: "Browse folders",
     restoreDefaultDirectory: "Restore default location",
@@ -2654,7 +2669,7 @@ export const enAdmin = {
       "Current async write queue: {queue}; dropped request logs: {dropped}.",
     dropWarningTitle: "Request logs are being dropped",
     dropWarningDescription:
-      "The async write queue has been congested, and {count} request logs were not written to disk.",
+      "{count} request log entries were dropped while the write queue was full or the logging configuration was being updated.",
     daysUnit: "days",
     reset: "Reset",
     saveSettings: "Save settings",

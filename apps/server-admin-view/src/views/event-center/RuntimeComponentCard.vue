@@ -1,9 +1,9 @@
 <script setup lang="ts">
 import { Activity, FileText, MemoryStick } from "lucide-vue-next";
 import { useI18n } from "vue-i18n";
-import { Badge } from "@/components/ui/badge";
+import RuntimeStatusBadges from "./RuntimeStatusBadges.vue";
 import { Button } from "@/components/ui/button";
-import type { RuntimeComponentHealth, RuntimeHealthStatus } from "../../types";
+import type { RuntimeComponentHealth } from "../../types";
 
 const props = withDefaults(
   defineProps<{
@@ -45,16 +45,6 @@ const formatBytes = (bytes?: number | null) => {
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KiB`;
   return `${(bytes / 1024 / 1024).toFixed(2)} MiB`;
 };
-
-const statusClass = (status: RuntimeHealthStatus) => {
-  if (status === "healthy")
-    return "border-emerald-500/30 bg-emerald-500/10 text-emerald-700";
-  if (status === "degraded" || status === "blocked")
-    return "border-amber-500/30 bg-amber-500/10 text-amber-700";
-  if (status === "unhealthy")
-    return "border-red-500/30 bg-red-500/10 text-red-700";
-  return "border-slate-400/30 bg-slate-400/10 text-slate-600";
-};
 </script>
 
 <template>
@@ -71,13 +61,10 @@ const statusClass = (status: RuntimeHealthStatus) => {
           {{ component.reason_code || "-" }}
         </div>
       </div>
-      <Badge
-        variant="outline"
-        class="shrink-0"
-        :class="statusClass(component.status)"
-      >
-        {{ t(`admin.eventCenter.runtime.status.${component.status}`) }}
-      </Badge>
+      <RuntimeStatusBadges
+        :status="component.status"
+        :lifecycle="component.lifecycle"
+      />
     </div>
 
     <dl

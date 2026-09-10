@@ -2671,6 +2671,7 @@ export const jaJPServer = {
         runtimeRestarted: "コンポーネント再起動",
         runtimeHealthFailed: "ヘルスチェック失敗",
         runtimeRecovered: "コンポーネント復旧",
+        runtimeStopFailed: "コンポーネント停止失敗",
         runtimeAbnormalExit: "コンポーネント異常終了",
         panelSyncFailed: "ナビゲーションパネルへの同期失敗",
         panelSyncRecovered: "ナビゲーションパネルへの同期復旧",

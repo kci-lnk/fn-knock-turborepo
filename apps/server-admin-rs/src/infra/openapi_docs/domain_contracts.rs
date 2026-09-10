@@ -1876,6 +1876,7 @@ pub(super) fn components() -> Map<String, Value> {
             "FN_EVENT_RUNTIME_RESTARTED",
             "FN_EVENT_RUNTIME_HEALTH_FAILED",
             "FN_EVENT_RUNTIME_RECOVERED",
+            "FN_EVENT_RUNTIME_STOP_FAILED",
             "FN_EVENT_RUNTIME_ABNORMAL_EXIT",
         ],
     );

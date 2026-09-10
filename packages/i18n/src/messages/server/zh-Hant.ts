@@ -2305,6 +2305,7 @@ export const zhHantServer = {
         runtimeRestarted: "元件已重新啟動",
         runtimeHealthFailed: "元件健康檢查失敗",
         runtimeRecovered: "元件已恢復",
+        runtimeStopFailed: "元件停止失敗",
         runtimeAbnormalExit: "元件異常結束",
         panelSyncFailed: "同步到導航面板失敗",
         panelSyncRecovered: "同步到導航面板已恢復",

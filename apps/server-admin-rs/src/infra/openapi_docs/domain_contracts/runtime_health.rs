@@ -8,6 +8,8 @@ use utoipa::ToSchema;
 pub(super) struct RuntimeComponentHealthData {
     id: String,
     status: String,
+    #[schema(inline)]
+    lifecycle: Option<crate::runtime_health::planned_stop::Lifecycle>,
     process_state: String,
     #[schema(required = true)]
     version: Option<String>,
@@ -69,6 +71,8 @@ pub(super) struct RuntimeLogStatusData {
 pub(super) struct RuntimeHealthSnapshotData {
     schema_version: u32,
     overall_status: String,
+    #[schema(inline)]
+    lifecycle: Option<crate::runtime_health::planned_stop::Lifecycle>,
     #[schema(required = true)]
     last_checked_at: Option<String>,
     components: HashMap<String, RuntimeComponentHealthData>,

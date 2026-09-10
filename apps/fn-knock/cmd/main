@@ -44,6 +44,7 @@ ROOT_SHARE_DIR="${FN_KNOCK_ROOT_SHARE_DIR:-${FN_KNOCK_CERT_SHARE_DIR:-}}"
 RUNTIME_LOG_DIR="${PKG_VAR_DIR}/runtime/logs"
 SUPERVISOR_LOG="${RUNTIME_LOG_DIR}/supervisor.jsonl"
 SUPERVISOR_EVENTS_DIR="${PKG_VAR_DIR}/runtime/supervisor-events"
+PLANNED_STOP_OPERATION=""
 
 log_msg() {
     echo "$(date '+%Y-%m-%d %H:%M:%S') - $1" >> "${LOG_FILE}"
@@ -51,7 +52,7 @@ log_msg() {
 
 supervisor_log() {
   local level="$1" component="$2" event="$3" reason="$4" exit_code="${5:-null}"
-  local signal="null"
+  local signal="${6:-null}"
   if [[ "${exit_code}" =~ ^[0-9]+$ ]] && [ "${exit_code}" -gt 128 ]; then
     signal="$((exit_code - 128))"
   fi
@@ -60,15 +61,15 @@ supervisor_log() {
   if [ -f "${SUPERVISOR_LOG}" ] && [ "$(wc -c < "${SUPERVISOR_LOG}" 2>/dev/null || echo 0)" -ge 516096 ]; then
         mv -f "${SUPERVISOR_LOG}" "${SUPERVISOR_LOG}.1"
     fi
-  printf '{"time":"%s","level":"%s","component":"%s","event":"%s","reason_code":"%s","fields":{"exit_code":%s,"signal":%s}}\n' \
-    "$(date -u '+%Y-%m-%dT%H:%M:%SZ')" "${level}" "${component}" "${event}" "${reason}" "${exit_code}" "${signal}" >> "${SUPERVISOR_LOG}"
+  printf '{"time":"%s","level":"%s","component":"%s","event":"%s","reason_code":"%s","fields":{"exit_code":%s,"signal":%s,"operation_id":"%s"}}\n' \
+    "$(date -u '+%Y-%m-%dT%H:%M:%SZ')" "${level}" "${component}" "${event}" "${reason}" "${exit_code}" "${signal}" "${PLANNED_STOP_OPERATION:-}" >> "${SUPERVISOR_LOG}"
     chmod 600 "${SUPERVISOR_LOG}" 2>/dev/null || true
     mkdir -p "${SUPERVISOR_EVENTS_DIR}"
     chmod 700 "${SUPERVISOR_EVENTS_DIR}" 2>/dev/null || true
     local hint_tmp="${SUPERVISOR_EVENTS_DIR}/.hint-$$-${RANDOM:-0}.tmp"
     local hint_path="${SUPERVISOR_EVENTS_DIR}/$(date -u '+%s')-$$-${RANDOM:-0}-${event}.json"
-  printf '{"time":"%s","level":"%s","component":"%s","event":"%s","reason_code":"%s","fields":{"exit_code":%s,"signal":%s}}\n' \
-    "$(date -u '+%Y-%m-%dT%H:%M:%SZ')" "${level}" "${component}" "${event}" "${reason}" "${exit_code}" "${signal}" > "${hint_tmp}"
+  printf '{"time":"%s","level":"%s","component":"%s","event":"%s","reason_code":"%s","fields":{"exit_code":%s,"signal":%s,"operation_id":"%s"}}\n' \
+    "$(date -u '+%Y-%m-%dT%H:%M:%SZ')" "${level}" "${component}" "${event}" "${reason}" "${exit_code}" "${signal}" "${PLANNED_STOP_OPERATION:-}" > "${hint_tmp}"
     chmod 600 "${hint_tmp}" 2>/dev/null || true
     mv -f "${hint_tmp}" "${hint_path}"
   find "${SUPERVISOR_EVENTS_DIR}" -type f -name '*.json' -mtime +7 -exec rm -f {} \; 2>/dev/null || true
@@ -744,6 +745,99 @@ runtime_pid_file_is_running() {
     check_process "${pid}"
 }
 
+# Instance-bound planned stop protocol, independent of the gateway RPC and SQLite.
+planned_stop_write() {
+    local action="$1" directory="${PKG_VAR_DIR}/runtime/planned-stop"
+    [ -n "${PLANNED_STOP_OPERATION:-}" ] || return 0
+    local tmp="${directory}/request.$$.tmp"
+    ( umask 077
+      printf '{"version":1,"operation_id":"%s","management_instance":"%s","gateway_instance":"%s","action":"%s","requested_at":%s,"timeout_seconds":%s}\n' \
+        "${PLANNED_STOP_OPERATION}" "${PLANNED_STOP_MANAGEMENT}" "${PLANNED_STOP_GATEWAY}" \
+        "${action}" "${PLANNED_STOP_REQUESTED}" "${PLANNED_STOP_TIMEOUT}" > "${tmp}" && \
+      mv -f "${tmp}" "${directory}/request.json"
+    )
+}
+
+planned_stop_process_matches() {
+    local pid="$1" ticks="$2" raw=""
+    case "${pid}:${ticks}" in *[!0-9:]*|:*|*:) return 1 ;; esac
+    [ -r "/proc/${pid}/stat" ] || return 1
+    raw="$(cat "/proc/${pid}/stat" 2>/dev/null)" || return 1
+    raw="${raw##*) }"
+    # Field 22 (starttime) is field 20 after stripping pid and comm.
+    [ "$(printf '%s\n' "${raw}" | awk '{print $20}')" = "${ticks}" ]
+}
+
+planned_stop_manager_capable() {
+    local pid="" ticks="" instance="" boot_id="" extra=""
+    [ -r "${PKG_VAR_DIR}/runtime/planned-stop/manager" ] || return 1
+    read -r pid ticks instance boot_id extra < "${PKG_VAR_DIR}/runtime/planned-stop/manager" || return 1
+    [ "${boot_id}" = "$(cat /proc/sys/kernel/random/boot_id)" ] && [ -z "${extra}" ] && [ "${pid}" = "$(cat "${BACKEND_PID_FILE}" 2>/dev/null)" ] && planned_stop_process_matches "${pid}" "${ticks}"
+}
+
+prepare_planned_stop() {
+    local directory="${PKG_VAR_DIR}/runtime/planned-stop"
+    local protocol="" management_pid="" management_instance="" management_ticks=""
+    local gateway_pid="" gateway_instance="" gateway_ticks="" boot_id="" extra=""
+    PLANNED_STOP_OPERATION=""
+    # Old binaries have no protocol descriptor. Preserve upgrade compatibility,
+    # but do not pretend that their health monitor acknowledged the stop.
+    if [ ! -r "${directory}/instance" ]; then
+        planned_stop_manager_capable && return 1
+        log_msg "Planned stop protocol unavailable; using legacy stop (health alerts may occur)."
+        return 0
+    fi
+    read -r protocol management_pid management_instance management_ticks gateway_pid gateway_instance gateway_ticks boot_id extra < "${directory}/instance" || return 1
+    if [ "${protocol}" != 1 ] || [ -n "${extra}" ] || \
+        [[ ! "${management_instance}" =~ ^[a-zA-Z0-9-]{1,64}$ ]] || \
+        [[ ! "${gateway_instance}" =~ ^[a-zA-Z0-9-]{1,64}$ ]]; then
+        return 1
+    fi
+    if [ "${boot_id}" != "$(cat /proc/sys/kernel/random/boot_id)" ] || ! planned_stop_process_matches "${management_pid}" "${management_ticks}"; then
+        planned_stop_manager_capable && return 1
+        # A descriptor from a previous instance cannot mute this process.
+        log_msg "Ignoring stale planned stop descriptor; using legacy stop."
+        return 0
+    fi
+    if [ "${management_pid}" != "$(cat "${BACKEND_PID_FILE}" 2>/dev/null)" ]; then
+        return 1
+    fi
+    if ! planned_stop_process_matches "${gateway_pid}" "${gateway_ticks}"; then
+        log_msg "Gateway identity no longer matches; stop will not suppress health alerts."
+        return 0
+    fi
+    [ "${gateway_pid}" = "$(cat "${GATEWAY_PID_FILE}" 2>/dev/null)" ] || return 1
+    PLANNED_STOP_TIMEOUT=$((2 * (STOP_TIMEOUT_SECONDS + FORCE_KILL_TIMEOUT_SECONDS) + 10))
+    [ "${PLANNED_STOP_TIMEOUT}" -le 3600 ] || return 1
+    PLANNED_STOP_OPERATION="$(cat /proc/sys/kernel/random/uuid)" || return 1
+    [[ "${PLANNED_STOP_OPERATION}" =~ ^[a-zA-Z0-9-]{1,64}$ ]] || return 1
+    PLANNED_STOP_MANAGEMENT="${management_instance}"
+    PLANNED_STOP_GATEWAY="${gateway_instance}"
+    PLANNED_STOP_REQUESTED="$(date +%s)"
+    planned_stop_write prepare || return 1
+    local expected="${PLANNED_STOP_OPERATION} ${management_instance} ${gateway_instance}"
+    local attempt
+    for attempt in $(seq 1 30); do
+        if [ "$(cat "${directory}/ack" 2>/dev/null)" = "${expected}" ]; then
+            if planned_stop_process_matches "${management_pid}" "${management_ticks}" && \
+                planned_stop_process_matches "${gateway_pid}" "${gateway_ticks}"; then
+                log_msg "Planned stop acknowledged: ${PLANNED_STOP_OPERATION}"
+                return 0
+            fi
+            break
+        fi
+        sleep 0.1
+    done
+    planned_stop_write cancel || true
+    log_msg "Planned stop was not acknowledged; leaving processes running."
+    return 1
+}
+
+cancel_planned_stop() {
+    [ -n "${PLANNED_STOP_OPERATION:-}" ] && supervisor_log INFO gateway_process stop_canceled platform_stop null
+    planned_stop_write cancel || log_msg "Could not cancel planned stop; bounded lease will expire."
+}
+
 stop_pid() {
     local pid="$1"
     local name="$2"
@@ -761,6 +855,7 @@ stop_pid() {
     log_msg "Stopping ${name} (PID: ${pid})..."
     if ! kill -TERM "${pid}" 2>>"${LOG_FILE}"; then
         log_msg "Failed to send SIGTERM to ${name} (PID: ${pid})."
+        supervisor_log ERROR "$( [ "${name}" = Gateway ] && echo gateway_process || echo management )" stop_failed stop_signal_failed null
         return 1
     fi
     # The Rust service can legitimately spend about 30 seconds draining its
@@ -773,10 +868,12 @@ stop_pid() {
     done
     if check_process "${pid}"; then
         log_msg "${name} did not stop gracefully; sending SIGKILL (PID: ${pid})."
+        supervisor_log ERROR "$( [ "${name}" = Gateway ] && echo gateway_process || echo management )" stop_failed stop_timeout null
         if ! kill -KILL "${pid}" 2>>"${LOG_FILE}"; then
             log_msg "Failed to send SIGKILL to ${name} (PID: ${pid})."
             return 1
         fi
+        supervisor_log WARN "$( [ "${name}" = Gateway ] && echo gateway_process || echo management )" signal_sent forced_termination null 9
         for _ in $(seq 1 $((FORCE_KILL_TIMEOUT_SECONDS * 4))); do
             if ! check_process "${pid}"; then
                 return 0
@@ -980,12 +1077,20 @@ start_backend() {
     resolve_root_share_dir
     rm -f "${READINESS_MARKER}"
 
+    local expected_gateway_pid="" expected_gateway_stat="" expected_gateway_start=""
+    expected_gateway_pid="$(cat "${GATEWAY_PID_FILE}" 2>/dev/null || true)"
+    if [[ "${expected_gateway_pid}" =~ ^[0-9]+$ ]] && [ -r "/proc/${expected_gateway_pid}/stat" ]; then
+        expected_gateway_stat="$(cat "/proc/${expected_gateway_pid}/stat")"
+        expected_gateway_stat="${expected_gateway_stat##*) }"
+        expected_gateway_start="${expected_gateway_pid}:$(printf '%s\n' "${expected_gateway_stat}" | awk '{print $20}')"
+    fi
     log_msg "Starting Rust backend (admin-view-port=${ADMIN_VIEW_PORT}, backend-port=${BACKEND_PORT}, auth-port=${AUTH_PORT})..."
     (
         cd "${APP_HOME}" && \
         ADMIN_STATIC_PATH="${ADMIN_STATIC_PATH}" \
         AUTH_STATIC_PATH="${AUTH_STATIC_PATH}" \
         FN_KNOCK_RUNTIME_TARGET="fpk" \
+        FN_KNOCK_EXPECTED_GATEWAY_START="${expected_gateway_start}" \
         FN_KNOCK_BACKEND_IMPL="rust" \
         FN_KNOCK_DATA_DIR="${PKG_VAR_DIR}" \
         FN_KNOCK_GATEWAY_CONFIG_DIR="${GATEWAY_CONFIG_DIR}" \
@@ -1113,19 +1218,29 @@ stop() {
         log_msg "Runtime kept running because FN Connect WAF rules could not be safely removed"
         return 1
     fi
+    if ! prepare_planned_stop; then
+        supervisor_log ERROR gateway_process stop_failed stop_prepare_failed null
+        cancel_planned_stop
+        return 1
+    fi
     if ! stop_service "${GATEWAY_PID_FILE}" "Gateway"; then
+        cancel_planned_stop
         log_msg "Gateway stop failed; backend kept running to preserve the auth upstream."
         return 1
     fi
     if ! stop_matching_processes "${GATEWAY_BIN}" "Gateway"; then
+        cancel_planned_stop
         log_msg "Orphaned gateway stop failed; backend kept running to preserve the auth upstream."
         return 1
     fi
+    planned_stop_write gateway_stopped || log_msg "Could not record gateway stop completion."
     if ! stop_service "${BACKEND_PID_FILE}" "Backend"; then
+        cancel_planned_stop
         log_msg "Backend stop failed; refusing to finalize shutdown."
         return 1
     fi
     if ! stop_matching_processes "${BACKEND_ENTRY}" "Backend"; then
+        cancel_planned_stop
         log_msg "Orphaned backend stop failed; refusing to finalize shutdown."
         return 1
     fi
@@ -1135,6 +1250,7 @@ stop() {
         log_msg "Runtime stopped, but residual FN Connect WAF rules could not be safely removed"
         return 1
     fi
+    supervisor_log INFO supervisor stop_completed fnos_stop null
     return 0
 }
 
@@ -1163,6 +1279,14 @@ status() {
     fi
     return 1
 }
+
+# Serialize app-center invocations; -o keeps child daemons from retaining the lock.
+if [[ "${1:-}" == start || "${1:-}" == stop ]] && [ "${FN_KNOCK_LIFECYCLE_LOCKED:-}" != 1 ]; then
+    mkdir -p "${PKG_VAR_DIR}/runtime" || exit 1
+    command -v flock >/dev/null 2>&1 || { log_msg "flock is required for safe lifecycle operations"; exit 1; }
+    exec flock -o -w 5 "${PKG_VAR_DIR}/runtime/lifecycle.lock" env FN_KNOCK_LIFECYCLE_LOCKED=1 bash "$0" "$@"
+fi
+unset FN_KNOCK_LIFECYCLE_LOCKED
 
 case "${1:-}" in
 start)

@@ -599,6 +599,7 @@ pub(super) fn format_notification_summary(event: &Value, translator: &Translator
         | "FN_EVENT_RUNTIME_RESTARTED"
         | "FN_EVENT_RUNTIME_HEALTH_FAILED"
         | "FN_EVENT_RUNTIME_RECOVERED"
+        | "FN_EVENT_RUNTIME_STOP_FAILED"
         | "FN_EVENT_RUNTIME_ABNORMAL_EXIT" => join_compact_parts(&[
             read_payload_value(event, "component"),
             read_payload_value(event, "reason_code"),

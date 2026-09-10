@@ -6091,6 +6091,7 @@ export const zhHantAdmin = {
       FN_EVENT_RUNTIME_RESTARTED: "元件已重新啟動",
       FN_EVENT_RUNTIME_HEALTH_FAILED: "元件健康檢查失敗",
       FN_EVENT_RUNTIME_RECOVERED: "元件已恢復",
+      FN_EVENT_RUNTIME_STOP_FAILED: "元件停止失敗",
       FN_EVENT_RUNTIME_ABNORMAL_EXIT: "元件異常結束",
       FN_EVENT_PANEL_SYNC_FAILED: "同步到導航面板失敗",
       FN_EVENT_PANEL_SYNC_RECOVERED: "同步到導航面板已恢復",
@@ -6307,6 +6308,10 @@ export const zhHantAdmin = {
         reclaimSuccess: "Go 記憶體回收已完成",
         reclaimSuccessDescription: "回收後 Go Heap {heap}，RSS {rss}",
         reclaimFailed: "Go 記憶體回收失敗",
+      },
+      lifecycle: {
+        stopping: "正在停止",
+        stopped: "已停止",
       },
       status: {
         healthy: "健康",

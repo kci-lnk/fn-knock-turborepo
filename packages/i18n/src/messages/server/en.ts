@@ -2566,6 +2566,7 @@ export const enServer = {
         runtimeRestarted: "Component restarted",
         runtimeHealthFailed: "Component health failed",
         runtimeRecovered: "Component recovered",
+        runtimeStopFailed: "Component stop failed",
         runtimeAbnormalExit: "Component exited abnormally",
         panelSyncFailed: "Failed to sync to navigation panel",
         panelSyncRecovered: "Navigation panel sync recovered",

@@ -2583,6 +2583,7 @@ export const koKRServer = {
         runtimeRestarted: "컴포넌트 재시작",
         runtimeHealthFailed: "상태 검사 실패",
         runtimeRecovered: "컴포넌트 복구",
+        runtimeStopFailed: "컴포넌트 중지 실패",
         runtimeAbnormalExit: "컴포넌트 비정상 종료",
         panelSyncFailed: "탐색 패널로 동기화 실패",
         panelSyncRecovered: "탐색 패널 동기화 복구",

@@ -1,6 +1,7 @@
 pub(crate) mod debug;
 pub(crate) mod debug_resources;
 pub(crate) mod operations;
+pub(crate) mod planned_stop;
 pub(crate) mod routes;
 
 use std::{
@@ -90,6 +91,10 @@ pub(crate) struct ComponentHealth {
     pub id: String,
     pub status: HealthStatus,
     pub process_state: ProcessState,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub lifecycle: Option<planned_stop::Lifecycle>,
+    #[serde(skip)]
+    probe_generation: u64,
     pub version: Option<String>,
     pub commit: Option<String>,
     pub pid: Option<u32>,
@@ -160,6 +165,8 @@ impl ComponentHealth {
             } else {
                 ProcessState::NotApplicable
             },
+            lifecycle: None,
+            probe_generation: 0,
             version: None,
             commit: None,
             pid: None,
@@ -211,6 +218,8 @@ pub(crate) struct RuntimeLogStatus {
 pub(crate) struct RuntimeSnapshot {
     pub schema_version: u32,
     pub overall_status: HealthStatus,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub lifecycle: Option<planned_stop::Lifecycle>,
     pub last_checked_at: Option<String>,
     pub components: BTreeMap<String, ComponentHealth>,
     pub logs: RuntimeLogStatus,
@@ -240,6 +249,7 @@ struct RuntimeHealthInner {
     session_write: Mutex<()>,
     recovery_until_ms: AtomicI64,
     storage_probe: Mutex<Option<InFlightStorageProbe>>,
+    planned_stop: planned_stop::StopController,
 }
 
 struct InFlightStorageProbe {
@@ -362,6 +372,7 @@ impl RuntimeHealth {
                 snapshot: RwLock::new(RuntimeSnapshot {
                     schema_version: 1,
                     overall_status: HealthStatus::Unknown,
+                    lifecycle: None,
                     last_checked_at: None,
                     components,
                     logs: log_status,
@@ -382,6 +393,7 @@ impl RuntimeHealth {
                 session_write: Mutex::new(()),
                 recovery_until_ms: AtomicI64::new(0),
                 storage_probe: Mutex::new(None),
+                planned_stop: planned_stop::StopController::new(data_dir, supervisor),
             }),
         })
     }
@@ -389,6 +401,37 @@ impl RuntimeHealth {
     pub(crate) async fn snapshot(&self) -> RuntimeSnapshot {
         let mut snapshot = self.inner.snapshot.read().await.clone();
         snapshot.logs = self.inner.logger.status();
+        let stop = self.inner.planned_stop.lock();
+        snapshot.lifecycle = stop.view();
+        for (id, component) in &mut snapshot.components {
+            if planned_stop::affected(id) {
+                component.lifecycle = snapshot.lifecycle.clone();
+                if component.lifecycle.is_none()
+                    && component.probe_generation != stop.generation()
+                    && component.status != HealthStatus::Unhealthy
+                {
+                    component.status = HealthStatus::Unknown;
+                    component.reason_code = Some("awaiting_probe".into());
+                }
+                if component
+                    .lifecycle
+                    .as_ref()
+                    .is_some_and(|view| view.phase == "stopped")
+                    && id == "gateway_process"
+                {
+                    component.process_state = ProcessState::Stopped;
+                }
+            }
+        }
+        snapshot.overall_status = overall_status(
+            snapshot
+                .components
+                .values()
+                .map(|component| &component.status),
+        );
+        if snapshot.lifecycle.is_some() && snapshot.overall_status == HealthStatus::Healthy {
+            snapshot.overall_status = HealthStatus::Unknown;
+        }
         snapshot
     }
 
@@ -511,13 +554,14 @@ impl RuntimeHealth {
     }
 
     pub(crate) async fn component_ready(&self, id: &str) -> bool {
-        self.inner
-            .snapshot
-            .read()
-            .await
-            .components
-            .get(id)
-            .is_some_and(|component| component.status == HealthStatus::Healthy)
+        let snapshot = self.inner.snapshot.read().await;
+        let stop = self.inner.planned_stop.lock();
+        !stop.suppresses(id, None)
+            && snapshot.components.get(id).is_some_and(|component| {
+                component.status == HealthStatus::Healthy
+                    && (!planned_stop::affected(id)
+                        || component.probe_generation == stop.generation())
+            })
     }
 
     fn begin_resume_recovery(&self, state: &AppState, gap: Duration) {
@@ -651,6 +695,7 @@ impl RuntimeHealth {
 
     async fn run_probe(&self, state: &AppState) {
         self.import_supervisor_hints(state).await;
+        let sampled_generation = self.inner.planned_stop.lock().generation();
         let checked_at = time_utils::now_iso();
         let (runtime_info, process_health, dataplane_health, auth_health, storage) = tokio::join!(
             tokio::time::timeout(PROBE_TIMEOUT, state.gateway.client.get_runtime_info()),
@@ -703,6 +748,31 @@ impl RuntimeHealth {
             Ok(Ok(value)) => Some(value),
             _ => None,
         };
+        if let Some(instance) = runtime_value
+            .as_ref()
+            .and_then(|value| value.get("instance_id"))
+            .and_then(Value::as_str)
+        {
+            let replaced = self.inner.planned_stop.lock().replace_gateway(instance);
+            if let Some(operation) = replaced {
+                self.inner.logger.log(
+                    "ERROR",
+                    "gateway_process",
+                    "stop_failed",
+                    "gateway_replaced_during_stop",
+                    Map::from_iter([("operation_id".into(), json!(operation.operation_id))]),
+                );
+                self.publish_lifecycle(
+                    state,
+                    "FN_EVENT_RUNTIME_STOP_FAILED",
+                    "ERROR",
+                    "gateway_process",
+                    "gateway_replaced_during_stop",
+                    Some(instance),
+                )
+                .await;
+            }
+        }
         let last_pid = self
             .inner
             .trackers
@@ -778,12 +848,13 @@ impl RuntimeHealth {
         let recovering = self.recovery_active();
         self.apply_probe(state, "management", management, &checked_at)
             .await;
-        self.apply_probe_maybe_recovering(
+        self.apply_sampled_probe(
             state,
             "gateway_process",
             gateway_process,
             &checked_at,
             recovering,
+            Some(sampled_generation),
         )
         .await;
         let parent_unhealthy = self
@@ -794,34 +865,46 @@ impl RuntimeHealth {
             .get("gateway_process")
             .is_some_and(|tracker| tracker.health.status == HealthStatus::Unhealthy);
         if parent_unhealthy {
-            self.apply_blocked("gateway_dataplane", &checked_at).await;
-            self.apply_blocked("auth_bridge", &checked_at).await;
+            self.apply_sampled_blocked("gateway_dataplane", &checked_at, Some(sampled_generation))
+                .await;
+            self.apply_sampled_blocked("auth_bridge", &checked_at, Some(sampled_generation))
+                .await;
         } else {
-            self.apply_probe_maybe_recovering(
+            self.apply_sampled_probe(
                 state,
                 "gateway_dataplane",
                 gateway_dataplane,
                 &checked_at,
                 recovering,
+                Some(sampled_generation),
             )
             .await;
-            self.apply_probe_maybe_recovering(
+            self.apply_sampled_probe(
                 state,
                 "auth_bridge",
                 auth_bridge,
                 &checked_at,
                 recovering,
+                Some(sampled_generation),
             )
             .await;
         }
-        self.apply_probe_maybe_recovering(state, "storage", storage, &checked_at, recovering)
-            .await;
-        self.apply_probe_maybe_recovering(
+        self.apply_sampled_probe(
+            state,
+            "storage",
+            storage,
+            &checked_at,
+            recovering,
+            Some(sampled_generation),
+        )
+        .await;
+        self.apply_sampled_probe(
             state,
             "config_sync",
             config_sync,
             &checked_at,
             recovering,
+            Some(sampled_generation),
         )
         .await;
         self.publish_snapshot(&checked_at).await;
@@ -913,8 +996,9 @@ impl RuntimeHealth {
                 .and_then(Value::as_str)
                 .filter(|component| matches!(*component, "management" | "gateway_process"));
             let event = hint.get("event").and_then(Value::as_str);
-            if let (Some(component), Some("exited")) = (component, event) {
-                if component == "management"
+            if let (Some(component), Some("exited" | "stop_failed")) = (component, event) {
+                if event == Some("exited")
+                    && component == "management"
                     && self
                         .inner
                         .management_abnormal_reported
@@ -935,7 +1019,7 @@ impl RuntimeHealth {
                 self.publish_or_buffer(
                     state,
                     RuntimeEventInput {
-                        event_type: "FN_EVENT_RUNTIME_ABNORMAL_EXIT",
+                        event_type: if event == Some("stop_failed") { "FN_EVENT_RUNTIME_STOP_FAILED" } else { "FN_EVENT_RUNTIME_ABNORMAL_EXIT" },
                         level: "ERROR",
                         component: component.to_string(),
                         payload: json!({
@@ -943,6 +1027,7 @@ impl RuntimeHealth {
                             "incident_id": uuid::Uuid::new_v4().simple().to_string(),
                             "reason_code": reason_code,
                             "supervisor": state.settings.runtime_target,
+                            "operation_id": hint.pointer("/fields/operation_id").cloned().unwrap_or(Value::Null),
                             "exit_code": hint.pointer("/fields/exit_code").cloned().unwrap_or(Value::Null),
                             "signal": hint.pointer("/fields/signal").cloned().unwrap_or(Value::Null),
                         }),
@@ -955,14 +1040,32 @@ impl RuntimeHealth {
     }
 
     async fn apply_probe(&self, state: &AppState, id: &str, probe: ProbeResult, checked_at: &str) {
+        self.apply_sampled_health(state, id, probe, checked_at, None)
+            .await;
+    }
+
+    async fn apply_sampled_health(
+        &self,
+        state: &AppState,
+        id: &str,
+        probe: ProbeResult,
+        checked_at: &str,
+        sampled_generation: Option<u64>,
+    ) {
         let mut event = None;
         let mut log_transition = None;
         {
             let mut trackers = self.inner.trackers.lock().await;
+            let stop = self.inner.planned_stop.lock();
+            if stop.suppresses(id, sampled_generation) {
+                return;
+            }
+
             let Some(tracker) = trackers.get_mut(id) else {
                 tracing::debug!(id, "runtime health tracker not registered; skipping probe");
                 return;
             };
+            tracker.health.probe_generation = stop.generation();
             let previous_status = tracker.health.status.clone();
             apply_metadata(&mut tracker.health, probe.metadata);
             tracker.health.last_checked_at = Some(checked_at.to_string());
@@ -1053,6 +1156,7 @@ impl RuntimeHealth {
         }
     }
 
+    #[cfg(test)]
     async fn apply_probe_maybe_recovering(
         &self,
         state: &AppState,
@@ -1061,14 +1165,34 @@ impl RuntimeHealth {
         checked_at: &str,
         recovering: bool,
     ) {
+        self.apply_sampled_probe(state, id, probe, checked_at, recovering, None)
+            .await;
+    }
+
+    async fn apply_sampled_probe(
+        &self,
+        state: &AppState,
+        id: &str,
+        probe: ProbeResult,
+        checked_at: &str,
+        recovering: bool,
+        sampled_generation: Option<u64>,
+    ) {
         if !recovering || probe.ok {
-            self.apply_probe(state, id, probe, checked_at).await;
+            self.apply_sampled_health(state, id, probe, checked_at, sampled_generation)
+                .await;
             return;
         }
         let mut trackers = self.inner.trackers.lock().await;
+        let stop = self.inner.planned_stop.lock();
+        if stop.suppresses(id, sampled_generation) {
+            return;
+        }
+
         let Some(tracker) = trackers.get_mut(id) else {
             return;
         };
+        tracker.health.probe_generation = stop.generation();
         apply_metadata(&mut tracker.health, probe.metadata);
         tracker.health.last_checked_at = Some(checked_at.to_string());
         tracker.health.reason_code = Some("resume_recovery".to_string());
@@ -1083,8 +1207,18 @@ impl RuntimeHealth {
         tracker.recovery_successes = 0;
     }
 
-    async fn apply_blocked(&self, id: &str, checked_at: &str) {
+    async fn apply_sampled_blocked(
+        &self,
+        id: &str,
+        checked_at: &str,
+        sampled_generation: Option<u64>,
+    ) {
         let mut trackers = self.inner.trackers.lock().await;
+        let stop = self.inner.planned_stop.lock();
+        if stop.suppresses(id, sampled_generation) {
+            return;
+        }
+
         let Some(tracker) = trackers.get_mut(id) else {
             tracing::debug!(
                 id,
@@ -1092,6 +1226,7 @@ impl RuntimeHealth {
             );
             return;
         };
+        tracker.health.probe_generation = stop.generation();
         let changed = tracker.health.status != HealthStatus::Blocked;
         tracker.health.status = HealthStatus::Blocked;
         tracker.health.process_state = ProcessState::NotApplicable;
@@ -1127,13 +1262,13 @@ impl RuntimeHealth {
     }
 
     async fn observe_gateway_instance(&self, state: &AppState) {
-        let instance = self
-            .inner
-            .trackers
-            .lock()
-            .await
-            .get("gateway_process")
-            .and_then(|tracker| tracker.health.instance_id.clone());
+        let (instance, pid) = {
+            let trackers = self.inner.trackers.lock().await;
+            let Some(gateway) = trackers.get("gateway_process") else {
+                return;
+            };
+            (gateway.health.instance_id.clone(), gateway.health.pid)
+        };
         let Some(instance) = instance else { return };
         let mut seen = self.inner.seen_gateway_instance.lock().await;
         if seen.as_deref() == Some(instance.as_str()) {
@@ -1145,7 +1280,16 @@ impl RuntimeHealth {
             "FN_EVENT_RUNTIME_STARTED"
         };
         let restarted = seen.is_some();
-        let level = if restarted { "WARN" } else { "INFO" };
+        let expected_start = self
+            .inner
+            .planned_stop
+            .take_expected_start(pid, &instance)
+            .await;
+        let level = if restarted && !expected_start {
+            "WARN"
+        } else {
+            "INFO"
+        };
         if restarted {
             // A gateway process has no durable in-memory HostRules state. Do
             // not keep reporting the old generation as ready after a child
@@ -1159,7 +1303,9 @@ impl RuntimeHealth {
             event_type,
             level,
             "gateway_process",
-            if seen.is_some() {
+            if expected_start {
+                "platform_start"
+            } else if seen.is_some() {
                 "instance_changed"
             } else {
                 "instance_observed"
@@ -1270,6 +1416,7 @@ pub(crate) async fn start_runtime_monitor(state: AppState) -> anyhow::Result<()>
             Some(&runtime.inner.management_instance_id),
         )
         .await;
+    runtime.start_planned_stop_control(&state).await?;
     let task_state = state.clone();
     state.spawn_background("runtime-health-monitor", async move {
         let state = task_state;
@@ -1296,7 +1443,12 @@ pub(crate) async fn start_runtime_monitor(state: AppState) -> anyhow::Result<()>
                     runtime.inner.monitor_done.notify_waiters();
                     break;
                 }
-                _ = probe.tick() => {
+                _ = async {
+                    tokio::select! {
+                        _ = probe.tick() => {},
+                        _ = runtime.inner.planned_stop.wake_probe.notified() => {},
+                    }
+                } => {
                     let monotonic_gap = last_probe_tick.elapsed();
                     let wall_now_ms = time_utils::now_ms();
                     let wall_gap = Duration::from_millis(
@@ -2158,7 +2310,7 @@ fn truncate(value: &str, max: usize) -> &str {
 mod tests {
     use super::*;
 
-    async fn runtime_test_state() -> (tempfile::TempDir, AppState) {
+    pub(super) async fn runtime_test_state() -> (tempfile::TempDir, AppState) {
         let directory = tempfile::tempdir().unwrap();
         let mut settings = crate::settings::Settings::from_env();
         settings.data_dir = directory.path().join("data");

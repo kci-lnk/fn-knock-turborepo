@@ -19,6 +19,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import RuntimeStatusBadges from "./RuntimeStatusBadges.vue";
 import RuntimeComponentCard from "./RuntimeComponentCard.vue";
 import GatewayMemoryDialog from "./GatewayMemoryDialog.vue";
 import RuntimeDebugDialog from "./RuntimeDebugDialog.vue";
@@ -27,7 +28,6 @@ import {
   formatRuntimeDate as formatDate,
   formatRuntimeLogLine as formatLogLine,
   getRuntimeEventComponent as eventComponent,
-  runtimeStatusClass as statusClass,
 } from "./runtimePresentation";
 import { useRuntimeHealth } from "./useRuntimeHealth";
 
@@ -71,15 +71,12 @@ const {
           <span class="text-base font-semibold">{{
             t("admin.eventCenter.runtime.overall")
           }}</span>
-          <Badge
+          <RuntimeStatusBadges
             v-if="snapshot"
-            variant="outline"
-            :class="statusClass(snapshot.overall_status)"
-          >
-            {{
-              t(`admin.eventCenter.runtime.status.${snapshot.overall_status}`)
-            }}
-          </Badge>
+            :status="snapshot.overall_status"
+            :lifecycle="snapshot.lifecycle"
+            overall
+          />
           <Loader2
             v-else-if="loading"
             class="h-4 w-4 animate-spin text-muted-foreground"

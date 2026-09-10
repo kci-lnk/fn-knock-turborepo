@@ -42,6 +42,7 @@ pub(crate) const SYSTEM_EVENT_TYPES: &[&str] = &[
     "FN_EVENT_RUNTIME_RESTARTED",
     "FN_EVENT_RUNTIME_HEALTH_FAILED",
     "FN_EVENT_RUNTIME_RECOVERED",
+    "FN_EVENT_RUNTIME_STOP_FAILED",
     "FN_EVENT_RUNTIME_ABNORMAL_EXIT",
     "FN_EVENT_PANEL_SYNC_FAILED",
     "FN_EVENT_PANEL_SYNC_RECOVERED",
@@ -1544,6 +1545,7 @@ fn event_rule_key(event_type: &str) -> Option<&'static str> {
         "FN_EVENT_RUNTIME_STARTED"
         | "FN_EVENT_RUNTIME_STOPPED"
         | "FN_EVENT_RUNTIME_RESTARTED"
+        | "FN_EVENT_RUNTIME_STOP_FAILED"
         | "FN_EVENT_RUNTIME_ABNORMAL_EXIT" => Some("runtime_lifecycle"),
         "FN_EVENT_RUNTIME_HEALTH_FAILED" | "FN_EVENT_RUNTIME_RECOVERED" => Some("runtime_health"),
         "FN_EVENT_PANEL_SYNC_FAILED" | "FN_EVENT_PANEL_SYNC_RECOVERED" => Some("panel_sync"),

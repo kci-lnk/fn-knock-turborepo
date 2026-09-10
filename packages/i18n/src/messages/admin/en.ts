@@ -6653,6 +6653,7 @@ export const enAdmin = {
       FN_EVENT_RUNTIME_RESTARTED: "Component restarted",
       FN_EVENT_RUNTIME_HEALTH_FAILED: "Component health failed",
       FN_EVENT_RUNTIME_RECOVERED: "Component recovered",
+      FN_EVENT_RUNTIME_STOP_FAILED: "Component stop failed",
       FN_EVENT_RUNTIME_ABNORMAL_EXIT: "Component exited abnormally",
       FN_EVENT_PANEL_SYNC_FAILED: "Failed to sync to navigation panel",
       FN_EVENT_PANEL_SYNC_RECOVERED: "Navigation panel sync recovered",
@@ -6886,6 +6887,10 @@ export const enAdmin = {
         reclaimSuccess: "Go memory reclaimed",
         reclaimSuccessDescription: "After reclaim: Go Heap {heap}, RSS {rss}",
         reclaimFailed: "Failed to reclaim Go memory",
+      },
+      lifecycle: {
+        stopping: "Stopping",
+        stopped: "Stopped",
       },
       status: {
         healthy: "Healthy",

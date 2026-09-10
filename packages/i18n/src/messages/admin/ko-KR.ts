@@ -6600,6 +6600,7 @@ export const koKRAdmin = {
       FN_EVENT_RUNTIME_RESTARTED: "컴포넌트 재시작",
       FN_EVENT_RUNTIME_HEALTH_FAILED: "상태 검사 실패",
       FN_EVENT_RUNTIME_RECOVERED: "컴포넌트 복구",
+      FN_EVENT_RUNTIME_STOP_FAILED: "컴포넌트 중지 실패",
       FN_EVENT_RUNTIME_ABNORMAL_EXIT: "컴포넌트 비정상 종료",
       FN_EVENT_PANEL_SYNC_FAILED: "탐색 패널로 동기화 실패",
       FN_EVENT_PANEL_SYNC_RECOVERED: "탐색 패널 동기화 복구",
@@ -6829,6 +6830,10 @@ export const koKRAdmin = {
         reclaimSuccess: "Go 메모리 회수를 완료했습니다",
         reclaimSuccessDescription: "회수 후: Go Heap {heap}, RSS {rss}",
         reclaimFailed: "Go 메모리 회수에 실패했습니다",
+      },
+      lifecycle: {
+        stopping: "중지 중",
+        stopped: "중지됨",
       },
       status: {
         healthy: "정상",

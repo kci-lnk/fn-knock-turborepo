@@ -6645,6 +6645,7 @@ export const jaJPAdmin = {
       FN_EVENT_RUNTIME_RESTARTED: "コンポーネント再起動",
       FN_EVENT_RUNTIME_HEALTH_FAILED: "ヘルスチェック失敗",
       FN_EVENT_RUNTIME_RECOVERED: "コンポーネント復旧",
+      FN_EVENT_RUNTIME_STOP_FAILED: "コンポーネント停止失敗",
       FN_EVENT_RUNTIME_ABNORMAL_EXIT: "コンポーネント異常終了",
       FN_EVENT_PANEL_SYNC_FAILED: "ナビゲーションパネルへの同期失敗",
       FN_EVENT_PANEL_SYNC_RECOVERED: "ナビゲーションパネルへの同期復旧",
@@ -6874,6 +6875,10 @@ export const jaJPAdmin = {
         reclaimSuccess: "Go メモリを回収しました",
         reclaimSuccessDescription: "回収後: Go Heap {heap}、RSS {rss}",
         reclaimFailed: "Go メモリを回収できませんでした",
+      },
+      lifecycle: {
+        stopping: "停止中",
+        stopped: "停止済み",
       },
       status: {
         healthy: "正常",

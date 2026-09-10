@@ -6174,6 +6174,7 @@ export const zhCNAdmin = {
       FN_EVENT_RUNTIME_RESTARTED: "组件已重启",
       FN_EVENT_RUNTIME_HEALTH_FAILED: "组件健康检查失败",
       FN_EVENT_RUNTIME_RECOVERED: "组件已恢复",
+      FN_EVENT_RUNTIME_STOP_FAILED: "组件停止失败",
       FN_EVENT_RUNTIME_ABNORMAL_EXIT: "组件异常退出",
       FN_EVENT_PANEL_SYNC_FAILED: "同步到导航面板失败",
       FN_EVENT_PANEL_SYNC_RECOVERED: "同步到导航面板已恢复",
@@ -6394,6 +6395,10 @@ export const zhCNAdmin = {
         reclaimSuccess: "Go 内存回收已完成",
         reclaimSuccessDescription: "回收后 Go Heap {heap}，RSS {rss}",
         reclaimFailed: "Go 内存回收失败",
+      },
+      lifecycle: {
+        stopping: "正在停止",
+        stopped: "已停止",
       },
       status: {
         healthy: "健康",

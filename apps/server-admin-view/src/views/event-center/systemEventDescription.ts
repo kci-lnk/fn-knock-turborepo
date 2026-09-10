@@ -308,6 +308,7 @@ export const describeSystemEvent = (
     case "FN_EVENT_RUNTIME_RESTARTED":
     case "FN_EVENT_RUNTIME_HEALTH_FAILED":
     case "FN_EVENT_RUNTIME_RECOVERED":
+    case "FN_EVENT_RUNTIME_STOP_FAILED":
     case "FN_EVENT_RUNTIME_ABNORMAL_EXIT":
       return translate("admin.eventCenter.events.runtimeStatusDescription", {
         component: String(payload.component || event.subject?.id || "-"),

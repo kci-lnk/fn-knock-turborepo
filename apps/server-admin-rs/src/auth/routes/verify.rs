@@ -267,6 +267,7 @@ pub(super) async fn resolve_auth_access_with_normal_access_and_rule_match(
     routed_upstream_host: Option<&str>,
     routed_upstream_route_id: Option<&str>,
 ) -> anyhow::Result<AuthAccess> {
+    let _phase = crate::auth::diagnostics::enter("verify");
     let invalid_session_cookies = if normal_access.invalid_session_cookie {
         resolve_cookie_clear_domains(Some(config), headers)
             .into_iter()

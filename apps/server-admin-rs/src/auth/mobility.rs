@@ -50,28 +50,62 @@ async fn acquire_auth_mobility_session_mutation_lease(
     state: &AppState,
     session_id: &str,
 ) -> anyhow::Result<Option<AuthMobilitySessionMutationLease>> {
-    let key = auth_mobility_session_mutation_lock_key(session_id);
-    let lock_id = uuid::Uuid::new_v4().to_string();
     let deadline = time::Instant::now()
         + std::time::Duration::from_secs(AUTH_MOBILITY_SESSION_LOCK_WAIT_SECONDS);
+    acquire_auth_mobility_session_mutation_lease_until(state, session_id, deadline).await
+}
+
+async fn acquire_auth_mobility_session_mutation_lease_until(
+    state: &AppState,
+    session_id: &str,
+    deadline: time::Instant,
+) -> anyhow::Result<Option<AuthMobilitySessionMutationLease>> {
+    let key = auth_mobility_session_mutation_lock_key(session_id);
+    let lock_id = uuid::Uuid::new_v4().to_string();
+    // Own cleanup before submitting SET NX: SQLite can commit even if the
+    // caller is canceled before receiving its result.
+    let mut lease = AuthMobilitySessionMutationLease {
+        state: state.clone(),
+        key: key.clone(),
+        lock_id: lock_id.clone(),
+        valid: Arc::new(AtomicBool::new(false)),
+        heartbeat: None,
+        released: true,
+    };
+    let _phase = crate::auth::diagnostics::enter("mobility_lock");
+    let mut retry_delay = std::time::Duration::from_millis(10);
     loop {
-        if state.shutdown.is_cancelled() {
+        if state.shutdown.is_cancelled() || time::Instant::now() >= deadline {
             return Ok(None);
         }
-        if state
-            .storage
-            .store
-            .set_json_value_nx_ex(
-                &key,
-                &json!({
-                    "lockId": lock_id,
-                    "sessionId": session_id,
-                    "createdAt": time_utils::now_iso(),
-                }),
-                AUTH_MOBILITY_SESSION_LOCK_TTL_SECONDS,
-            )
-            .await?
-        {
+        // Arm cleanup while the write outcome is unknown. A confirmed failed
+        // SET NX needs no cleanup and must not add another write on cancellation.
+        lease.released = false;
+        let payload = json!({
+            "lockId": lock_id,
+            "sessionId": session_id,
+            "createdAt": time_utils::now_iso(),
+        });
+        let acquisition = state.storage.store.set_json_value_nx_ex(
+            &key,
+            &payload,
+            AUTH_MOBILITY_SESSION_LOCK_TTL_SECONDS,
+        );
+        let acquired = tokio::select! {
+            biased;
+            _ = state.shutdown.cancelled() => return Ok(None),
+            result = time::timeout_at(deadline, acquisition) => match result {
+                Ok(result) => result?,
+                Err(_) => return Ok(None),
+            },
+        };
+        lease.released = !acquired;
+        // A ready SQLite result can win timeout's poll even after its deadline.
+        // Never return a late grant; the armed guard will remove it if necessary.
+        if state.shutdown.is_cancelled() || time::Instant::now() >= deadline {
+            return Ok(None);
+        }
+        if acquired {
             let heartbeat_state = state.clone();
             let heartbeat_key = key.clone();
             let heartbeat_lock_id = lock_id.clone();
@@ -113,22 +147,19 @@ async fn acquire_auth_mobility_session_mutation_lease(
                     }
                 }
             });
-            return Ok(Some(AuthMobilitySessionMutationLease {
-                state: state.clone(),
-                key,
-                lock_id,
-                valid,
-                heartbeat: Some(heartbeat),
-                released: false,
-            }));
+            lease.valid = valid;
+            lease.heartbeat = Some(heartbeat);
+            return Ok(Some(lease));
         }
         if time::Instant::now() >= deadline {
             return Ok(None);
         }
         tokio::select! {
             _ = state.shutdown.cancelled() => return Ok(None),
-            _ = time::sleep(std::time::Duration::from_millis(10)) => {}
+            _ = time::sleep_until((time::Instant::now() + retry_delay).min(deadline)) => {}
         }
+        // Contention must not turn every waiter into 100 SQLite writes/second.
+        retry_delay = (retry_delay * 2).min(std::time::Duration::from_millis(100));
     }
 }
 

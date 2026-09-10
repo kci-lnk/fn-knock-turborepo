@@ -1437,7 +1437,10 @@ pub(crate) async fn sync_direct_firewall_whitelist(state: &AppState) -> anyhow::
 }
 
 async fn sync_reverse_proxy_trusted_ips_inner(state: &AppState) -> anyhow::Result<()> {
+    let phase = crate::auth::diagnostics::enter("whitelist_lock");
     let _guard = state.security.whitelist_runtime_sync_lock.lock().await;
+    drop(phase);
+    let _phase = crate::auth::diagnostics::enter("whitelist_sync");
     rebuild_whitelist_ipset_snapshots(state).await?;
     let runtime = compile_reverse_proxy_trusted_ips(state).await?;
     let ips = runtime
@@ -1475,6 +1478,7 @@ async fn sync_reverse_proxy_trusted_ips_inner(state: &AppState) -> anyhow::Resul
         "policy": runtime.get("policy").cloned().unwrap_or(Value::Null),
         "updated_at": runtime.get("updated_at").cloned().unwrap_or(Value::Null)
     });
+    let phase = crate::auth::diagnostics::enter("whitelist_gateway_publish");
     let value = state
         .gateway
         .client
@@ -1487,7 +1491,10 @@ async fn sync_reverse_proxy_trusted_ips_inner(state: &AppState) -> anyhow::Resul
         true,
         false,
     )?;
+    drop(phase);
+    let phase = crate::auth::diagnostics::enter("whitelist_firewall_sync");
     sync_direct_firewall_whitelist_from_snapshot(state).await?;
+    drop(phase);
     let trusted_payload = json!({
         "ips": ips,
         "cidrs": Vec::<String>::new(),
@@ -1495,6 +1502,7 @@ async fn sync_reverse_proxy_trusted_ips_inner(state: &AppState) -> anyhow::Resul
         "policy": runtime.get("policy").cloned().unwrap_or(Value::Null),
         "updated_at": runtime.get("updated_at").cloned().unwrap_or(Value::Null)
     });
+    let _phase = crate::auth::diagnostics::enter("whitelist_gateway_publish");
     let trusted_result = state
         .gateway
         .client

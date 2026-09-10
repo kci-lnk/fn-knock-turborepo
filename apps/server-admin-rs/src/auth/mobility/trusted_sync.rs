@@ -19,6 +19,7 @@ pub(crate) async fn sync_browser_session_ip_with_session(
     client_ip: &str,
     source: &str,
 ) -> anyhow::Result<Option<LoginSession>> {
+    let _phase = crate::auth::diagnostics::enter("mobility_ip_refresh");
     let config = state.storage.store.get_config().await?;
     let settings = AuthCredentialSettings::from_config(&config);
     let normalized_client_ip = normalized_or_trimmed_ip(client_ip);

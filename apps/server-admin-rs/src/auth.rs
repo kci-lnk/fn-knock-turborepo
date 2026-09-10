@@ -1,6 +1,7 @@
 pub(crate) mod backoff;
 pub(crate) mod common_locations;
 pub(crate) mod cookies;
+pub(crate) mod diagnostics;
 pub(crate) mod fnos_share_bypass;
 pub(crate) mod hmac;
 pub(crate) mod ldap;

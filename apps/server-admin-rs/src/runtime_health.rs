@@ -1624,7 +1624,17 @@ impl DiagnosticLogger {
         reason_code: &str,
         mut fields: Map<String, Value>,
     ) {
-        let key = format!("{component}\0{event}\0{reason_code}");
+        let mut key = format!("{component}\0{event}\0{reason_code}");
+        if component == "auth_bridge" && event == "request_timeout" {
+            // Different blocked stages are different diagnostic signals, even
+            // when they occur within the same repeat-suppression window.
+            for field in ["operation", "phase"] {
+                key.push('\0');
+                key.push_str(&clean_identifier(
+                    fields.get(field).and_then(Value::as_str).unwrap_or(""),
+                ));
+            }
+        }
         let mut count = 1;
         if let Ok(mut repeats) = self.repeats.lock() {
             let now = Instant::now();
@@ -1682,6 +1692,9 @@ impl DiagnosticLogger {
                     | "queue_wait_ms"
                     | "active_operation_ms"
                     | "max_in_flight"
+                    | "phase"
+                    | "phase_active_ms"
+                    | "phase_elapsed_ms"
             )
         });
         let record = json!({
@@ -2358,6 +2371,68 @@ mod tests {
         assert!(logger.shutdown(Duration::from_secs(2)).await);
         let contents = std::fs::read_to_string(directory.path().join("management.jsonl")).unwrap();
         assert!(contents.contains("\"reason_code\":\"graceful_shutdown\""));
+    }
+
+    #[tokio::test]
+    async fn diagnostic_logger_preserves_auth_timeout_phases() {
+        let directory = tempfile::tempdir().unwrap();
+        let logger = DiagnosticLogger::new(directory.path().to_path_buf()).unwrap();
+        logger.log(
+            "WARN",
+            "auth_bridge",
+            "request_timeout",
+            "handler_deadline_exceeded",
+            Map::from_iter([
+                ("phase".into(), json!("mobility_lock")),
+                ("phase_active_ms".into(), json!(4700)),
+                (
+                    "phase_elapsed_ms".into(),
+                    json!({"sqlite_primary_wait": 31}),
+                ),
+                ("cookie".into(), json!("must-not-be-logged")),
+            ]),
+        );
+        assert!(logger.shutdown(Duration::from_secs(2)).await);
+        let text = std::fs::read_to_string(directory.path().join("management.jsonl")).unwrap();
+        let record: Value = serde_json::from_str(text.trim()).unwrap();
+        assert_eq!(record["fields"]["phase"], "mobility_lock");
+        assert_eq!(record["fields"]["phase_active_ms"], 4700);
+        assert_eq!(
+            record["fields"]["phase_elapsed_ms"]["sqlite_primary_wait"],
+            31
+        );
+        assert!(record["fields"].get("cookie").is_none());
+    }
+
+    #[tokio::test]
+    async fn auth_timeout_deduplication_preserves_distinct_phases() {
+        let directory = tempfile::tempdir().unwrap();
+        let logger = DiagnosticLogger::new(directory.path().to_path_buf()).unwrap();
+        for phase in ["mobility_lock", "sqlite_primary_wait", "mobility_lock"] {
+            logger.log(
+                "WARN",
+                "auth_bridge",
+                "request_timeout",
+                "handler_deadline_exceeded",
+                Map::from_iter([
+                    ("operation".into(), json!("authorize_http")),
+                    ("phase".into(), json!(phase)),
+                ]),
+            );
+        }
+        assert!(logger.shutdown(Duration::from_secs(2)).await);
+        let text = std::fs::read_to_string(directory.path().join("management.jsonl")).unwrap();
+        let rows: Vec<Value> = text
+            .lines()
+            .map(|line| serde_json::from_str(line).unwrap())
+            .collect();
+        assert_eq!(
+            rows.len(),
+            2,
+            "distinct phases must survive; identical repeats stay bounded"
+        );
+        assert_eq!(rows[0]["fields"]["phase"], "mobility_lock");
+        assert_eq!(rows[1]["fields"]["phase"], "sqlite_primary_wait");
     }
 
     #[test]

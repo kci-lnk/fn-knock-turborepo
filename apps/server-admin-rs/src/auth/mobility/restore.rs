@@ -5,6 +5,7 @@ pub async fn try_restore_access(
     client_ip: &str,
     identity: AuthMobilityRestoreIdentity<'_>,
 ) -> anyhow::Result<AuthMobilityRestoreResult> {
+    let _phase = crate::auth::diagnostics::enter("mobility_restore");
     if let Some(token) = identity.fnos_token.filter(|value| !value.trim().is_empty())
         && restore_app_token_binding(state, "fnos-token", token, client_ip, "fnos-token").await?
     {

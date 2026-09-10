@@ -435,21 +435,26 @@ async fn run_auth_bridge_once(state: AppState, shutdown: &CancellationToken) -> 
                 // Release it as soon as the handler finishes so a slow/full
                 // outbound queue cannot stall otherwise independent requests.
                 let _permit = permit;
+                let diagnostics = crate::auth::diagnostics::Diagnostics::default();
+                let handler = diagnostics.scope(handle_bridge_message(state.clone(), message));
+                tokio::pin!(handler);
                 tokio::select! {
                     _ = worker_shutdown.cancelled() => None,
                     response = tokio::time::timeout_at(
                         deadlines.handler,
-                        handle_bridge_message(state.clone(), message),
+                        &mut handler,
                     ) => match response {
                         Ok(response) => response,
                         Err(_) => {
-                            record_bridge_pressure(
-                                &state,
-                                "request_timeout",
-                                "handler_deadline_exceeded",
-                                kind,
-                                request_started.elapsed(),
-                                max_in_flight,
+                            // The borrowed handler is still alive here, so its
+                            // innermost pending phase survives timeout cancellation.
+                            let mut fields = diagnostics.fields();
+                            fields.insert("operation".into(), json!(kind.operation()));
+                            fields.insert("duration_ms".into(), json!(request_started.elapsed().as_millis()));
+                            fields.insert("max_in_flight".into(), json!(max_in_flight));
+                            state.runtime_health.operational_log(
+                                "WARN", "auth_bridge", "request_timeout",
+                                "handler_deadline_exceeded", fields,
                             );
                             Some(kind.unavailable_envelope(request_id))
                         }
@@ -571,6 +576,7 @@ async fn handle_authorize_http(
     state: AppState,
     request: AuthorizeHttpRequest,
 ) -> AuthorizeHttpResponse {
+    let _phase = crate::auth::diagnostics::enter("authorize_http");
     let (run_preflight, run_verify) = http_auth_stages(request.mode);
     let headers = headers_from_auth_context(request.context.as_ref());
     let uri = uri_from_auth_context(request.context.as_ref());

@@ -104,6 +104,7 @@ pub(super) async fn apply_preflight_behavior_with_normal_access(
     routed_upstream_host: Option<&str>,
     routed_upstream_route_id: Option<&str>,
 ) -> anyhow::Result<()> {
+    let _phase = crate::auth::diagnostics::enter("preflight");
     let forwarded_path = preflight_forwarded_path(headers);
     let mut share_decision_handled = false;
     let strict_whitelist_denied = if access_mode == RequestedAccessMode::StrictWhitelist {
@@ -309,6 +310,7 @@ pub(super) async fn resolve_preflight_normal_access(
     client_ip: &str,
     access_mode: RequestedAccessMode,
 ) -> anyhow::Result<PreflightNormalAccess> {
+    let _phase = crate::auth::diagnostics::enter("normal_access");
     let identity = inspect_auth_mobility_request(headers);
     let mut invalid_session_cookie = false;
     let browser_session = if let Some(session_id) = identity.session_id.as_deref() {

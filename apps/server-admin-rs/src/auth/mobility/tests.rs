@@ -235,6 +235,178 @@ async fn canceled_session_mutation_owner_releases_its_lease_promptly() {
         .expect("release replacement lease");
 }
 
+// Deliberately do not poll the acquisition again after SQLite commits. This
+// reproduces cancellation between the database write and receipt of its result.
+#[tokio::test]
+async fn canceled_session_lock_acquisition_cleans_up_committed_write() {
+    use std::{future::Future, task::Poll};
+    let (_directory, state) = mobility_test_state("canceled-lock-acquisition").await;
+    let session_id = "pending-acquisition";
+    let key = auth_mobility_session_mutation_lock_key(session_id);
+    let mut acquisition = Box::pin(acquire_auth_mobility_session_mutation_lease(
+        &state, session_id,
+    ));
+    std::future::poll_fn(|cx| {
+        assert!(acquisition.as_mut().poll(cx).is_pending());
+        Poll::Ready(())
+    })
+    .await;
+    // This read is queued behind the submitted write on the primary executor.
+    assert!(
+        state
+            .storage
+            .store
+            .get_json_value(&key)
+            .await
+            .unwrap()
+            .is_some()
+    );
+    drop(acquisition);
+    tokio::time::timeout(std::time::Duration::from_secs(1), async {
+        while state
+            .storage
+            .store
+            .get_json_value(&key)
+            .await
+            .unwrap()
+            .is_some()
+        {
+            tokio::task::yield_now().await;
+        }
+    })
+    .await
+    .expect("canceled acquisition left its 120-second lease behind");
+}
+
+#[tokio::test]
+async fn canceled_session_lock_waiter_preserves_current_owner() {
+    let (_directory, state) = mobility_test_state("canceled-lock-waiter").await;
+    let owner = acquire_auth_mobility_session_mutation_lease(&state, "shared-session")
+        .await
+        .unwrap()
+        .unwrap();
+    assert!(
+        tokio::time::timeout(
+            std::time::Duration::from_millis(30),
+            acquire_auth_mobility_session_mutation_lease(&state, "shared-session"),
+        )
+        .await
+        .is_err()
+    );
+    // Give the ownership-checked cleanup a chance to run, then verify the
+    // original owner can still renew and release its lease.
+    tokio::task::yield_now().await;
+    assert!(owner.ensure_valid().await.unwrap());
+    assert!(owner.release().await.unwrap());
+}
+
+#[tokio::test]
+async fn session_lock_deadline_covers_blocked_sqlite_write_and_cleans_late_commit() {
+    let (_directory, state) = mobility_test_state("lock-write-deadline").await;
+    let database = tokio_rusqlite::rusqlite::Connection::open(&state.settings.sqlite_path).unwrap();
+    database.execute_batch("BEGIN IMMEDIATE").unwrap();
+    let key = auth_mobility_session_mutation_lock_key("blocked-writer");
+    let result = tokio::time::timeout(
+        std::time::Duration::from_secs(1),
+        acquire_auth_mobility_session_mutation_lease_until(
+            &state,
+            "blocked-writer",
+            time::Instant::now() + std::time::Duration::from_millis(30),
+        ),
+    )
+    .await;
+    // Always unlock before asserting, so a test failure cannot strand SQLite.
+    database.execute_batch("ROLLBACK").unwrap();
+    assert!(
+        result
+            .expect("lock deadline did not interrupt SQLite wait")
+            .unwrap()
+            .is_none()
+    );
+    tokio::time::timeout(std::time::Duration::from_secs(1), async {
+        while state
+            .storage
+            .store
+            .get_json_value(&key)
+            .await
+            .unwrap()
+            .is_some()
+        {
+            tokio::task::yield_now().await;
+        }
+    })
+    .await
+    .expect("late lock commit was not cleaned up");
+}
+
+#[tokio::test]
+async fn session_lock_does_not_acquire_after_its_deadline() {
+    let (_directory, state) = mobility_test_state("expired-lock-deadline").await;
+    let result = acquire_auth_mobility_session_mutation_lease_until(
+        &state,
+        "expired-budget",
+        time::Instant::now() - std::time::Duration::from_millis(1),
+    )
+    .await
+    .unwrap();
+    assert!(result.is_none());
+    assert!(
+        state
+            .storage
+            .store
+            .get_json_value(&auth_mobility_session_mutation_lock_key("expired-budget"))
+            .await
+            .unwrap()
+            .is_none()
+    );
+}
+
+#[tokio::test]
+async fn session_lock_rejects_committed_result_received_after_deadline() {
+    use std::{future::Future, task::Poll};
+    let (_directory, state) = mobility_test_state("late-lock-result").await;
+    let deadline = time::Instant::now() + std::time::Duration::from_millis(50);
+    let key = auth_mobility_session_mutation_lock_key("late-result");
+    let mut acquisition = Box::pin(acquire_auth_mobility_session_mutation_lease_until(
+        &state,
+        "late-result",
+        deadline,
+    ));
+    std::future::poll_fn(|cx| {
+        assert!(acquisition.as_mut().poll(cx).is_pending());
+        Poll::Ready(())
+    })
+    .await;
+    assert!(
+        state
+            .storage
+            .store
+            .get_json_value(&key)
+            .await
+            .unwrap()
+            .is_some()
+    );
+    time::sleep_until(deadline).await;
+    assert!(
+        acquisition.await.unwrap().is_none(),
+        "a ready result must not bypass the deadline"
+    );
+    tokio::time::timeout(std::time::Duration::from_secs(1), async {
+        while state
+            .storage
+            .store
+            .get_json_value(&key)
+            .await
+            .unwrap()
+            .is_some()
+        {
+            tokio::task::yield_now().await;
+        }
+    })
+    .await
+    .expect("late successful acquisition was not released");
+}
+
 #[test]
 fn session_ip_match_uses_normalized_addresses_and_rejects_empty_values() {
     let mut session = test_browser_session("[2001:db8::10]");

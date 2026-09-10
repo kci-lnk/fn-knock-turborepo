@@ -303,6 +303,7 @@ impl ConnectionManager {
         // future; moving both guards into the closure ensures a timed-out auth
         // request cannot release admission until that submitted work is truly
         // finished. Waiters canceled before admission are never submitted.
+        let phase = crate::auth::diagnostics::enter("sqlite_primary_wait");
         let admission = self.primary_admission.clone();
         let (permit, wait_ms) = match admission.clone().try_acquire_owned() {
             Ok(permit) => (permit, 0),
@@ -318,6 +319,8 @@ impl ConnectionManager {
                 return Err(storage_error("primary sqlite executor admission is closed"));
             }
         };
+        drop(phase);
+        let _phase = crate::auth::diagnostics::enter("sqlite_primary_execute");
         let execution = self.primary_metrics.begin_execution(wait_ms);
         let recorder = self.diagnostics();
         self.db
@@ -361,11 +364,16 @@ impl ConnectionManager {
         // tokio-rusqlite cannot retract a closure once submitted. Admission
         // stays outside its internal queue, while both guards move into the
         // closure so caller cancellation cannot release them prematurely.
+        let phase = crate::auth::diagnostics::enter("sqlite_reader_wait");
         let permit = admission
             .acquire_owned()
             .await
             .map_err(|_| storage_error("sqlite reader admission is closed"))?;
+        drop(phase);
+        let phase = crate::auth::diagnostics::enter("sqlite_checkpoint_wait");
         let checkpoint_guard = self.checkpoint_gate.clone().read_owned().await;
+        drop(phase);
+        let _phase = crate::auth::diagnostics::enter("sqlite_reader_execute");
         let recorder = self.diagnostics();
         reader
             .call(move |conn| {

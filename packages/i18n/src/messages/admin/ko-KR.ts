@@ -1523,7 +1523,7 @@ export const koKRAdmin = {
     panel: "패널",
     challenge: "보안 인증",
     maintenance: "유지보수",
-    update: "시스템 업데이트",
+    update: "업데이트",
   },
   runModeSettings: {
     title: "실행 모드 설정",

@@ -57,7 +57,7 @@ describe("system update settings tab", () => {
     const { wrapper, router } = await setup("/system?tab=update");
     try {
       const tabs = wrapper.findAll('[role="tab"]');
-      expect(tabs.at(-1)!.text()).toBe("System Update");
+      expect(tabs.at(-1)!.text()).toBe("Update");
       expect(tabs.at(-2)!.text()).toBe("Maintenance");
       expect(tabs.at(-1)!.attributes("data-state")).toBe("active");
       expect(wrapper.find("about-update-stub").exists()).toBe(true);

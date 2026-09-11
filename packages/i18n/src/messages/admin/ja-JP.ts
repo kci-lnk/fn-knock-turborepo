@@ -1537,7 +1537,7 @@ export const jaJPAdmin = {
     panel: "パネル",
     challenge: "チャレンジ",
     maintenance: "メンテナンス",
-    update: "システム更新",
+    update: "更新",
   },
   runModeSettings: {
     title: "動作モード設定",

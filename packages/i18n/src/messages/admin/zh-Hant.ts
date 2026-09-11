@@ -1347,7 +1347,7 @@ export const zhHantAdmin = {
     panel: "面板",
     challenge: "Challenge",
     maintenance: "維護",
-    update: "系統更新",
+    update: "更新",
   },
   runModeSettings: {
     title: "運行模式設定",

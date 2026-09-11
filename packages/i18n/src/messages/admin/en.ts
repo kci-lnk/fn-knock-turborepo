@@ -1538,7 +1538,7 @@ export const enAdmin = {
     panel: "Panel",
     challenge: "Challenge",
     maintenance: "Maintenance",
-    update: "System Update",
+    update: "Update",
   },
   runModeSettings: {
     title: "Run mode settings",

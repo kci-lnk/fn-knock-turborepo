@@ -1404,7 +1404,7 @@ export const zhCNAdmin = {
     panel: "面板",
     challenge: "Challenge",
     maintenance: "维护",
-    update: "系统更新",
+    update: "更新",
   },
   runModeSettings: {
     title: "运行模式设置",

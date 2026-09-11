@@ -64,7 +64,7 @@ describe("FPK update reload", () => {
   it("cache-busts the stable CGI document while preserving its hash route", () => {
     const url = new URL(
       buildCacheBustedApplicationUrl(
-        "https://nas.example/cgi/ThirdParty/fn-knock/index.cgi/?source=desktop#/about",
+        "https://nas.example/cgi/ThirdParty/fn-knock/index.cgi/?source=desktop#/system?tab=update",
         1234,
       ),
     );
@@ -73,7 +73,7 @@ describe("FPK update reload", () => {
     assert.equal(url.searchParams.get("source"), "desktop");
     assert.equal(url.searchParams.get("_fn_knock_reload"), "1234");
     assert.equal(url.searchParams.get("_fn_knock_reload_reason"), "update");
-    assert.equal(url.hash, "#/about");
+    assert.equal(url.hash, "#/system?tab=update");
   });
 
   it("recovers dynamic import failures once without creating a reload loop", () => {
@@ -101,16 +101,16 @@ describe("FPK update reload", () => {
     chunkError.name = "ChunkLoadError";
     assert.equal(isDynamicImportFailure(chunkError), true);
     assert.equal(
-      claimChunkReload("https://nas.example/app/#/about", storage, 10_000),
+      claimChunkReload("https://nas.example/app/#/system?tab=update", storage, 10_000),
       true,
     );
     assert.equal(
-      claimChunkReload("https://nas.example/app/#/about", storage, 10_100),
+      claimChunkReload("https://nas.example/app/#/system?tab=update", storage, 10_100),
       false,
     );
     assert.equal(
       claimChunkReload(
-        "https://nas.example/app/?_fn_knock_reload=10000&_fn_knock_reload_reason=chunk#/about",
+        "https://nas.example/app/?_fn_knock_reload=10000&_fn_knock_reload_reason=chunk#/system?tab=update",
         null,
         10_100,
       ),
@@ -118,7 +118,7 @@ describe("FPK update reload", () => {
     );
     assert.equal(
       claimChunkReload(
-        "https://nas.example/app/?_fn_knock_reload=10100&_fn_knock_reload_reason=chunk#/about",
+        "https://nas.example/app/?_fn_knock_reload=10100&_fn_knock_reload_reason=chunk#/system?tab=update",
         null,
         10_000,
       ),

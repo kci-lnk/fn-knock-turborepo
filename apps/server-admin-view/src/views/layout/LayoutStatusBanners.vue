@@ -108,7 +108,7 @@ const openUpdateDetails = async () => {
 };
 
 const startUpdate = async () => {
-  await props.navigateTo("/about");
+  await props.navigateTo("/system?tab=update");
   if (configStore.canSelfUpdate) {
     await updateStore.checkAndDownload();
   }

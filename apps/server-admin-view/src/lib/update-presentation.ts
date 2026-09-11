@@ -18,4 +18,4 @@ export const resolveUpdateDetailsAction = (
 ): { type: "external"; url: string } | { type: "route"; path: string } =>
   isFpkLite
     ? { type: "external", url: FULL_VERSION_WEBSITE_URL }
-    : { type: "route", path: "/about" };
+    : { type: "route", path: "/system?tab=update" };

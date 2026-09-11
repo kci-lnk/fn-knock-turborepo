@@ -199,10 +199,7 @@ export const useLayoutNavigation = () => {
     return version ? `v${version}` : "";
   });
 
-  const aboutEntryLabel = computed(() => t("admin.nav.systemUpdate"));
-
   return {
-    aboutEntryLabel,
     currentNavLabel,
     currentVersionLabel,
     isNavActive,

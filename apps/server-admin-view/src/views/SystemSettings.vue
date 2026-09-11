@@ -53,6 +53,8 @@ const PanelSettings = defineAsyncComponent(
   () => import("./system-settings/PanelSettings.vue"),
 );
 
+const AboutUpdate = defineAsyncComponent(() => import("./AboutUpdate.vue"));
+
 const router = useRouter();
 const route = useRoute();
 const configStore = useConfigStore();
@@ -98,6 +100,7 @@ const allowedTabs = computed(() => {
     "panel",
     "captcha",
     "maintenance",
+    "update",
   ];
   if (!showFnosTab.value) {
     const fnosIndex = tabs.indexOf("fnos");
@@ -206,6 +209,9 @@ const { currentTab, navigateTo } = useSyncedQueryTab({
           <TabsTrigger value="maintenance" class="flex-none shrink-0 px-3">{{
             t("admin.systemSettingsTabs.maintenance")
           }}</TabsTrigger>
+          <TabsTrigger value="update" class="flex-none shrink-0 px-3">{{
+            t("admin.systemSettingsTabs.update")
+          }}</TabsTrigger>
         </TabsList>
       </div>
       <TabsContent value="run-mode" class="pt-2">
@@ -256,6 +262,9 @@ const { currentTab, navigateTo } = useSyncedQueryTab({
       </TabsContent>
       <TabsContent value="maintenance" class="pt-2">
         <MaintenanceSettings />
+      </TabsContent>
+      <TabsContent value="update" class="pt-2">
+        <AboutUpdate />
       </TabsContent>
     </Tabs>
   </div>

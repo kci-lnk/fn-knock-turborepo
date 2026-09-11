@@ -97,7 +97,7 @@ export const jaJPAdmin = {
     openNavigation: "ナビゲーションを開く",
     navigationMenu: "ナビゲーション",
     skipToContent: "メインコンテンツへ移動",
-    openGithub: "GitHub プロジェクトを開く",
+    officialWebsite: "公式サイト",
   },
   panelSync: {
     ...zhCNAdmin.panelSync,
@@ -1537,6 +1537,7 @@ export const jaJPAdmin = {
     panel: "パネル",
     challenge: "チャレンジ",
     maintenance: "メンテナンス",
+    update: "システム更新",
   },
   runModeSettings: {
     title: "動作モード設定",

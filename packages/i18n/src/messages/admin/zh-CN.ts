@@ -90,7 +90,7 @@ export const zhCNAdmin = {
     openNavigation: "打开导航菜单",
     navigationMenu: "导航菜单",
     skipToContent: "跳到主要内容",
-    openGithub: "打开 GitHub 项目页",
+    officialWebsite: "官方网站",
   },
   panelSync: {
     title: "同步到导航面板",
@@ -1404,6 +1404,7 @@ export const zhCNAdmin = {
     panel: "面板",
     challenge: "Challenge",
     maintenance: "维护",
+    update: "系统更新",
   },
   runModeSettings: {
     title: "运行模式设置",

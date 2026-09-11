@@ -87,27 +87,19 @@
                 </template>
               </ConfirmDangerPopover>
             </div>
-            <p class="mb-2 text-center text-xs font-medium text-primary/70">
+            <p class="text-center text-xs font-medium text-primary/70">
               <a
-                :href="APP_GITHUB_URL"
+                :href="OFFICIAL_WEBSITE_URL"
                 target="_blank"
                 rel="noopener noreferrer"
                 class="inline-flex max-w-full items-center gap-1.5 rounded-full px-2.5 py-1 leading-none transition-colors hover:text-foreground hover:bg-background/70"
-                :title="t('admin.nav.openGithub')"
+                :title="t('admin.nav.officialWebsite')"
+                :aria-label="t('admin.nav.officialWebsite')"
               >
-                <Github class="h-3.5 w-3.5" />
+                <Globe2 class="h-3.5 w-3.5" />
                 <span>{{ currentVersionLabel }}</span>
               </a>
             </p>
-            <div class="flex justify-center pb-10">
-              <Button
-                variant="secondary"
-                class="w-auto min-w-28 justify-center px-5"
-                @click="navigateTo('/about')"
-              >
-                {{ aboutEntryLabel }}
-              </Button>
-            </div>
           </div>
         </div>
       </SheetContent>
@@ -179,28 +171,20 @@
               </ConfirmDangerPopover>
             </div>
             <p
-              class="mb-2 min-w-0 text-center text-xs font-medium text-primary/70"
+              class="min-w-0 text-center text-xs font-medium text-primary/70"
             >
               <a
-                :href="APP_GITHUB_URL"
+                :href="OFFICIAL_WEBSITE_URL"
                 target="_blank"
                 rel="noopener noreferrer"
                 class="inline-flex max-w-full items-center gap-1.5 rounded-full px-2.5 py-1 leading-none transition-colors hover:text-foreground hover:bg-background/70"
-                :title="t('admin.nav.openGithub')"
+                :title="t('admin.nav.officialWebsite')"
+                :aria-label="t('admin.nav.officialWebsite')"
               >
-                <Github class="h-3.5 w-3.5" />
+                <Globe2 class="h-3.5 w-3.5" />
                 <span>{{ currentVersionLabel }}</span>
               </a>
             </p>
-            <div class="flex justify-center">
-              <Button
-                variant="secondary"
-                class="h-8 w-auto min-w-24 justify-center px-3"
-                @click="navigateTo('/about')"
-              >
-                {{ aboutEntryLabel }}
-              </Button>
-            </div>
           </div>
         </div>
       </aside>
@@ -272,8 +256,8 @@ import {
   normalizeLocale,
 } from "@fn-knock/i18n/core";
 import { setFnKnockLocale } from "@fn-knock/i18n/vue/admin";
-const APP_GITHUB_URL = "https://github.com/kci-lnk/fn-knock-turborepo";
-import { Github, Languages, LogOut, Menu } from "lucide-vue-next";
+import { OFFICIAL_WEBSITE_URL } from "../lib/update-presentation";
+import { Globe2, Languages, LogOut, Menu } from "lucide-vue-next";
 import LayoutLoadStatus from "./layout/LayoutLoadStatus.vue";
 import LayoutScrollArea from "./layout/LayoutScrollArea.vue";
 import LayoutStatusBanners from "./layout/LayoutStatusBanners.vue";
@@ -297,7 +281,6 @@ const dockerAdminAuthStore = useDockerAdminAuthStore();
 const systemClockStore = useSystemClockStore();
 const updateStore = useUpdateStore();
 const {
-  aboutEntryLabel,
   currentNavLabel,
   currentVersionLabel,
   isNavActive,

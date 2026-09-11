@@ -92,7 +92,7 @@ export const zhHantAdmin = {
     openNavigation: "打開導航選單",
     navigationMenu: "導航選單",
     skipToContent: "跳到主要內容",
-    openGithub: "打開 GitHub 專案頁",
+    officialWebsite: "官方網站",
   },
   panelSync: {
     ...zhCNAdmin.panelSync,
@@ -1347,6 +1347,7 @@ export const zhHantAdmin = {
     panel: "面板",
     challenge: "Challenge",
     maintenance: "維護",
+    update: "系統更新",
   },
   runModeSettings: {
     title: "運行模式設定",

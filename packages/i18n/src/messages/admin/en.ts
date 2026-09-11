@@ -99,7 +99,7 @@ export const enAdmin = {
     openNavigation: "Open navigation",
     navigationMenu: "Navigation",
     skipToContent: "Skip to main content",
-    openGithub: "Open GitHub project",
+    officialWebsite: "Official website",
   },
   panelSync: {
     title: "Sync to navigation panel",
@@ -1538,6 +1538,7 @@ export const enAdmin = {
     panel: "Panel",
     challenge: "Challenge",
     maintenance: "Maintenance",
+    update: "System Update",
   },
   runModeSettings: {
     title: "Run mode settings",

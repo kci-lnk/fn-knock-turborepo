@@ -102,7 +102,7 @@ export const koKRAdmin = {
     openNavigation: "탐색 메뉴 열기",
     navigationMenu: "탐색 메뉴",
     skipToContent: "주요 콘텐츠로 건너뛰기",
-    openGithub: "GitHub 프로젝트 열기",
+    officialWebsite: "공식 웹사이트",
   },
   panelSync: {
     ...zhCNAdmin.panelSync,
@@ -1523,6 +1523,7 @@ export const koKRAdmin = {
     panel: "패널",
     challenge: "보안 인증",
     maintenance: "유지보수",
+    update: "시스템 업데이트",
   },
   runModeSettings: {
     title: "실행 모드 설정",

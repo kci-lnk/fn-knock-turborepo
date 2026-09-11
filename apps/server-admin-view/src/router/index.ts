@@ -300,11 +300,6 @@ const router = createRouter({
           name: "WOLManagement",
           component: () => import("../views/WOLManagement.vue"),
         },
-        {
-          path: "about",
-          name: "About",
-          component: () => import("../views/AboutUpdate.vue"),
-        },
       ],
     },
   ],

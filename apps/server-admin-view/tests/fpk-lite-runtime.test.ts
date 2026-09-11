@@ -128,6 +128,13 @@ describe("FPK Lite runtime behavior", () => {
     });
   });
 
+  it("sends standard update details to the system settings update tab", () => {
+    assert.deepEqual(resolveUpdateDetailsAction(false), {
+      type: "route",
+      path: "/system?tab=update",
+    });
+  });
+
   it("keeps stable official website and documentation links", () => {
     assert.equal(OFFICIAL_WEBSITE_URL, "https://www.fnknock.cn/");
     assert.equal(OFFICIAL_DOCUMENTATION_URL, "https://docs.fnknock.cn/");

@@ -39,7 +39,7 @@ const adminRoutes = [
   "/terminal",
   "/tunnel",
   "/ddns",
-  "/about",
+  "/system?tab=update",
 ];
 
 const assert = (condition, scope, message) => {

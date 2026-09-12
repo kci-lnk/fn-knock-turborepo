@@ -217,7 +217,8 @@ Go 网关源码默认从相邻目录 `../Go-Reauth-Proxy` 读取，也可以通�
 | `npm run fn-knock:docker:build`                | 构建本地 Docker 镜像                     |
 | `npm run fn-knock:windows:test`                | 运行 Windows 原生构建检查                |
 | `npm run fn-knock:windows:build`               | 构建 Windows x86_64 unsigned NSIS 安装包 |
-| `npm run fn-knock:release:test`                | 检查完整发布链路                         |
+| `npm run quality:check`                       | 执行完整质量门禁（含发布链路测试）       |
+| `npm run fn-knock:release:test`                | 检查打包与发布链路契约，不替代完整质量门禁 |
 | `npm run fn-knock:release:preflight -- vX.Y.Z` | 校验版本与发布前置条件                   |
 | `npm run release status`                       | 查看当前发布版本状态                     |
 | `npm run fn-knock:grpc:sync-go`                | 从共享 proto 重新生成 Go gRPC stub       |
@@ -225,7 +226,51 @@ Go 网关源码默认从相邻目录 `../Go-Reauth-Proxy` 读取，也可以通�
 
 控制 API 版本只在 [`packages/grpc-contracts/proto/fnknock/v1/gateway.proto`](packages/grpc-contracts/proto/fnknock/v1/gateway.proto) 的 `CONTROL_API_VERSION_CURRENT` 定义。升级协议时只修改该枚举值，再运行 `npm run fn-knock:grpc:sync-go`；Rust 服务直接使用生成的 protobuf 枚举，Windows 桌面端、打包脚本和 smoke test 会读取同一 proto，Go 网关使用生成的 `gateway.pb.go`。不要手工维护第二份版本常量。
 
-发布新版本时，建议在本仓库和相邻的 `../Go-Reauth-Proxy` 均为干净工作区时运行 `npm run release prepare patch`（也可使用 `minor`、`major` 或明确的 `X.Y.Z`）。该工具会同步两个仓库内的所有产品版本，并从上一个版本 Tag 后的提交生成 release notes；Go 仓库位于其他位置时可设置 `FN_KNOCK_GO_REAUTH_PROXY_DIR`。使用 `--dry-run` 可先预览，使用 `--notes-file <path>` 可指定发布说明。完成后运行 `npm run release check` 和 `npm run fn-knock:release:test`，并先提交、推送 Go 仓库。工具不会自动提交、打 Tag 或推送。
+## 发版流程与必查项
+
+发布新版本时，建议在本仓库和相邻的 `../Go-Reauth-Proxy` 均为干净工作区时运行 `npm run release prepare patch`（也可使用 `minor`、`major` 或明确的 `X.Y.Z`）。该工具会同步两个仓库内的所有产品版本，并从上一个版本 Tag 后的提交生成 release notes；Go 仓库位于其他位置时可设置 `FN_KNOCK_GO_REAUTH_PROXY_DIR`。使用 `--dry-run` 可先预览，使用 `--notes-file <path>` 可指定发布说明。发布说明使用中文，并在提交前完成人工编辑。工具不会自动提交、打 Tag 或推送。
+
+> [!IMPORTANT]
+> **推送发版 Tag 前，必须对最终待发布内容执行完整 `npm run quality:check`。** `release prepare` / `release check` 主要检查版本、控制 API 契约和发布元数据；`fn-knock:release:test` 检查打包与发布链路契约，均不等于完整质量门禁。仅通过这些命令、编译成功或部分测试通过，不能作为发版依据。`quality:check` 已包含 `fn-knock:release:test`，无需重复单独运行。
+
+### 为什么曾经反复修复并重跑 CI
+
+- 发版前检查范围小于 CI：原发版说明遗漏完整质量门禁，导致 Rust 单元测试、API 文档断言、任务生命周期等问题直到推 Tag 才暴露。
+- API 变更存在多处同步点：`v2.4.9` 删除路由后，测试仍期望 456 个接口，实际为 454；`v2.4.11` 新增接口后，测试仍期望 458 个，实际为 461，同时遗漏 `http3` / `email` 的 Swagger 中文映射。生成 OpenAPI 成功并不代表路由覆盖、中文摘要等测试也通过。
+- 普通 CI 的触发方式有空档：当前 `.github/workflows/ci.yml` 不监听普通 `main` push，且定时任务跳过 `quality`。历史成功记录、夜间 CI 成功或推送分支成功，都不能证明当前待发版提交通过了完整质量门禁。
+- Release 中质量门禁和耗时的多平台构建并行启动；质量门禁失败后修复并移动 Tag，会让构建重新执行。应在推 Tag 前发现这类确定性问题。
+
+### API 改动后的同步顺序
+
+新增、删除或修改接口时，先核对真实路由、类型化契约及中文文档，再生成契约，最后运行测试：
+
+1. 核对 `apps/server-admin-rs/src/app/router.rs` 与 `apps/server-admin-rs/src/infra/openapi_docs.rs` 中的接口数量断言；按实际增删的 path/method 更新，不要仅为消除报错而改数字或删除断言。
+2. 为新增路径词补齐 `apps/server-admin-rs/src/infra/openapi_docs/baseline_docs.rs` 的中文映射，检查摘要、描述和响应说明。
+3. 运行以下命令，并将生成的 `packages/api-contract/openapi.json` 与 `packages/api-contract/src/schema.d.ts` 一并提交。必须先生成再测试，否则嵌入契约与导出文件的一致性测试会失败。
+
+```bash
+npm run api:generate
+cargo test --locked --manifest-path apps/server-admin-rs/Cargo.toml --lib openapi -- --test-threads=1
+npm run api:check
+```
+
+以上是 API 专项检查，不能替代下面的完整发版门禁。修改 proto 时还需先运行 `npm run fn-knock:grpc:sync-go`，同步 Go stub。
+
+### 推送 Tag 前的完整门禁
+
+在版本准备、中文更新说明及生成文件均完成后执行：
+
+```bash
+npm ci
+npm run release check
+npm run quality:check
+```
+
+检查工具版本以 `.github/workflows/release.yml` 为准；安全审计需注意 CI 固定的 RustSec 数据库版本。命令必须执行结束且退出码为 0；失败后先修复和复测，不能跳过测试或降低检查要求。期间如果继续修改源码、版本、依赖或生成文件，须重新验证最终内容，不能沿用修改前的结果。
+
+通过后先提交、推送 Go 仓库，再提交、推送主仓库。若本地无法覆盖 CI 环境，或直接在 `main` 开发，推 Tag 前先运行 `gh workflow run ci.yml --ref main`，用 `gh run list` 找到该次运行并以 `gh run watch <运行 ID> --exit-status` 跟进；确认运行的 `headSha` 正是待打 Tag 的提交且 `quality` 通过。不要将 `release.yml` 的试跑当作普通质量检查。
+
+最后才推送与 `version.json` 一致的 Tag，并跟进 Release 的质量门禁、所有平台构建和 `publish` 任务。只有正式 Release 已发布才算完成。已发布的版本不可移动 Tag 或覆盖产物；后续修复应发新版本。
 
 `version.json` 的 `releaseChannel` 控制发布渠道，可取 `stable` 或 `beta`。Beta 仍使用纯数字 `X.Y.Z` 版本号和 `vX.Y.Z` Tag，但 GitHub Release 会标记为 Pre-release；CI 只发布固定版本的安装包与 Docker 镜像，不更新 Docker `latest`、腾讯 COS/CDN、自动更新清单或 GitHub Latest Release。发布说明必须明确提醒用户这是测试版本。
 

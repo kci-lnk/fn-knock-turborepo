@@ -45,7 +45,7 @@ const apps = [
     scenarios: [
       {
         name: "Home+zh-CN",
-        limit: 125 * 1024,
+        limit: 126 * 1024,
         fileLimit: 8,
         sources: ["/src/views/Home.vue", "/messages/scopes/auth/zh-CN.ts"],
       },

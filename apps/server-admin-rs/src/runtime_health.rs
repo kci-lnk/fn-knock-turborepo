@@ -2,6 +2,8 @@ pub(crate) mod debug;
 pub(crate) mod debug_resources;
 pub(crate) mod operations;
 pub(crate) mod planned_stop;
+#[cfg(test)]
+mod recovery_tests;
 pub(crate) mod routes;
 
 use std::{
@@ -33,6 +35,7 @@ use crate::{
 
 const PROBE_INTERVAL: Duration = Duration::from_secs(5);
 const PROBE_TIMEOUT: Duration = Duration::from_secs(2);
+const STARTUP_GRACE: Duration = Duration::from_secs(60);
 const RESUME_GAP: Duration = Duration::from_secs(30);
 const RESUME_RECOVERY_GRACE: Duration = Duration::from_secs(120);
 const RUNTIME_STATE_TTL_SECONDS: i64 = 7 * 24 * 60 * 60;
@@ -1178,7 +1181,16 @@ impl RuntimeHealth {
         recovering: bool,
         sampled_generation: Option<u64>,
     ) {
-        if !recovering || probe.ok {
+        let starting = self
+            .inner
+            .trackers
+            .lock()
+            .await
+            .get(id)
+            .is_some_and(|tracker| {
+                startup_grace_active(id, tracker, self.inner.process_started.elapsed())
+            });
+        if (!recovering && !starting) || probe.ok {
             self.apply_sampled_health(state, id, probe, checked_at, sampled_generation)
                 .await;
             return;
@@ -1195,7 +1207,11 @@ impl RuntimeHealth {
         tracker.health.probe_generation = stop.generation();
         apply_metadata(&mut tracker.health, probe.metadata);
         tracker.health.last_checked_at = Some(checked_at.to_string());
-        tracker.health.reason_code = Some("resume_recovery".to_string());
+        tracker.health.reason_code = Some(if starting {
+            probe.reason_code.to_string()
+        } else {
+            "resume_recovery".to_string()
+        });
         // A suspend gap suppresses *new* incident escalation. It must not
         // erase or downgrade an incident that was already unhealthy before
         // the machine slept; successful probes will recover that incident via
@@ -1234,7 +1250,8 @@ impl RuntimeHealth {
         tracker.health.reason_code = Some("gateway_process_unhealthy".to_string());
         tracker.health.consecutive_failures = 0;
         tracker.recovery_successes = 0;
-        tracker.incident = None;
+        // Blocking explains the current dependency failure; it does not close an
+        // incident already emitted for this component. Recover it after two good probes.
         drop(trackers);
         if changed {
             self.inner.logger.log(
@@ -1352,13 +1369,26 @@ async fn cleanup_supervisor_paths(paths: &mut Vec<PathBuf>, ttl: Duration, max_f
     *paths = retained;
 }
 
+fn startup_grace_active(id: &str, tracker: &Tracker, elapsed: Duration) -> bool {
+    // Only initial gateway readiness gets a bounded grace period. Storage failures,
+    // existing incidents and failures after the first successful probe remain visible.
+    matches!(
+        id,
+        "gateway_process" | "gateway_dataplane" | "auth_bridge" | "config_sync"
+    ) && elapsed < STARTUP_GRACE
+        && tracker.health.last_success_at.is_none()
+        && tracker.incident.is_none()
+}
+
 fn advance_tracker(tracker: &mut Tracker, success: bool) -> Option<TrackerTransition> {
     if success {
         tracker.health.consecutive_failures = 0;
-        if matches!(
-            tracker.health.status,
-            HealthStatus::Unhealthy | HealthStatus::Degraded
-        ) {
+        if tracker.incident.is_some()
+            || matches!(
+                tracker.health.status,
+                HealthStatus::Unhealthy | HealthStatus::Degraded
+            )
+        {
             tracker.recovery_successes += 1;
             if tracker.recovery_successes >= 2 {
                 tracker.health.status = HealthStatus::Healthy;
@@ -1373,6 +1403,10 @@ fn advance_tracker(tracker: &mut Tracker, success: bool) -> Option<TrackerTransi
 
     tracker.recovery_successes = 0;
     tracker.health.consecutive_failures = tracker.health.consecutive_failures.saturating_add(1);
+    if tracker.incident.is_some() {
+        tracker.health.status = HealthStatus::Unhealthy;
+        return None;
+    }
     if tracker.health.consecutive_failures < 3 {
         tracker.health.status = HealthStatus::Degraded;
         return None;

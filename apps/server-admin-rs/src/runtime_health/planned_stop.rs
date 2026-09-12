@@ -545,6 +545,8 @@ mod tests {
             tracker.health.pid = Some(std::process::id());
             tracker.health.instance_id = Some("gateway-1".into());
             tracker.health.status = HealthStatus::Healthy;
+            // A healthy live gateway has already completed its first successful probe.
+            tracker.health.last_success_at = Some(time_utils::now_iso());
         }
         runtime.publish_snapshot(&time_utils::now_iso()).await;
         let request = Request {

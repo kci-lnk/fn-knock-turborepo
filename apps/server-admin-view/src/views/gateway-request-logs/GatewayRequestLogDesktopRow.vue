@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import ActionTooltip from "@/components/ActionTooltip.vue";
 import { useI18n } from "vue-i18n";
 import {
   Ban,
@@ -9,7 +10,7 @@ import {
   ShieldX,
   Unlock,
 } from "lucide-vue-next";
-import ConfirmDangerPopover from "@admin-shared/components/common/ConfirmDangerPopover.vue";
+import ConfirmDangerTooltip from "@/components/ConfirmDangerTooltip.vue";
 import HumanFriendlyTime from "@admin-shared/components/common/HumanFriendlyTime.vue";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -196,20 +197,27 @@ const authCredentialLabel = (entry: GatewayRequestLogRowProps["entry"]) =>
     </TableCell>
     <TableCell class="sticky right-0 z-10 bg-background py-2.5 pr-4 text-right">
       <div class="flex justify-end gap-1">
-        <Button
-          variant="ghost"
-          size="icon"
-          class="h-8 w-8 text-muted-foreground hover:text-foreground"
-          :aria-label="t('admin.trace.open')"
-          :disabled="!entry.trace_id && !entry.waf_trace_id"
-          @click="goToWafTrace(entry.trace_id || entry.waf_trace_id)"
-        >
-          <Route class="h-4 w-4" />
-        </Button>
+        <ActionTooltip :label="t('admin.trace.open')">
+          <Button
+            variant="ghost"
+            size="icon"
+            class="h-8 w-8 text-muted-foreground hover:text-foreground"
+            :aria-label="t('admin.trace.open')"
+            :disabled="!entry.trace_id && !entry.waf_trace_id"
+            @click="goToWafTrace(entry.trace_id || entry.waf_trace_id)"
+          >
+            <Route class="h-4 w-4" />
+          </Button>
+        </ActionTooltip>
         <div
           class="opacity-60 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100"
         >
-          <ConfirmDangerPopover
+          <ConfirmDangerTooltip
+            :label="
+              isGeneralBlacklisted(entry.actionIp)
+                ? t('admin.gatewayRequestLogs.unblacklistOne')
+                : t('admin.gatewayRequestLogs.blacklistOne')
+            "
             :title="
               isGeneralBlacklisted(entry.actionIp)
                 ? t('admin.gatewayRequestLogs.unblacklistOneTitle')
@@ -257,17 +265,19 @@ const authCredentialLabel = (entry: GatewayRequestLogRowProps["entry"]) =>
                 <Ban v-else class="h-4 w-4" />
               </Button>
             </template>
-          </ConfirmDangerPopover>
+          </ConfirmDangerTooltip>
         </div>
-        <Button
-          variant="ghost"
-          size="icon"
-          class="h-8 w-8 text-muted-foreground hover:text-foreground"
-          :aria-label="t('common.viewDetails')"
-          @click="viewDetails(entry)"
-        >
-          <Eye class="h-4 w-4" />
-        </Button>
+        <ActionTooltip :label="t('common.viewDetails')">
+          <Button
+            variant="ghost"
+            size="icon"
+            class="h-8 w-8 text-muted-foreground hover:text-foreground"
+            :aria-label="t('common.viewDetails')"
+            @click="viewDetails(entry)"
+          >
+            <Eye class="h-4 w-4" />
+          </Button>
+        </ActionTooltip>
       </div>
     </TableCell>
   </TableRow>

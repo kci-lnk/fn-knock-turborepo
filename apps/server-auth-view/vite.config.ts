@@ -43,11 +43,11 @@ export default defineConfig({
         },
       },
     }),
-    tailwindcss(),
+    tailwindcss({ optimize: false }),
   ],
   build: {
     manifest: true,
-    cssMinify: "esbuild",
+    cssMinify: false,
     rollupOptions: {
       output: {
         codeSplitting: {

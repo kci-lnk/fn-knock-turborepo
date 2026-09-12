@@ -29,7 +29,6 @@ import PagedTableFooter from "@admin-shared/components/list/PagedTableFooter.vue
 import TableSkeletonBlock from "@admin-shared/components/list/TableSkeletonBlock.vue";
 import {
   SYSTEM_EVENT_LEVEL_FILTER_OPTIONS as LEVEL_OPTIONS,
-  SYSTEM_EVENT_SOURCE_FILTER_OPTIONS as SOURCE_OPTIONS,
   SYSTEM_EVENT_TYPE_FILTER_OPTIONS as TYPE_OPTIONS,
 } from "./constants";
 import { useSystemEventDisplay } from "./useSystemEventDisplay";
@@ -69,7 +68,6 @@ const {
   searchQuery,
   selectedKeys,
   selectedLevel,
-  selectedSource,
   selectedType,
   showTableSkeleton,
   toggleSelect,
@@ -83,7 +81,6 @@ const {
   eventTypeTextClass,
   formatIpDisplay,
   formatSystemEventLevelLabel,
-  formatSystemEventSourceLabel,
   formatSystemEventTypeLabel,
   levelBadgeClass,
   resolveEventOrigins,
@@ -135,26 +132,6 @@ const {
         <SelectContent>
           <SelectItem
             v-for="option in LEVEL_OPTIONS"
-            :key="option.value"
-            :value="option.value"
-          >
-            {{ formatOptionLabel(option) }}
-          </SelectItem>
-        </SelectContent>
-      </Select>
-
-      <Select v-model="selectedSource">
-        <SelectTrigger
-          :aria-label="t('admin.eventCenter.events.sourcePlaceholder')"
-          class="w-[110px]"
-        >
-          <SelectValue
-            :placeholder="t('admin.eventCenter.events.sourcePlaceholder')"
-          />
-        </SelectTrigger>
-        <SelectContent>
-          <SelectItem
-            v-for="option in SOURCE_OPTIONS"
             :key="option.value"
             :value="option.value"
           >
@@ -223,7 +200,7 @@ const {
       <div class="flex-1 overflow-auto">
         <Table
           v-if="!(loading && events.length === 0)"
-          class="table-fixed min-w-[980px]"
+          class="table-fixed min-w-[880px]"
         >
           <TableHeader class="sticky top-0 z-10 bg-background shadow-sm">
             <TableRow>
@@ -242,9 +219,6 @@ const {
               <TableHead class="w-[100px]">
                 {{ t("admin.eventCenter.events.level") }}
               </TableHead>
-              <TableHead class="w-[96px]">
-                {{ t("admin.eventCenter.events.system") }}
-              </TableHead>
               <TableHead class="w-[110px] pr-6 text-right">
                 {{ t("admin.eventCenter.events.actions") }}
               </TableHead>
@@ -252,7 +226,7 @@ const {
           </TableHeader>
           <TableBody>
             <TableRow v-if="loading">
-              <TableCell colspan="6" class="py-10 text-center">
+              <TableCell colspan="5" class="py-10 text-center">
                 <Loader2
                   class="mx-auto h-6 w-6 animate-spin text-muted-foreground"
                 />
@@ -260,7 +234,7 @@ const {
             </TableRow>
             <TableRow v-else-if="events.length === 0">
               <TableCell
-                colspan="6"
+                colspan="5"
                 class="py-10 text-center text-muted-foreground"
               >
                 {{ t("admin.eventCenter.events.empty") }}
@@ -333,9 +307,6 @@ const {
                   {{ formatSystemEventLevelLabel(event.level) }}
                 </Badge>
               </TableCell>
-              <TableCell class="truncate align-middle">
-                {{ formatSystemEventSourceLabel(event.source) }}
-              </TableCell>
               <TableCell class="space-x-2 pr-6 text-right">
                 <Button
                   variant="ghost"
@@ -371,8 +342,8 @@ const {
 
         <TableSkeletonBlock
           v-else-if="showTableSkeleton"
-          :header-widths="['w-16', 'w-52', 'w-24', 'w-12', 'w-16', 'w-10']"
-          :row-widths="['w-16', 'w-56', 'w-28', 'w-12', 'w-20', 'w-10']"
+          :header-widths="['w-16', 'w-52', 'w-24', 'w-12', 'w-10']"
+          :row-widths="['w-16', 'w-56', 'w-28', 'w-12', 'w-10']"
         />
 
         <div v-else class="h-[420px]" aria-hidden="true"></div>

@@ -81,6 +81,8 @@ export const koKRAdmin = {
     nextRestart: "{count}회 연속 실패, 다음 재시도:",
   },
   nav: {
+    updateAlert: "시스템 업데이트가 있습니다",
+    criticalEventAlert: "심각한 이벤트가 있습니다",
     sslCert: "SSL 인증서",
     dashboard: "대시보드",
     ddns: "DDNS",

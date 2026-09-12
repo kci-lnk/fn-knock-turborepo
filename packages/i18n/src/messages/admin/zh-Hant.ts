@@ -72,6 +72,8 @@ export const zhHantAdmin = {
   },
   nav: {
     ...zhCNAdmin.nav,
+    updateAlert: "有可用的系統更新",
+    criticalEventAlert: "存在嚴重事件",
     sslCert: "SSL證書",
     dashboard: "控制台",
     ddns: "動態域名",

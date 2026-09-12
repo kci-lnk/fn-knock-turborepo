@@ -76,6 +76,8 @@ export const jaJPAdmin = {
     nextRestart: "{count} 回連続失敗。次の再試行：",
   },
   nav: {
+    updateAlert: "システム更新があります",
+    criticalEventAlert: "重大なイベントがあります",
     sslCert: "SSL",
     dashboard: "ダッシュボード",
     ddns: "DDNS",

@@ -1,4 +1,5 @@
-import { computed, onBeforeUnmount, onMounted, ref, watch } from "vue";
+import { computed, ref, watch } from "vue";
+import { useInitializedPolling } from "@/composables/useInitializedPolling";
 import { useI18n } from "vue-i18n";
 import { useRoute } from "vue-router";
 import {
@@ -11,18 +12,11 @@ import { useIpLocationBatch } from "@/composables/useIpLocationBatch";
 import { createVisibilityPoller } from "@/composables/useVisibilityPolling";
 import { WAFAPI } from "@/lib/api/gateway";
 import { useConfigStore } from "@/store/config";
+import { getTodayString, useWafLogDates } from "./useWafLogDates";
 import type { WAFEvent } from "@/types";
 
 const AUTO_REFRESH_MS = 5_000;
 const TRACE_MISS_AUTO_REFRESH_LIMIT = 12;
-
-const getTodayString = () => {
-  const now = new Date();
-  const year = now.getFullYear();
-  const month = String(now.getMonth() + 1).padStart(2, "0");
-  const day = String(now.getDate()).padStart(2, "0");
-  return `${year}-${month}-${day}`;
-};
 
 export const getWafEventSourceIp = (event: WAFEvent) =>
   event.client_ip || event.remote_addr || "";
@@ -35,8 +29,7 @@ export const useWafLogsResource = () => {
   let entriesRequestId = 0;
   let traceMissAutoRefreshes = 0;
   const entries = ref<WAFEvent[]>([]);
-  const availableDates = ref<string[]>([getTodayString()]);
-  const selectedDate = ref(getTodayString());
+  const { availableDates, selectedDate, applyDates } = useWafLogDates();
   const limit = ref("50");
   const searchQuery = ref("");
   const traceFilter = ref(String(route.query.trace_id || ""));
@@ -72,19 +65,6 @@ export const useWafLogsResource = () => {
     },
   });
 
-  const applyDates = (dates: string[], preferred?: string) => {
-    const fallbackToday = getTodayString();
-    const nextDates = dates.length > 0 ? dates : [fallbackToday];
-    availableDates.value = nextDates;
-    if (preferred && nextDates.includes(preferred)) {
-      selectedDate.value = preferred;
-    } else if (!nextDates.includes(selectedDate.value)) {
-      selectedDate.value = nextDates.includes(fallbackToday)
-        ? fallbackToday
-        : nextDates[0] || fallbackToday;
-    }
-  };
-
   const drainEvents = async (silent = true, signal?: AbortSignal) => {
     try {
       await WAFAPI.drainEvents(signal);
@@ -102,8 +82,14 @@ export const useWafLogsResource = () => {
   };
 
   const fetchEntries = async (
-    options: { silent?: boolean; drain?: boolean; signal?: AbortSignal } = {},
+    options: {
+      silent?: boolean;
+      drain?: boolean;
+      signal?: AbortSignal;
+      preserveEntriesOnError?: boolean;
+    } = {},
   ) => {
+    if (options.silent && loading.value) return false;
     const currentRequestId = ++entriesRequestId;
     const params = {
       date: selectedDate.value,
@@ -116,24 +102,27 @@ export const useWafLogsResource = () => {
       !isDisposed &&
       !options.signal?.aborted &&
       currentRequestId === entriesRequestId;
-    loading.value = true;
+    if (!options.silent) loading.value = true;
     try {
       if (options.drain) {
         await drainEvents(options.silent !== false, options.signal);
       }
-      if (!isCurrentRequest()) return;
+      if (!isCurrentRequest()) return false;
       const data = await WAFAPI.getLogs(params, options.signal);
-      if (!isCurrentRequest()) return;
+      if (!isCurrentRequest()) return false;
       entries.value = data.items || [];
       trackIps(entries.value.map(getWafEventSourceIp));
       nextCursor.value = data.next_cursor || "";
       applyDates(data.available_dates || [], data.date || params.date);
+      return true;
     } catch (error) {
-      if (!isCurrentRequest()) return;
-      trackIps([]);
+      if (!isCurrentRequest()) return false;
       if (!options.silent) {
-        entries.value = [];
-        nextCursor.value = "";
+        if (!options.preserveEntriesOnError) {
+          entries.value = [];
+          nextCursor.value = "";
+          trackIps([]);
+        }
         toast.error(t("admin.wafLogs.loadFailed"), {
           description: extractErrorMessage(
             error,
@@ -141,8 +130,10 @@ export const useWafLogsResource = () => {
           ),
         });
       }
+      return false;
     } finally {
-      if (currentRequestId === entriesRequestId) loading.value = false;
+      if (!options.silent && currentRequestId === entriesRequestId)
+        loading.value = false;
     }
   };
 
@@ -171,15 +162,24 @@ export const useWafLogsResource = () => {
     await fetchEntries();
   };
 
-  const handleLoadOlder = async () => {
-    if (loadCursorOlder()) await fetchEntries();
+  const navigatePage = async (move: () => boolean) => {
+    const previous = {
+      cursor: currentCursor.value,
+      next: nextCursor.value,
+      history: [...cursorHistory.value],
+    };
+    if (!move()) return;
+    const pending = fetchEntries({ preserveEntriesOnError: true });
+    const requestId = entriesRequestId;
+    if (!(await pending) && !isDisposed && requestId === entriesRequestId) {
+      currentCursor.value = previous.cursor;
+      nextCursor.value = previous.next;
+      cursorHistory.value = previous.history;
+    }
   };
-  const handleLoadNewer = async () => {
-    if (loadCursorNewer()) await fetchEntries();
-  };
-  const handleLoadFirst = async () => {
-    if (loadCursorFirst()) await fetchEntries();
-  };
+  const handleLoadOlder = () => navigatePage(loadCursorOlder);
+  const handleLoadNewer = () => navigatePage(loadCursorNewer);
+  const handleLoadFirst = () => navigatePage(loadCursorFirst);
 
   const deleteSelectedDate = async () => {
     await runDelete(() => WAFAPI.deleteLogs(selectedDate.value), {
@@ -204,6 +204,7 @@ export const useWafLogsResource = () => {
     intervalMs: AUTO_REFRESH_MS,
     immediate: false,
     task: async (signal) => {
+      if (loading.value || isDisposed) return;
       if (currentCursor.value || cursorHistory.value.length > 0) return;
       if (searchQuery.value.trim()) return;
       if (traceFilter.value.trim()) {
@@ -233,17 +234,17 @@ export const useWafLogsResource = () => {
     },
   );
 
-  onMounted(async () => {
-    if (!configStore.config) await configStore.loadConfig();
-    await fetchEntries({ drain: true });
-    if (isDisposed) return;
-
-    autoRefreshPoller.start();
-  });
-  onBeforeUnmount(() => {
-    isDisposed = true;
-    entriesRequestId += 1;
-    autoRefreshPoller.stop();
+  useInitializedPolling({
+    poller: autoRefreshPoller,
+    initialize: async () => {
+      if (!configStore.config) await configStore.loadConfig();
+      if (isDisposed) return;
+      await fetchEntries({ drain: true });
+    },
+    dispose: () => {
+      isDisposed = true;
+      entriesRequestId += 1;
+    },
   });
 
   return {

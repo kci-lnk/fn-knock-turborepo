@@ -69,6 +69,8 @@ export const zhCNAdmin = {
     nextRestart: "连续失败 {count} 次，下次重试：",
   },
   nav: {
+    updateAlert: "有可用的系统更新",
+    criticalEventAlert: "存在严重事件",
     sslCert: "SSL证书",
     dashboard: "控制台",
     ddns: "动态域名",

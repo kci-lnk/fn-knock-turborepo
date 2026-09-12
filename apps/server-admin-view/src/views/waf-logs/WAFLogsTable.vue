@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import ActionTooltip from "@/components/ActionTooltip.vue";
 import { useI18n } from "vue-i18n";
 import { Ban, Eye, Route, Unlock } from "lucide-vue-next";
 import { Badge } from "@/components/ui/badge";
@@ -12,7 +13,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import ConfirmDangerPopover from "@admin-shared/components/common/ConfirmDangerPopover.vue";
+import ConfirmDangerTooltip from "@/components/ConfirmDangerTooltip.vue";
 import HumanFriendlyTime from "@admin-shared/components/common/HumanFriendlyTime.vue";
 import type { WAFEvent } from "@/types";
 import type { SelectableWafLogEntry } from "./useWafLogIpSelection";
@@ -205,17 +206,24 @@ const { locale, t } = useI18n();
             class="sticky right-0 z-10 bg-background py-2.5 pr-4 text-right"
           >
             <div class="flex justify-end gap-1">
-              <RouterLink
-                :to="`/traces/${encodeURIComponent(entry.trace_id)}`"
-                class="inline-flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                :aria-label="t('admin.trace.open')"
-              >
-                <Route class="h-4 w-4" />
-              </RouterLink>
+              <ActionTooltip :label="t('admin.trace.open')">
+                <RouterLink
+                  :to="`/traces/${encodeURIComponent(entry.trace_id)}`"
+                  class="inline-flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                  :aria-label="t('admin.trace.open')"
+                >
+                  <Route class="h-4 w-4" />
+                </RouterLink>
+              </ActionTooltip>
               <div
                 class="opacity-60 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100"
               >
-                <ConfirmDangerPopover
+                <ConfirmDangerTooltip
+                  :label="
+                    isGeneralBlacklisted(entry.actionIp)
+                      ? t('admin.wafLogs.unblacklistOne')
+                      : t('admin.wafLogs.blacklistOne')
+                  "
                   :title="
                     isGeneralBlacklisted(entry.actionIp)
                       ? t('admin.wafLogs.unblacklistOneTitle')
@@ -263,17 +271,19 @@ const { locale, t } = useI18n();
                       <Ban v-else class="h-4 w-4" />
                     </Button>
                   </template>
-                </ConfirmDangerPopover>
+                </ConfirmDangerTooltip>
               </div>
-              <Button
-                variant="ghost"
-                size="icon"
-                class="h-8 w-8 text-muted-foreground hover:text-foreground"
-                :aria-label="t('common.viewDetails')"
-                @click="viewDetails(entry)"
-              >
-                <Eye class="h-4 w-4" />
-              </Button>
+              <ActionTooltip :label="t('common.viewDetails')">
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  class="h-8 w-8 text-muted-foreground hover:text-foreground"
+                  :aria-label="t('common.viewDetails')"
+                  @click="viewDetails(entry)"
+                >
+                  <Eye class="h-4 w-4" />
+                </Button>
+              </ActionTooltip>
             </div>
           </TableCell>
         </TableRow>

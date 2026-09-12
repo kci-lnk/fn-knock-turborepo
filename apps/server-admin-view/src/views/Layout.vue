@@ -10,7 +10,13 @@
       class="sticky top-0 z-20 border-b bg-background/95 backdrop-blur sm:hidden"
     >
       <div class="mx-auto flex h-14 max-w-[96rem] items-center gap-2 px-4">
-        <Button variant="ghost" size="icon" @click="isMobileNavOpen = true">
+        <Button
+          variant="ghost"
+          size="icon"
+          class="relative"
+          @click="isMobileNavOpen = true"
+        >
+          <NavAlertDot :label="navAlerts" class="absolute right-1 top-1" />
           <Menu class="h-5 w-5" />
           <span class="sr-only">{{ t("admin.nav.openNavigation") }}</span>
         </Button>
@@ -31,7 +37,9 @@
             {{ t("admin.nav.navigationMenu") }}
           </div>
           <LayoutScrollArea
-            hint-on-mount class="flex-1" content-class="space-y-2 p-3"
+            hint-on-mount
+            class="flex-1"
+            content-class="space-y-2 p-3"
             :class="{ 'sidebar-menu-editing': isSidebarMenuOrderMode }"
           >
             <Button
@@ -43,6 +51,7 @@
             >
               <component :is="item.icon" class="h-4 w-4" />
               <span>{{ item.name }}</span>
+              <NavAlertDot :label="item.alert" class="ml-auto" />
             </Button>
           </LayoutScrollArea>
           <div class="border-t p-3">
@@ -112,7 +121,10 @@
         class="hidden shrink-0 sm:sticky sm:top-6 sm:block sm:h-[calc(100dvh-3rem)] sm:w-36 md:w-[9.25rem] xl:w-[9.5rem]"
       >
         <div class="flex h-full min-h-0 flex-col gap-3">
-          <LayoutScrollArea reserve-rail-gutter class="min-h-0 flex-1" content-class="flex min-h-full flex-col items-stretch gap-1.5"
+          <LayoutScrollArea
+            reserve-rail-gutter
+            class="min-h-0 flex-1"
+            content-class="flex min-h-full flex-col items-stretch gap-1.5"
             :class="{ 'sidebar-menu-editing': isSidebarMenuOrderMode }"
           >
             <Button
@@ -129,6 +141,7 @@
             >
               <component :is="item.icon" class="h-4 w-4 shrink-0" />
               <span class="min-w-0 truncate">{{ item.name }}</span>
+              <NavAlertDot :label="item.alert" class="ml-auto" />
             </Button>
           </LayoutScrollArea>
           <div>
@@ -170,9 +183,7 @@
                 </template>
               </ConfirmDangerPopover>
             </div>
-            <p
-              class="min-w-0 text-center text-xs font-medium text-primary/70"
-            >
+            <p class="min-w-0 text-center text-xs font-medium text-primary/70">
               <a
                 :href="OFFICIAL_WEBSITE_URL"
                 target="_blank"
@@ -212,7 +223,10 @@
             <span>{{ t("common.pageSwitching") }}</span>
           </div>
         </div>
-        <RouteContentBoundary v-if="!configStore.isLoading && !configStore.isError" :reset-key="route.fullPath" />
+        <RouteContentBoundary
+          v-if="!configStore.isLoading && !configStore.isError"
+          :reset-key="route.fullPath"
+        />
         <div
           v-else-if="configStore.isLoading"
           class="flex h-full min-h-[400px] items-center justify-center"
@@ -237,6 +251,7 @@
 </template>
 
 <script setup lang="ts">
+import NavAlertDot from "./layout/NavigationAlertDot.vue";
 import { computed, onMounted, onUnmounted, ref, watch } from "vue";
 import RouteContentBoundary from "./layout/RouteContentBoundary.vue";
 import { useI18n } from "vue-i18n";
@@ -285,11 +300,13 @@ const {
   currentVersionLabel,
   isNavActive,
   navItems,
+  navigationAlerts: navAlerts,
 } = useLayoutNavigation();
 const isMobileNavOpen = ref(false);
 const isLocaleDialogOpen = ref(false);
 const isSavingLocale = ref(false);
-const { openDialog: openLocaleDialog } = useDialogFocusRestore(isLocaleDialogOpen);
+const { openDialog: openLocaleDialog } =
+  useDialogFocusRestore(isLocaleDialogOpen);
 const i18n = useI18n();
 const { t, locale } = i18n;
 const selectedLocale = ref<LocaleCode>(

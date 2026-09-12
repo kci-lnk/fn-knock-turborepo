@@ -7,19 +7,19 @@ import {
 import { useDelayedLoading } from "@admin-shared/composables/useDelayedLoading";
 import { usePagedSelectionList } from "@admin-shared/composables/usePagedSelectionList";
 import { toast } from "@admin-shared/utils/toast";
+import { useEventAlertsStore } from "@/store/event-alerts";
 import { EventCenterAPI } from "@/lib/api/events";
 import type {
   SystemEventLevel,
   SystemEventRecord,
-  SystemEventSource,
   SystemEventType,
 } from "@/types";
 
 export const useSystemEvents = () => {
   const { t } = useI18n();
+  const eventAlerts = useEventAlertsStore();
   const selectedType = ref<SystemEventType | "all">("all");
   const selectedLevel = ref<SystemEventLevel | "all">("all");
-  const selectedSource = ref<SystemEventSource | "all">("all");
   const isDetailsOpen = ref(false);
   const activeEvent = ref<SystemEventRecord | null>(null);
 
@@ -68,7 +68,6 @@ export const useSystemEvents = () => {
         search: query,
         type: selectedType.value,
         level: selectedLevel.value,
-        source: selectedSource.value,
       });
       if (!(result.success || result.data)) {
         throw new Error(
@@ -111,7 +110,7 @@ export const useSystemEvents = () => {
         if (result.success || result.message === "success") {
           toast.success(t("admin.eventCenter.events.deleteSuccess"));
           clearSelection();
-          await fetchEvents();
+          await Promise.all([fetchEvents(), eventAlerts.refresh()]);
           return;
         }
         toast.error(t("admin.eventCenter.events.deleteFailed"), {
@@ -138,7 +137,7 @@ export const useSystemEvents = () => {
           activeEvent.value = null;
           isDetailsOpen.value = false;
           if (currentPage.value !== 1) currentPage.value = 1;
-          await fetchEvents();
+          await Promise.all([fetchEvents(), eventAlerts.refresh()]);
           return;
         }
         toast.error(t("admin.eventCenter.events.clearFailed"), {
@@ -149,7 +148,7 @@ export const useSystemEvents = () => {
     });
   };
 
-  watch([selectedType, selectedLevel, selectedSource], () => {
+  watch([selectedType, selectedLevel], () => {
     currentPage.value = 1;
     void fetchEvents();
   });
@@ -179,7 +178,6 @@ export const useSystemEvents = () => {
     searchQuery,
     selectedKeys,
     selectedLevel,
-    selectedSource,
     selectedType,
     showTableSkeleton,
     toggleSelect,

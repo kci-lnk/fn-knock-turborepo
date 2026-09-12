@@ -24,12 +24,21 @@ import {
   isReverseProxySubdomainMode,
 } from "@/lib/reverse-proxy-submode";
 import { useConfigStore } from "@/store/config";
+import { useEventAlertsStore } from "@/store/event-alerts";
+import { createVisibilityPoller } from "@/composables/useVisibilityPolling";
 import { useUpdateStore } from "@/store/update";
 import { orderSidebarNavItems, type SidebarNavItem } from "./sidebarNavigation";
 import { privilegedNavigationVisibility } from "./runtime-navigation";
 
 export const useLayoutNavigation = () => {
   const route = useRoute();
+  const eventAlerts = useEventAlertsStore();
+  const alertsPoller = createVisibilityPoller({
+    intervalMs: 15_000,
+    task: (signal) => eventAlerts.refresh(signal),
+  });
+  onMounted(alertsPoller.start);
+  onUnmounted(alertsPoller.stop);
   const terminalAccess = useTerminalAccessStore();
   let accessTimer: ReturnType<typeof setInterval> | undefined;
   const refreshTerminalAccess = () => {
@@ -163,6 +172,9 @@ export const useLayoutNavigation = () => {
       name: t("admin.nav.events"),
       path: "/events",
       icon: BellRing,
+      alert: eventAlerts.hasCriticalEvents
+        ? t("admin.nav.criticalEventAlert")
+        : undefined,
     });
     items.push({
       id: "gateway_request_logs",
@@ -182,6 +194,9 @@ export const useLayoutNavigation = () => {
       name: t("admin.nav.systemSettings"),
       path: "/system",
       icon: Settings2,
+      alert: updateStore.status?.hasUpdate
+        ? t("admin.nav.updateAlert")
+        : undefined,
     });
     return orderSidebarNavItems(
       items,
@@ -199,7 +214,14 @@ export const useLayoutNavigation = () => {
     return version ? `v${version}` : "";
   });
 
+  const navigationAlerts = computed(() =>
+    navItems.value
+      .flatMap((item) => (item.alert ? [item.alert] : []))
+      .join("; "),
+  );
+
   return {
+    navigationAlerts,
     currentNavLabel,
     currentVersionLabel,
     isNavActive,

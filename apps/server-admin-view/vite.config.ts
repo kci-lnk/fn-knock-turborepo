@@ -99,7 +99,7 @@ export default defineConfig({
     createGhosttyExternalWasmPlugin(),
     vue(),
     tailwindcss({
-      optimize: process.env.NODE_ENV !== "development",
+      optimize: false,
     }),
   ],
   optimizeDeps: {
@@ -108,7 +108,7 @@ export default defineConfig({
   build: {
     manifest: true,
     target: "chrome109",
-    cssMinify: "esbuild",
+    cssMinify: false,
     // fnOS WebViews can retain an immutable module response across an FPK
     // replacement. Namespacing every generated asset by the package version
     // guarantees that an upgrade cannot reuse a representation from an older

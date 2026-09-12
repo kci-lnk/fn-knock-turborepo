@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import ActionTooltip from "@/components/ActionTooltip.vue";
 import { useI18n } from "vue-i18n";
 import {
   Ban,
@@ -9,7 +10,7 @@ import {
   ShieldX,
   Unlock,
 } from "lucide-vue-next";
-import ConfirmDangerPopover from "@admin-shared/components/common/ConfirmDangerPopover.vue";
+import ConfirmDangerTooltip from "@/components/ConfirmDangerTooltip.vue";
 import HumanFriendlyTime from "@admin-shared/components/common/HumanFriendlyTime.vue";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -166,17 +167,24 @@ const authDecisionLabel = (value?: string) =>
     </dl>
 
     <div class="flex items-center justify-end gap-1 border-t pt-2">
-      <Button
-        variant="ghost"
-        size="sm"
-        class="h-8 px-2.5 text-xs text-muted-foreground hover:text-foreground"
-        :disabled="!entry.trace_id && !entry.waf_trace_id"
-        @click="goToWafTrace(entry.trace_id || entry.waf_trace_id)"
-      >
-        <Route class="mr-1.5 h-3.5 w-3.5" />
-        {{ t("admin.trace.label") }}
-      </Button>
-      <ConfirmDangerPopover
+      <ActionTooltip :label="t('admin.trace.open')">
+        <Button
+          variant="ghost"
+          size="sm"
+          class="h-8 px-2.5 text-xs text-muted-foreground hover:text-foreground"
+          :disabled="!entry.trace_id && !entry.waf_trace_id"
+          @click="goToWafTrace(entry.trace_id || entry.waf_trace_id)"
+        >
+          <Route class="mr-1.5 h-3.5 w-3.5" />
+          {{ t("admin.trace.label") }}
+        </Button>
+      </ActionTooltip>
+      <ConfirmDangerTooltip
+        :label="
+          isGeneralBlacklisted(entry.actionIp)
+            ? t('admin.gatewayRequestLogs.unblacklistOne')
+            : t('admin.gatewayRequestLogs.blacklistOne')
+        "
         :title="
           isGeneralBlacklisted(entry.actionIp)
             ? t('admin.gatewayRequestLogs.unblacklistOneTitle')
@@ -222,18 +230,20 @@ const authDecisionLabel = (value?: string) =>
                 ? t("admin.gatewayRequestLogs.unblacklistOne")
                 : t("admin.gatewayRequestLogs.blacklistOne")
             }}
-          </Button>
-        </template>
-      </ConfirmDangerPopover>
-      <Button
-        variant="ghost"
-        size="sm"
-        class="h-8 px-2.5 text-xs text-muted-foreground hover:text-foreground"
-        @click="viewDetails(entry)"
-      >
-        <Eye class="mr-1.5 h-3.5 w-3.5" />
-        {{ t("common.viewDetails") }}
-      </Button>
+          </Button></template
+        >
+      </ConfirmDangerTooltip>
+      <ActionTooltip :label="t('common.viewDetails')">
+        <Button
+          variant="ghost"
+          size="sm"
+          class="h-8 px-2.5 text-xs text-muted-foreground hover:text-foreground"
+          @click="viewDetails(entry)"
+        >
+          <Eye class="mr-1.5 h-3.5 w-3.5" />
+          {{ t("common.viewDetails") }}
+        </Button>
+      </ActionTooltip>
     </div>
   </article>
 </template>

@@ -24,6 +24,7 @@ export interface SidebarNavItem {
   name: string;
   path: string;
   icon: Component;
+  alert?: string;
 }
 
 export const isSidebarNavItemId = (value: unknown): value is SidebarNavItemId =>

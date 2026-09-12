@@ -78,6 +78,8 @@ export const enAdmin = {
     nextRestart: "{count} consecutive failures; next retry:",
   },
   nav: {
+    updateAlert: "System update available",
+    criticalEventAlert: "Critical events present",
     sslCert: "SSL",
     dashboard: "Dashboard",
     ddns: "DDNS",

@@ -19,7 +19,13 @@ const contract = JSON.parse(
   };
   paths: Record<
     string,
-    Record<string, { "x-fn-knock-contract-source"?: string }>
+    Record<
+      string,
+      {
+        "x-fn-knock-contract-source"?: string;
+        responses?: Record<string, unknown>;
+      }
+    >
   >;
 };
 
@@ -36,6 +42,14 @@ describe("fnOS certificate synchronization API contract", () => {
         `${method.toUpperCase()} ${path}`,
       );
     }
+  });
+
+  it("exports validation and stale-preview error responses", () => {
+    const responses =
+      contract.paths["/api/admin/config/fnos_certificate_sync/sync"]?.post
+        ?.responses;
+    assert.ok(responses?.["400"]);
+    assert.ok(responses?.["409"]);
   });
 
   it("preserves nullable runtime and certificate comparison fields", () => {
@@ -75,6 +89,11 @@ describe("fnOS certificate synchronization API contract", () => {
         "target_invalid",
         "protected",
         "sync_failed",
+        "pending_create",
+        "pending_adopt",
+        "pending_delete",
+        "delete_blocked",
+        "conflict",
       ],
     );
     assert.equal(

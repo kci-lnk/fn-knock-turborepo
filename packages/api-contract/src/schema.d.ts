@@ -9788,33 +9788,49 @@ export interface components {
             reason: string | null;
         };
         FnosCertificateSyncBodyData: {
+            /** @description Explicit actions from the current preview. An empty array performs no actions. */
+            action_ids?: string[] | null;
+            /** @description Required with action_ids. Stale snapshots return HTTP 409. */
+            snapshot_version?: string | null;
+            /** @description Legacy update-only selection. Cannot be combined with action_ids. */
             target_ids?: string[];
         };
         FnosCertificateSyncConfigData: {
             auto_sync_enabled: boolean;
         };
         FnosCertificateSyncCountsData: {
+            adopt: number;
+            create: number;
+            delete: number;
             syncable: number;
             total: number;
             up_to_date: number;
+            update: number;
         };
         FnosCertificateSyncDetailsData: {
             availability: components["schemas"]["FnosCertificateSyncAvailabilityData"];
             certificates: components["schemas"]["FnosCertificateSyncItemData"][];
             config: components["schemas"]["FnosCertificateSyncConfigData"];
             runtime: components["schemas"]["FnosCertificateSyncRuntimeData"];
+            snapshot_version: string;
             summary: components["schemas"]["FnosCertificateSyncCountsData"];
         };
         FnosCertificateSyncItemData: {
+            /** @enum {string} */
+            action: "none" | "create" | "update" | "adopt" | "delete";
+            action_id: string;
             domain: string;
             fingerprint: string | null;
             local: null | components["schemas"]["FnosCertificateSyncLocalData"];
+            managed: boolean;
             reason: string | null;
+            references: string[];
             renewal: boolean;
             san: string[];
             source: string;
+            source_ids: string[];
             /** @enum {string} */
-            status: "unmatched" | "up_to_date" | "syncable" | "source_invalid" | "target_invalid" | "protected" | "sync_failed";
+            status: "unmatched" | "up_to_date" | "syncable" | "source_invalid" | "target_invalid" | "protected" | "sync_failed" | "pending_create" | "pending_adopt" | "pending_delete" | "delete_blocked" | "conflict";
             target_id: string;
             /** Format: int64 */
             valid_from: number | null;
@@ -9843,10 +9859,14 @@ export interface components {
             running: boolean;
         };
         FnosCertificateSyncSummaryData: {
+            adopted: number;
+            created: number;
+            deleted: number;
             failed: number;
             rolled_back: boolean;
             skipped: number;
             synced: number;
+            updated: number;
         };
         FnosCertificateSyncUpdateData: {
             auto_sync_enabled: boolean;
@@ -18396,6 +18416,24 @@ export interface operations {
                     } & {
                         [key: string]: unknown;
                     };
+                };
+            };
+            /** @description 请求参数或当前资源状态不符合接口要求；请检查必填字段和前置条件。 */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorEnvelope"];
+                };
+            };
+            /** @description 当前资源状态与操作冲突；请刷新状态后重试。 */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorEnvelope"];
                 };
             };
             /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */

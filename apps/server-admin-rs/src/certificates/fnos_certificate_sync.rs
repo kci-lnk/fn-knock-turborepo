@@ -1,5 +1,5 @@
 use std::{
-    collections::BTreeSet,
+    collections::{BTreeMap, BTreeSet},
     fs,
     io::Write,
     path::{Path, PathBuf},
@@ -25,6 +25,8 @@ use uuid::Uuid;
 use x509_parser::{extensions::GeneralName, pem::parse_x509_pem};
 
 use crate::{response, runtime_profile, ssl, state::AppState, time_utils};
+
+mod lifecycle;
 
 const CONFIG_KEY: &str = "fnos_certificate_sync";
 const CERT_ROOT: &str = "/usr/trim/var/trim_connect/ssls";
@@ -92,12 +94,18 @@ struct UpdateConfigBody {
 
 #[derive(Debug, Deserialize)]
 struct SyncBody {
+    action_ids: Option<Vec<String>>,
+    snapshot_version: Option<String>,
     #[serde(default)]
     target_ids: Vec<String>,
 }
 
 #[derive(Debug, Serialize)]
 struct SyncSummary {
+    created: usize,
+    updated: usize,
+    deleted: usize,
+    adopted: usize,
     synced: usize,
     skipped: usize,
     failed: usize,
@@ -137,13 +145,24 @@ pub fn fnos_certificate_sync_routes() -> OpenApiRouter<AppState> {
 pub fn start_fnos_certificate_sync_tasks(state: AppState) {
     let task_state = state.clone();
     state.spawn_background("fnos-certificate-sync", async move {
+        {
+            let _guard = task_state.fnos_certificate_sync_lock.lock().await;
+            let data_dir = task_state.settings.data_dir.clone();
+            match tokio::task::spawn_blocking(move || lifecycle::recover(&data_dir)).await {
+                Ok(Ok(())) => {},
+                Ok(Err(error)) => record_failure(&task_state, &error.to_string(), &[]).await,
+                Err(error) => record_failure(&task_state, &error.to_string(), &[]).await,
+            }
+        }
         if auto_sync_enabled(&task_state).await {
             task_state.fnos_certificate_sync_notify.notify_one();
         }
+        let mut interval = tokio::time::interval(Duration::from_secs(300));
+        interval.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
         loop {
             tokio::select! {
                 _ = task_state.shutdown.cancelled() => break,
-                _ = task_state.fnos_certificate_sync_notify.notified() => {
+                _ = async { tokio::select! { _ = task_state.fnos_certificate_sync_notify.notified() => {}, _ = interval.tick() => {} } } => {
                     loop {
                         tokio::select! {
                             _ = task_state.shutdown.cancelled() => return,
@@ -151,10 +170,16 @@ pub fn start_fnos_certificate_sync_tasks(state: AppState) {
                             _ = tokio::time::sleep(AUTO_SYNC_DEBOUNCE) => break,
                         }
                     }
+                    let _guard = task_state.fnos_certificate_sync_lock.lock().await;
                     if !auto_sync_enabled(&task_state).await {
+                        let data_dir = task_state.settings.data_dir.clone();
+                        match tokio::task::spawn_blocking(move || lifecycle::recover(&data_dir)).await {
+                            Ok(Ok(())) => {},
+                            Ok(Err(error)) => record_failure(&task_state, &error.to_string(), &[]).await,
+                            Err(error) => record_failure(&task_state, &error.to_string(), &[]).await,
+                        }
                         continue;
                     }
-                    let _guard = task_state.fnos_certificate_sync_lock.lock().await;
                     let local_config = match task_state.storage.store.get_config().await {
                         Ok(value) => value,
                         Err(error) => {
@@ -165,7 +190,7 @@ pub fn start_fnos_certificate_sync_tasks(state: AppState) {
                     record_running(&task_state).await;
                     let data_dir = task_state.settings.data_dir.clone();
                     let result = tokio::task::spawn_blocking(move || {
-                        perform_sync(&data_dir, &local_config, &[])
+                        lifecycle::execute(&data_dir, &local_config, None, None, None)
                     }).await;
                     match result {
                         Ok(Ok(summary)) => record_success(&task_state, &summary).await,
@@ -233,7 +258,7 @@ async fn update_config(
     }
 }
 
-#[utoipa::path(post, path = "/api/admin/config/fnos_certificate_sync/sync", tag = "config", operation_id = "post_api_admin_config_fnos_certificate_sync_sync", responses((status = 200, description = "fnOS certificate sync result")))]
+#[utoipa::path(post, path = "/api/admin/config/fnos_certificate_sync/sync", tag = "config", operation_id = "post_api_admin_config_fnos_certificate_sync_sync", responses((status = 200, description = "fnOS certificate sync result"), (status = 400, description = "Invalid action selection"), (status = 409, description = "Stale certificate synchronization preview")))]
 async fn sync_now(State(state): State<AppState>, Json(body): Json<SyncBody>) -> Response {
     let ids = match parse_target_ids(&body.target_ids) {
         Ok(ids) => ids,
@@ -241,6 +266,19 @@ async fn sync_now(State(state): State<AppState>, Json(body): Json<SyncBody>) -> 
             return response::error(axum::http::StatusCode::BAD_REQUEST, error.to_string());
         }
     };
+    if body.action_ids.is_some() && (body.snapshot_version.is_none() || !body.target_ids.is_empty())
+    {
+        return response::error(
+            axum::http::StatusCode::BAD_REQUEST,
+            "Action selection requires snapshot_version and cannot include target_ids",
+        );
+    }
+    if body.action_ids.is_none() && body.snapshot_version.is_some() {
+        return response::error(
+            axum::http::StatusCode::BAD_REQUEST,
+            "snapshot_version requires action_ids",
+        );
+    }
     let _guard = state.fnos_certificate_sync_lock.lock().await;
     let local_config = match state.storage.store.get_config().await {
         Ok(value) => value,
@@ -254,9 +292,24 @@ async fn sync_now(State(state): State<AppState>, Json(body): Json<SyncBody>) -> 
     record_running(&state).await;
     let data_dir = state.settings.data_dir.clone();
     let requested_ids = ids.iter().map(ToString::to_string).collect::<Vec<_>>();
-    match tokio::task::spawn_blocking(move || perform_sync(&data_dir, &local_config, &ids)).await {
+    match tokio::task::spawn_blocking(move || {
+        lifecycle::execute(
+            &data_dir,
+            &local_config,
+            body.action_ids.as_deref(),
+            body.snapshot_version.as_deref(),
+            if body.action_ids.is_none() {
+                Some(&ids)
+            } else {
+                None
+            },
+        )
+    })
+    .await
+    {
         Ok(Ok(summary)) => {
             record_success(&state, &summary).await;
+            drop(_guard);
             match build_details(&state).await {
                 Ok(details) => {
                     response::ok(json!({ "summary": summary, "details": details })).into_response()
@@ -270,7 +323,14 @@ async fn sync_now(State(state): State<AppState>, Json(body): Json<SyncBody>) -> 
         Ok(Err(error)) => {
             record_failure(&state, &error.to_string(), &error.target_ids).await;
             response::error(
-                axum::http::StatusCode::INTERNAL_SERVER_ERROR,
+                if error
+                    .to_string()
+                    .contains("stale certificate synchronization plan")
+                {
+                    axum::http::StatusCode::CONFLICT
+                } else {
+                    axum::http::StatusCode::INTERNAL_SERVER_ERROR
+                },
                 error.to_string(),
             )
         }
@@ -285,59 +345,58 @@ async fn sync_now(State(state): State<AppState>, Json(body): Json<SyncBody>) -> 
 }
 
 async fn build_details(state: &AppState) -> anyhow::Result<Value> {
+    let _guard = state.fnos_certificate_sync_lock.lock().await;
     let config = state.storage.store.get_config().await?;
     let local_config = config.clone();
-    let comparison = tokio::task::spawn_blocking(move || compare_all(&local_config)).await;
-    let (environment_available, availability_reason, compared) = match comparison {
-        Ok(Ok(compared)) => (true, Value::Null, compared),
-        Ok(Err(error)) => (
-            false,
-            json!(sanitize_availability_error(&error)),
-            Vec::new(),
-        ),
-        Err(error) => (
-            false,
-            json!(sanitize_availability_error(&anyhow!(error))),
-            Vec::new(),
-        ),
+    let data_dir = state.settings.data_dir.clone();
+    let comparison =
+        tokio::task::spawn_blocking(move || lifecycle::plan(&data_dir, &local_config)).await;
+    let (environment_available, availability_reason, version, summary, mut items) = match comparison
+    {
+        Ok(Ok(plan)) => {
+            let (summary, items) = plan.details();
+            (true, Value::Null, plan.version, summary, items)
+        }
+        result => {
+            let error = match result {
+                Ok(Err(error)) => error,
+                Err(error) => anyhow!(error),
+                _ => anyhow!("Unavailable"),
+            };
+            (
+                false,
+                json!(sanitize_availability_error(&error)),
+                String::new(),
+                json!({"total":0,"syncable":0,"up_to_date":0,"create":0,"update":0,"delete":0,"adopt":0}),
+                Vec::new(),
+            )
+        }
     };
     let runtime = state.fnos_certificate_sync_status.read().await.clone();
-    let failed_ids = runtime
-        .get("failed_target_ids")
-        .and_then(Value::as_array)
-        .map(|items| {
-            items
-                .iter()
-                .filter_map(Value::as_str)
-                .collect::<BTreeSet<_>>()
-        })
-        .unwrap_or_default();
-    let items = compared
-        .into_iter()
-        .map(|item| compared_target_json(item, &failed_ids))
-        .collect::<Vec<_>>();
-    let syncable_count = items
-        .iter()
-        .filter(|item| item["status"] == "syncable" || item["status"] == "sync_failed")
-        .count();
-    let up_to_date_count = items
-        .iter()
-        .filter(|item| item["status"] == "up_to_date")
-        .count();
+    for item in &mut items {
+        if item["action"] != "none"
+            && runtime["failed_target_ids"]
+                .as_array()
+                .is_some_and(|ids| ids.contains(&item["action_id"]))
+        {
+            item["status"] = json!("sync_failed");
+        }
+    }
     Ok(json!({
-        "availability": {
-            "available": environment_available && runtime_profile::get_runtime_capabilities(&runtime_profile::get_runtime_profile(state)).fnos_certificate_sync_available,
-            "reason": availability_reason
-        },
-        "config": { "auto_sync_enabled": config.pointer("/fnos_certificate_sync/auto_sync_enabled").and_then(Value::as_bool).unwrap_or(false) },
-        "runtime": runtime,
-        "summary": { "total": items.len(), "syncable": syncable_count, "up_to_date": up_to_date_count },
-        "certificates": items
+        "availability": {"available": environment_available && runtime_profile::get_runtime_capabilities(&runtime_profile::get_runtime_profile(state)).fnos_certificate_sync_available, "reason":availability_reason},
+        "config":{"auto_sync_enabled":config.pointer("/fnos_certificate_sync/auto_sync_enabled").and_then(Value::as_bool).unwrap_or(false)},
+        "runtime":runtime,"snapshot_version":version,"summary":summary,"certificates":items
     }))
 }
 
 fn sanitize_availability_error(error: &anyhow::Error) -> String {
     let message = error.to_string();
+    if message.starts_with("Unsupported fnOS")
+        || message.starts_with("Local certificate library")
+        || message.starts_with("Unfinished certificate")
+    {
+        return message;
+    }
     if message.contains("PostgreSQL") || message.contains("psql") {
         "Unable to read the fnOS certificate database".to_string()
     } else if message.contains("JSON") || message.contains("network_cert_all") {
@@ -376,20 +435,11 @@ fn compared_target_json(item: ComparedTarget, failed_ids: &BTreeSet<&str>) -> Va
     })
 }
 
-fn compare_all(config: &Value) -> anyhow::Result<Vec<ComparedTarget>> {
-    let rows = read_fnos_rows()?;
-    let network_index = read_json_array(Path::new(NETWORK_CERT_INDEX))?;
-    let candidates = local_candidates(config);
-    Ok(rows
-        .into_iter()
-        .map(|row| compare_target(row, &network_index, &candidates))
-        .collect())
-}
-
 fn compare_target(
     row: FnosCertRow,
     network_index: &[Value],
     candidates: &[LocalCandidate],
+    files: &BTreeMap<String, Option<String>>,
 ) -> ComparedTarget {
     if row.source.as_deref() == Some("system") {
         return ComparedTarget {
@@ -412,20 +462,40 @@ fn compare_target(
     let Some(key_path) = row.private_key.as_deref() else {
         return invalid_target(row, "fnOS private key path is missing");
     };
-    if validate_target_path(Path::new(cert_path)).is_err()
-        || validate_target_path(Path::new(key_path)).is_err()
+    let read_pem = |path: &str| -> anyhow::Result<String> {
+        let bytes = files
+            .get(path)
+            .and_then(Option::as_ref)
+            .ok_or_else(|| anyhow!("Unsafe or missing certificate file"))?;
+        Ok(String::from_utf8(BASE64_STANDARD.decode(bytes)?)?)
+    };
+    let cert_pem = match read_pem(cert_path) {
+        Ok(value) => value,
+        Err(_) => return invalid_target(row, "fnOS certificate file is unavailable or unsafe"),
+    };
+    let key_pem = match read_pem(key_path) {
+        Ok(value) => value,
+        Err(_) => return invalid_target(row, "fnOS private key file is unavailable or unsafe"),
+    };
+    let fullchain = network_index
+        .iter()
+        .find(|entry| entry.get("certificate").and_then(Value::as_str) == Some(cert_path))
+        .and_then(|entry| entry.get("fullchain"))
+        .and_then(Value::as_str)
+        .filter(|path| !path.is_empty());
+    let chain_pem = match fullchain {
+        Some(path) => match read_pem(path) {
+            Ok(pem) => pem,
+            Err(_) => return invalid_target(row, "fnOS fullchain cannot be read"),
+        },
+        None => cert_pem.clone(),
+    };
+    if parse_certificate(&chain_pem).ok().map(|p| p.fingerprint)
+        != parse_certificate(&cert_pem).ok().map(|p| p.fingerprint)
     {
-        return invalid_target(row, "fnOS certificate path is unsafe");
+        return invalid_target(row, "fnOS fullchain does not match leaf certificate");
     }
-    let cert_pem = match fs::read_to_string(cert_path) {
-        Ok(value) => value,
-        Err(_) => return invalid_target(row, "fnOS certificate file cannot be read"),
-    };
-    let key_pem = match fs::read_to_string(key_path) {
-        Ok(value) => value,
-        Err(_) => return invalid_target(row, "fnOS private key file cannot be read"),
-    };
-    let target = match parse_certificate(&cert_pem) {
+    let target = match parse_certificate(&chain_pem) {
         Ok(value) if ssl::validate_ssl_cert(&cert_pem, &key_pem).is_ok() => value,
         _ => return invalid_target(row, "fnOS certificate or private key is invalid"),
     };
@@ -711,14 +781,9 @@ fn normalize_domain(value: &str) -> Option<String> {
     Some(if wildcard { format!("*.{body}") } else { body })
 }
 
-fn read_fnos_rows() -> anyhow::Result<Vec<FnosCertRow>> {
-    let sql = "select coalesce(json_agg(row_to_json(c) order by c.id),'[]'::json)::text from (select id,domain,san,valid_from,valid_to,encrypt_type,issued_by,is_default,renewal,source,private_key,certificate,issuer_certificate,status,created_time,updated_time from public.cert) c;";
-    let output = psql(sql)?;
-    serde_json::from_str(output.trim()).context("parse fnOS certificate rows")
-}
-
 fn psql(sql: &str) -> anyhow::Result<String> {
-    let output = Command::new("sudo")
+    // Recovery SQL may include renewal credentials; never expose it in process arguments.
+    let mut child = Command::new("sudo")
         .args([
             "-u",
             "postgres",
@@ -728,16 +793,20 @@ fn psql(sql: &str) -> anyhow::Result<String> {
             "-XqAt",
             "-v",
             "ON_ERROR_STOP=1",
-            "-c",
-            sql,
         ])
-        .output()
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
         .context("run fnOS PostgreSQL CLI")?;
+    child
+        .stdin
+        .take()
+        .ok_or_else(|| anyhow!("missing fnOS database input"))?
+        .write_all(sql.as_bytes())?;
+    let output = child.wait_with_output()?;
     if !output.status.success() {
-        bail!(
-            "fnOS PostgreSQL command failed: {}",
-            String::from_utf8_lossy(&output.stderr).trim()
-        );
+        bail!("fnOS PostgreSQL command failed")
     }
     String::from_utf8(output.stdout).context("decode fnOS PostgreSQL output")
 }
@@ -777,96 +846,7 @@ fn parse_target_ids(values: &[String]) -> anyhow::Result<Vec<i64>> {
         .collect()
 }
 
-fn perform_sync(
-    data_dir: &Path,
-    config: &Value,
-    requested_ids: &[i64],
-) -> Result<SyncSummary, SyncExecutionError> {
-    let compared = compare_all(config).map_err(|error| SyncExecutionError::new(error, &[]))?;
-    let requested = requested_ids.iter().copied().collect::<BTreeSet<_>>();
-    let selected = compared
-        .into_iter()
-        .filter(|item| {
-            item.status == "syncable" && (requested.is_empty() || requested.contains(&item.row.id))
-        })
-        .collect::<Vec<_>>();
-    let selected_ids = selected
-        .iter()
-        .map(|item| item.row.id.to_string())
-        .collect::<Vec<_>>();
-    let skipped = requested.len().saturating_sub(selected.len());
-    if selected.is_empty() {
-        return Ok(SyncSummary {
-            synced: 0,
-            skipped,
-            failed: 0,
-            rolled_back: false,
-        });
-    }
-    let backup_dir = create_backup(data_dir, &selected)
-        .map_err(|error| SyncExecutionError::new(error, &selected_ids))?;
-    let mut network_index = read_json_array(Path::new(NETWORK_CERT_INDEX))
-        .map_err(|error| SyncExecutionError::new(error, &selected_ids))?;
-    let mut database_updated = false;
-    let result = (|| -> anyhow::Result<()> {
-        for item in &selected {
-            let local = item
-                .local
-                .as_ref()
-                .ok_or_else(|| anyhow!("local certificate disappeared"))?;
-            let parsed = local
-                .parsed
-                .as_ref()
-                .ok_or_else(|| anyhow!("local certificate is invalid"))?;
-            let cert_path = Path::new(item.row.certificate.as_deref().unwrap_or(""));
-            let key_path = Path::new(item.row.private_key.as_deref().unwrap_or(""));
-            atomic_replace_preserving_metadata(cert_path, local.cert.as_bytes())?;
-            atomic_replace_preserving_metadata(key_path, local.key.as_bytes())?;
-            update_network_index_entry(&mut network_index, &item.row, parsed)?;
-        }
-        atomic_replace_preserving_metadata(
-            Path::new(NETWORK_CERT_INDEX),
-            serde_json::to_string(&network_index)?.as_bytes(),
-        )?;
-        update_database(&selected)?;
-        database_updated = true;
-        restart_and_verify_services()?;
-        verify_sni_mappings(&selected)?;
-        let verified = compare_all(config)?;
-        for selected_item in &selected {
-            let status = verified
-                .iter()
-                .find(|item| item.row.id == selected_item.row.id)
-                .map(|item| item.status.as_str());
-            if status != Some("up_to_date") {
-                bail!(
-                    "fnOS certificate verification failed for id {}",
-                    selected_item.row.id
-                )
-            }
-        }
-        Ok(())
-    })();
-    if let Err(error) = result {
-        let rollback = rollback_from_backup(&backup_dir, &selected, database_updated);
-        let _ = prune_backups(data_dir);
-        let source = match rollback {
-            Ok(()) => anyhow!("{error}; fnOS changes were rolled back"),
-            Err(rollback_error) => anyhow!("{error}; rollback failed: {rollback_error}"),
-        };
-        return Err(SyncExecutionError::new(source, &selected_ids));
-    }
-    if let Err(error) = prune_backups(data_dir) {
-        tracing::warn!(%error, "failed to prune old fnOS certificate sync backups");
-    }
-    Ok(SyncSummary {
-        synced: selected.len(),
-        skipped,
-        failed: 0,
-        rolled_back: false,
-    })
-}
-
+#[cfg(test)]
 fn update_network_index_entry(
     network_index: &mut [Value],
     row: &FnosCertRow,
@@ -884,59 +864,6 @@ fn update_network_index_entry(
     }
     if matched != 1 {
         bail!("fnOS certificate index changed during synchronization")
-    }
-    Ok(())
-}
-
-fn create_backup(data_dir: &Path, selected: &[ComparedTarget]) -> anyhow::Result<PathBuf> {
-    let dir = data_dir.join("fnos-certificate-sync/backups").join(format!(
-        "{}-{}",
-        time_utils::now_ms(),
-        Uuid::new_v4()
-    ));
-    fs::create_dir_all(&dir)?;
-    set_private_directory_permissions(&dir)?;
-    fs::copy(NETWORK_CERT_INDEX, dir.join("network_cert_all.conf"))?;
-    fs::copy(NETWORK_GATEWAY_INDEX, dir.join("network_gateway_cert.conf"))?;
-    fs::write(
-        dir.join("rows.json"),
-        serde_json::to_vec_pretty(&selected.iter().map(|item| &item.row).collect::<Vec<_>>())?,
-    )?;
-    for item in selected {
-        let target_dir = dir.join(item.row.id.to_string());
-        fs::create_dir_all(&target_dir)?;
-        fs::copy(
-            item.row.certificate.as_deref().unwrap_or(""),
-            target_dir.join("certificate.pem"),
-        )?;
-        fs::copy(
-            item.row.private_key.as_deref().unwrap_or(""),
-            target_dir.join("private.key"),
-        )?;
-    }
-    Ok(dir)
-}
-
-fn atomic_replace_preserving_metadata(path: &Path, content: &[u8]) -> anyhow::Result<()> {
-    if path == Path::new(NETWORK_CERT_INDEX) {
-        validate_fixed_regular_file(path)?;
-    } else {
-        validate_target_path(path)?;
-    }
-    let metadata = fs::metadata(path)?;
-    let temp = path.with_file_name(format!(
-        ".{}.fn-knock-sync-{}",
-        path.file_name()
-            .and_then(|value| value.to_str())
-            .unwrap_or("file"),
-        Uuid::new_v4()
-    ));
-    fs::write(&temp, content)?;
-    preserve_file_metadata(&temp, &metadata)?;
-    fs::File::open(&temp)?.sync_all()?;
-    fs::rename(&temp, path)?;
-    if let Some(parent) = path.parent() {
-        fs::File::open(parent)?.sync_all()?;
     }
     Ok(())
 }
@@ -967,67 +894,7 @@ fn preserve_file_metadata(_path: &Path, _metadata: &fs::Metadata) -> anyhow::Res
     Ok(())
 }
 
-fn update_database(selected: &[ComparedTarget]) -> anyhow::Result<()> {
-    let mut sql = String::from("BEGIN;\n");
-    for item in selected {
-        let parsed = item
-            .local
-            .as_ref()
-            .and_then(|value| value.parsed.as_ref())
-            .ok_or_else(|| anyhow!("missing parsed local certificate"))?;
-        let update = format!(
-            "UPDATE public.cert SET valid_from={},valid_to={},encrypt_type={},issued_by={},status='suc',updated_time={} WHERE id={} AND domain={} AND COALESCE(san,'')={} AND COALESCE(certificate,'')={} AND COALESCE(private_key,'')={}",
-            parsed.valid_from,
-            parsed.valid_to,
-            sql_text_expression(&parsed.encrypt_type),
-            sql_text_expression(&parsed.issued_by),
-            time_utils::now_ms(),
-            item.row.id,
-            sql_text_expression(&item.row.domain),
-            sql_text_expression(item.row.san.as_deref().unwrap_or("")),
-            sql_text_expression(item.row.certificate.as_deref().unwrap_or("")),
-            sql_text_expression(item.row.private_key.as_deref().unwrap_or(""))
-        );
-        sql.push_str(&assert_exactly_one_update(&update));
-    }
-    sql.push_str("COMMIT;");
-    psql(&sql)?;
-    Ok(())
-}
-
-fn restore_database(selected: &[ComparedTarget]) -> anyhow::Result<()> {
-    let mut sql = String::from("BEGIN;\n");
-    for item in selected {
-        let applied = item
-            .local
-            .as_ref()
-            .and_then(|value| value.parsed.as_ref())
-            .ok_or_else(|| anyhow!("missing applied certificate metadata"))?;
-        let update = format!(
-            "UPDATE public.cert SET valid_from={},valid_to={},encrypt_type={},issued_by={},status={},updated_time={} WHERE id={} AND domain={} AND COALESCE(san,'')={} AND COALESCE(certificate,'')={} AND COALESCE(private_key,'')={} AND valid_from={} AND valid_to={} AND encrypt_type IS NOT DISTINCT FROM {} AND issued_by IS NOT DISTINCT FROM {} AND status='suc'",
-            sql_optional_i64(item.row.valid_from),
-            sql_optional_i64(item.row.valid_to),
-            sql_optional_text_expression(item.row.encrypt_type.as_deref()),
-            sql_optional_text_expression(item.row.issued_by.as_deref()),
-            sql_optional_text_expression(item.row.status.as_deref()),
-            sql_optional_i64(item.row.updated_time),
-            item.row.id,
-            sql_text_expression(&item.row.domain),
-            sql_text_expression(item.row.san.as_deref().unwrap_or("")),
-            sql_text_expression(item.row.certificate.as_deref().unwrap_or("")),
-            sql_text_expression(item.row.private_key.as_deref().unwrap_or("")),
-            applied.valid_from,
-            applied.valid_to,
-            sql_text_expression(&applied.encrypt_type),
-            sql_text_expression(&applied.issued_by),
-        );
-        sql.push_str(&assert_exactly_one_update(&update));
-    }
-    sql.push_str("COMMIT;");
-    psql(&sql)?;
-    Ok(())
-}
-
+#[cfg(test)]
 fn assert_exactly_one_update(update: &str) -> String {
     format!(
         "WITH updated AS ({update} RETURNING 1) SELECT CASE WHEN count(*) = 1 THEN 1 ELSE (count(*)::text || ' rows')::integer END FROM updated;\n"
@@ -1039,17 +906,6 @@ fn sql_text_expression(value: &str) -> String {
         "convert_from(decode('{}','base64'),'UTF8')",
         BASE64_STANDARD.encode(value.as_bytes())
     )
-}
-
-fn sql_optional_text_expression(value: Option<&str>) -> String {
-    value
-        .map(sql_text_expression)
-        .unwrap_or_else(|| "NULL".into())
-}
-fn sql_optional_i64(value: Option<i64>) -> String {
-    value
-        .map(|value| value.to_string())
-        .unwrap_or_else(|| "NULL".into())
 }
 
 fn restart_and_verify_services() -> anyhow::Result<()> {
@@ -1070,133 +926,7 @@ fn restart_and_verify_services() -> anyhow::Result<()> {
     Ok(())
 }
 
-fn verify_sni_mappings(selected: &[ComparedTarget]) -> anyhow::Result<()> {
-    let mappings = read_json_array(Path::new(NETWORK_GATEWAY_INDEX))?;
-    for item in selected {
-        let expected = item
-            .local
-            .as_ref()
-            .and_then(|value| value.parsed.as_ref())
-            .ok_or_else(|| anyhow!("missing expected certificate fingerprint"))?;
-        let hosts = mappings
-            .iter()
-            .filter_map(|mapping| {
-                let same_path = mapping.get("cert").and_then(Value::as_str)
-                    == item.row.certificate.as_deref()
-                    && mapping.get("key").and_then(Value::as_str)
-                        == item.row.private_key.as_deref();
-                same_path
-                    .then(|| mapping.get("host").and_then(Value::as_str))
-                    .flatten()
-            })
-            .filter(|host| *host != "fallback")
-            .collect::<BTreeSet<_>>();
-        for host in hosts {
-            let mut child = Command::new("timeout")
-                .args([
-                    "8",
-                    "openssl",
-                    "s_client",
-                    "-connect",
-                    "127.0.0.1:443",
-                    "-servername",
-                    host,
-                ])
-                .stdin(Stdio::piped())
-                .stdout(Stdio::piped())
-                .stderr(Stdio::null())
-                .spawn()
-                .with_context(|| format!("probe fnOS TLS SNI {host}"))?;
-            if let Some(stdin) = child.stdin.as_mut() {
-                stdin.write_all(b"Q\n")?;
-            }
-            let output = child.wait_with_output()?;
-            if !output.status.success() {
-                bail!("fnOS TLS probe failed for {host}")
-            }
-            let text = String::from_utf8_lossy(&output.stdout);
-            let start = text
-                .find("-----BEGIN CERTIFICATE-----")
-                .ok_or_else(|| anyhow!("fnOS TLS probe returned no certificate for {host}"))?;
-            let relative_end = text[start..]
-                .find("-----END CERTIFICATE-----")
-                .ok_or_else(|| anyhow!("fnOS TLS probe returned an incomplete certificate"))?;
-            let end = start + relative_end + "-----END CERTIFICATE-----".len();
-            let actual = parse_certificate(&text[start..end])?;
-            if actual.fingerprint != expected.fingerprint {
-                bail!("fnOS TLS fingerprint mismatch for {host}")
-            }
-        }
-    }
-    Ok(())
-}
-
-fn rollback_from_backup(
-    dir: &Path,
-    selected: &[ComparedTarget],
-    database_updated: bool,
-) -> anyhow::Result<()> {
-    let mut network_index = read_json_array(Path::new(NETWORK_CERT_INDEX))?;
-    let mut restore_files = Vec::new();
-    let mut restore_network_index = false;
-    for item in selected {
-        let local = item
-            .local
-            .as_ref()
-            .ok_or_else(|| anyhow!("missing applied local certificate"))?;
-        let parsed = local
-            .parsed
-            .as_ref()
-            .ok_or_else(|| anyhow!("missing applied certificate metadata"))?;
-        let certificate_path = Path::new(item.row.certificate.as_deref().unwrap_or(""));
-        let private_key_path = Path::new(item.row.private_key.as_deref().unwrap_or(""));
-        let source = dir.join(item.row.id.to_string());
-        let original_certificate = fs::read(source.join("certificate.pem"))?;
-        let original_private_key = fs::read(source.join("private.key"))?;
-        let certificate_changed = rollback_file_state(
-            certificate_path,
-            local.cert.as_bytes(),
-            &original_certificate,
-            dir,
-        )?;
-        let private_key_changed = rollback_file_state(
-            private_key_path,
-            local.key.as_bytes(),
-            &original_private_key,
-            dir,
-        )?;
-        restore_files.push((
-            certificate_path.to_path_buf(),
-            original_certificate,
-            certificate_changed,
-        ));
-        restore_files.push((
-            private_key_path.to_path_buf(),
-            original_private_key,
-            private_key_changed,
-        ));
-        restore_network_index |=
-            restore_network_index_entry(&mut network_index, &item.row, parsed)?;
-    }
-
-    if database_updated {
-        restore_database(selected)?;
-    }
-
-    for (path, original, changed) in restore_files {
-        if changed {
-            atomic_replace_preserving_metadata(&path, &original)?;
-        }
-    }
-    if restore_network_index {
-        atomic_replace_preserving_metadata(
-            Path::new(NETWORK_CERT_INDEX),
-            serde_json::to_string(&network_index)?.as_bytes(),
-        )?;
-    }
-    restart_and_verify_services()
-}
-
+#[cfg(test)]
 fn rollback_file_state(
     path: &Path,
     applied: &[u8],
@@ -1216,6 +946,7 @@ fn rollback_file_state(
     )
 }
 
+#[cfg(test)]
 fn restore_network_index_entry(
     network_index: &mut [Value],
     row: &FnosCertRow,
@@ -1247,20 +978,6 @@ fn restore_network_index_entry(
         bail!("fnOS certificate index changed externally; automatic rollback stopped")
     }
     Ok(changed)
-}
-
-fn prune_backups(data_dir: &Path) -> anyhow::Result<()> {
-    let root = data_dir.join("fnos-certificate-sync/backups");
-    let mut entries = fs::read_dir(&root)?
-        .filter_map(Result::ok)
-        .filter(|entry| entry.file_type().is_ok_and(|kind| kind.is_dir()))
-        .collect::<Vec<_>>();
-    entries.sort_by_key(|entry| entry.file_name());
-    let remove_count = entries.len().saturating_sub(BACKUP_KEEP_COUNT);
-    for entry in entries.into_iter().take(remove_count) {
-        fs::remove_dir_all(entry.path())?;
-    }
-    Ok(())
 }
 
 async fn auto_sync_enabled(state: &AppState) -> bool {

@@ -2517,22 +2517,22 @@ export const jaJPAdmin = {
   },
   fnosCertificateSync: {
     entryTitle: "FNOS SSL 証明書同期",
-    entryDescription:
-      "ローカルの証明書ストアから、一致する既存の FNOS 証明書を更新します",
+    entryDescription: "ローカル証明書を fnOS に同期し、作成・更新・削除に対応",
     entrySummary: "FNOS 証明書 {total} 件、同期待ち {syncable} 件",
     systemSettings: "システム設定",
     fnos: "FNOS",
     title: "FNOS SSL 証明書同期",
     description:
-      "両方の証明書ストアを比較し、ドメインの組み合わせが完全に一致する既存の FNOS 証明書を安全に更新します。",
-    noInsertNotice:
-      "この機能はドメインが一致する既存の FNOS レコードだけを更新し、レコードの追加や削除は行いません。",
+      "ローカル証明書ライブラリを元に fnOS 証明書を比較して同期します。",
+    managementNotice:
+      "新規および一致する証明書を自動管理します。ローカルから削除すると、未使用の管理対象証明書も削除します。システム証明書と管理対象外の証明書は保持します。",
     autoSync: "自動同期",
     autoSyncDescription:
-      "証明書ストアの変更から約3秒待って一括同期し、FNOS サービスを1回だけ更新します。",
+      "ライブラリ変更後に同期し、5 分ごとに再確認します。使用中の証明書は削除できません。",
     autoSyncUpdated: "自動同期設定を更新しました",
     lastSync: "最終同期: {time}",
-    summary: "合計 {total} 件 · 同期待ち {syncable} 件 · 最新 {up_to_date} 件",
+    summary:
+      "合計 {total} · 作成 {create} · 更新 {update} · 管理開始 {adopt} · 削除 {delete}",
     syncAll: "すべて同期（{count}）",
     syncOne: "同期",
     syncing: "同期中…",
@@ -2542,8 +2542,9 @@ export const jaJPAdmin = {
     unavailable: "FNOS 証明書を同期できる環境ではありません",
     saveFailed: "自動同期設定を保存できませんでした",
     renewalWarning:
-      "FNOS 自動更新が有効なため、後で上書きされる可能性があります。",
+      "管理開始時に fnOS の自動更新を無効にし、このシステムから証明書を更新します。",
     empty: "FNOS に証明書レコードがありません",
+    managed: "管理対象",
     columns: {
       target: "FNOS 証明書",
       validity: "有効期間",
@@ -2552,6 +2553,12 @@ export const jaJPAdmin = {
       action: "操作",
     },
     status: {
+      pending_create: "作成待ち",
+      pending_adopt: "管理開始待ち",
+      pending_delete: "削除待ち",
+      delete_blocked: "削除不可",
+      conflict: "外部変更の競合",
+
       unmatched: "一致なし",
       up_to_date: "同期済み",
       syncable: "同期可能",

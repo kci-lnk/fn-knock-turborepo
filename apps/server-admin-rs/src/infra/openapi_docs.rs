@@ -3066,6 +3066,23 @@ pub(crate) fn build_openapi_document() -> Value {
         None,
         Some("FnosCertificateSyncBodyData"),
     );
+    if let Some(responses) = paths
+        .get_mut("/api/admin/config/fnos_certificate_sync/sync")
+        .and_then(|path| path.get_mut("post"))
+        .and_then(|operation| operation.get_mut("responses"))
+        .and_then(Value::as_object_mut)
+        && let Some(error) = responses.get("default").cloned()
+    {
+        for (status, description) in [
+            ("400", "Invalid action selection"),
+            ("409", "Stale certificate synchronization preview"),
+        ] {
+            let mut response = error.clone();
+            response["description"] = json!(description);
+            responses.insert(status.to_string(), response);
+        }
+    }
+
     insert_typed_enveloped_operation(
         &mut paths,
         &typed_fnos_port_icon_hijack,

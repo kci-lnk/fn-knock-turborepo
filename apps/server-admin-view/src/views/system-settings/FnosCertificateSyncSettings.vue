@@ -51,7 +51,7 @@ const available = computed(
 const syncableItems = computed(
   () =>
     details.value?.certificates.filter((item) =>
-      ["syncable", "sync_failed"].includes(item.status),
+      ["create", "update", "adopt", "delete"].includes(item.action),
     ) ?? [],
 );
 
@@ -95,9 +95,12 @@ const updateAutoSync = async (enabled: boolean) => {
 const sync = async (ids: string[]) => {
   if (busy.value) return;
   syncingIds.value =
-    ids.length > 0 ? ids : syncableItems.value.map((item) => item.target_id);
+    ids.length > 0 ? ids : syncableItems.value.map((item) => item.action_id);
   try {
-    const result = await SystemAPI.syncFnosCertificates(ids);
+    const result = await SystemAPI.syncFnosCertificates(
+      syncingIds.value,
+      details.value?.snapshot_version ?? "",
+    );
     details.value = result.details;
     toast.success(
       t("admin.fnosCertificateSync.syncCompleted", {
@@ -123,8 +126,21 @@ const statusLabel = (status: FnosCertificateSyncStatus) =>
 
 const statusVariant = (status: FnosCertificateSyncStatus) => {
   if (status === "up_to_date") return "default";
-  if (status === "syncable" || status === "sync_failed") return "secondary";
-  if (status === "target_invalid" || status === "source_invalid")
+  if (
+    [
+      "syncable",
+      "sync_failed",
+      "pending_create",
+      "pending_adopt",
+      "pending_delete",
+    ].includes(status)
+  )
+    return "secondary";
+  if (
+    ["target_invalid", "source_invalid", "conflict", "delete_blocked"].includes(
+      status,
+    )
+  )
     return "destructive";
   return "outline";
 };
@@ -143,7 +159,7 @@ const compactFingerprint = (value: string | null | undefined) => {
 };
 
 const isItemSyncing = (item: FnosCertificateSyncItem) =>
-  syncingIds.value.includes(item.target_id);
+  syncingIds.value.includes(item.action_id);
 
 onMounted(load);
 </script>
@@ -192,7 +208,7 @@ onMounted(load);
         <div
           class="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm leading-6 text-amber-900"
         >
-          {{ t("admin.fnosCertificateSync.noInsertNotice") }}
+          {{ t("admin.fnosCertificateSync.managementNotice") }}
         </div>
 
         <template v-if="loading && !details">
@@ -288,7 +304,7 @@ onMounted(load);
               <tbody class="divide-y">
                 <tr
                   v-for="item in details.certificates"
-                  :key="item.target_id"
+                  :key="item.action_id"
                   class="align-top"
                 >
                   <td class="space-y-1 px-4 py-4">
@@ -301,6 +317,12 @@ onMounted(load);
                     <div class="text-xs text-muted-foreground">
                       {{ item.source }} ·
                       {{ compactFingerprint(item.fingerprint) }}
+                    </div>
+                    <div
+                      v-if="item.managed"
+                      class="text-xs text-muted-foreground"
+                    >
+                      {{ t("admin.fnosCertificateSync.managed") }}
                     </div>
                     <div v-if="item.renewal" class="text-xs text-amber-600">
                       {{ t("admin.fnosCertificateSync.renewalWarning") }}
@@ -342,9 +364,11 @@ onMounted(load);
                       :disabled="
                         busy ||
                         !available ||
-                        !['syncable', 'sync_failed'].includes(item.status)
+                        !['create', 'update', 'adopt', 'delete'].includes(
+                          item.action,
+                        )
                       "
-                      @click="sync([item.target_id])"
+                      @click="sync([item.action_id])"
                     >
                       {{
                         isItemSyncing(item)

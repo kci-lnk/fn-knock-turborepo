@@ -3767,7 +3767,18 @@ pub(super) fn components() -> Map<String, Value> {
             "target_invalid",
             "protected",
             "sync_failed",
+            "pending_create",
+            "pending_adopt",
+            "pending_delete",
+            "delete_blocked",
+            "conflict",
         ],
+    );
+    set_property_enum(
+        &mut schemas,
+        "FnosCertificateSyncItemData",
+        "action",
+        &["none", "create", "update", "adopt", "delete"],
     );
     set_array_item_metadata(
         &mut schemas,

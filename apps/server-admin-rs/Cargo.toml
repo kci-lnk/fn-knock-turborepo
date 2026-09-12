@@ -20,6 +20,7 @@ inherits = "release"
 lto = "thin"
 
 [dependencies]
+tempfile = "3.23"
 anyhow = "1.0"
 aes-gcm = "0.10"
 arc-swap = "1.7"
@@ -110,7 +111,6 @@ tokio-stream = { version = "0.1", features = ["net"] }
 getrandom = { version = "0.4", features = ["sys_rng"] }
 rcgen = { version = "0.14.8", features = ["pem", "x509-parser"] }
 ring = "0.17"
-tempfile = "3.23"
 tokio-rustls = { version = "0.26", default-features = false, features = ["ring"] }
 
 [build-dependencies]

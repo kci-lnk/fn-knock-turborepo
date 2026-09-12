@@ -584,12 +584,21 @@ pub(super) struct FnosCertificateSyncUpdateData {
 
 #[derive(Serialize, ToSchema)]
 pub(super) struct FnosCertificateSyncBodyData {
+    /// Explicit actions from the current preview. An empty array performs no actions.
+    action_ids: Option<Vec<String>>,
+    /// Required with action_ids. Stale snapshots return HTTP 409.
+    snapshot_version: Option<String>,
+    /// Legacy update-only selection. Cannot be combined with action_ids.
     #[schema(nullable = false)]
     target_ids: Option<Vec<String>>,
 }
 
 #[derive(Serialize, ToSchema)]
 pub(super) struct FnosCertificateSyncSummaryData {
+    created: usize,
+    updated: usize,
+    deleted: usize,
+    adopted: usize,
     synced: usize,
     skipped: usize,
     failed: usize,
@@ -617,6 +626,10 @@ pub(super) struct FnosCertificateSyncAvailabilityData {
 
 #[derive(Serialize, ToSchema)]
 pub(super) struct FnosCertificateSyncCountsData {
+    create: usize,
+    update: usize,
+    delete: usize,
+    adopt: usize,
     total: usize,
     syncable: usize,
     up_to_date: usize,
@@ -636,6 +649,11 @@ pub(super) struct FnosCertificateSyncLocalData {
 
 #[derive(Serialize, ToSchema)]
 pub(super) struct FnosCertificateSyncItemData {
+    action_id: String,
+    action: String,
+    managed: bool,
+    source_ids: Vec<String>,
+    references: Vec<String>,
     target_id: String,
     domain: String,
     san: Vec<String>,
@@ -656,6 +674,7 @@ pub(super) struct FnosCertificateSyncItemData {
 
 #[derive(Serialize, ToSchema)]
 pub(super) struct FnosCertificateSyncDetailsData {
+    snapshot_version: String,
     availability: FnosCertificateSyncAvailabilityData,
     config: FnosCertificateSyncConfigData,
     runtime: FnosCertificateSyncRuntimeData,

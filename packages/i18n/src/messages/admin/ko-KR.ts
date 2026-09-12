@@ -2499,22 +2499,22 @@ export const koKRAdmin = {
   },
   fnosCertificateSync: {
     entryTitle: "FNOS SSL 인증서 동기화",
-    entryDescription:
-      "로컬 인증서 라이브러리에서 일치하는 기존 FNOS 인증서를 업데이트합니다",
+    entryDescription: "로컬 인증서를 fnOS에 동기화하며 생성, 갱신 및 삭제 지원",
     entrySummary: "FNOS 인증서 {total}개, 동기화 대기 {syncable}개",
     systemSettings: "시스템 설정",
     fnos: "FNOS",
     title: "FNOS SSL 인증서 동기화",
     description:
-      "두 인증서 라이브러리를 비교하고 도메인 집합이 정확히 같은 기존 FNOS 인증서를 안전하게 업데이트합니다.",
-    noInsertNotice:
-      "이 기능은 도메인이 일치하는 기존 FNOS 레코드만 업데이트하며 새 레코드를 만들거나 삭제하지 않습니다.",
+      "로컬 인증서 라이브러리를 기준으로 fnOS 인증서를 비교하고 동기화합니다.",
+    managementNotice:
+      "새 인증서와 일치하는 인증서를 자동 관리합니다. 로컬 원본을 삭제하면 사용하지 않는 관리 인증서도 삭제합니다. 시스템 및 비관리 인증서는 유지합니다.",
     autoSync: "자동 동기화",
     autoSyncDescription:
-      "라이브러리 변경 후 약 3초 동안 대기한 뒤 일괄 동기화하고 FNOS 서비스를 한 번만 새로 고칩니다.",
+      "라이브러리 변경 후 동기화하고 5분마다 다시 확인합니다. 사용 중인 인증서는 삭제할 수 없습니다.",
     autoSyncUpdated: "자동 동기화 설정이 업데이트되었습니다",
     lastSync: "마지막 동기화: {time}",
-    summary: "전체 {total}개 · 대기 {syncable}개 · 최신 {up_to_date}개",
+    summary:
+      "총 {total}개 · 생성 {create} · 갱신 {update} · 관리 시작 {adopt} · 삭제 {delete}",
     syncAll: "모두 동기화 ({count})",
     syncOne: "동기화",
     syncing: "동기화 중…",
@@ -2523,8 +2523,10 @@ export const koKRAdmin = {
     loadFailed: "FNOS 인증서를 불러오지 못했습니다",
     unavailable: "FNOS 인증서 동기화 환경을 사용할 수 없습니다",
     saveFailed: "자동 동기화 설정을 저장하지 못했습니다",
-    renewalWarning: "FNOS 자동 갱신이 활성화되어 나중에 덮어쓸 수 있습니다.",
+    renewalWarning:
+      "관리 시작 시 fnOS 자동 갱신을 끄고 이 시스템에서 인증서를 갱신합니다.",
     empty: "FNOS 인증서 레코드가 없습니다",
+    managed: "관리 중",
     columns: {
       target: "FNOS 인증서",
       validity: "유효 기간",
@@ -2533,6 +2535,12 @@ export const koKRAdmin = {
       action: "작업",
     },
     status: {
+      pending_create: "생성 대기",
+      pending_adopt: "관리 시작 대기",
+      pending_delete: "삭제 대기",
+      delete_blocked: "삭제 차단",
+      conflict: "외부 변경 충돌",
+
       unmatched: "일치 없음",
       up_to_date: "최신",
       syncable: "동기화 가능",

@@ -2274,21 +2274,21 @@ export const zhHantAdmin = {
   },
   fnosCertificateSync: {
     entryTitle: "飛牛 SSL 證書庫同步",
-    entryDescription: "將本系統證書庫中匹配的證書更新到飛牛既有記錄",
+    entryDescription: "將本系統憑證同步至飛牛，支援新增、更新及刪除",
     entrySummary: "飛牛共 {total} 張證書，{syncable} 張待同步",
     systemSettings: "系統設定",
     fnos: "飛牛",
     title: "飛牛 SSL 證書庫同步",
-    description:
-      "比對本系統與 fnOS 證書庫，安全更新域名集合完全相同的既有證書。",
-    noInsertNotice:
-      "本功能只更新 fnOS 中已存在且域名集合匹配的證書，不會新增或刪除 fnOS 證書記錄。",
+    description: "以本地憑證庫為來源，比較並同步飛牛憑證。",
+    managementNotice:
+      "新增及匹配憑證會自動納管；本地刪除會同步刪除未使用的納管憑證。保留系統及未納管憑證。",
     autoSync: "自動同步",
     autoSyncDescription:
-      "證書庫變更後等待約 3 秒，合併同步並只刷新一次 fnOS 服務。",
+      "憑證庫變更後合併同步，每 5 分鐘重新比對。使用中的憑證會阻止刪除。",
     autoSyncUpdated: "自動同步設定已更新",
     lastSync: "上次同步：{time}",
-    summary: "共 {total} 張 · {syncable} 張待同步 · {up_to_date} 張已是最新",
+    summary:
+      "共 {total} 張 · 待新增 {create} · 待更新 {update} · 待納管 {adopt} · 待刪除 {delete}",
     syncAll: "一鍵同步（{count}）",
     syncOne: "同步",
     syncing: "同步中…",
@@ -2297,8 +2297,9 @@ export const zhHantAdmin = {
     loadFailed: "載入飛牛證書列表失敗",
     unavailable: "目前 fnOS 證書同步環境不可用",
     saveFailed: "儲存自動同步設定失敗",
-    renewalWarning: "此記錄啟用了 fnOS 自動續期，後續可能被 fnOS 覆蓋。",
+    renewalWarning: "納管時會關閉飛牛自動續期，由本系統提供憑證更新。",
     empty: "fnOS 中沒有證書記錄",
+    managed: "已納管",
     columns: {
       target: "fnOS 證書",
       validity: "有效期",
@@ -2307,6 +2308,12 @@ export const zhHantAdmin = {
       action: "操作",
     },
     status: {
+      pending_create: "待建立",
+      pending_adopt: "待納管",
+      pending_delete: "待刪除",
+      delete_blocked: "刪除受阻",
+      conflict: "外部變更衝突",
+
       unmatched: "無匹配",
       up_to_date: "已是最新",
       syncable: "可同步",

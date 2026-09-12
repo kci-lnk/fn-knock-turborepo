@@ -9561,7 +9561,25 @@
       },
       "FnosCertificateSyncBodyData": {
         "properties": {
+          "action_ids": {
+            "description": "Explicit actions from the current preview. An empty array performs no actions.",
+            "items": {
+              "type": "string"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          },
+          "snapshot_version": {
+            "description": "Required with action_ids. Stale snapshots return HTTP 409.",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
           "target_ids": {
+            "description": "Legacy update-only selection. Cannot be combined with action_ids.",
             "items": {
               "pattern": "^[+-]?\\d+$",
               "type": "string"
@@ -9584,6 +9602,18 @@
       },
       "FnosCertificateSyncCountsData": {
         "properties": {
+          "adopt": {
+            "minimum": 0,
+            "type": "integer"
+          },
+          "create": {
+            "minimum": 0,
+            "type": "integer"
+          },
+          "delete": {
+            "minimum": 0,
+            "type": "integer"
+          },
           "syncable": {
             "minimum": 0,
             "type": "integer"
@@ -9595,9 +9625,17 @@
           "up_to_date": {
             "minimum": 0,
             "type": "integer"
+          },
+          "update": {
+            "minimum": 0,
+            "type": "integer"
           }
         },
         "required": [
+          "create",
+          "update",
+          "delete",
+          "adopt",
           "total",
           "syncable",
           "up_to_date"
@@ -9621,11 +9659,15 @@
           "runtime": {
             "$ref": "#/components/schemas/FnosCertificateSyncRuntimeData"
           },
+          "snapshot_version": {
+            "type": "string"
+          },
           "summary": {
             "$ref": "#/components/schemas/FnosCertificateSyncCountsData"
           }
         },
         "required": [
+          "snapshot_version",
           "availability",
           "config",
           "runtime",
@@ -9636,6 +9678,19 @@
       },
       "FnosCertificateSyncItemData": {
         "properties": {
+          "action": {
+            "enum": [
+              "none",
+              "create",
+              "update",
+              "adopt",
+              "delete"
+            ],
+            "type": "string"
+          },
+          "action_id": {
+            "type": "string"
+          },
           "domain": {
             "type": "string"
           },
@@ -9655,11 +9710,20 @@
               }
             ]
           },
+          "managed": {
+            "type": "boolean"
+          },
           "reason": {
             "type": [
               "string",
               "null"
             ]
+          },
+          "references": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
           },
           "renewal": {
             "type": "boolean"
@@ -9673,6 +9737,12 @@
           "source": {
             "type": "string"
           },
+          "source_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
           "status": {
             "enum": [
               "unmatched",
@@ -9681,7 +9751,12 @@
               "source_invalid",
               "target_invalid",
               "protected",
-              "sync_failed"
+              "sync_failed",
+              "pending_create",
+              "pending_adopt",
+              "pending_delete",
+              "delete_blocked",
+              "conflict"
             ],
             "type": "string"
           },
@@ -9704,6 +9779,11 @@
           }
         },
         "required": [
+          "action_id",
+          "action",
+          "managed",
+          "source_ids",
+          "references",
           "target_id",
           "domain",
           "san",
@@ -9817,6 +9897,18 @@
       },
       "FnosCertificateSyncSummaryData": {
         "properties": {
+          "adopted": {
+            "minimum": 0,
+            "type": "integer"
+          },
+          "created": {
+            "minimum": 0,
+            "type": "integer"
+          },
+          "deleted": {
+            "minimum": 0,
+            "type": "integer"
+          },
           "failed": {
             "minimum": 0,
             "type": "integer"
@@ -9831,9 +9923,17 @@
           "synced": {
             "minimum": 0,
             "type": "integer"
+          },
+          "updated": {
+            "minimum": 0,
+            "type": "integer"
           }
         },
         "required": [
+          "created",
+          "updated",
+          "deleted",
+          "adopted",
           "synced",
           "skipped",
           "failed",
@@ -33936,6 +34036,26 @@
               }
             },
             "description": "「同步系统配置飞牛证书同步」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorEnvelope"
+                }
+              }
+            },
+            "description": "请求参数或当前资源状态不符合接口要求；请检查必填字段和前置条件。"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorEnvelope"
+                }
+              }
+            },
+            "description": "当前资源状态与操作冲突；请刷新状态后重试。"
           },
           "default": {
             "content": {

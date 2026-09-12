@@ -2518,21 +2518,22 @@ export const enAdmin = {
   fnosCertificateSync: {
     entryTitle: "FNOS SSL certificate sync",
     entryDescription:
-      "Update matching existing FNOS certificates from this certificate library",
+      "Sync local certificates to fnOS, including creation, updates, and deletion",
     entrySummary: "{total} FNOS certificates, {syncable} pending sync",
     systemSettings: "System settings",
     fnos: "FNOS",
     title: "FNOS SSL certificate sync",
     description:
-      "Compare both certificate libraries and safely update existing FNOS certificates with exactly matching domain sets.",
-    noInsertNotice:
-      "This feature only updates existing FNOS records with matching domain sets. It never creates or deletes FNOS certificate records.",
+      "Compare and synchronize fnOS certificates from the local certificate library.",
+    managementNotice:
+      "New and matching certificates become managed. Removing a local source deletes its unused managed certificate. System and unmanaged certificates are preserved.",
     autoSync: "Automatic sync",
     autoSyncDescription:
-      "After library changes, wait about 3 seconds, batch updates, and refresh FNOS services once.",
+      "Synchronize after library changes and reconcile every 5 minutes. Certificates in use cannot be deleted.",
     autoSyncUpdated: "Automatic sync setting updated",
     lastSync: "Last sync: {time}",
-    summary: "{total} total · {syncable} pending · {up_to_date} up to date",
+    summary:
+      "{total} certificates · Create {create} · Update {update} · Adopt {adopt} · Delete {delete}",
     syncAll: "Sync all ({count})",
     syncOne: "Sync",
     syncing: "Syncing…",
@@ -2543,8 +2544,9 @@ export const enAdmin = {
       "The FNOS certificate synchronization environment is unavailable",
     saveFailed: "Failed to save automatic sync setting",
     renewalWarning:
-      "FNOS renewal is enabled and may overwrite this certificate later.",
+      "Adoption disables fnOS renewal; this system will provide certificate updates.",
     empty: "FNOS has no certificate records",
+    managed: "Managed",
     columns: {
       target: "FNOS certificate",
       validity: "Validity",
@@ -2553,6 +2555,12 @@ export const enAdmin = {
       action: "Action",
     },
     status: {
+      pending_create: "Pending creation",
+      pending_adopt: "Pending adoption",
+      pending_delete: "Pending deletion",
+      delete_blocked: "Deletion blocked",
+      conflict: "External change conflict",
+
       unmatched: "No match",
       up_to_date: "Up to date",
       syncable: "Ready to sync",

@@ -228,9 +228,13 @@ export const SystemAPI = {
     return res.data.data;
   },
   async syncFnosCertificates(
-    target_ids: string[] = [],
+    action_ids: string[],
+    snapshot_version: string,
   ): Promise<FnosCertificateSyncResponse> {
-    const payload = { target_ids } satisfies FnosCertificateSyncBody;
+    const payload = {
+      action_ids,
+      snapshot_version,
+    } satisfies FnosCertificateSyncBody;
     const res = await apiClient.post(
       "/config/fnos_certificate_sync/sync",
       payload,

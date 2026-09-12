@@ -1559,14 +1559,18 @@ export const zhHantAdmin = {
   },
   wafSettings: {
     violationRate: {
-      title: "違規頻次自動加黑",
-      description:
-        "僅累計 WAF 實際攔截的請求，同一 IP 跨站點共享額度。超限後加入通用黑名單，需手動解除。",
-      capacity: "桶容量（1–10000）",
-      refill: "補充 1 個令牌的間隔（秒，1–86400）",
-      explanation:
-        "初始有 {capacity} 個令牌，每 {refill} 秒恢復 1 個，最多恢復至桶容量。沒有補充時，第 {trigger} 次違規自動加黑。",
-      save: "儲存頻次設定",
+      title: "違規自動封禁",
+      description: "同一 IP 多次觸發安全攔截時自動封禁，需手動解除。",
+      off: "關閉",
+      strict: "嚴格",
+      normal: "普通",
+      relaxed: "寬鬆",
+      custom: "原有設定",
+      offHint: "不因重複違規自動封禁。",
+      strictHint: "120 秒內再次違規即封禁。",
+      normalHint: "允許偶發違規，適合日常使用。",
+      relaxedHint: "容忍更多違規，減少誤封。",
+      customHint: "保留之前的設定，選擇檔位即可更換。",
     },
     levels: {
       daily: "日常防護",

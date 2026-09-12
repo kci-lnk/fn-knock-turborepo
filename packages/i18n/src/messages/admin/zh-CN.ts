@@ -1616,14 +1616,18 @@ export const zhCNAdmin = {
   },
   wafSettings: {
     violationRate: {
-      title: "违规频次自动加黑",
-      description:
-        "仅累计 WAF 实际拦截的请求，同一 IP 跨站点共享额度。超限后加入通用黑名单，需手动解封。",
-      capacity: "桶容量（1–10000）",
-      refill: "补充 1 个令牌的间隔（秒，1–86400）",
-      explanation:
-        "初始有 {capacity} 个令牌，每 {refill} 秒恢复 1 个，最多恢复至桶容量。没有补充时，第 {trigger} 次违规自动加黑。",
-      save: "保存频次设置",
+      title: "违规自动封禁",
+      description: "同一 IP 多次触发安全拦截时自动封禁，需手动解封。",
+      off: "关闭",
+      strict: "严格",
+      normal: "普通",
+      relaxed: "宽松",
+      custom: "原有设置",
+      offHint: "不因重复违规自动封禁。",
+      strictHint: "120 秒内再次违规即封禁。",
+      normalHint: "允许偶发违规，适合日常使用。",
+      relaxedHint: "容忍更多违规，减少误封。",
+      customHint: "保留之前的设置，选择档位即可更换。",
     },
     levels: {
       daily: "日常防护",

@@ -1746,14 +1746,18 @@ export const koKRAdmin = {
   },
   wafSettings: {
     violationRate: {
-      title: "WAF 위반 빈도 자동 차단",
-      description:
-        "WAF가 차단한 요청만 집계하며 동일 IP는 모든 사이트에서 한도를 공유합니다. 초과 시 일반 차단 목록에 추가되며 수동 해제가 필요합니다.",
-      capacity: "버킷 용량 (1–10000)",
-      refill: "토큰 1개 보충 간격 (초, 1–86400)",
-      explanation:
-        "처음에는 토큰이 {capacity}개이며 {refill}초마다 용량까지 1개씩 보충합니다. 보충이 없으면 {trigger}번째 위반 시 자동 차단합니다.",
-      save: "빈도 설정 저장",
+      title: "반복 위반 자동 차단",
+      description: "동일 IP가 보안 차단을 반복해서 유발하면 자동 차단합니다. 해제는 수동입니다.",
+      off: "끄기",
+      strict: "엄격",
+      normal: "보통",
+      relaxed: "완화",
+      custom: "이전 설정",
+      offHint: "반복 위반으로 IP를 자동 차단하지 않습니다.",
+      strictHint: "120초 이내에 다시 위반하면 차단합니다。",
+      normalHint: "간헐적인 위반을 허용하며 일상적인 사용에 적합합니다.",
+      relaxedHint: "더 많은 위반을 허용해 잘못된 차단을 줄입니다.",
+      customHint: "이전 설정을 유지합니다. 단계를 선택하면 변경됩니다.",
     },
     levels: {
       daily: "일반 보호",

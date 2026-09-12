@@ -1764,14 +1764,18 @@ export const jaJPAdmin = {
   },
   wafSettings: {
     violationRate: {
-      title: "WAF 違反頻度による自動ブロック",
-      description:
-        "WAF がブロックしたリクエストのみを IP ごとに全サイトで集計します。上限を超えると共通ブラックリストに追加され、手動解除が必要です。",
-      capacity: "バケット容量（1–10000）",
-      refill: "トークンを 1 個補充する秒数（1–86400）",
-      explanation:
-        "初期トークンは {capacity} 個です。{refill} 秒ごとに 1 個、容量まで補充します。補充がなければ {trigger} 回目の違反で自動ブロックします。",
-      save: "頻度設定を保存",
+      title: "繰り返す違反を自動ブロック",
+      description: "同じ IP が繰り返しセキュリティ制限に抵触すると自動ブロックします。解除は手動です。",
+      off: "オフ",
+      strict: "厳格",
+      normal: "標準",
+      relaxed: "緩やか",
+      custom: "以前の設定",
+      offHint: "繰り返す違反による自動ブロックを無効にします。",
+      strictHint: "120 秒以内に再び違反するとブロックします。",
+      normalHint: "偶発的な違反を許容する、日常向けの設定です。",
+      relaxedHint: "より多くの違反を許容し、誤ブロックを減らします。",
+      customHint: "以前の設定を維持しています。レベルを選ぶと変更されます。",
     },
     levels: {
       daily: "標準保護",

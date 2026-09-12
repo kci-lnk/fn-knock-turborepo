@@ -1,10 +1,14 @@
 <script setup lang="ts">
-import { computed, reactive, ref, useId, watch } from "vue";
+import { ref, useId, watch } from "vue";
 import { useI18n } from "vue-i18n";
-import { Input } from "@/components/ui/input";
-import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
-import WAFSettingSwitchRow from "./WAFSettingSwitchRow.vue";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import type { WAFConfig } from "@/types/waf";
 
 const props = defineProps<{ config: WAFConfig; disabled: boolean }>();
@@ -19,116 +23,96 @@ const emit = defineEmits<{
 }>();
 const { t } = useI18n();
 const id = useId();
-const form = reactive({
-  enabled: false,
-  capacity: 5 as number | string,
-  refill: 60 as number | string,
-});
-const awaitingSave = ref(false);
+const presets = {
+  strict: { capacity: 1, refill: 120 },
+  normal: { capacity: 5, refill: 60 },
+  relaxed: { capacity: 20, refill: 10 },
+} as const;
+type Level = "off" | keyof typeof presets | "custom";
+const options = ["off", "strict", "normal", "relaxed"] as const;
+const levelFromConfig = (config: WAFConfig): Level => {
+  if (!config.violation_rate_limit_enabled) return "off";
+  const capacity = config.violation_rate_limit_capacity ?? 5;
+  const refill = config.violation_rate_limit_refill_seconds ?? 60;
+  return (
+    options.find(
+      (level) =>
+        level !== "off" &&
+        presets[level].capacity === capacity &&
+        presets[level].refill === refill,
+    ) ?? "custom"
+  );
+};
+const selected = ref<Level>(levelFromConfig(props.config));
+const pending = ref(false);
 watch(
   () => props.config,
-  (config, previous) => {
-    // Other WAF controls also refresh details; retain this form's unsaved draft.
-    if (
-      !awaitingSave.value &&
-      previous &&
-      config.violation_rate_limit_enabled ===
-        previous.violation_rate_limit_enabled &&
-      config.violation_rate_limit_capacity ===
-        previous.violation_rate_limit_capacity &&
-      config.violation_rate_limit_refill_seconds ===
-        previous.violation_rate_limit_refill_seconds
-    )
-      return;
-    awaitingSave.value = false;
-    form.enabled = config.violation_rate_limit_enabled ?? false;
-    form.capacity = config.violation_rate_limit_capacity ?? 5;
-    form.refill = config.violation_rate_limit_refill_seconds ?? 60;
+  (config) => {
+    selected.value = levelFromConfig(config);
+    pending.value = false;
   },
-  { immediate: true },
 );
-const valid = computed(
-  () =>
-    !form.enabled ||
-    (Number.isInteger(Number(form.capacity)) &&
-      Number(form.capacity) >= 1 &&
-      Number(form.capacity) <= 10000 &&
-      Number.isInteger(Number(form.refill)) &&
-      Number(form.refill) >= 1 &&
-      Number(form.refill) <= 86400),
-);
-const setEnabled = (enabled: boolean) => {
-  if (!props.disabled) form.enabled = enabled;
-};
-const save = () => {
-  if (!valid.value || props.disabled) return;
-  awaitingSave.value = true;
+const changeLevel = (value: unknown) => {
+  if (
+    props.disabled ||
+    pending.value ||
+    !options.some((level) => level === value) ||
+    value === selected.value
+  )
+    return;
+  const level = value as (typeof options)[number];
+  const parameters =
+    level === "off"
+      ? {
+          capacity: props.config.violation_rate_limit_capacity ?? 5,
+          refill: props.config.violation_rate_limit_refill_seconds ?? 60,
+        }
+      : presets[level];
+  selected.value = level;
+  pending.value = true;
   emit("save", {
-    violation_rate_limit_enabled: form.enabled,
-    violation_rate_limit_capacity: form.enabled
-      ? Number(form.capacity)
-      : (props.config.violation_rate_limit_capacity ?? 5),
-    violation_rate_limit_refill_seconds: form.enabled
-      ? Number(form.refill)
-      : (props.config.violation_rate_limit_refill_seconds ?? 60),
+    violation_rate_limit_enabled: level !== "off",
+    violation_rate_limit_capacity: parameters.capacity,
+    violation_rate_limit_refill_seconds: parameters.refill,
   });
 };
 </script>
 
 <template>
-  <section>
-    <WAFSettingSwitchRow
-      :title="t('admin.wafSettings.violationRate.title')"
-      :description="t('admin.wafSettings.violationRate.description')"
-      :model-value="form.enabled"
-      :disabled="disabled"
-      @change="setEnabled"
-    />
-    <form class="space-y-4 px-6 pb-6" @submit.prevent="save">
-      <div v-if="form.enabled" class="grid gap-4 sm:grid-cols-2">
-        <div class="space-y-2">
-          <Label :for="`${id}-capacity`">{{
-            t("admin.wafSettings.violationRate.capacity")
-          }}</Label>
-          <Input
-            :id="`${id}-capacity`"
-            v-model="form.capacity"
-            type="number"
-            min="1"
-            max="10000"
-            step="1"
-            required
-            :disabled="disabled"
-          />
-        </div>
-        <div class="space-y-2">
-          <Label :for="`${id}-refill`">{{
-            t("admin.wafSettings.violationRate.refill")
-          }}</Label>
-          <Input
-            :id="`${id}-refill`"
-            v-model="form.refill"
-            type="number"
-            min="1"
-            max="86400"
-            step="1"
-            required
-            :disabled="disabled"
-          />
-        </div>
-        <p class="text-sm text-muted-foreground sm:col-span-2">
-          {{
-            t("admin.wafSettings.violationRate.explanation", {
-              capacity: form.capacity,
-              refill: form.refill,
-              trigger: Number(form.capacity) + 1,
-            })
-          }}
-        </p>
-      </div>
-      <Button type="submit" :disabled="disabled || !valid">{{
-        t("admin.wafSettings.violationRate.save")
-      }}</Button>
-    </form>
+  <section
+    class="grid gap-3 p-6 sm:grid-cols-[minmax(0,1fr)_10rem] sm:items-center sm:gap-6"
+  >
+    <div class="space-y-1">
+      <Label :for="id" class="text-base">{{
+        t("admin.wafSettings.violationRate.title")
+      }}</Label>
+      <p :id="`${id}-description`" class="text-sm text-muted-foreground">
+        {{ t("admin.wafSettings.violationRate.description") }}
+      </p>
+      <p :id="`${id}-hint`" class="text-xs text-muted-foreground">
+        {{ t(`admin.wafSettings.violationRate.${selected}Hint`) }}
+      </p>
+    </div>
+    <Select
+      :model-value="selected"
+      :disabled="disabled || pending"
+      @update:model-value="changeLevel"
+    >
+      <SelectTrigger
+        :id="id"
+        :aria-describedby="`${id}-description ${id}-hint`"
+        :aria-busy="pending"
+      >
+        <SelectValue />
+      </SelectTrigger>
+      <SelectContent>
+        <SelectItem v-for="level in options" :key="level" :value="level">
+          {{ t(`admin.wafSettings.violationRate.${level}`) }}
+        </SelectItem>
+        <SelectItem v-if="selected === 'custom'" value="custom" disabled>
+          {{ t("admin.wafSettings.violationRate.custom") }}
+        </SelectItem>
+      </SelectContent>
+    </Select>
   </section>
 </template>

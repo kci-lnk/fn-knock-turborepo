@@ -1763,14 +1763,18 @@ export const enAdmin = {
   },
   wafSettings: {
     violationRate: {
-      title: "Automatically blacklist frequent WAF violations",
-      description:
-        "Count only requests blocked by WAF, with one shared allowance per IP across sites. Exceeding the allowance adds the IP to the general blacklist until manually removed.",
-      capacity: "Bucket capacity (1–10000)",
-      refill: "Seconds to refill one token (1–86400)",
-      explanation:
-        "Start with {capacity} tokens and refill one every {refill} seconds, up to capacity. Without refilling, violation {trigger} automatically blacklists the IP.",
-      save: "Save frequency settings",
+      title: "Automatically block repeat violations",
+      description: "Automatically blacklist IPs that repeatedly trigger security blocks. Removal is manual.",
+      off: "Off",
+      strict: "Strict",
+      normal: "Normal",
+      relaxed: "Relaxed",
+      custom: "Previous settings",
+      offHint: "Repeated violations will not automatically blacklist an IP.",
+      strictHint: "Blacklist on a second violation within 120 seconds.",
+      normalHint: "Allow occasional violations; suitable for everyday use.",
+      relaxedHint: "Allow more violations to reduce accidental blacklisting.",
+      customHint: "Previous settings are retained. Choose a level to replace them.",
     },
     levels: {
       daily: "Daily protection",

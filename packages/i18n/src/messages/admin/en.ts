@@ -1762,6 +1762,16 @@ export const enAdmin = {
       "After login, services are accessed by path.",
   },
   wafSettings: {
+    violationRate: {
+      title: "Automatically blacklist frequent WAF violations",
+      description:
+        "Count only requests blocked by WAF, with one shared allowance per IP across sites. Exceeding the allowance adds the IP to the general blacklist until manually removed.",
+      capacity: "Bucket capacity (1–10000)",
+      refill: "Seconds to refill one token (1–86400)",
+      explanation:
+        "Start with {capacity} tokens and refill one every {refill} seconds, up to capacity. Without refilling, violation {trigger} automatically blacklists the IP.",
+      save: "Save frequency settings",
+    },
     levels: {
       daily: "Daily protection",
       dailyDescription: "Recommended",
@@ -6560,6 +6570,7 @@ export const enAdmin = {
         manual: "Manual",
         requestLog: "Request log",
         activeIp: "Active IP",
+        wafRateLimit: "WAF violation frequency",
         wafLog: "WAF log",
       },
     },

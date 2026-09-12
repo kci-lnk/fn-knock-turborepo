@@ -10630,7 +10630,7 @@ export interface components {
             comment?: string | null;
             ips: string[];
             /** @enum {string|null} */
-            source?: "manual" | "request_log" | "active_ip" | "waf_log" | null;
+            source?: "manual" | "request_log" | "active_ip" | "waf_log" | "waf_rate_limit" | null;
         };
         GeneralBlacklistListData: {
             items: components["schemas"]["GeneralBlacklistRecordData"][];
@@ -10653,7 +10653,7 @@ export interface components {
             created_at: string;
             ip: string;
             /** @enum {string} */
-            source: "manual" | "request_log" | "active_ip" | "waf_log";
+            source: "manual" | "request_log" | "active_ip" | "waf_log" | "waf_rate_limit";
             updated_at: string;
         };
         GeneralBlacklistStatusData: {
@@ -13439,6 +13439,11 @@ export interface components {
             system_rules_auto_update_enabled: boolean;
             /** Format: date-time */
             updated_at: string | null;
+            /** Format: int64 */
+            violation_rate_limit_capacity: number;
+            violation_rate_limit_enabled: boolean;
+            /** Format: int64 */
+            violation_rate_limit_refill_seconds: number;
         };
         WafConfigUpdateData: {
             /** @enum {string|null} */
@@ -13451,6 +13456,11 @@ export interface components {
             paranoia_level?: number | null;
             private_ip_exempt_enabled?: boolean | null;
             system_rules_auto_update_enabled?: boolean | null;
+            /** Format: int64 */
+            violation_rate_limit_capacity?: number | null;
+            violation_rate_limit_enabled?: boolean | null;
+            /** Format: int64 */
+            violation_rate_limit_refill_seconds?: number | null;
         };
         WafCustomDetailsData: {
             rules: components["schemas"]["WafRuleFileData"][];

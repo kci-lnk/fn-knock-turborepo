@@ -10,7 +10,13 @@ use utoipa_axum::{router::OpenApiRouter, routes};
 
 use crate::{http_utils::normalize_ip, i18n::Translator, response, state::AppState};
 
-const GENERAL_BLACKLIST_SOURCES: &[&str] = &["manual", "request_log", "active_ip", "waf_log"];
+const GENERAL_BLACKLIST_SOURCES: &[&str] = &[
+    "manual",
+    "request_log",
+    "active_ip",
+    "waf_log",
+    "waf_rate_limit",
+];
 
 fn general_blacklist_text(translator: &Translator, key: &str) -> String {
     translator.t(&format!("server.generalBlacklist.{key}"))

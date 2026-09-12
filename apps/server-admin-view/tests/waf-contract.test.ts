@@ -82,6 +82,9 @@ describe("WAF API contract", () => {
       "paranoia_level",
       "private_ip_exempt_enabled",
       "system_rules_auto_update_enabled",
+      "violation_rate_limit_capacity",
+      "violation_rate_limit_enabled",
+      "violation_rate_limit_refill_seconds",
     ]);
   });
 

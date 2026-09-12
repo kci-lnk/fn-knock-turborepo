@@ -185,23 +185,18 @@ fn large_host_mappings() -> Value {
 }
 
 #[tokio::test]
-async fn committed_waf_config_notifies_even_when_response_construction_fails() {
+async fn waf_config_rejects_unreadable_details_before_committing() {
     let (_directory, state) = waf_test_state("http://127.0.0.1:1").await;
-    // A file where the rules directory should be makes get_waf_details fail
-    // after the configuration commit, without relying on a network failure.
     fs::write(waf_root_dir(&state), b"not a directory")
         .await
         .unwrap();
-    let mut updates = state.storage.store.subscribe_config_snapshot();
+    let before = state.storage.store.get_config().await.unwrap();
+    let updates = state.storage.store.subscribe_config_snapshot();
     let result =
         apply_waf_config(&state, &json!({"system_rules_auto_update_enabled": false})).await;
     assert!(result.is_err());
-    assert!(updates.has_changed().unwrap());
-    updates.changed().await.unwrap();
-    assert_eq!(
-        state.storage.store.config_snapshot()["waf"]["system_rules_auto_update_enabled"],
-        false
-    );
+    assert!(!updates.has_changed().unwrap());
+    assert_eq!(state.storage.store.get_config().await.unwrap(), before);
 }
 
 #[tokio::test]

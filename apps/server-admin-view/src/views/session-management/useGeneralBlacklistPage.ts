@@ -96,6 +96,8 @@ export function useGeneralBlacklistPage() {
         return t("admin.sessions.generalBlacklist.sources.requestLog");
       case "active_ip":
         return t("admin.sessions.generalBlacklist.sources.activeIp");
+      case "waf_rate_limit":
+        return t("admin.sessions.generalBlacklist.sources.wafRateLimit");
       case "waf_log":
         return t("admin.sessions.generalBlacklist.sources.wafLog");
       default:
@@ -108,7 +110,7 @@ export function useGeneralBlacklistPage() {
   ): "default" | "secondary" | "outline" | "destructive" => {
     if (source === "request_log") return "secondary";
     if (source === "active_ip") return "outline";
-    if (source === "waf_log") return "destructive";
+    if (source === "waf_log" || source === "waf_rate_limit") return "destructive";
     return "default";
   };
 

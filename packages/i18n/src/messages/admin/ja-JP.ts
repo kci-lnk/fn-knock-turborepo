@@ -1763,6 +1763,16 @@ export const jaJPAdmin = {
       "ログイン後、パスから各サービスへアクセスします。",
   },
   wafSettings: {
+    violationRate: {
+      title: "WAF 違反頻度による自動ブロック",
+      description:
+        "WAF がブロックしたリクエストのみを IP ごとに全サイトで集計します。上限を超えると共通ブラックリストに追加され、手動解除が必要です。",
+      capacity: "バケット容量（1–10000）",
+      refill: "トークンを 1 個補充する秒数（1–86400）",
+      explanation:
+        "初期トークンは {capacity} 個です。{refill} 秒ごとに 1 個、容量まで補充します。補充がなければ {trigger} 回目の違反で自動ブロックします。",
+      save: "頻度設定を保存",
+    },
     levels: {
       daily: "標準保護",
       dailyDescription: "推奨",
@@ -6553,6 +6563,7 @@ export const jaJPAdmin = {
         manual: "手動",
         requestLog: "リクエストログ",
         activeIp: "アクティブ IP",
+        wafRateLimit: "WAF 違反頻度",
         wafLog: "WAF ログ",
       },
     },

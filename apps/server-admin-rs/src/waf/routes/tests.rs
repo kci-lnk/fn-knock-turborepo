@@ -526,3 +526,60 @@ fn resolves_waf_download_urls_without_cache_busting() {
         "https://cor.fnknock.cn/waf/rules/system.zip"
     );
 }
+
+#[tokio::test]
+async fn violation_rate_defaults_validation_and_failed_update() {
+    let (_dir, state) = waf_test_state("http://127.0.0.1:1").await;
+    let defaults = normalize_fixed_waf_config(None, &state);
+    assert_eq!(defaults["violation_rate_limit_enabled"], false);
+    assert_eq!(defaults["violation_rate_limit_capacity"], 5);
+    assert_eq!(defaults["violation_rate_limit_refill_seconds"], 60);
+    let before = state.storage.store.get_config().await.unwrap();
+    for patch in [
+        json!({"violation_rate_limit_capacity": 0}),
+        json!({"violation_rate_limit_capacity": 10001}),
+        json!({"violation_rate_limit_capacity": 1.5}),
+        json!({"violation_rate_limit_capacity": "5"}),
+        json!({"violation_rate_limit_refill_seconds": 86401}),
+        json!({"violation_rate_limit_refill_seconds": null}),
+        json!({"violation_rate_limit_enabled": "true"}),
+        json!({"violation_rate_limit_enabled": true}),
+    ] {
+        assert!(apply_waf_config(&state, &patch).await.is_err());
+        assert_eq!(state.storage.store.get_config().await.unwrap(), before);
+    }
+    let custom = normalize_fixed_waf_config(
+        Some(
+            &json!({"violation_rate_limit_enabled":true,"violation_rate_limit_capacity":10000,"violation_rate_limit_refill_seconds":86400}),
+        ),
+        &state,
+    );
+    assert_eq!(custom["violation_rate_limit_capacity"], 10000);
+    assert_eq!(custom["violation_rate_limit_refill_seconds"], 86400);
+}
+
+#[tokio::test]
+async fn config_update_waits_for_waf_mutations_before_reading_config() {
+    use std::future::Future;
+    let (_directory, state) = waf_test_state("http://127.0.0.1:1").await;
+    let guard = state.security.waf_rules_update_lock.lock().await;
+    let patch = json!({"system_rules_auto_update_enabled": false});
+    let update = apply_waf_config(&state, &patch);
+    tokio::pin!(update);
+    assert!(
+        std::future::poll_fn(|cx| std::task::Poll::Ready(update.as_mut().poll(cx)))
+            .await
+            .is_pending()
+    );
+    let mut latest = state.storage.store.get_config().await.unwrap();
+    latest["waf"]["violation_rate_limit_capacity"] = json!(17);
+    state.storage.store.save_config(&latest).await.unwrap();
+    drop(guard);
+    let result = update.await.unwrap();
+    assert_eq!(result["config"]["violation_rate_limit_capacity"], 17);
+    assert_eq!(result["config"]["system_rules_auto_update_enabled"], false);
+    assert_eq!(
+        state.storage.store.get_config().await.unwrap()["waf"]["violation_rate_limit_capacity"],
+        17
+    );
+}

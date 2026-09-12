@@ -7147,7 +7147,13 @@ mod tests {
         assert_eq!(
             document
                 .pointer("/components/schemas/GeneralBlacklistRecordData/properties/source/enum"),
-            Some(&json!(["manual", "request_log", "active_ip", "waf_log"]))
+            Some(&json!([
+                "manual",
+                "request_log",
+                "active_ip",
+                "waf_log",
+                "waf_rate_limit"
+            ]))
         );
         let general_record_required = document
             .pointer("/components/schemas/GeneralBlacklistRecordData/required")

@@ -13003,7 +13003,8 @@
               "manual",
               "request_log",
               "active_ip",
-              "waf_log"
+              "waf_log",
+              "waf_rate_limit"
             ],
             "type": [
               "string",
@@ -13085,7 +13086,8 @@
               "manual",
               "request_log",
               "active_ip",
-              "waf_log"
+              "waf_log",
+              "waf_rate_limit"
             ],
             "type": "string"
           },
@@ -24632,6 +24634,21 @@
               "string",
               "null"
             ]
+          },
+          "violation_rate_limit_capacity": {
+            "format": "int64",
+            "maximum": 10000,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "violation_rate_limit_enabled": {
+            "type": "boolean"
+          },
+          "violation_rate_limit_refill_seconds": {
+            "format": "int64",
+            "maximum": 86400,
+            "minimum": 1,
+            "type": "integer"
           }
         },
         "required": [
@@ -24639,6 +24656,9 @@
           "system_rules_auto_update_enabled",
           "common_location_exempt_enabled",
           "private_ip_exempt_enabled",
+          "violation_rate_limit_enabled",
+          "violation_rate_limit_capacity",
+          "violation_rate_limit_refill_seconds",
           "block_behavior",
           "mode",
           "active_bundle_id",
@@ -24710,6 +24730,30 @@
           "system_rules_auto_update_enabled": {
             "type": [
               "boolean",
+              "null"
+            ]
+          },
+          "violation_rate_limit_capacity": {
+            "format": "int64",
+            "maximum": 10000,
+            "minimum": 1,
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "violation_rate_limit_enabled": {
+            "type": [
+              "boolean",
+              "null"
+            ]
+          },
+          "violation_rate_limit_refill_seconds": {
+            "format": "int64",
+            "maximum": 86400,
+            "minimum": 1,
+            "type": [
+              "integer",
               "null"
             ]
           }

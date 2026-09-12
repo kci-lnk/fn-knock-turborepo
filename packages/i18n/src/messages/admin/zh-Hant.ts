@@ -1558,6 +1558,16 @@ export const zhHantAdmin = {
     promptReverseItemPathServices: "登入後通過路徑來訪問子服務",
   },
   wafSettings: {
+    violationRate: {
+      title: "違規頻次自動加黑",
+      description:
+        "僅累計 WAF 實際攔截的請求，同一 IP 跨站點共享額度。超限後加入通用黑名單，需手動解除。",
+      capacity: "桶容量（1–10000）",
+      refill: "補充 1 個令牌的間隔（秒，1–86400）",
+      explanation:
+        "初始有 {capacity} 個令牌，每 {refill} 秒恢復 1 個，最多恢復至桶容量。沒有補充時，第 {trigger} 次違規自動加黑。",
+      save: "儲存頻次設定",
+    },
     levels: {
       daily: "日常防護",
       dailyDescription: "推薦",
@@ -5996,6 +6006,7 @@ export const zhHantAdmin = {
         manual: "手動",
         requestLog: "請求日誌",
         activeIp: "活躍 IP",
+        wafRateLimit: "WAF 違規頻次",
         wafLog: "WAF 日誌",
       },
     },

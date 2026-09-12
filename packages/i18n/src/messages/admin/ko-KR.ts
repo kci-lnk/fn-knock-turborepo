@@ -1745,6 +1745,16 @@ export const koKRAdmin = {
     promptReverseItemPathServices: "로그인 후 경로를 통해 서비스에 접근합니다.",
   },
   wafSettings: {
+    violationRate: {
+      title: "WAF 위반 빈도 자동 차단",
+      description:
+        "WAF가 차단한 요청만 집계하며 동일 IP는 모든 사이트에서 한도를 공유합니다. 초과 시 일반 차단 목록에 추가되며 수동 해제가 필요합니다.",
+      capacity: "버킷 용량 (1–10000)",
+      refill: "토큰 1개 보충 간격 (초, 1–86400)",
+      explanation:
+        "처음에는 토큰이 {capacity}개이며 {refill}초마다 용량까지 1개씩 보충합니다. 보충이 없으면 {trigger}번째 위반 시 자동 차단합니다.",
+      save: "빈도 설정 저장",
+    },
     levels: {
       daily: "일반 보호",
       dailyDescription: "추천",
@@ -6506,6 +6516,7 @@ export const koKRAdmin = {
         manual: "수동",
         requestLog: "요청 로그",
         activeIp: "활성 IP",
+        wafRateLimit: "WAF 위반 빈도",
         wafLog: "WAF 로그",
       },
     },

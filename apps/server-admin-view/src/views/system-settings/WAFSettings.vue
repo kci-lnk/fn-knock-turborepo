@@ -22,6 +22,7 @@ import {
 import { Skeleton } from "@/components/ui/skeleton";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import DetailDialog from "@admin-shared/components/common/DetailDialog.vue";
+import WAFViolationRateSetting from "./waf-settings/WAFViolationRateSetting.vue";
 import WAFRuleList from "./waf-settings/WAFRuleList.vue";
 import WAFBlockBehaviorSettingRow from "./waf-settings/WAFBlockBehaviorSettingRow.vue";
 import WAFSettingSwitchRow from "./waf-settings/WAFSettingSwitchRow.vue";
@@ -53,6 +54,7 @@ const {
   handleEnabledChange,
   handleParanoiaLevelChange,
   handlePrivateIPExemptChange,
+  saveViolationRateSettings,
   handleUploadChange,
   isBusy,
   isChangingRules,
@@ -169,6 +171,13 @@ void uploadInputRef;
           :model-value="form.private_ip_exempt_enabled"
           :title="t('admin.wafSettings.privateIpExempt')"
           @change="handlePrivateIPExemptChange"
+        />
+
+        <WAFViolationRateSetting
+          v-if="form.enabled && details"
+          :config="details.config"
+          :disabled="isBusy"
+          @save="saveViolationRateSettings"
         />
 
         <template v-if="form.enabled">

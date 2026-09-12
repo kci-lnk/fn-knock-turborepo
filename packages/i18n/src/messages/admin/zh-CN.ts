@@ -1615,6 +1615,16 @@ export const zhCNAdmin = {
     promptReverseItemPathServices: "登录后通过路径来访问子服务",
   },
   wafSettings: {
+    violationRate: {
+      title: "违规频次自动加黑",
+      description:
+        "仅累计 WAF 实际拦截的请求，同一 IP 跨站点共享额度。超限后加入通用黑名单，需手动解封。",
+      capacity: "桶容量（1–10000）",
+      refill: "补充 1 个令牌的间隔（秒，1–86400）",
+      explanation:
+        "初始有 {capacity} 个令牌，每 {refill} 秒恢复 1 个，最多恢复至桶容量。没有补充时，第 {trigger} 次违规自动加黑。",
+      save: "保存频次设置",
+    },
     levels: {
       daily: "日常防护",
       dailyDescription: "推荐",
@@ -6080,6 +6090,7 @@ export const zhCNAdmin = {
         manual: "手动",
         requestLog: "请求日志",
         activeIp: "活跃 IP",
+        wafRateLimit: "WAF 违规频次",
         wafLog: "WAF 日志",
       },
     },

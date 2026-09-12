@@ -415,7 +415,9 @@ struct SessionAttachmentData {
 }
 
 #[derive(Serialize, ToSchema)]
-struct BackupEmailTestData { success: bool }
+struct BackupEmailTestData {
+    success: bool,
+}
 
 #[derive(Serialize, ToSchema)]
 struct AutomaticBackupEmailConfigData {
@@ -1803,7 +1805,13 @@ pub(super) fn components() -> Map<String, Value> {
             &mut schemas,
             schema,
             "source",
-            &["manual", "request_log", "active_ip", "waf_log"],
+            &[
+                "manual",
+                "request_log",
+                "active_ip",
+                "waf_log",
+                "waf_rate_limit",
+            ],
         );
     }
     for property in ["failedLogins", "blockedScanners", "wafEvents"] {

@@ -1698,6 +1698,13 @@ fn parse_waf_config(value: &Value) -> WafConfig {
         disabled_path_prefixes: string_vec_field(value, "disabled_path_prefixes"),
         updated_at: string_field(value, "updated_at"),
         private_ip_exempt_enabled: bool_field(value, "private_ip_exempt_enabled", false),
+        violation_rate_limit_enabled: bool_field(value, "violation_rate_limit_enabled", false),
+        violation_rate_limit_capacity: i32_field(value, "violation_rate_limit_capacity", 5),
+        violation_rate_limit_refill_seconds: i32_field(
+            value,
+            "violation_rate_limit_refill_seconds",
+            60,
+        ),
         block_behavior: string_field(value, "block_behavior"),
     }
 }

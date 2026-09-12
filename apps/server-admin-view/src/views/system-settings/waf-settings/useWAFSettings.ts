@@ -320,6 +320,28 @@ export function useWAFSettings() {
     );
   };
 
+  const saveViolationRateSettings = async (patch: {
+    violation_rate_limit_enabled: boolean;
+    violation_rate_limit_capacity: number;
+    violation_rate_limit_refill_seconds: number;
+  }) => {
+    if (isBusy.value) return;
+    await runSaveSettings(() => WAFAPI.updateConfig(patch), {
+      onSuccess: async (data) => {
+        applyFromDetails(data);
+        toast.success(t("admin.wafSettings.settingsUpdated"));
+        await configStore.loadConfig();
+      },
+      onError: () => {
+        if (details.value)
+          applyFromDetails({
+            ...details.value,
+            config: { ...details.value.config },
+          });
+      },
+    });
+  };
+
   onMounted(fetchDetails);
 
   return {
@@ -337,6 +359,7 @@ export function useWAFSettings() {
     levelOptions,
     manifestLabel,
     saveSettings,
+    saveViolationRateSettings,
     selectedCustomRules,
     selectedSystemRules,
     showLoadingSkeleton,

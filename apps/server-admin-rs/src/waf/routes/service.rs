@@ -55,6 +55,11 @@ pub(super) async fn get_waf_details(state: &AppState) -> anyhow::Result<Value> {
 }
 
 pub(super) async fn apply_waf_config(state: &AppState, patch: &Value) -> anyhow::Result<Value> {
+    validate_violation_rate_limit(patch)?;
+    // Serialize read/apply/persist/rollback with WAF rule mutations as well as
+    // other settings requests. Build fallible response details before committing.
+    let _rules_guard = state.security.waf_rules_update_lock.lock().await;
+    let mut details = get_waf_details(state).await?;
     let mut full_config = state.storage.store.get_config().await?;
     if !full_config.is_object() {
         full_config = store::default_config();
@@ -67,6 +72,9 @@ pub(super) async fn apply_waf_config(state: &AppState, patch: &Value) -> anyhow:
             "system_rules_auto_update_enabled",
             "common_location_exempt_enabled",
             "private_ip_exempt_enabled",
+            "violation_rate_limit_enabled",
+            "violation_rate_limit_capacity",
+            "violation_rate_limit_refill_seconds",
             "block_behavior",
             "paranoia_level",
             "executing_paranoia_level",
@@ -94,6 +102,9 @@ pub(super) async fn apply_waf_config(state: &AppState, patch: &Value) -> anyhow:
             "paranoia_level",
             "executing_paranoia_level",
             "private_ip_exempt_enabled",
+            "violation_rate_limit_enabled",
+            "violation_rate_limit_capacity",
+            "violation_rate_limit_refill_seconds",
             "block_behavior",
         ],
     );
@@ -136,7 +147,21 @@ pub(super) async fn apply_waf_config(state: &AppState, patch: &Value) -> anyhow:
         return Err(error.into());
     }
 
-    get_waf_details(state).await
+    details["config"] = next;
+    // Status is best effort, just as in get_waf_details. A status refresh error
+    // must not report a committed configuration update as a failed save.
+    details["status"] = match state.gateway.client.get_waf_status().await {
+        Ok(value)
+            if value
+                .get("success")
+                .and_then(Value::as_bool)
+                .unwrap_or(false) =>
+        {
+            value.get("data").cloned().unwrap_or(Value::Null)
+        }
+        _ => Value::Null,
+    };
+    Ok(details)
 }
 
 async fn restore_waf_runtime_after_failed_config_update(
@@ -166,6 +191,9 @@ pub(crate) async fn sync_waf_config_to_gateway(
     state: &AppState,
     full_config: &Value,
 ) -> anyhow::Result<Value> {
+    if let Some(waf) = full_config.get("waf") {
+        validate_violation_rate_limit(waf)?;
+    }
     let normalized = normalize_waf_config_for_full_config(full_config, state);
     apply_waf_config_to_gateway(
         state,
@@ -181,6 +209,9 @@ pub(crate) async fn restore_waf_runtime_after_import(
     state: &AppState,
     full_config: &Value,
 ) -> anyhow::Result<Value> {
+    if let Some(waf) = full_config.get("waf") {
+        validate_violation_rate_limit(waf)?;
+    }
     let normalized = normalize_waf_config_for_full_config(full_config, state);
     if normalized
         .get("enabled")
@@ -890,6 +921,27 @@ fn normalize_waf_config_for_full_config(config: &Value, state: &AppState) -> Val
     normalize_fixed_waf_config(Some(&Value::Object(raw)), state)
 }
 
+fn validate_violation_rate_limit(patch: &Value) -> anyhow::Result<()> {
+    for (key, max) in [
+        ("violation_rate_limit_capacity", 10000),
+        ("violation_rate_limit_refill_seconds", 86400),
+    ] {
+        if let Some(value) = patch.get(key) {
+            anyhow::ensure!(
+                value.as_i64().is_some_and(|v| (1..=max).contains(&v)),
+                "{key} must be an integer between 1 and {max}"
+            );
+        }
+    }
+    if let Some(value) = patch.get("violation_rate_limit_enabled") {
+        anyhow::ensure!(
+            value.is_boolean(),
+            "violation_rate_limit_enabled must be a boolean"
+        );
+    }
+    Ok(())
+}
+
 pub(super) fn normalize_fixed_waf_config(value: Option<&Value>, state: &AppState) -> Value {
     let raw = value.and_then(Value::as_object);
     let paranoia_level =
@@ -948,6 +1000,9 @@ pub(super) fn normalize_fixed_waf_config(value: Option<&Value>, state: &AppState
         } else {
             "error_page"
         },
+        "violation_rate_limit_enabled": raw.and_then(|o| o.get("violation_rate_limit_enabled")).and_then(Value::as_bool).unwrap_or(false),
+        "violation_rate_limit_capacity": normalize_i64(raw.and_then(|o| o.get("violation_rate_limit_capacity")), 5, 1, 10000),
+        "violation_rate_limit_refill_seconds": normalize_i64(raw.and_then(|o| o.get("violation_rate_limit_refill_seconds")), 60, 1, 86400),
         "mode": "blocking",
         "active_bundle_id": "local",
         "rules_dir": waf_root_dir(state).to_string_lossy(),

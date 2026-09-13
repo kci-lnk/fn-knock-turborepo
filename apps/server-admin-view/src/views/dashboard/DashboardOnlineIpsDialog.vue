@@ -92,10 +92,8 @@ const {
           @click="order = order === 'desc' ? 'asc' : 'desc'"
         >
           {{ t("admin.dashboard.onlineIps.lastActive") }}
-          <component
-            :is="order === 'desc' ? ArrowDown : ArrowUp"
-            class="size-3.5"
-          />
+          <ArrowDown v-if="order === 'desc'" class="size-3.5" />
+          <ArrowUp v-else class="size-3.5" />
         </Button>
       </div>
 

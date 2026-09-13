@@ -10,6 +10,7 @@ import { decodeBase64ToBytes, encodeCtrlInput } from "./terminal-input";
 import { createTerminalMouseReporter } from "./terminal-mouse";
 import { createTerminalFitController } from "./terminal-fit";
 import { createTerminalTouchGestures } from "./terminal-touch";
+import { bindTerminalTextInput } from "./terminal-text-input";
 
 interface UseTerminalEmulatorOptions {
   applyFontSize: (value: number, options?: { persist?: boolean }) => void;
@@ -47,6 +48,7 @@ export function useTerminalEmulator({
   let terminalInternalResponseDropDepth = 0;
   let disposed = false;
   let initializationPromise: Promise<void> | null = null;
+  let unbindTextInput: (() => void) | null = null;
 
   function runTerminalInternalMutation(
     action: () => void,
@@ -97,16 +99,14 @@ export function useTerminalEmulator({
 
   const focusTerminal = () => {
     syncTerminalTextInputAnchor();
-    if (compactViewport.value) {
-      const textInput = getTerminalTextInput();
-      if (textInput) {
-        focusElementWithoutScroll(textInput);
-        void nextTick(() => {
-          const nextInput = getTerminalTextInput();
-          if (nextInput) focusElementWithoutScroll(nextInput);
-        });
-        return;
-      }
+    const textInput = getTerminalTextInput();
+    if (textInput) {
+      focusElementWithoutScroll(textInput);
+      void nextTick(() => {
+        const nextInput = getTerminalTextInput();
+        if (nextInput) focusElementWithoutScroll(nextInput);
+      });
+      return;
     }
     term?.focus();
     void nextTick(() => term?.focus());
@@ -228,6 +228,12 @@ export function useTerminalEmulator({
       term = nextTerm;
       fitAddon = nextFitAddon;
       syncTerminalTextInputAnchor();
+      const textInput = getTerminalTextInput();
+      if (textInput) {
+        unbindTextInput = bindTerminalTextInput(textInput, (data) => {
+          if (canAcceptInput()) queueInput(applyArmedModifierToInput(data));
+        });
+      }
       mouseReporter.bind();
       touchGestures.bind();
       fitController.apply();
@@ -261,6 +267,8 @@ export function useTerminalEmulator({
 
   const dispose = () => {
     disposed = true;
+    unbindTextInput?.();
+    unbindTextInput = null;
     mouseReporter.unbind();
     touchGestures.unbind();
     fitController.dispose();

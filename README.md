@@ -51,6 +51,8 @@ fn-knock 把反向代理、登录鉴权、证书、DDNS、访问控制、WAF、�
 | 日常运维   | 系统监控、事件审计、在线终端、通知、备份与更新检查                       |
 | 多平台交付 | fnOS、OpenWrt、Docker、Windows、macOS、Synology DSM 与通用 Linux         |
 
+Cloudflare Tunnel 手工接入时，请将 Cloudflare 控制台中的 HTTP Service URL 设置为穿透页面显示的专用回源地址：常规部署为 `http://127.0.0.1:17999`，FPK Lite 为 `http://127.0.0.1:18999`（cloudflared 与网关同机运行）。此入口通过 `CF-Connecting-IP` 识别访客；该头缺失、重复或地址无效时返回 HTTP 400，不回退到 XFF 或本机地址。普通网关端口不会信任该请求头。旧配置若指向 `7999` 等普通端口，需要修改回源地址；请勿将专用入口公开转发给其他来源。
+
 Web 终端继续支持管理员显式配置并确认主机指纹的 SSH 目标。完整 FPK、通用 Linux、macOS 与 OpenWrt 还可选择启用本机 PTY；本机终端默认关闭，并始终使用 fn-knock 服务的有效 UID/GID，服务以 root 运行时终端同样拥有 root 权限。FPK Lite、Synology、Docker、Windows 和开发模式不提供本机终端。
 
 > [!WARNING]

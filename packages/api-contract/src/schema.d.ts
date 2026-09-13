@@ -8753,6 +8753,8 @@ export interface components {
             /** @enum {string} */
             mode: "manual" | "managed";
             optimizationEnabled: boolean;
+            /** @description Dedicated loopback origin that trusts Cloudflare visitor IP headers. */
+            originServiceUrl: string;
             /** @enum {string} */
             protocol: "auto" | "http2" | "quic";
             rootDomain: string | null;

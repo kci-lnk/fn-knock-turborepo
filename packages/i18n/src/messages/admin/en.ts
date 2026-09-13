@@ -3385,6 +3385,8 @@ export const enAdmin = {
       },
     },
     manual: {
+      originDescription:
+        "Set this Tunnel’s HTTP origin service in the Cloudflare dashboard to the address above to identify visitors through CF-Connecting-IP. The ordinary gateway port does not trust this header.",
       title: "Advanced: manual Tunnel Token",
       tunnelTokenLabel: "Tunnel Token",
       tokenDescription:

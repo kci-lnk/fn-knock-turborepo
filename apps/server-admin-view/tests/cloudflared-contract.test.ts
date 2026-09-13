@@ -76,6 +76,7 @@ describe("Cloudflared API contract", () => {
     const update = contract.components.schemas.CloudflaredConfigUpdateData;
     const credential = contract.components.schemas.CloudflareCredentialBodyData;
     assert.ok(config.required?.includes("rootDomain"));
+    assert.ok(config.required?.includes("originServiceUrl"));
     assert.equal(config.properties?.token, undefined);
     assert.deepEqual(update.required ?? [], []);
     assert.equal(update.properties?.token?.writeOnly, true);

@@ -17,6 +17,7 @@ const { controller } = defineProps<{
   controller: CloudflareTunnelController;
 }>();
 const {
+  cloudflaredOriginServiceUrl,
   cloudflaredProtocolDescription,
   cloudflaredProtocolLabel,
   cloudflaredProtocolOptions,
@@ -51,6 +52,17 @@ const {
 
     <template #default>
       <div class="divide-y divide-border">
+        <div v-if="cloudflaredOriginServiceUrl" class="space-y-2 p-4 sm:p-6">
+          <div class="text-sm font-medium">
+            {{ t("admin.cloudflareTunnel.managed.originService") }}
+          </div>
+          <code class="block break-all text-sm">{{
+            cloudflaredOriginServiceUrl
+          }}</code>
+          <p class="text-xs leading-relaxed text-muted-foreground">
+            {{ t("admin.cloudflareTunnel.manual.originDescription") }}
+          </p>
+        </div>
         <div class="grid items-start gap-2 p-4 sm:grid-cols-[220px_1fr] sm:p-6">
           <div class="space-y-1">
             <Label for="cloudflared-token">

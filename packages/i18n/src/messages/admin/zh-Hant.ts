@@ -3080,6 +3080,8 @@ export const zhHantAdmin = {
       },
     },
     manual: {
+      originDescription:
+        "在 Cloudflare 控制台將此 Tunnel 的 HTTP 回源服務設定為上述位址，以透過 CF-Connecting-IP 識別訪客。一般閘道連接埠不會信任此標頭。",
       title: "進階：手動 Tunnel Token",
       tunnelTokenLabel: "Tunnel Token",
       tokenDescription:

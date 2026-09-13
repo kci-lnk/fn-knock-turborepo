@@ -3138,6 +3138,8 @@ export const zhCNAdmin = {
       },
     },
     manual: {
+      originDescription:
+        "在 Cloudflare 控制台将此 Tunnel 的 HTTP 回源服务设置为上述地址，以通过 CF-Connecting-IP 识别访客。普通网关端口不会信任此请求头。",
       title: "高级：手动 Tunnel Token",
       tunnelTokenLabel: "Tunnel Token",
       tokenDescription:

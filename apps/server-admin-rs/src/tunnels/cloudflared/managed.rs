@@ -111,6 +111,7 @@ pub(super) async fn public_config_state(state: &AppState, protocol: &str) -> Val
     json!({
         "mode": managed.get("mode").and_then(Value::as_str).unwrap_or("manual"),
         "protocol": protocol,
+        "originServiceUrl": local_gateway_service(&state.settings.runtime_target),
         "apiTokenConfigured": secret_store(state).configured(SecretKind::ApiToken),
         "tunnelTokenConfigured": secret_store(state).configured(SecretKind::TunnelToken),
         "accountId": managed.get("accountId").cloned().unwrap_or(Value::Null),

@@ -3376,6 +3376,8 @@ export const jaJPAdmin = {
       },
     },
     manual: {
+      originDescription:
+        "Cloudflare ダッシュボードで、この Tunnel の HTTP オリジンサービスを上記のアドレスに設定してください。CF-Connecting-IP で訪問者を識別します。通常のゲートウェイポートはこのヘッダーを信頼しません。",
       title: "詳細設定：手動 Tunnel Token",
       tunnelTokenLabel: "Tunnel Token",
       tokenDescription:

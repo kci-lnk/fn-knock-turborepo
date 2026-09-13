@@ -11,7 +11,6 @@ export const useCloudflareTunnelController = () => {
   let applyManagedConfig: (config: CloudflaredConfig) => void = () => undefined;
 
   const {
-    loadAccessEntryPort,
     loadConfig,
     loadEnvironmentConfig,
     loadStatus,
@@ -55,7 +54,6 @@ export const useCloudflareTunnelController = () => {
       recoverActiveReconcileJob(),
       loadStatus(),
       loadConfig(),
-      loadAccessEntryPort(),
       loadEnvironmentConfig(),
       loadManagedState({ silent: true }),
     ]);

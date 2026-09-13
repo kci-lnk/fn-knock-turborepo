@@ -3359,6 +3359,8 @@ export const koKRAdmin = {
       },
     },
     manual: {
+      originDescription:
+        "Cloudflare 대시보드에서 이 Tunnel의 HTTP 원본 서비스를 위 주소로 설정하면 CF-Connecting-IP로 방문자를 식별합니다. 일반 게이트웨이 포트는 이 헤더를 신뢰하지 않습니다。",
       title: "고급: 수동 Tunnel Token",
       tunnelTokenLabel: "Tunnel Token",
       tokenDescription:

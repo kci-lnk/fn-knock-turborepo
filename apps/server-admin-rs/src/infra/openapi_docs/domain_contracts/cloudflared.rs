@@ -112,6 +112,8 @@ pub(super) struct CloudflareTunnelSummaryData {
 #[derive(Serialize, ToSchema)]
 #[serde(rename_all = "camelCase")]
 pub(super) struct CloudflaredConfigData {
+    /// Dedicated loopback origin that trusts Cloudflare visitor IP headers.
+    origin_service_url: String,
     mode: String,
     protocol: String,
     api_token_configured: bool,

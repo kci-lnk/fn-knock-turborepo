@@ -20,7 +20,6 @@ import {
   DEFAULT_LOG_WINDOW_SIZE,
   mergePollingLogWindow,
 } from "@admin-shared/utils/log-window";
-import { useAccessEntryPort } from "@/composables/useAccessEntryPort";
 import { useTargetPolling } from "@/composables/useTargetPolling";
 import { useConfigStore } from "@/store/config";
 import {
@@ -72,11 +71,7 @@ export const useCloudflaredRuntime = ({
   const token = ref("");
   const tunnelTokenConfigured = ref(false);
   const protocol = ref<CloudflaredProtocol>("auto");
-  const { accessEntryPort, loadAccessEntryPort } = useAccessEntryPort({
-    onError: (error) => {
-      console.warn("load cloudflared access entry port failed:", error);
-    },
-  });
+  const cloudflaredOriginServiceUrl = ref("");
 
   const cloudflaredProtocolOptions = computed<CloudflaredProtocolOption[]>(
     () => [
@@ -191,12 +186,6 @@ export const useCloudflaredRuntime = ({
       ""
     );
   });
-  const displayAccessEntryPort = computed(
-    () => accessEntryPort.value.trim() || "7999",
-  );
-  const cloudflaredOriginServiceUrl = computed(
-    () => `http://127.0.0.1:${displayAccessEntryPort.value}`,
-  );
   const hasSubdomainRoot = computed(() => Boolean(rootDomain.value));
   const cloudflaredProtocolOption = computed(
     () =>
@@ -249,9 +238,11 @@ export const useCloudflaredRuntime = ({
   };
 
   const loadConfig = async () => {
+    cloudflaredOriginServiceUrl.value = "";
     await runLoadConfig(
       async () => {
         const config = await CloudflaredAPI.getConfig();
+        cloudflaredOriginServiceUrl.value = config.originServiceUrl || "";
         token.value = "";
         tunnelTokenConfigured.value = config.tunnelTokenConfigured;
         protocol.value = config.protocol || "auto";
@@ -395,7 +386,6 @@ export const useCloudflaredRuntime = ({
     isSaving,
     isStarting,
     isStopping,
-    loadAccessEntryPort,
     loadConfig,
     loadEnvironmentConfig,
     loadStatus,

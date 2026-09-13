@@ -6,7 +6,6 @@ import type { CloudflaredConfig } from "../src/lib/api/tunnel";
 
 const lifecycle = vi.hoisted(() => ({
   applyManagedConfig: vi.fn(),
-  loadAccessEntryPort: vi.fn(),
   loadConfig: vi.fn(),
   loadEnvironmentConfig: vi.fn(),
   loadManagedState: vi.fn(),
@@ -25,7 +24,6 @@ vi.mock("../src/views/tunnel/cloudflare/useCloudflaredRuntime", () => ({
   }: {
     onConfigLoaded: (config: CloudflaredConfig) => void;
   }) => ({
-    loadAccessEntryPort: async () => lifecycle.loadAccessEntryPort(),
     loadConfig: async () => {
       lifecycle.loadConfig();
       onConfigLoaded({} as CloudflaredConfig);
@@ -76,7 +74,6 @@ describe("useCloudflareTunnelController", () => {
     await flushPromises();
 
     for (const initialized of [
-      lifecycle.loadAccessEntryPort,
       lifecycle.loadConfig,
       lifecycle.loadEnvironmentConfig,
       lifecycle.loadManagedState,

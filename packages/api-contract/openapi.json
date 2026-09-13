@@ -5433,6 +5433,10 @@
           "optimizationEnabled": {
             "type": "boolean"
           },
+          "originServiceUrl": {
+            "description": "Dedicated loopback origin that trusts Cloudflare visitor IP headers.",
+            "type": "string"
+          },
           "protocol": {
             "enum": [
               "auto",
@@ -5474,6 +5478,7 @@
           }
         },
         "required": [
+          "originServiceUrl",
           "mode",
           "protocol",
           "apiTokenConfigured",

@@ -179,14 +179,87 @@ async fn admin_index(State(state): State<AppState>, request: Request<Body>) -> R
 }
 
 async fn auth_index(State(state): State<AppState>, request: Request<Body>) -> Response {
-    serve_index(
+    serve_auth_index(
         &state,
-        &state.settings.auth_static_path,
-        &state.static_files.auth,
+        request.uri().path(),
         request.headers(),
         request.method(),
     )
     .await
+}
+
+// The base must be correct in the original HTML: browsers can speculatively
+// fetch assets before a script updates document.baseURI.
+fn auth_html_base(path: &str, headers: &HeaderMap) -> &'static str {
+    for candidate in [
+        Some(path),
+        headers
+            .get("x-forwarded-path")
+            .and_then(|v| v.to_str().ok()),
+    ]
+    .into_iter()
+    .flatten()
+    {
+        let pathname = candidate.split('?').next().unwrap_or(candidate);
+        if pathname == AUTH_LOCAL_PREFIX || pathname.starts_with("/__auth__/") {
+            return "/__auth__/";
+        }
+        if pathname == AUTH_PUBLIC_PREFIX || pathname.starts_with("/auth/") {
+            return "/auth/";
+        }
+    }
+    "/"
+}
+
+async fn auth_index_response(
+    root: &Path,
+    path: &str,
+    headers: &HeaderMap,
+    method: &Method,
+) -> Response {
+    if method != Method::GET && method != Method::HEAD {
+        return method_not_allowed();
+    }
+    let Ok(html) = tokio::fs::read_to_string(root.join("index.html")).await else {
+        return not_found();
+    };
+    let html = html.replacen(
+        "<base id=\"auth-app-base\" href=\"/\"",
+        &format!(
+            "<base id=\"auth-app-base\" href=\"{}\"",
+            auth_html_base(path, headers)
+        ),
+        1,
+    );
+    let length = html.len();
+    let mut response = Response::new(if method == Method::HEAD {
+        Body::empty()
+    } else {
+        Body::from(html)
+    });
+    response.headers_mut().insert(
+        header::CONTENT_TYPE,
+        HeaderValue::from_static("text/html; charset=utf-8"),
+    );
+    if let Ok(value) = HeaderValue::from_str(&length.to_string()) {
+        response.headers_mut().insert(header::CONTENT_LENGTH, value);
+    }
+    crate::http_utils::apply_no_store_headers(response.headers_mut());
+    response
+}
+
+async fn serve_auth_index(
+    state: &AppState,
+    path: &str,
+    headers: &HeaderMap,
+    method: &Method,
+) -> Response {
+    let mut response =
+        auth_index_response(&state.settings.auth_static_path, path, headers, method).await;
+    if let Some(cookie) = locale_cookie(state).await {
+        response.headers_mut().append(header::SET_COOKIE, cookie);
+    }
+    response
 }
 
 pub async fn auth_fallback(State(state): State<AppState>, req: Request<Body>) -> Response {
@@ -208,6 +281,11 @@ pub async fn auth_fallback(State(state): State<AppState>, req: Request<Body>) ->
     let Some(asset_path) = auth_asset_path(&state.settings.auth_static_path, &path) else {
         return not_found();
     };
+    // All paths resolving to the entry document must use the same base and
+    // no-store handling, including aliases such as /auth/./index.html.
+    if asset_path == state.settings.auth_static_path.join("index.html") {
+        return serve_auth_index(&state, &path, req.headers(), req.method()).await;
+    }
     if let Some(entry) = state.static_files.auth.get(&asset_path) {
         serve_catalog_file(
             &asset_path,
@@ -220,14 +298,7 @@ pub async fn auth_fallback(State(state): State<AppState>, req: Request<Body>) ->
     } else if is_asset_request_path(&normalized_path) {
         static_asset_not_found()
     } else if is_known_auth_view_path(&path) {
-        serve_index(
-            &state,
-            &state.settings.auth_static_path,
-            &state.static_files.auth,
-            req.headers(),
-            req.method(),
-        )
-        .await
+        serve_auth_index(&state, &path, req.headers(), req.method()).await
     } else {
         auth_not_found_html()
     }
@@ -763,6 +834,69 @@ mod tests {
         path::Path,
         time::{Duration, SystemTime},
     };
+
+    #[tokio::test]
+    async fn auth_html_base_is_correct_before_browser_preloading() {
+        let dir = tempfile::tempdir().unwrap();
+        let html =
+            "<base id=\"auth-app-base\" href=\"/\" /><script src=\"./assets/app.js\"></script>";
+        std::fs::write(dir.path().join("index.html"), html).unwrap();
+        // Old precompressed representations and validators must not be reused.
+        std::fs::write(dir.path().join("index.html.br"), "stale compressed HTML").unwrap();
+        for (path, forwarded, expected) in [
+            ("/login", "", "/"),
+            ("/auth/login", "", "/auth/"),
+            ("/__auth__/login", "", "/__auth__/"),
+            ("/oidc/bind", "/__auth__/oidc/bind?token=123", "/__auth__/"),
+            ("/auth/ldap/bind/", "/__auth__/login", "/auth/"),
+            ("/login", "/__auth__evil/login", "/"),
+            ("/login", "https://evil.test/__auth__/login", "/"),
+        ] {
+            let mut headers = HeaderMap::new();
+            headers.insert(
+                "x-forwarded-path",
+                HeaderValue::from_str(forwarded).unwrap(),
+            );
+            headers.insert(
+                header::REFERER,
+                HeaderValue::from_static("https://example.com/__auth__/login"),
+            );
+            headers.insert(
+                header::ACCEPT_ENCODING,
+                HeaderValue::from_static("br, gzip"),
+            );
+            headers.insert(header::IF_NONE_MATCH, HeaderValue::from_static("*"));
+            for method in [Method::GET, Method::HEAD] {
+                let response =
+                    super::auth_index_response(dir.path(), path, &headers, &method).await;
+                assert_eq!(response.status(), StatusCode::OK);
+                for header in [
+                    header::CONTENT_ENCODING,
+                    header::ETAG,
+                    header::LAST_MODIFIED,
+                ] {
+                    assert!(!response.headers().contains_key(header));
+                }
+                assert!(
+                    response.headers()[header::CACHE_CONTROL]
+                        .to_str()
+                        .unwrap()
+                        .contains("no-store")
+                );
+                let expected_html = html.replace("href=\"/\"", &format!("href=\"{expected}\""));
+                assert_eq!(
+                    response.headers()[header::CONTENT_LENGTH],
+                    expected_html.len().to_string()
+                );
+                let body = to_bytes(response.into_body(), usize::MAX).await.unwrap();
+                if method == Method::HEAD {
+                    assert!(body.is_empty());
+                } else {
+                    assert_eq!(body.as_ref(), expected_html.as_bytes());
+                }
+            }
+        }
+    }
 
     #[test]
     fn auth_view_fallback_paths_match_node() {

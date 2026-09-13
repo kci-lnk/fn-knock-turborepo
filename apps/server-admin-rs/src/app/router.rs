@@ -464,6 +464,13 @@ mod tests {
         settings.data_dir = directory.path().join("data");
         settings.gateway_config_dir = directory.path().join("gateway");
         settings.sqlite_path = directory.path().join("fn-knock.sqlite3");
+        settings.auth_static_path = directory.path().join("auth-static");
+        std::fs::create_dir_all(&settings.auth_static_path).unwrap();
+        std::fs::write(
+            settings.auth_static_path.join("index.html"),
+            "<base id=\"auth-app-base\" href=\"/\" /><script src=\"./assets/app.js\"></script>",
+        )
+        .unwrap();
         settings.legacy_redis_url = String::new();
         settings.go_backend_grpc_addr = "127.0.0.1:1".to_string();
         settings.internal_rpc_token = "auth-router-test".to_string();
@@ -473,6 +480,61 @@ mod tests {
             .await
             .expect("auth router test state");
         (directory, state)
+    }
+
+    #[tokio::test]
+    async fn auth_index_aliases_keep_base_and_no_store_headers() {
+        let (_directory, state) = auth_router_test_state("").await;
+        let app = auth_router(state);
+        for (path, base) in [
+            ("/auth/./index.html", "/auth/"),
+            ("/__auth__/./index.html", "/__auth__/"),
+            ("/./index.html", "/"),
+            ("/auth/index.html", "/auth/"),
+            ("/__auth__/login?redirect_uri=%2Fprivate", "/__auth__/"),
+        ] {
+            let mut get_length = None;
+            for method in [axum::http::Method::GET, axum::http::Method::HEAD] {
+                let response = app
+                    .clone()
+                    .oneshot(
+                        Request::builder()
+                            .method(method.clone())
+                            .uri(path)
+                            .header(header::ACCEPT_ENCODING, "identity")
+                            .header(header::IF_NONE_MATCH, "*")
+                            .body(Body::empty())
+                            .unwrap(),
+                    )
+                    .await
+                    .unwrap();
+                assert_eq!(response.status(), StatusCode::OK, "{path}");
+                assert!(
+                    response.headers()[header::CACHE_CONTROL]
+                        .to_str()
+                        .unwrap()
+                        .contains("no-store"),
+                    "{path}"
+                );
+                assert!(!response.headers().contains_key(header::ETAG));
+                assert!(!response.headers().contains_key(header::LAST_MODIFIED));
+                let length = response.headers()[header::CONTENT_LENGTH].clone();
+                let body = axum::body::to_bytes(response.into_body(), usize::MAX)
+                    .await
+                    .unwrap();
+                if method == axum::http::Method::GET {
+                    assert_eq!(length, body.len().to_string());
+                    assert!(
+                        String::from_utf8_lossy(&body).contains(&format!("href=\"{base}\"")),
+                        "{path}"
+                    );
+                    get_length = Some(length);
+                } else {
+                    assert!(body.is_empty());
+                    assert_eq!(Some(length), get_length);
+                }
+            }
+        }
     }
 
     #[tokio::test]

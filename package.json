@@ -10,6 +10,7 @@
     "quality:check": "npm run i18n:check && npm run lint && npm run check-types && npm run test && npm run rust:clippy && npm run rust:panic-guard && npm run rust:task-lifecycle && npm run security:audit && npm run fn-knock:grpc:check-go && npm run turbo:contract:check && npm run api:check && npm run frontend:budget && npm run source:hotspots && npm run fn-knock:release:test",
     "a11y:audit": "node ./scripts/a11y-runtime-audit.mjs",
     "runtime:build": "cargo build --locked --manifest-path apps/server-admin-rs/Cargo.toml --profile runtime-test --bin server-admin-rs",
+    "runtime:auth-assets": "node ./scripts/auth-assets-runtime-test.mjs",
     "runtime:e2e": "node ./scripts/runtime-e2e.mjs",
     "runtime:debug:e2e": "node ./scripts/runtime-debug-e2e.mjs",
     "frontend:measure": "node ./scripts/frontend-performance.mjs",

@@ -1737,6 +1737,8 @@ export const koKRServer = {
       "현재 CIDR 서비스는 통신사 필터링을 지원하지 않습니다. CIDR 컨테이너를 0.1.3 이상으로 업그레이드하세요.",
   },
   dashboard: {
+    onlineIpsUnsupported:
+      "현재 게이트웨이는 온라인 사용자 상세 정보를 지원하지 않습니다. 게이트웨이를 업데이트한 후 다시 시도하세요.",
     inbound: "인바운드",
     outbound: "아웃바운드",
     upstreamUnavailable: "업스트림 서비스를 사용할 수 없습니다.",

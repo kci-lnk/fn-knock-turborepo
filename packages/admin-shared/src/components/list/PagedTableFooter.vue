@@ -127,7 +127,6 @@ const shouldFloatFooter = computed(() => props.floating && props.total > 0);
                   v-if="item.type === 'page'"
                   :value="item.value"
                   :isActive="item.value === currentPage"
-                  as-child
                 >
                   {{ item.value }}
                 </PaginationItem>
@@ -245,7 +244,6 @@ const shouldFloatFooter = computed(() => props.floating && props.total > 0);
               v-if="item.type === 'page'"
               :value="item.value"
               :isActive="item.value === currentPage"
-              as-child
             >
               {{ item.value }}
             </PaginationItem>

@@ -6539,6 +6539,57 @@
         ],
         "type": "object"
       },
+      "DashboardOnlineIpData": {
+        "properties": {
+          "identity_count": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "ip": {
+            "type": "string"
+          },
+          "last_seen_at": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "required": [
+          "ip",
+          "last_seen_at",
+          "identity_count"
+        ],
+        "type": "object"
+      },
+      "DashboardOnlineIpsData": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/DashboardOnlineIpData"
+            },
+            "type": "array"
+          },
+          "online_count": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "timestamp": {
+            "description": "Unix timestamp in milliseconds",
+            "format": "int64",
+            "type": "integer"
+          },
+          "window_seconds": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "items",
+          "online_count",
+          "window_seconds",
+          "timestamp"
+        ],
+        "type": "object"
+      },
       "DashboardRealtimeData": {
         "properties": {
           "active_conns": {
@@ -37141,6 +37192,59 @@
           }
         },
         "summary": "查看仪表盘活跃 IP",
+        "tags": [
+          "dashboard"
+        ],
+        "x-fn-knock-contract-source": "utoipa"
+      }
+    },
+    "/api/admin/dashboard/online-ips": {
+      "get": {
+        "description": "读取管理端仪表盘的实时统计、流量和活跃 IP 数据。。`GET /api/admin/dashboard/online-ips` 用于读取当前状态、配置或导出内容，不会主动修改服务配置。 该操作不要求 JSON 请求体。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。",
+        "operationId": "get_api_admin_dashboard_online_ips",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "properties": {
+                    "data": {
+                      "$ref": "#/components/schemas/DashboardOnlineIpsData"
+                    },
+                    "message": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "success": {
+                      "const": true,
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "success",
+                    "data"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "「查看仪表盘在线用户 IP」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorEnvelope"
+                }
+              }
+            },
+            "description": "接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。"
+          }
+        },
+        "summary": "查看仪表盘在线用户 IP",
         "tags": [
           "dashboard"
         ],

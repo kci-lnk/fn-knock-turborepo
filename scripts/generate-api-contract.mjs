@@ -351,6 +351,7 @@ function validateContract(openapiPath) {
     ["get /api/admin/dashboard/stats", null],
     ["get /api/admin/dashboard/realtime", null],
     ["get /api/admin/dashboard/active-ips", null],
+    ["get /api/admin/dashboard/online-ips", null],
     ["get /api/admin/dashboard/stream-active-ips", null],
     ["get /api/admin/update/status", null],
     ["post /api/admin/update/check", null],

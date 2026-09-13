@@ -6,6 +6,7 @@ import type {
   IpLocationSnapshot,
 } from "../types";
 import { browserT } from "@fn-knock/i18n/vue/admin";
+import { getIpLocationText } from "./ipLocationDisplay";
 import { useIpLocationBatch } from "./useIpLocationBatch";
 
 type ActiveIpSource = string | Ref<string> | (() => string);
@@ -28,24 +29,6 @@ const readSource = (source: ActiveIpSource) => {
     return source().trim();
   }
   return unref(source).trim();
-};
-
-const getLocationText = (snapshot: IpLocationSnapshot | null) => {
-  if (snapshot?.location) return snapshot.location;
-
-  if (snapshot?.status === "queued" || snapshot?.status === "processing") {
-    return browserT("admin.hostActiveIps.resolving");
-  }
-
-  if (snapshot?.status === "skipped") {
-    return browserT("admin.hostActiveIps.privateAddress");
-  }
-
-  if (snapshot?.status === "failed") {
-    return browserT("admin.hostActiveIps.unavailable");
-  }
-
-  return browserT("admin.hostActiveIps.unavailable");
 };
 
 const normalizeWindowSeconds = (value: unknown) => {
@@ -137,7 +120,7 @@ const useActiveIps = (
       const snapshot = getSnapshot(item.ip);
       return {
         ...item,
-        locationText: getLocationText(snapshot),
+        locationText: getIpLocationText(snapshot),
         locationStatus: snapshot?.status ?? null,
         locationSnapshot: snapshot,
       };
@@ -149,7 +132,10 @@ const useActiveIps = (
     ([isOpen]) => {
       requestId += 1;
       clearPollTimer();
-      if (!isOpen) return;
+      if (!isOpen) {
+        trackIps([]);
+        return;
+      }
       void load();
     },
     { immediate: true },

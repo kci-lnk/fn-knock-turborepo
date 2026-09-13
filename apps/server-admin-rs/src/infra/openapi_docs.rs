@@ -2431,6 +2431,15 @@ pub(crate) fn build_openapi_document() -> Value {
     insert_typed_enveloped_operation(
         &mut paths,
         &typed_dashboard,
+        "/api/admin/dashboard/online-ips",
+        "get",
+        "DashboardOnlineIpsData",
+        None,
+        None,
+    );
+    insert_typed_enveloped_operation(
+        &mut paths,
+        &typed_dashboard,
         "/api/admin/dashboard/active-ips",
         "get",
         "DashboardActiveIpsData",
@@ -5076,7 +5085,7 @@ mod tests {
                 }
             }
         }
-        assert_eq!(operations, 461);
+        assert_eq!(operations, 462);
         assert_eq!(documented_tags, operation_tags);
         assert!(documented_tags.iter().all(|tag| {
             tags.iter().any(|item| {
@@ -5193,6 +5202,7 @@ mod tests {
             ("/api/admin/dashboard/stats", "get"),
             ("/api/admin/dashboard/realtime", "get"),
             ("/api/admin/dashboard/active-ips", "get"),
+            ("/api/admin/dashboard/online-ips", "get"),
             ("/api/admin/dashboard/stream-active-ips", "get"),
             ("/api/admin/update/status", "get"),
             ("/api/admin/update/check", "post"),
@@ -5821,7 +5831,7 @@ mod tests {
             .filter_map(Value::as_object)
             .flat_map(|path| path.values())
             .collect::<Vec<_>>();
-        assert_eq!(operations.len(), 461);
+        assert_eq!(operations.len(), 462);
         assert!(
             operations
                 .iter()
@@ -6621,6 +6631,7 @@ mod tests {
                 &["key", "active_conns", "active_ip_count"][..],
             ),
             ("DashboardActiveIpsData", &["timestamp"][..]),
+            ("DashboardOnlineIpsData", &["timestamp", "online_count"][..]),
             ("DashboardStreamActiveIpsData", &["timestamp"][..]),
         ] {
             let required = document

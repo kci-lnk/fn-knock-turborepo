@@ -1144,6 +1144,8 @@ struct BackupImportResultData {
     DashboardHostTrafficData,
     DashboardRealtimeData,
     DashboardStreamTrafficData,
+    DashboardOnlineIpData,
+    DashboardOnlineIpsData,
     DashboardActiveIpData,
     DashboardActiveIpsData,
     DashboardStreamActiveIpsData,
@@ -4268,6 +4270,7 @@ pub(super) fn components() -> Map<String, Value> {
     );
     for (schema, property) in [
         ("DashboardActiveIpData", "last_seen_at"),
+        ("DashboardOnlineIpData", "last_seen_at"),
         ("UpdateConfirmData", "completedAt"),
     ] {
         set_property_metadata(&mut schemas, schema, property, "format", json!("date-time"));
@@ -4275,6 +4278,7 @@ pub(super) fn components() -> Map<String, Value> {
     for (schema, property) in [
         ("DashboardRealtimeData", "timestamp"),
         ("DashboardActiveIpsData", "timestamp"),
+        ("DashboardOnlineIpsData", "timestamp"),
         ("DashboardStreamActiveIpsData", "timestamp"),
         ("UpdateCheckData", "lastCheckedAt"),
     ] {

@@ -1724,6 +1724,8 @@ export const enServer = {
       "The current CIDR service does not support carrier filtering. Upgrade the CIDR container to 0.1.3 or later",
   },
   dashboard: {
+    onlineIpsUnsupported:
+      "This gateway does not support online user details. Update the gateway and try again.",
     inbound: "Inbound",
     outbound: "Outbound",
     upstreamUnavailable: "Upstream service is unavailable",

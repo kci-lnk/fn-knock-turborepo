@@ -697,6 +697,23 @@ export const koKRAdmin = {
     loadConfigFailed: "터널 설정을 불러오지 못했습니다.",
   },
   dashboard: {
+    onlineIps: {
+      open: "온라인 사용자 IP 보기",
+      title: "온라인 사용자",
+      description:
+        "최근 {seconds}초 동안 활동한 인증된 사용자를 마지막 IP별로 집계합니다. 페이지를 이동해도 같은 스냅샷을 사용하며 새로 고침으로 최신 데이터를 가져옵니다.",
+      summary: "온라인 인증 사용자 {users}개 · IP {ips}개",
+      snapshotAt: "스냅샷 시간",
+      refresh: "새로 고침",
+      retry: "다시 시도",
+      stale: "새로 고침에 실패했습니다. 마지막으로 가져온 스냅샷을 표시합니다.",
+      empty: "현재 온라인 사용자가 없습니다",
+      location: "위치",
+      lastActive: "최근 활동",
+      identities: "인증 사용자 수",
+      unknownIp: "알 수 없는 주소",
+      loadFailed: "온라인 사용자를 불러오지 못했습니다",
+    },
     ranges: {
       fifteenMinutes: "15분",
       oneHour: "1시간",

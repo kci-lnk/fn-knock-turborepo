@@ -51,6 +51,7 @@ pub fn dashboard_routes() -> OpenApiRouter<AppState> {
         .routes(routes!(stats))
         .routes(routes!(realtime))
         .routes(routes!(active_ips))
+        .routes(routes!(online_ips))
         .routes(routes!(stream_active_ips))
         .routes(routes!(get_dashboard_display, update_dashboard_display))
 }
@@ -209,6 +210,46 @@ async fn realtime(State(state): State<AppState>) -> Response {
             )
         }
     }
+}
+
+#[utoipa::path(
+    get,
+    path = "/api/admin/dashboard/online-ips",
+    tag = "dashboard",
+    operation_id = "get_api_admin_dashboard_online_ips",
+    responses((status = 200, description = "Snapshot of recently active authenticated identities grouped by IP"))
+)]
+async fn online_ips(State(state): State<AppState>) -> Response {
+    let translator = Translator::from_state(&state).await;
+    match state.gateway.client.get_online_ips().await {
+        Ok(snapshot) => response::ok(online_ips_payload(snapshot)).into_response(),
+        Err(error) => {
+            let (status, message_key) = online_ips_error(error.code());
+            tracing::warn!(%error, "failed to read online IP snapshot");
+            response::error(status, dashboard_text(&translator, message_key))
+        }
+    }
+}
+
+fn online_ips_error(code: tonic::Code) -> (StatusCode, &'static str) {
+    if code == tonic::Code::Unimplemented {
+        (StatusCode::NOT_IMPLEMENTED, "onlineIpsUnsupported")
+    } else {
+        (StatusCode::BAD_GATEWAY, "upstreamUnavailable")
+    }
+}
+
+fn online_ips_payload(snapshot: crate::grpc_proto::OnlineIpsStats) -> Value {
+    json!({
+        "items": snapshot.items.into_iter().map(|item| json!({
+            "ip": item.ip,
+            "last_seen_at": item.last_seen_at,
+            "identity_count": item.identity_count,
+        })).collect::<Vec<_>>(),
+        "online_count": snapshot.online_count,
+        "window_seconds": snapshot.window_seconds,
+        "timestamp": snapshot.timestamp,
+    })
 }
 
 #[utoipa::path(
@@ -1103,6 +1144,43 @@ fn round3(value: f64) -> f64 {
 
 #[cfg(test)]
 mod tests {
+
+    #[test]
+    fn online_ip_snapshot_preserves_unknown_bucket_and_gateway_timestamp() {
+        let payload = super::online_ips_payload(crate::grpc_proto::OnlineIpsStats {
+            items: vec![crate::grpc_proto::OnlineIpStats {
+                ip: String::new(),
+                last_seen_at: "2026-09-14T00:00:00Z".into(),
+                identity_count: 2,
+            }],
+            online_count: 2,
+            window_seconds: 120,
+            timestamp: 1234,
+        });
+        assert_eq!(payload["items"][0]["ip"], "");
+        assert_eq!(payload["items"][0]["identity_count"], 2);
+        assert_eq!(payload["online_count"], 2);
+        assert_eq!(payload["timestamp"], 1234);
+        assert_eq!(
+            super::online_ips_payload(Default::default())["items"],
+            serde_json::json!([])
+        );
+    }
+
+    #[test]
+    fn online_ip_errors_do_not_disguise_unsupported_or_unavailable_gateway_as_empty() {
+        assert_eq!(
+            super::online_ips_error(tonic::Code::Unimplemented),
+            (
+                axum::http::StatusCode::NOT_IMPLEMENTED,
+                "onlineIpsUnsupported"
+            )
+        );
+        assert_eq!(
+            super::online_ips_error(tonic::Code::Unavailable),
+            (axum::http::StatusCode::BAD_GATEWAY, "upstreamUnavailable")
+        );
+    }
     use super::*;
 
     #[test]

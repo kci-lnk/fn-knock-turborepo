@@ -1525,6 +1525,7 @@ export const zhHantServer = {
       "目前 CIDR 服務不支援運營商篩選，請將 CIDR 容器升級至 0.1.3 或更高版本",
   },
   dashboard: {
+    onlineIpsUnsupported: "目前閘道不支援線上使用者明細，請更新閘道後重試",
     inbound: "入站",
     outbound: "出站",
     upstreamUnavailable: "上游服務不可用",

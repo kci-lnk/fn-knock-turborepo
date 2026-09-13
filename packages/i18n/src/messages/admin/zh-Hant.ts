@@ -563,6 +563,23 @@ export const zhHantAdmin = {
   },
   dashboard: {
     ...zhCNAdmin.dashboard,
+    onlineIps: {
+      open: "檢視線上使用者 IP",
+      title: "線上使用者",
+      description:
+        "最近 {seconds} 秒內活躍的已登入身分，依最近使用的 IP 合併；翻頁保留目前快照，點擊重新整理取得最新資料。",
+      summary: "{users} 個線上身分 · {ips} 個 IP",
+      snapshotAt: "快照時間",
+      refresh: "重新整理",
+      retry: "重試",
+      stale: "重新整理失敗，仍顯示上次成功取得的快照。",
+      empty: "目前沒有線上使用者",
+      location: "歸屬地",
+      lastActive: "最後活躍",
+      identities: "線上身分數",
+      unknownIp: "未知位址",
+      loadFailed: "載入線上使用者失敗",
+    },
     ranges: {
       fifteenMinutes: "15分鐘",
       oneHour: "1小時",

@@ -26,6 +26,21 @@ import {
   useDashboardData,
 } from "./dashboard/useDashboardData";
 
+const DashboardOnlineIpsDialog = defineAsyncComponent(
+  () => import("./dashboard/DashboardOnlineIpsDialog.vue"),
+);
+const onlineIpsDialogOpen = ref(false);
+const onlineIpsTriggerRef = ref<HTMLButtonElement | null>(null);
+watch(
+  onlineIpsDialogOpen,
+  (open) => {
+    // The lazy dialog unmounts on close and has no DialogTrigger of its own.
+    // Restore focus after its teleported content has been removed.
+    if (!open) onlineIpsTriggerRef.value?.focus({ preventScroll: true });
+  },
+  { flush: "post" },
+);
+
 const DashboardThemeDialog = defineAsyncComponent(
   () => import("./dashboard/DashboardThemeDialog.vue"),
 );
@@ -137,6 +152,10 @@ watch(showTunnelSection, (visible) => {
 
 <template>
   <div class="h-full flex flex-col gap-6">
+    <DashboardOnlineIpsDialog
+      v-if="onlineIpsDialogOpen"
+      v-model:open="onlineIpsDialogOpen"
+    />
     <section
       class="flex flex-col xl:flex-row xl:items-baseline xl:justify-between gap-6"
     >
@@ -148,10 +167,18 @@ watch(showTunnelSection, (visible) => {
             >{{ t("admin.dashboard.labels.range") }}: {{ titleRangeText }}</span
           >
           <span class="text-border">|</span>
-          <span class="font-medium text-foreground"
-            >{{ t("admin.dashboard.labels.online") }}:
-            {{ formatNumber(onlineNow ? onlineNow : 0) }}</span
+          <button
+            type="button"
+            class="inline-flex items-center gap-1 rounded-sm font-medium text-foreground underline decoration-dotted underline-offset-4 transition-colors hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            ref="onlineIpsTriggerRef"
+            aria-haspopup="dialog"
+            :aria-expanded="onlineIpsDialogOpen"
+            :aria-label="t('admin.dashboard.onlineIps.open')"
+            @click="onlineIpsDialogOpen = true"
           >
+            {{ t("admin.dashboard.labels.online") }}:
+            {{ formatNumber(onlineNow ? onlineNow : 0) }}
+          </button>
         </div>
       </div>
 

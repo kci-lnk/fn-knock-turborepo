@@ -454,3 +454,8 @@ export type StreamActiveIpsPayload =
   ApiContractComponents["schemas"]["DashboardStreamActiveIpsData"];
 export type DashboardStats =
   ApiContractComponents["schemas"]["DashboardStatsData"];
+
+export type DashboardOnlineIp =
+  ApiContractComponents["schemas"]["DashboardOnlineIpData"];
+export type DashboardOnlineIpsPayload =
+  ApiContractComponents["schemas"]["DashboardOnlineIpsData"];

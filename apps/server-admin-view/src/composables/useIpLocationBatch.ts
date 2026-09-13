@@ -54,7 +54,9 @@ const dedupeIps = (ips: string[]) => {
   return [...uniqueIps.values()];
 };
 
-export const useIpLocationBatch = () => {
+export const useIpLocationBatch = (
+  options: { reuseResolved?: boolean } = {},
+) => {
   const snapshots = ref<Record<string, IpLocationSnapshot>>({});
 
   let trackedIps: string[] = [];
@@ -177,7 +179,34 @@ export const useIpLocationBatch = () => {
       return;
     }
 
-    void fetchBatch(trackedIps, runId);
+    const requestedIps = options.reuseResolved
+      ? trackedIps.filter((ip) => {
+          const snapshot = getSnapshot(ip);
+          // Only successful and intentionally skipped results are reusable.
+          // A failed transport lookup must be retried on explicit tracking.
+          return (
+            snapshot?.status !== "success" && snapshot?.status !== "skipped"
+          );
+        })
+      : trackedIps;
+    // A previous failed snapshot is terminal for polling. Remove it before a
+    // new explicit lookup so a transient error can use the normal retry budget.
+    let retrySnapshots: Record<string, IpLocationSnapshot> | undefined;
+    for (const ip of requestedIps) {
+      const snapshot = getSnapshot(ip);
+      if (snapshot?.status !== "failed") continue;
+      retrySnapshots ??= { ...snapshots.value };
+      for (const key of [
+        ip,
+        normalizeIpKey(ip),
+        snapshot.ip,
+        snapshot.normalizedIp,
+      ]) {
+        if (key) delete retrySnapshots[key];
+      }
+    }
+    if (retrySnapshots) snapshots.value = retrySnapshots;
+    void fetchBatch(requestedIps, runId);
   };
 
   const getSnapshot = (ip?: string | null) => {
@@ -186,9 +215,7 @@ export const useIpLocationBatch = () => {
     return snapshots.value[key] || snapshots.value[normalizeIpKey(key)] || null;
   };
 
-  onBeforeUnmount(() => {
-    clearPollTimer();
-  });
+  onBeforeUnmount(() => trackIps([]));
 
   return {
     snapshots,

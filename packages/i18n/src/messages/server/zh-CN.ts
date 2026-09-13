@@ -1525,6 +1525,7 @@ export const zhCNServer = {
       "当前 CIDR 服务不支持运营商筛选，请升级 CIDR 容器至 0.1.3 或更高版本",
   },
   dashboard: {
+    onlineIpsUnsupported: "当前网关不支持在线用户明细，请更新网关后重试",
     inbound: "入站",
     outbound: "出站",
     upstreamUnavailable: "上游服务不可用",

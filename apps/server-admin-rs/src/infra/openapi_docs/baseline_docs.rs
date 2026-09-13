@@ -523,6 +523,7 @@ fn segment_label(segment: &str) -> String {
         "access-scopes" => "访问范围".to_string(),
         "accounts" => "账户".to_string(),
         "active" => "活动任务".to_string(),
+        "online-ips" => "在线用户 IP".to_string(),
         "active-ips" => "活跃 IP".to_string(),
         "stream-active-ips" => "流映射活跃 IP".to_string(),
         "advanced_auth" => "高级认证".to_string(),

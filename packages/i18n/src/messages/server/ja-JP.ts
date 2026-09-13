@@ -1804,6 +1804,8 @@ export const jaJPServer = {
       "現在の CIDR サービスは通信事業者フィルターに対応していません。CIDR コンテナを 0.1.3 以降へ更新してください",
   },
   dashboard: {
+    onlineIpsUnsupported:
+      "このゲートウェイはオンラインユーザーの詳細に対応していません。更新して再試行してください。",
     inbound: "受信",
     outbound: "送信",
     upstreamUnavailable: "アップストリームサービスを利用できません",

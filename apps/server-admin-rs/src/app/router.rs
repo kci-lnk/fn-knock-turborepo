@@ -390,6 +390,21 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn online_ip_snapshot_requires_admin_authentication() {
+        let (_directory, state) = openwrt_test_state().await;
+        let response = backend_router(state, true)
+            .oneshot(
+                Request::get("/api/admin/dashboard/online-ips")
+                    .extension(axum::extract::ConnectInfo("127.0.0.1:12345".parse::<std::net::SocketAddr>().unwrap()))
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
+    }
+
+    #[tokio::test]
     async fn admin_api_responses_disable_browser_and_intermediary_caches() {
         let (_directory, state) = openwrt_test_state().await;
         let app = backend_router(state, false);

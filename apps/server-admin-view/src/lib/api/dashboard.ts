@@ -1,4 +1,5 @@
 import type {
+  DashboardOnlineIpsPayload,
   DashboardStats,
   HostActiveIpsPayload,
   StreamActiveIpsPayload,
@@ -18,6 +19,7 @@ type DashboardStreamActiveIpsQuery =
   ApiContractOperations["get_api_admin_dashboard_stream_active_ips"]["parameters"]["query"];
 
 export type {
+  DashboardOnlineIpsPayload,
   DashboardStats,
   HostActiveIpsPayload,
   StreamActiveIpsPayload,
@@ -25,6 +27,10 @@ export type {
 } from "../../types";
 
 export const DashboardAPI = {
+  async getOnlineIps(signal?: AbortSignal): Promise<DashboardOnlineIpsPayload> {
+    const res = await apiClient.get("/dashboard/online-ips", { signal });
+    return res.data.data;
+  },
   async getStats(
     rangeSec: number,
     userIdOrOptions?:

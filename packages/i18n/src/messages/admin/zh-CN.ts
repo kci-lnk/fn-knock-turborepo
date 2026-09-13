@@ -628,6 +628,23 @@ export const zhCNAdmin = {
     loadConfigFailed: "加载隧道配置失败",
   },
   dashboard: {
+    onlineIps: {
+      open: "查看在线用户 IP",
+      title: "在线用户",
+      description:
+        "最近 {seconds} 秒内活跃的已登录身份，按最近使用的 IP 合并；翻页保持当前快照，点击刷新获取最新数据。",
+      summary: "{users} 个在线身份 · {ips} 个 IP",
+      snapshotAt: "快照时间",
+      refresh: "刷新",
+      retry: "重试",
+      stale: "刷新失败，仍显示上次成功获取的快照。",
+      empty: "当前没有在线用户",
+      location: "归属地",
+      lastActive: "最后活跃",
+      identities: "在线身份数",
+      unknownIp: "未知地址",
+      loadFailed: "加载在线用户失败",
+    },
     ranges: {
       fifteenMinutes: "15分钟",
       oneHour: "1小时",

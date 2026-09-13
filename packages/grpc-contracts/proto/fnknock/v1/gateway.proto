@@ -968,6 +968,19 @@ message StreamTrafficStats {
   int32 active_ip_count = 8;
 }
 
+message OnlineIpStats {
+  string ip = 1;
+  string last_seen_at = 2;
+  int64 identity_count = 3;
+}
+
+message OnlineIpsStats {
+  repeated OnlineIpStats items = 1;
+  int64 online_count = 2;
+  int32 window_seconds = 3;
+  int64 timestamp = 4;
+}
+
 message HostActiveIpStats {
   string ip = 1;
   string last_seen_at = 2;
@@ -1438,6 +1451,7 @@ service SecurityService {
 
 service TrafficService {
   rpc GetTrafficStats(google.protobuf.Empty) returns (TrafficStats);
+  rpc GetOnlineIps(google.protobuf.Empty) returns (OnlineIpsStats);
   rpc GetHostActiveIps(HostRequest) returns (HostActiveIpsStats);
   rpc GetStreamActiveIps(StreamRequest) returns (StreamActiveIpsStats);
 }

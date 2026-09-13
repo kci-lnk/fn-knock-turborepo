@@ -705,6 +705,23 @@ export const jaJPAdmin = {
     loadConfigFailed: "トンネル設定の読み込みに失敗しました",
   },
   dashboard: {
+    onlineIps: {
+      open: "オンラインユーザーの IP を表示",
+      title: "オンラインユーザー",
+      description:
+        "過去 {seconds} 秒間にアクティブだった認証済みユーザーを最新の IP ごとに集計します。ページ切替時は同じスナップショットを使用し、更新すると最新データを取得します。",
+      summary: "オンライン認証ユーザー {users} 件 · IP {ips} 件",
+      snapshotAt: "取得日時",
+      refresh: "更新",
+      retry: "再試行",
+      stale: "更新に失敗しました。前回のスナップショットを表示しています。",
+      empty: "現在オンラインのユーザーはいません",
+      location: "所在地",
+      lastActive: "最終アクティブ",
+      identities: "認証ユーザー数",
+      unknownIp: "不明なアドレス",
+      loadFailed: "オンラインユーザーを読み込めませんでした",
+    },
     ranges: {
       fifteenMinutes: "15分",
       oneHour: "1時間",

@@ -494,7 +494,9 @@
       "invalidJsonObject": "请求体不是有效的 JSON 对象",
       "geoRefreshActive": "IP 归属地识别队列正在运行",
       "geoRefreshFailed": "启动 IP 归属地识别队列失败",
-      "configRollbackFailed": "面板配置保存失败，且无法恢复网关原配置；保存位置可能与实际生效位置不同，请刷新检查。"
+      "configRollbackFailed": "面板配置保存失败，且无法恢复网关原配置；保存位置可能与实际生效位置不同，请刷新检查。",
+      "cursorExpired": "日志已被滚动清理，请刷新列表后重试。",
+      "invalidCapacity": "请输入 1–1048576 的整数，总容量不能小于每日容量。"
     },
     "backoffRoutes": {
       "ipRequired": "ip 参数缺失",
@@ -1393,7 +1395,8 @@
       "statsLoadFailed": "加载仪表盘统计失败",
       "configLoadFailed": "加载仪表盘配置失败",
       "displayConfigSaveFailed": "保存仪表盘展示配置失败",
-      "streamRequired": "请选择有效的 TCP 或 UDP 映射"
+      "streamRequired": "请选择有效的 TCP 或 UDP 映射",
+      "onlineIpsUnsupported": "当前网关不支持在线用户明细，请更新网关后重试"
     },
     "acme": {
       "alreadyInstalled": "acme.sh 已经安装过了",
@@ -3745,7 +3748,9 @@
       "invalidJsonObject": "請求體不是有效的 JSON 物件",
       "geoRefreshActive": "IP 歸屬地識別佇列正在執行",
       "geoRefreshFailed": "啟動 IP 歸屬地識別佇列失敗",
-      "configRollbackFailed": "面板設定儲存失敗，且無法還原閘道原設定；儲存位置可能與實際生效位置不同，請重新整理確認。"
+      "configRollbackFailed": "面板設定儲存失敗，且無法還原閘道原設定；儲存位置可能與實際生效位置不同，請重新整理確認。",
+      "cursorExpired": "日誌已被輪替清理，請重新整理清單後再試。",
+      "invalidCapacity": "請輸入 1–1048576 的整數，總容量不能小於每日容量。"
     },
     "backoffRoutes": {
       "ipRequired": "ip 參數缺失",
@@ -4644,7 +4649,8 @@
       "statsLoadFailed": "載入儀表盤統計失敗",
       "configLoadFailed": "載入儀表盤配置失敗",
       "displayConfigSaveFailed": "保存儀表盤展示配置失敗",
-      "streamRequired": "請選擇有效的 TCP 或 UDP 映射"
+      "streamRequired": "請選擇有效的 TCP 或 UDP 映射",
+      "onlineIpsUnsupported": "目前閘道不支援線上使用者明細，請更新閘道後重試"
     },
     "acme": {
       "alreadyInstalled": "acme.sh 已經安裝過了",
@@ -6996,7 +7002,9 @@
       "invalidJsonObject": "Request body is not a valid JSON object",
       "geoRefreshActive": "The IP location lookup queue is already running",
       "geoRefreshFailed": "Failed to start the IP location lookup queue",
-      "configRollbackFailed": "Panel settings could not be saved and the gateway configuration could not be restored. Saved and active locations may differ; refresh to check."
+      "configRollbackFailed": "Panel settings could not be saved and the gateway configuration could not be restored. Saved and active locations may differ; refresh to check.",
+      "cursorExpired": "These logs have been rotated out. Refresh the list and try again.",
+      "invalidCapacity": "Enter integers from 1 to 1048576. Total capacity must be at least the daily capacity."
     },
     "backoffRoutes": {
       "ipRequired": "ip parameter is missing",
@@ -7895,7 +7903,8 @@
       "statsLoadFailed": "Failed to load dashboard stats",
       "configLoadFailed": "Failed to load dashboard config",
       "displayConfigSaveFailed": "Failed to save dashboard display config",
-      "streamRequired": "A valid TCP or UDP mapping is required"
+      "streamRequired": "A valid TCP or UDP mapping is required",
+      "onlineIpsUnsupported": "This gateway does not support online user details. Update the gateway and try again."
     },
     "acme": {
       "alreadyInstalled": "acme.sh is already installed",
@@ -10247,7 +10256,9 @@
       "invalidJsonObject": "요청 본문이 유효한 JSON 객체가 아닙니다.",
       "geoRefreshActive": "IP 위치 조회 대기열이 이미 실행 중입니다.",
       "geoRefreshFailed": "IP 위치 조회 대기열을 시작하지 못했습니다.",
-      "configRollbackFailed": "패널 설정 저장에 실패했으며 게이트웨이 설정도 복원하지 못했습니다. 저장된 위치와 실제 적용 위치가 다를 수 있습니다. 새로고침하여 확인하세요."
+      "configRollbackFailed": "패널 설정 저장에 실패했으며 게이트웨이 설정도 복원하지 못했습니다. 저장된 위치와 실제 적용 위치가 다를 수 있습니다. 새로고침하여 확인하세요.",
+      "cursorExpired": "로그가 순환 삭제되었습니다. 목록을 새로 고침하세요.",
+      "invalidCapacity": "1~1048576 사이의 정수를 입력하세요. 전체 용량은 일일 용량 이상이어야 합니다."
     },
     "backoffRoutes": {
       "ipRequired": "IP 매개변수가 누락되었습니다",
@@ -11146,7 +11157,8 @@
       "statsLoadFailed": "대시보드 통계를 불러오지 못했습니다.",
       "configLoadFailed": "대시보드 설정을 불러오지 못했습니다.",
       "displayConfigSaveFailed": "대시보드 표시 설정을 저장하지 못했습니다.",
-      "streamRequired": "유효한 TCP 또는 UDP 매핑을 선택하세요"
+      "streamRequired": "유효한 TCP 또는 UDP 매핑을 선택하세요",
+      "onlineIpsUnsupported": "현재 게이트웨이는 온라인 사용자 상세 정보를 지원하지 않습니다. 게이트웨이를 업데이트한 후 다시 시도하세요."
     },
     "acme": {
       "alreadyInstalled": "acme.sh가 이미 설치되어 있습니다.",
@@ -13498,7 +13510,9 @@
       "invalidJsonObject": "リクエスト本文は有効な JSON オブジェクトではありません",
       "geoRefreshActive": "IP 所在地の検索キューはすでに実行中です",
       "geoRefreshFailed": "IP 所在地の検索キューを開始できませんでした",
-      "configRollbackFailed": "パネル設定を保存できず、ゲートウェイの設定も元に戻せませんでした。保存済みの場所と実際の保存先が異なる可能性があります。再読み込みして確認してください。"
+      "configRollbackFailed": "パネル設定を保存できず、ゲートウェイの設定も元に戻せませんでした。保存済みの場所と実際の保存先が異なる可能性があります。再読み込みして確認してください。",
+      "cursorExpired": "ログはローテーションで削除されました。一覧を更新してください。",
+      "invalidCapacity": "1〜1048576の整数を入力してください。合計容量は1日の容量以上にしてください。"
     },
     "backoffRoutes": {
       "ipRequired": "ip パラメータがありません",
@@ -14397,7 +14411,8 @@
       "statsLoadFailed": "ダッシュボード統計の読み込みに失敗しました",
       "configLoadFailed": "ダッシュボード設定の読み込みに失敗しました",
       "displayConfigSaveFailed": "ダッシュボード表示設定の保存に失敗しました",
-      "streamRequired": "有効な TCP または UDP マッピングを選択してください"
+      "streamRequired": "有効な TCP または UDP マッピングを選択してください",
+      "onlineIpsUnsupported": "このゲートウェイはオンラインユーザーの詳細に対応していません。更新して再試行してください。"
     },
     "acme": {
       "alreadyInstalled": "acme.sh はインストール済みです",

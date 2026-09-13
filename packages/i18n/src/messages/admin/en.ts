@@ -705,6 +705,23 @@ export const enAdmin = {
     loadConfigFailed: "Failed to load tunnel config",
   },
   dashboard: {
+    onlineIps: {
+      open: "View online user IPs",
+      title: "Online users",
+      description:
+        "Authenticated identities active in the last {seconds} seconds, grouped by their latest IP. Pages use a fixed snapshot; refresh to get the latest data.",
+      summary: "{users} online identities · {ips} IPs",
+      snapshotAt: "Snapshot time",
+      refresh: "Refresh",
+      retry: "Retry",
+      stale: "Refresh failed. Showing the last successful snapshot.",
+      empty: "No users are currently online",
+      location: "Location",
+      lastActive: "Last active",
+      identities: "Identities",
+      unknownIp: "Unknown address",
+      loadFailed: "Failed to load online users",
+    },
     ranges: {
       fifteenMinutes: "15 min",
       oneHour: "1 hour",

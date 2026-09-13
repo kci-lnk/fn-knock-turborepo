@@ -20,6 +20,14 @@ impl GoBackendClient {
         }
     }
 
+    pub async fn get_online_ips(&self) -> Result<crate::grpc_proto::OnlineIpsStats, tonic::Status> {
+        self.traffic
+            .clone()
+            .get_online_ips(self.request(()))
+            .await
+            .map(|response| response.into_inner())
+    }
+
     pub async fn get_host_active_ips(&self, host: String) -> anyhow::Result<(StatusCode, Value)> {
         let mut client = self.traffic.clone();
         match client

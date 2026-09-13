@@ -33,7 +33,7 @@ impl CloudflaredInstallationStatus {
     }
 }
 
-pub(crate) const CLOUDFLARED_VERSION: &str = "2026.7.3";
+pub(crate) const CLOUDFLARED_VERSION: &str = "2026.9.1";
 pub(crate) const CLOUDFLARED_INSTALL_METADATA_FILE: &str = "install.json";
 
 pub(crate) fn detect_cloudflared_platform() -> &'static str {
@@ -81,39 +81,39 @@ pub(crate) fn cloudflared_asset_spec(platform: &str) -> Option<CloudflaredAssetS
     let (file_name, sha256) = match platform {
         "darwin-amd64" => (
             "cloudflared-darwin-amd64",
-            "e88fe5874d42a94f49a7ea59cabc3722d2962d0449232b0f3b1a426a712e275c",
+            "1ea07ae775b03236bd6be18ca1848d6bdc4af2f4f3bce398823b5a36e5761b75",
         ),
         "darwin-arm64" => (
             "cloudflared-darwin-arm64",
-            "f35c50089cd25f77a4cb5a2152036bc26db15aa31fbe11f7995d2e42a4ed6257",
+            "9a0b19f67dc7a3011bc6b972c7ce06a5fcea8784ac6bd599ffa382ea4aeb5a6e",
         ),
         "linux-386" => (
             "cloudflared-linux-386",
-            "6c982e77e644644f5bce76781dd2b69ddc0bfa5e1dd1f55f0037850ac0946771",
+            "5d66134cf7646cb98f33aeee7bcc8b97d8feacd76db279f5903f9585226e0922",
         ),
         "linux-amd64" => (
             "cloudflared-linux-amd64",
-            "9d71c677db00134c1bd4144b7783486b654ad281b1ea62b4972098d19f770f17",
+            "03f1f25d1cc93b9ad6c60569d44060bc4f17ed97075760ed8cfca4b12dcd68cc",
         ),
         "linux-arm" => (
             "cloudflared-linux-arm",
-            "6dadd979b8833760e9f6d840a6239a8c08c8bcf73b4231ec537f483873f37c73",
+            "093ffa3638ab2b636de63c43a8c68f96a69cf71f9699dd8277a91b160b0f4fc0",
         ),
         "linux-armhf" => (
             "cloudflared-linux-armhf",
-            "2aadbe6416e5c52cb7ebba99119f413a124f358516c17d4ecaacb89a363e8a35",
+            "95420507a720fb543122a5d69372fbde8f5c919790e95ddd4374a449e0a6f4dd",
         ),
         "linux-arm64" => (
             "cloudflared-linux-arm64",
-            "65259e652a7bea08bf5df603233ab22b8bf3116af8df9f9206209af6a1b955c0",
+            "3d97437c71848bd8df68041e12436b484a661d95073ea1937f01a845ce88faa3",
         ),
         "windows-386" => (
             "cloudflared-windows-386.exe",
-            "d026e39d9be21c70ea652528fda2801e164d5e25688b7b0fb3b65080cbd96503",
+            "11b6e4b2d306950bd87e7caa4deee8e80a32d71ffee555a96237a76651eeae4c",
         ),
         "windows-amd64" => (
             "cloudflared-windows-amd64.exe",
-            "8635da433b6df8194746e88ed9d2589566c20e38bfc2a80e431a348b7c765841",
+            "2837888cc0f5d58f15b6dc478376de90b4d3ba5241c7947455d1e0a0df429712",
         ),
         _ => return None,
     };
@@ -242,7 +242,7 @@ fn repair_cloudflared_install_metadata(data_dir: &Path, content: &[u8]) {
     let _ = std::fs::remove_file(temporary);
 }
 
-fn file_checksum_matches(path: &Path, expected_sha256: &str) -> bool {
+pub(crate) fn file_checksum_matches(path: &Path, expected_sha256: &str) -> bool {
     let Ok(mut file) = std::fs::File::open(path) else {
         return false;
     };

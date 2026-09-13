@@ -29,7 +29,7 @@ use secrets::{CloudflaredSecretStore, SecretKind, atomic_private_write};
 use crate::{
     cloudflared_utils::{
         cloudflared_asset_name, cloudflared_binary_path, cloudflared_install_is_current,
-        detect_cloudflared_platform,
+        detect_cloudflared_platform, file_checksum_matches,
     },
     i18n::Translator,
     response,
@@ -614,13 +614,16 @@ impl CloudflaredManager {
             .unwrap_or(false)
     }
 
-    fn executable(&self) -> Result<String, String> {
+    fn executable_for_recovery(&self, recovery_checksum: Option<&str>) -> Result<String, String> {
         if cloudflared_asset_name(detect_cloudflared_platform()).is_none() {
             return Err("Cloudflared platform is unsupported".to_string());
         }
         let data_dir = self.dir.parent().unwrap_or(&self.dir);
         let platform = detect_cloudflared_platform();
-        if cloudflared_install_is_current(data_dir, platform) {
+        if recovery_checksum.map_or_else(
+            || cloudflared_install_is_current(data_dir, platform),
+            |checksum| file_checksum_matches(&self.bin_path, checksum),
+        ) {
             Ok(self.bin_path.to_string_lossy().to_string())
         } else {
             Err("Cloudflared is not initialized".to_string())
@@ -767,6 +770,31 @@ pub(crate) async fn resume_cloudflared_after_asset_update(
     Ok(())
 }
 
+// The caller holds cloudflared_manage_lock. The permit is consumed by one
+// launch and cleared on every exit, including cancellation.
+pub(crate) async fn recover_cloudflared_after_asset_update(
+    state: &AppState,
+    should_resume: bool,
+    previous_checksum: Option<&str>,
+) -> Result<(), String> {
+    if !should_resume {
+        return Ok(());
+    }
+    let checksum = previous_checksum
+        .ok_or_else(|| "Previous Cloudflared binary is unavailable".to_string())?;
+    manager(state).executable_for_recovery(Some(checksum))?;
+    struct ClearPermit<'a>(&'a RwLock<Option<String>>);
+    impl Drop for ClearPermit<'_> {
+        fn drop(&mut self) {
+            *self.0.write().unwrap_or_else(|error| error.into_inner()) = None;
+        }
+    }
+    let permit = &state.tunnel.cloudflared_recovery_checksum;
+    let _clear = ClearPermit(permit);
+    *permit.write().unwrap_or_else(|error| error.into_inner()) = Some(checksum.to_string());
+    resume_cloudflared_after_asset_update(state, true).await
+}
+
 struct CloudflaredProcessAdapter {
     state: AppState,
     manager: CloudflaredManager,
@@ -789,7 +817,16 @@ impl TunnelProcessAdapter for CloudflaredProcessAdapter {
         if !cloudflared_token_configured(&config.token) {
             return Err("Cloudflared token is required".to_string());
         }
-        let executable = self.manager.executable()?;
+        let recovery_checksum = self
+            .state
+            .tunnel
+            .cloudflared_recovery_checksum
+            .write()
+            .unwrap_or_else(|error| error.into_inner())
+            .take();
+        let executable = self
+            .manager
+            .executable_for_recovery(recovery_checksum.as_deref())?;
         ensure_token_file_supported(&executable).await?;
         *self
             .secret
@@ -1641,6 +1678,28 @@ mod tests {
                 "/run/fn-knock/tunnel-token"
             ]
         );
+    }
+
+    #[test]
+    fn recovery_only_allows_the_exact_pre_update_binary() {
+        use sha2::{Digest, Sha256};
+        let directory = tempfile::tempdir().unwrap();
+        let manager = CloudflaredManager::new(directory.path());
+        manager.ensure_dir();
+        fs::write(&manager.bin_path, b"previous release").unwrap();
+        let checksum = hex::encode(Sha256::digest(b"previous release"));
+
+        // An old installation must stay outdated even when rollback can launch it.
+        assert!(manager.executable_for_recovery(None).is_err());
+        assert!(manager.executable_for_recovery(Some(&checksum)).is_ok());
+        assert!(!manager.downloaded());
+        assert!(manager.executable_for_recovery(None).is_err());
+
+        // A failed rollback must never authorize a different or missing file.
+        fs::write(&manager.bin_path, b"replacement release").unwrap();
+        assert!(manager.executable_for_recovery(Some(&checksum)).is_err());
+        fs::remove_file(&manager.bin_path).unwrap();
+        assert!(manager.executable_for_recovery(Some(&checksum)).is_err());
     }
 
     #[test]

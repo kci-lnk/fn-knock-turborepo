@@ -72,9 +72,11 @@ pub(super) async fn download_cloudflared(state: AppState) {
         let platform = detect_cloudflared_platform();
         let asset = cloudflared_asset_spec(platform)
             .ok_or_else(|| "Cloudflared platform is unsupported".to_string())?;
+        // Keep releases in separate objects so older applications can still
+        // download the binaries matching their pinned checksums.
         let url = format!(
-            "{CLOUDFLARED_MIRROR_BASE}/{}?version={}&sha256={}",
-            asset.file_name, asset.version, asset.sha256
+            "{CLOUDFLARED_MIRROR_BASE}/{}/{}?sha256={}",
+            asset.version, asset.file_name, asset.sha256
         );
         let dir = state.settings.data_dir.join("cloudflared");
         fs::create_dir_all(&dir).map_err(|error| error.to_string())?;
@@ -99,6 +101,8 @@ pub(super) async fn download_cloudflared(state: AppState) {
         // config/managed-tunnel operations. The download itself happens first,
         // so a running tunnel is paused only for the short replacement window.
         let _manage_guard = state.tunnel.cloudflared_manage_lock.lock().await;
+        let previous_checksum = target.is_file()
+            .then(|| calculate_file_sha256(&target)).transpose()?;
         let should_resume = cloudflared::pause_cloudflared_for_asset_update(&state).await?;
         let install = install_cloudflared_binary_transactionally(
             &temp,
@@ -109,9 +113,10 @@ pub(super) async fn download_cloudflared(state: AppState) {
         let transaction = match install {
             Ok(transaction) => transaction,
             Err(error) => {
-                if let Err(resume_error) = cloudflared::resume_cloudflared_after_asset_update(
+                if let Err(resume_error) = cloudflared::recover_cloudflared_after_asset_update(
                     &state,
                     should_resume,
+                    previous_checksum.as_deref(),
                 )
                 .await
                 {
@@ -127,7 +132,9 @@ pub(super) async fn download_cloudflared(state: AppState) {
         {
             let rollback = transaction.rollback();
             let recovery =
-                cloudflared::resume_cloudflared_after_asset_update(&state, should_resume).await;
+                cloudflared::recover_cloudflared_after_asset_update(
+                    &state, should_resume, previous_checksum.as_deref(),
+                ).await;
             return Err(match (rollback, recovery) {
                 (Ok(()), Ok(())) => format!(
                     "Cloudflared update failed to start ({start_error}); previous binary restored"

@@ -303,6 +303,8 @@ pub struct TunnelState {
     /// Serializes Cloudflare discovery, preview/apply, DNS reconciliation and
     /// optimization cutovers so a scheduled run cannot race an admin action.
     pub cloudflared_manage_lock: Mutex<()>,
+    /// One-shot checksum permit for restoring the pre-update process.
+    pub(crate) cloudflared_recovery_checksum: std::sync::RwLock<Option<String>>,
     /// In-memory preview cache. Plans intentionally do not survive a restart;
     /// every apply must be based on recently observed Cloudflare state.
     pub cloudflared_plans: Mutex<HashMap<String, Value>>,
@@ -325,6 +327,7 @@ impl Default for TunnelState {
             supervisors: TunnelSupervisorRegistry::default(),
             runtime_update_lock: Mutex::new(()),
             cloudflared_manage_lock: Mutex::new(()),
+            cloudflared_recovery_checksum: std::sync::RwLock::new(None),
             cloudflared_plans: Mutex::new(HashMap::new()),
             cloudflared_reconcile_jobs: RwLock::new(HashMap::new()),
             cloudflared_scan_jobs: RwLock::new(HashMap::new()),

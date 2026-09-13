@@ -708,10 +708,8 @@ export const jaJPAdmin = {
     onlineIps: {
       open: "オンラインユーザーの IP を表示",
       title: "オンラインユーザー",
-      description:
-        "過去 {seconds} 秒間にアクティブだった認証済みユーザーを最新の IP ごとに集計します。ページ切替時は同じスナップショットを使用し、更新すると最新データを取得します。",
+      description: "過去 {seconds} 秒間にアクティブだった認証済みユーザー",
       summary: "オンライン認証ユーザー {users} 件 · IP {ips} 件",
-      snapshotAt: "取得日時",
       refresh: "更新",
       retry: "再試行",
       stale: "更新に失敗しました。前回のスナップショットを表示しています。",

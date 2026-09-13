@@ -72,6 +72,24 @@ afterEach(() => {
 });
 
 describe("online IP snapshot", () => {
+  it.each([0, 20, 21])(
+    "shows pagination only when %i addresses need another page",
+    async (count) => {
+      mocks.online.mockResolvedValueOnce(payload(count));
+      const { resource: r } = setup();
+      await flushPromises();
+      expect(r.showPagination.value).toBe(count > 20);
+      expect(r.hasPreviousPage.value).toBe(false);
+      expect(r.hasNextPage.value).toBe(count > 20);
+      if (count > 20) {
+        r.page.value++;
+        await flushPromises();
+        expect(r.displayItems.value).toHaveLength(1);
+        expect(r.hasPreviousPage.value).toBe(true);
+        expect(r.hasNextPage.value).toBe(false);
+      }
+    },
+  );
   it("sorts and pages a fixed snapshot, resolving only visible addresses and reusing results", async () => {
     const { resource: r } = setup();
     await flushPromises();
@@ -89,11 +107,13 @@ describe("online IP snapshot", () => {
     await flushPromises();
     expect(r.page.value).toBe(1);
     expect(r.displayItems.value[0]?.ip).toBe("192.0.2.1");
-    r.page.value = 2;
-    r.limit.value = "50";
+    expect(r.showPagination.value).toBe(true);
+    expect(r.hasPreviousPage.value).toBe(false);
+    r.page.value = 3;
     await flushPromises();
-    expect(r.page.value).toBe(1);
-    expect(r.displayItems.value).toHaveLength(45);
+    expect(r.displayItems.value).toHaveLength(5);
+    expect(r.hasNextPage.value).toBe(false);
+    expect(r.hasPreviousPage.value).toBe(true);
     await vi.advanceTimersByTimeAsync(15000);
     expect(mocks.online).toHaveBeenCalledTimes(1);
   });

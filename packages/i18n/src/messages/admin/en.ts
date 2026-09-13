@@ -708,10 +708,8 @@ export const enAdmin = {
     onlineIps: {
       open: "View online user IPs",
       title: "Online users",
-      description:
-        "Authenticated identities active in the last {seconds} seconds, grouped by their latest IP. Pages use a fixed snapshot; refresh to get the latest data.",
+      description: "Authenticated users active in the last {seconds} seconds",
       summary: "{users} online identities · {ips} IPs",
-      snapshotAt: "Snapshot time",
       refresh: "Refresh",
       retry: "Retry",
       stale: "Refresh failed. Showing the last successful snapshot.",

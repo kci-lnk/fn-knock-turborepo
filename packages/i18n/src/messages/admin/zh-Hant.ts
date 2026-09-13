@@ -566,10 +566,8 @@ export const zhHantAdmin = {
     onlineIps: {
       open: "檢視線上使用者 IP",
       title: "線上使用者",
-      description:
-        "最近 {seconds} 秒內活躍的已登入身分，依最近使用的 IP 合併；翻頁保留目前快照，點擊重新整理取得最新資料。",
+      description: "最近 {seconds} 秒內活躍的已登入使用者",
       summary: "{users} 個線上身分 · {ips} 個 IP",
-      snapshotAt: "快照時間",
       refresh: "重新整理",
       retry: "重試",
       stale: "重新整理失敗，仍顯示上次成功取得的快照。",

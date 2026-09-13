@@ -700,10 +700,8 @@ export const koKRAdmin = {
     onlineIps: {
       open: "온라인 사용자 IP 보기",
       title: "온라인 사용자",
-      description:
-        "최근 {seconds}초 동안 활동한 인증된 사용자를 마지막 IP별로 집계합니다. 페이지를 이동해도 같은 스냅샷을 사용하며 새로 고침으로 최신 데이터를 가져옵니다.",
+      description: "최근 {seconds}초 동안 활동한 인증된 사용자",
       summary: "온라인 인증 사용자 {users}개 · IP {ips}개",
-      snapshotAt: "스냅샷 시간",
       refresh: "새로 고침",
       retry: "다시 시도",
       stale: "새로 고침에 실패했습니다. 마지막으로 가져온 스냅샷을 표시합니다.",

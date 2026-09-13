@@ -10,14 +10,14 @@ import type { DashboardOnlineIpsPayload } from "@/types";
 const fractionalNanoseconds = (timestamp: string) =>
   Number((timestamp.match(/\.(\d+)/)?.[1] ?? "").padEnd(9, "0"));
 
+const PAGE_SIZE = 20;
+
 export const useDashboardOnlineIps = (open: Ref<boolean>) => {
   const snapshot = ref<DashboardOnlineIpsPayload | null>(null);
   const loading = ref(false);
   const error = ref("");
   const page = ref(1);
-  const limit = ref("20");
   const order = ref<"desc" | "asc">("desc");
-  const pageSize = computed(() => Number(limit.value));
   const locations = useIpLocationBatch({ reuseResolved: true });
   let runId = 0;
   let controller: AbortController | null = null;
@@ -36,9 +36,14 @@ export const useDashboardOnlineIps = (open: Ref<boolean>) => {
   );
   const visibleItems = computed(() =>
     sortedItems.value.slice(
-      (page.value - 1) * pageSize.value,
-      page.value * pageSize.value,
+      (page.value - 1) * PAGE_SIZE,
+      page.value * PAGE_SIZE,
     ),
+  );
+  const showPagination = computed(() => sortedItems.value.length > PAGE_SIZE);
+  const hasPreviousPage = computed(() => page.value > 1);
+  const hasNextPage = computed(
+    () => page.value * PAGE_SIZE < sortedItems.value.length,
   );
   const displayItems = computed(() =>
     visibleItems.value.map((item) => ({
@@ -84,7 +89,7 @@ export const useDashboardOnlineIps = (open: Ref<boolean>) => {
   };
 
   watch(
-    [order, limit],
+    order,
     () => {
       page.value = 1;
     },
@@ -118,9 +123,10 @@ export const useDashboardOnlineIps = (open: Ref<boolean>) => {
     loading,
     error,
     page,
-    limit,
     order,
-    pageSize,
+    showPagination,
+    hasPreviousPage,
+    hasNextPage,
     displayItems,
     ipCount,
     refresh,

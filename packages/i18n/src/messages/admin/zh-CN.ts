@@ -631,10 +631,8 @@ export const zhCNAdmin = {
     onlineIps: {
       open: "查看在线用户 IP",
       title: "在线用户",
-      description:
-        "最近 {seconds} 秒内活跃的已登录身份，按最近使用的 IP 合并；翻页保持当前快照，点击刷新获取最新数据。",
+      description: "最近 {seconds} 秒内活跃的已登录用户",
       summary: "{users} 个在线身份 · {ips} 个 IP",
-      snapshotAt: "快照时间",
       refresh: "刷新",
       retry: "重试",
       stale: "刷新失败，仍显示上次成功获取的快照。",

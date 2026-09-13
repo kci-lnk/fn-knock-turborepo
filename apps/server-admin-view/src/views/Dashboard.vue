@@ -254,6 +254,34 @@ watch(showTunnelSection, (visible) => {
     </Alert>
 
     <div class="space-y-4">
+      <Card class="border bg-card shadow-none rounded-xl">
+        <CardHeader class="pb-3">
+          <div class="flex items-center justify-between">
+            <div>
+              <CardTitle class="text-lg">{{
+                t("admin.dashboard.traffic.title")
+              }}</CardTitle>
+              <CardDescription class="mt-1">{{
+                t("admin.dashboard.traffic.description")
+              }}</CardDescription>
+            </div>
+          </div>
+        </CardHeader>
+        <CardContent>
+          <div v-if="isInitializing && showMainSkeleton">
+            <Skeleton class="h-[300px] w-full rounded-xl" />
+          </div>
+          <div v-else-if="!isInitializing" class="h-[300px] w-full">
+            <TimeSeriesChart
+              :series="trafficSeries"
+              :value-formatter="formatBps"
+              class="h-full w-full"
+            />
+          </div>
+          <div v-else class="h-[300px]" aria-hidden="true"></div>
+        </CardContent>
+      </Card>
+
       <div
         class="grid gap-4 [grid-template-columns:repeat(auto-fit,minmax(min(100%,24rem),1fr))]"
       >
@@ -444,33 +472,6 @@ watch(showTunnelSection, (visible) => {
         </Card>
       </div>
 
-      <Card class="border bg-card shadow-none rounded-xl">
-        <CardHeader class="pb-3">
-          <div class="flex items-center justify-between">
-            <div>
-              <CardTitle class="text-lg">{{
-                t("admin.dashboard.traffic.title")
-              }}</CardTitle>
-              <CardDescription class="mt-1">{{
-                t("admin.dashboard.traffic.description")
-              }}</CardDescription>
-            </div>
-          </div>
-        </CardHeader>
-        <CardContent>
-          <div v-if="isInitializing && showMainSkeleton">
-            <Skeleton class="h-[300px] w-full rounded-xl" />
-          </div>
-          <div v-else-if="!isInitializing" class="h-[300px] w-full">
-            <TimeSeriesChart
-              :series="trafficSeries"
-              :value-formatter="formatBps"
-              class="h-full w-full"
-            />
-          </div>
-          <div v-else class="h-[300px]" aria-hidden="true"></div>
-        </CardContent>
-      </Card>
     </div>
   </div>
 </template>

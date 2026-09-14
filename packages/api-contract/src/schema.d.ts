@@ -6142,7 +6142,7 @@ export interface paths {
             cookie?: never;
         };
         /**
-         * 查看Web 终端disks
+         * 查看Web 终端磁盘使用情况
          * @description 管理 Web 终端运行时能力和交互会话。。`GET /api/admin/terminal/attachments/{id}/disks` 用于读取当前状态、配置或导出内容，不会主动修改服务配置。 该操作不要求 JSON 请求体。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
          */
         get: operations["attachment_disks"];
@@ -6202,7 +6202,7 @@ export interface paths {
             cookie?: never;
         };
         /**
-         * 查看Web 终端metrics
+         * 查看Web 终端资源状态
          * @description 管理 Web 终端运行时能力和交互会话。。`GET /api/admin/terminal/attachments/{id}/metrics` 用于读取当前状态、配置或导出内容，不会主动修改服务配置。 该操作不要求 JSON 请求体。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
          */
         get: operations["attachment_metrics"];
@@ -29256,7 +29256,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description 「查看Web 终端disks」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
+            /** @description 「查看Web 终端磁盘使用情况」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -29370,7 +29370,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description 「查看Web 终端metrics」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
+            /** @description 「查看Web 终端资源状态」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
             200: {
                 headers: {
                     [name: string]: unknown;

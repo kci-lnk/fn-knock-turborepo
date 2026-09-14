@@ -6134,6 +6134,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/admin/terminal/attachments/{id}/disks": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * 查看Web 终端disks
+         * @description 管理 Web 终端运行时能力和交互会话。。`GET /api/admin/terminal/attachments/{id}/disks` 用于读取当前状态、配置或导出内容，不会主动修改服务配置。 该操作不要求 JSON 请求体。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
+         */
+        get: operations["attachment_disks"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/admin/terminal/attachments/{id}/events": {
         parameters: {
             query?: never;
@@ -13297,6 +13317,22 @@ export interface components {
             totalBytes?: number | null;
             /** Format: int64 */
             usedBytes?: number | null;
+        };
+        /** @description One mounted filesystem. Shared APFS/bind mounts must never be summed. */
+        TerminalDiskUsage: {
+            /** Format: int64 */
+            availableBytes?: number | null;
+            capacity: components["schemas"]["TerminalCapacityMetric"];
+            filesystem: string;
+            mountPoint: string;
+        };
+        TerminalDisks: {
+            disks: components["schemas"]["TerminalDiskUsage"][];
+            reason?: null | components["schemas"]["MetricReason"];
+            /** Format: int64 */
+            sampleAgeMs: number;
+            sampledAt: string;
+            status: components["schemas"]["MetricsStatus"];
         };
         /** @enum {string} */
         TerminalErrorCode: "feature_disabled" | "resource_busy" | "invalid_request" | "target_not_found" | "session_not_found" | "host_key_required" | "host_key_mismatch" | "authentication_failed" | "pty_rejected" | "session_limit_reached" | "session_lost" | "attachment_expired" | "controller_conflict" | "target_revision_conflict" | "local_terminal_unsupported" | "local_terminal_disabled" | "local_terminal_risk_acknowledgement_required" | "local_terminal_revision_conflict" | "local_shell_unavailable" | "local_pty_start_failed" | "connect_timeout" | "conflict" | "upstream_unavailable" | "internal_error";
@@ -29190,6 +29226,44 @@ export interface operations {
                 content: {
                     "application/json": {
                         data: components["schemas"]["TerminalAttachment"];
+                        message?: string | null;
+                        /** @constant */
+                        success: true;
+                    } & {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TerminalErrorEnvelope"];
+                };
+            };
+        };
+    };
+    attachment_disks: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 「查看Web 终端disks」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        data: components["schemas"]["TerminalDisks"];
                         message?: string | null;
                         /** @constant */
                         success: true;

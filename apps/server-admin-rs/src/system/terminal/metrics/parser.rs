@@ -2,7 +2,7 @@ use super::model::*;
 use std::collections::HashMap;
 
 #[derive(Clone, Copy, Debug)]
-pub(super) struct CpuSnapshot {
+pub(in crate::system::terminal) struct CpuSnapshot {
     total: u64,
     idle: u64,
 }

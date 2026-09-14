@@ -8,6 +8,7 @@ import {
 } from "vue";
 import { useI18n } from "vue-i18n";
 import { toast } from "@admin-shared/utils/toast";
+import { useTerminalDisks } from "./useTerminalDisks";
 import { useTerminalMetrics } from "./useTerminalMetrics";
 import { useTerminalAttachment } from "./useTerminalAttachment";
 import { extractTerminalError, localizeTerminalError } from "./terminal-errors";
@@ -78,6 +79,15 @@ export const useWebTerminalPage = () => {
   });
 
   const metricsController = useTerminalMetrics({
+    attachment: attachmentController.attachment,
+    sessionId: sessionsController.selectedSessionId,
+    connected: computed(
+      () =>
+        attachmentController.connected.value &&
+        sessionsController.selectedSession.value?.phase === "running",
+    ),
+  });
+  const disksController = useTerminalDisks({
     attachment: attachmentController.attachment,
     sessionId: sessionsController.selectedSessionId,
     connected: computed(
@@ -377,6 +387,7 @@ export const useWebTerminalPage = () => {
 
   return {
     ...metricsController,
+    ...disksController,
     ...interactions,
     ...presentation,
     ...sessionActions,

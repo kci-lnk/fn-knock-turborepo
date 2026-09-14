@@ -77,6 +77,7 @@ function validateContract(openapiPath) {
     ],
     ["get /api/admin/terminal/attachments/{id}/events", null],
     ["get /api/admin/terminal/attachments/{id}/metrics", null],
+    ["get /api/admin/terminal/attachments/{id}/disks", null],
     ["post /api/admin/terminal/attachments/{id}/input", "InputRequest"],
     ["post /api/admin/terminal/attachments/{id}/resize", "ResizeRequest"],
     [

@@ -95,6 +95,7 @@ pub fn routes() -> OpenApiRouter<AppState> {
         .routes(routes!(create_attachment))
         .routes(routes!(attachment_events))
         .routes(routes!(attachment_metrics))
+        .routes(routes!(attachment_disks))
         .routes(routes!(send_input))
         .routes(routes!(resize))
         .routes(routes!(claim_control))
@@ -268,6 +269,15 @@ async fn attachment_metrics(
     TerminalId(id): TerminalId,
 ) -> Response {
     result(state.terminal.attachment_metrics(&id).await)
+}
+
+#[utoipa::path(get, path = "/api/admin/terminal/attachments/{id}/disks", tag = "terminal", params(("id" = String, Path)), responses((status = 200, body = super::metrics::TerminalDisks), (status = 410, body = TerminalErrorEnvelope)))]
+async fn attachment_disks(
+    _access: TerminalAccess,
+    State(state): State<AppState>,
+    TerminalId(id): TerminalId,
+) -> Response {
+    result(state.terminal.attachment_disks(&id).await)
 }
 
 #[utoipa::path(get, path = "/api/admin/terminal/attachments/{id}/events", tag = "terminal", params(("id" = String, Path), EventsQuery), responses((status = 200, body = EventsResult), (status = 410, body = TerminalErrorEnvelope)))]

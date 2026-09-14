@@ -23933,6 +23933,72 @@
         ],
         "type": "object"
       },
+      "TerminalDiskUsage": {
+        "description": "One mounted filesystem. Shared APFS/bind mounts must never be summed.",
+        "properties": {
+          "availableBytes": {
+            "format": "int64",
+            "minimum": 0,
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "capacity": {
+            "$ref": "#/components/schemas/TerminalCapacityMetric"
+          },
+          "filesystem": {
+            "type": "string"
+          },
+          "mountPoint": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "filesystem",
+          "mountPoint",
+          "capacity"
+        ],
+        "type": "object"
+      },
+      "TerminalDisks": {
+        "properties": {
+          "disks": {
+            "items": {
+              "$ref": "#/components/schemas/TerminalDiskUsage"
+            },
+            "type": "array"
+          },
+          "reason": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/MetricReason"
+              }
+            ]
+          },
+          "sampleAgeMs": {
+            "format": "int64",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "sampledAt": {
+            "type": "string"
+          },
+          "status": {
+            "$ref": "#/components/schemas/MetricsStatus"
+          }
+        },
+        "required": [
+          "sampledAt",
+          "sampleAgeMs",
+          "status",
+          "disks"
+        ],
+        "type": "object"
+      },
       "TerminalErrorCode": {
         "enum": [
           "feature_disabled",
@@ -51025,6 +51091,69 @@
           }
         },
         "summary": "接管Web 终端附件",
+        "tags": [
+          "terminal"
+        ],
+        "x-fn-knock-contract-source": "utoipa"
+      }
+    },
+    "/api/admin/terminal/attachments/{id}/disks": {
+      "get": {
+        "description": "管理 Web 终端运行时能力和交互会话。。`GET /api/admin/terminal/attachments/{id}/disks` 用于读取当前状态、配置或导出内容，不会主动修改服务配置。 该操作不要求 JSON 请求体。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。",
+        "operationId": "attachment_disks",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "properties": {
+                    "data": {
+                      "$ref": "#/components/schemas/TerminalDisks"
+                    },
+                    "message": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "success": {
+                      "const": true,
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "success",
+                    "data"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "「查看Web 终端disks」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TerminalErrorEnvelope"
+                }
+              }
+            },
+            "description": "接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。"
+          }
+        },
+        "summary": "查看Web 终端disks",
         "tags": [
           "terminal"
         ],

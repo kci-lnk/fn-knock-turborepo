@@ -141,3 +141,34 @@ impl TerminalMetrics {
         };
     }
 }
+
+/// One mounted filesystem. Shared APFS/bind mounts must never be summed.
+#[derive(Clone, Debug, Serialize, ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct TerminalDiskUsage {
+    pub filesystem: String,
+    pub mount_point: String,
+    pub capacity: TerminalCapacityMetric,
+    pub available_bytes: Option<u64>,
+}
+
+#[derive(Clone, Debug, Serialize, ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct TerminalDisks {
+    pub sampled_at: String,
+    pub sample_age_ms: u64,
+    pub status: MetricsStatus,
+    pub reason: Option<MetricReason>,
+    pub disks: Vec<TerminalDiskUsage>,
+}
+impl TerminalDisks {
+    pub fn unavailable(reason: MetricReason) -> Self {
+        Self {
+            sampled_at: crate::time_utils::now_iso(),
+            sample_age_ms: 0,
+            status: MetricsStatus::Unavailable,
+            reason: Some(reason),
+            disks: Vec::new(),
+        }
+    }
+}

@@ -4648,6 +4648,12 @@ export const zhCNAdmin = {
   },
   webTerminal: {
     metrics: {
+      disksTitle: "磁盘与挂载点",
+      diskAvailable: "可用",
+      disksEmpty: "暂无文件系统数据",
+      disksPartial: "部分文件系统无法读取",
+      disksNote: "显示已挂载的文件系统。共享存储按挂载点分别列出，容量不累加。",
+      closeDetails: "关闭明细",
       title: "目标机器资源",
       cpu: "CPU",
       memory: "内存",

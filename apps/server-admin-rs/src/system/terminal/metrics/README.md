@@ -38,3 +38,24 @@ docker stop fn-terminal-metrics-dropbear
 ```
 
 The fixed test password is only for this disposable, localhost-bound fixture.
+
+## Mounted filesystem details
+
+`GET /api/admin/terminal/attachments/{id}/disks` uses the same attachment access
+checks as the overview. It has its own demand-driven worker/cache using the
+shared sampling lifecycle, so a slow network mount cannot delay CPU or memory
+refreshes. The collector runs fixed `df -kP` (fallback `df -k`) over an independent
+exec channel with the same 4-second and 64-KiB limits. Neither worker runs an idle
+sampling timer. Session cancellation stops both workers.
+
+Each row includes the filesystem name, mount point, byte capacities, available
+bytes, and df's Capacity percentage. Wrapped device names, names containing
+spaces, and BSD inode columns are accepted. Partial results retain readable
+rows; malformed or zero-capacity entries are marked unavailable. Filesystems
+mounted more than once remain separate rows; shared APFS/bind storage is never
+summed. Unmounted physical devices are not represented by df.
+
+The frontend opens details on mouse hover, keyboard focus, or touch/pen contact.
+Moving into the panel keeps it open; leaving, Escape, the close button, or an
+outside touch dismisses it. Enumeration polls only while details are open and
+the page is visible, stops on close/disconnect, and clears on attachment changes.

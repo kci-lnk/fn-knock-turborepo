@@ -1,5 +1,5 @@
 use super::super::ssh::HostKeyHandler;
-use super::{MetricReason, MetricsCollector, OUTPUT_LIMIT, SCRIPT, TIMEOUT};
+use super::{DISKS_SCRIPT, MetricReason, MetricsCollector, OUTPUT_LIMIT, SCRIPT, TIMEOUT};
 use async_trait::async_trait;
 use russh::{ChannelMsg, client};
 use std::{sync::Arc, time::Duration};
@@ -10,6 +10,18 @@ pub(in crate::system::terminal) struct SshCollector(pub Arc<client::Handle<HostK
 #[async_trait]
 impl MetricsCollector for SshCollector {
     async fn collect(&self, cancel: &CancellationToken) -> Result<String, MetricReason> {
+        self.collect_script(SCRIPT, cancel).await
+    }
+    async fn collect_disks(&self, cancel: &CancellationToken) -> Result<String, MetricReason> {
+        self.collect_script(DISKS_SCRIPT, cancel).await
+    }
+}
+impl SshCollector {
+    async fn collect_script(
+        &self,
+        script: &str,
+        cancel: &CancellationToken,
+    ) -> Result<String, MetricReason> {
         let deadline = tokio::time::Instant::now() + TIMEOUT;
         let mut channel = tokio::select! {
             biased;
@@ -18,7 +30,7 @@ impl MetricsCollector for SshCollector {
                 result.map_err(|_| MetricReason::Timeout)?.map_err(|_| MetricReason::ExecRejected)?,
         };
         // The script is fixed and shell-quoted, never built from user input.
-        let command = format!("sh -c '{}'", SCRIPT.replace('\'', "'\\''"));
+        let command = format!("sh -c '{}'", script.replace('\'', "'\\''"));
         let result = tokio::select! {
             biased;
             _ = cancel.cancelled() => Err(MetricReason::SessionInactive),
@@ -68,6 +80,9 @@ pub(in crate::system::terminal) struct LocalCollector;
 impl MetricsCollector for LocalCollector {
     async fn collect(&self, cancel: &CancellationToken) -> Result<String, MetricReason> {
         collect_local_script(SCRIPT, TIMEOUT, cancel).await
+    }
+    async fn collect_disks(&self, cancel: &CancellationToken) -> Result<String, MetricReason> {
+        collect_local_script(DISKS_SCRIPT, TIMEOUT, cancel).await
     }
 }
 
@@ -146,6 +161,16 @@ impl Drop for ProcessGroup {
 #[cfg(all(test, target_os = "macos"))]
 mod tests {
     use super::*;
+    #[tokio::test]
+    async fn local_disk_enumeration_uses_bounded_transport() {
+        let raw = LocalCollector
+            .collect_disks(&CancellationToken::new())
+            .await
+            .unwrap();
+        let data = super::super::disks::parse(&raw);
+        assert_ne!(data.status, super::super::MetricsStatus::Unavailable);
+        assert!(data.disks.iter().any(|disk| disk.mount_point == "/"));
+    }
     #[tokio::test]
     async fn local_macos_collects_without_dependencies() {
         let raw = LocalCollector

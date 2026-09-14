@@ -5021,6 +5021,12 @@ export const jaJPAdmin = {
   },
   webTerminal: {
     metrics: {
+      disksTitle: "ディスクとマウントポイント",
+      diskAvailable: "空き",
+      disksEmpty: "ファイルシステムのデータがありません",
+      disksPartial: "一部のファイルシステムを読み取れません",
+      disksNote: "マウント済みのファイルシステムを表示します。共有ストレージの容量は合算しません。",
+      closeDetails: "詳細を閉じる",
       title: "マシンリソース",
       cpu: "CPU",
       memory: "メモリ",

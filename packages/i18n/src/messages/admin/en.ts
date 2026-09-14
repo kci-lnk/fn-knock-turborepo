@@ -5035,6 +5035,12 @@ export const enAdmin = {
   },
   webTerminal: {
     metrics: {
+      disksTitle: "Mounted filesystems",
+      diskAvailable: "Available",
+      disksEmpty: "No filesystem data",
+      disksPartial: "Some filesystems could not be read",
+      disksNote: "Mounted filesystems only. Shared storage is listed by mount point and is not added together.",
+      closeDetails: "Close details",
       title: "Machine resources",
       cpu: "CPU",
       memory: "Memory",

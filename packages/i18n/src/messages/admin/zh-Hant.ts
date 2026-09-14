@@ -4592,6 +4592,12 @@ export const zhHantAdmin = {
   },
   webTerminal: {
     metrics: {
+      disksTitle: "磁碟與掛載點",
+      diskAvailable: "可用",
+      disksEmpty: "暫無檔案系統資料",
+      disksPartial: "部分檔案系統無法讀取",
+      disksNote: "顯示已掛載的檔案系統。共享儲存按掛載點分別列出，容量不累加。",
+      closeDetails: "關閉明細",
       title: "目標機器資源",
       cpu: "CPU",
       memory: "記憶體",

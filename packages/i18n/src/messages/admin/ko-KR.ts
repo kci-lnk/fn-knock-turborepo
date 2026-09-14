@@ -4989,6 +4989,12 @@ export const koKRAdmin = {
   },
   webTerminal: {
     metrics: {
+      disksTitle: "디스크 및 마운트 지점",
+      diskAvailable: "사용 가능",
+      disksEmpty: "파일 시스템 데이터 없음",
+      disksPartial: "일부 파일 시스템을 읽을 수 없습니다",
+      disksNote: "마운트된 파일 시스템을 표시합니다. 공유 저장소 용량은 합산하지 않습니다.",
+      closeDetails: "상세 정보 닫기",
       title: "시스템 리소스",
       cpu: "CPU",
       memory: "메모리",

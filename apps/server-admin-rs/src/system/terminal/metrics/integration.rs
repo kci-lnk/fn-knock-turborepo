@@ -51,6 +51,11 @@ async fn busybox_dropbear_metrics_keep_interactive_shell_usable() {
     assert_eq!(second.status, MetricsStatus::Available);
     assert!(second.memory.total_bytes.unwrap() > 0);
     assert!(second.disk.total_bytes.unwrap() > 0);
+    let detail = collector.collect_disks(&cancel).await.unwrap();
+    let detail = disks::parse(&detail);
+    assert_eq!(detail.status, MetricsStatus::Available);
+    assert!(detail.disks.iter().any(|disk| disk.mount_point == "/"));
+    assert!(detail.disks.len() > 1);
     shell.resize(100, 30).await.unwrap();
     shell
         .input(b"printf 'interactive-%s\\n' ok\r".to_vec())

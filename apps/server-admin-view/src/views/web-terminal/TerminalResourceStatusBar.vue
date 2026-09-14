@@ -10,9 +10,16 @@ import {
   HardDrive,
   Clock3,
 } from "lucide-vue-next";
-import type { TerminalMetrics } from "@/lib/api/terminal";
+import TerminalDiskPopover from "./TerminalDiskPopover.vue";
+import { formatBytes, formatPercent } from "./terminal-metric-format";
+import type { TerminalDisks, TerminalMetrics } from "@/lib/api/terminal";
 
 const props = defineProps<{
+  disks?: TerminalDisks | null;
+  disksLoading?: boolean;
+  disksFailed?: boolean;
+  disksStale?: boolean;
+  diskDetailsOpen?: boolean;
   metrics: TerminalMetrics | null;
   loading: boolean;
   failed: boolean;
@@ -20,22 +27,12 @@ const props = defineProps<{
   connectionState: "idle" | "connecting" | "connected" | "error";
   connectionLabel: string;
 }>();
+const emit = defineEmits<{ "update:diskDetailsOpen": [open: boolean] }>();
 const { t, locale } = useI18n();
 const label = (key: string) => t(`admin.webTerminal.metrics.${key}`);
-const number = (value: number, digits = 1) =>
-  new Intl.NumberFormat(locale.value, { maximumFractionDigits: digits }).format(
-    value,
-  );
+const bytes = (value: number) => formatBytes(value, locale.value);
 const percent = (value: number | null | undefined) =>
-  value == null ? "—" : `${number(value)}%`;
-const bytes = (value: number) => {
-  const units = ["B", "KiB", "MiB", "GiB", "TiB", "PiB"];
-  const index = Math.min(
-    Math.floor(Math.log2(Math.max(value, 1)) / 10),
-    units.length - 1,
-  );
-  return `${number(value / 1024 ** index)} ${units[index]}`;
-};
+  formatPercent(value, locale.value);
 const uptime = computed(() => {
   const value = props.metrics?.uptime.value;
   if (value == null) return "—";
@@ -141,45 +138,63 @@ const health = computed(() =>
         v-for="item in items"
         :key="item.key"
         class="inline-flex min-w-0 items-center gap-1.5"
-        :title="reason(item)"
+        :title="item.key === 'disk' ? undefined : reason(item)"
         :data-metric="item.key"
       >
         <component
-          :is="item.icon"
-          class="metric-icon size-3 shrink-0 text-white/35"
-          aria-hidden="true"
-        />
-        <span class="metric-label">{{ label(item.key) }}</span>
-        <span
-          v-if="item.percent != null"
-          class="metric-track hidden h-1 w-9 overflow-hidden rounded-full bg-white/10 sm:inline-block"
-          aria-hidden="true"
+          :is="item.key === 'disk' ? TerminalDiskPopover : 'span'"
+          class="inline-flex min-w-0 items-center gap-1.5"
+          v-bind="
+            item.key === 'disk'
+              ? {
+                  open: diskDetailsOpen ?? false,
+                  disks: disks ?? null,
+                  loading: disksLoading ?? false,
+                  failed: disksFailed ?? false,
+                  stale: disksStale ?? false,
+                  disabled: connectionState !== 'connected',
+                }
+              : {}
+          "
+          @update:open="emit('update:diskDetailsOpen', $event)"
         >
-          <span
-            class="block h-full rounded-full transition-[width] duration-300 motion-reduce:transition-none"
-            :class="
-              stale
-                ? 'bg-white/25'
-                : item.percent >= 90
-                  ? 'bg-amber-400/80'
-                  : 'bg-emerald-400/70'
-            "
-            :style="{ width: `${Math.min(100, Math.max(0, item.percent))}%` }"
+          <component
+            :is="item.icon"
+            class="metric-icon size-3 shrink-0 text-white/35"
+            aria-hidden="true"
           />
-        </span>
-        <span
-          class="tabular-nums"
-          :class="stale ? 'text-white/35' : 'text-white/80'"
-          >{{ loading && !metrics ? "…" : item.value }}</span
-        >
-        <span
-          v-if="item.metric?.status === 'estimated'"
-          :aria-label="label('reason.estimated')"
-          >≈</span
-        >
-        <span v-if="item.metric?.reason" class="sr-only">{{
-          label(`reason.${item.metric.reason}`)
-        }}</span>
+          <span class="metric-label">{{ label(item.key) }}</span>
+          <span
+            v-if="item.percent != null"
+            class="metric-track hidden h-1 w-9 overflow-hidden rounded-full bg-white/10 sm:inline-block"
+            aria-hidden="true"
+          >
+            <span
+              class="block h-full rounded-full transition-[width] duration-300 motion-reduce:transition-none"
+              :class="
+                stale
+                  ? 'bg-white/25'
+                  : item.percent >= 90
+                    ? 'bg-amber-400/80'
+                    : 'bg-emerald-400/70'
+              "
+              :style="{ width: `${Math.min(100, Math.max(0, item.percent))}%` }"
+            />
+          </span>
+          <span
+            class="tabular-nums"
+            :class="stale ? 'text-white/35' : 'text-white/80'"
+            >{{ loading && !metrics ? "…" : item.value }}</span
+          >
+          <span
+            v-if="item.metric?.status === 'estimated'"
+            :aria-label="label('reason.estimated')"
+            >≈</span
+          >
+          <span v-if="item.metric?.reason" class="sr-only">{{
+            label(`reason.${item.metric.reason}`)
+          }}</span>
+        </component>
       </span>
       <span
         v-if="health"

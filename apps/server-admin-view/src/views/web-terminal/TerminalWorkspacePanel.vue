@@ -30,6 +30,11 @@ const {
   metricsLoading,
   metricsFailed,
   metricsStale,
+  disks,
+  disksLoading,
+  disksFailed,
+  disksStale,
+  diskDetailsOpen,
   activeAttachment,
   armedModifier,
   armedModifierLabel,
@@ -308,6 +313,11 @@ const selectedTargetEndpoint = computed(() => {
           />
         </div>
         <TerminalResourceStatusBar
+          v-model:disk-details-open="diskDetailsOpen"
+          :disks="disks"
+          :disks-loading="disksLoading"
+          :disks-failed="disksFailed"
+          :disks-stale="disksStale"
           :metrics="metrics"
           :loading="metricsLoading"
           :failed="metricsFailed"

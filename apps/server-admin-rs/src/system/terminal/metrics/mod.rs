@@ -1,4 +1,5 @@
 //! Demand-driven, session-scoped sampling, completely separate from PTY I/O.
+mod disks;
 #[cfg(test)]
 mod integration;
 mod model;
@@ -17,6 +18,7 @@ use tokio::{
 };
 use tokio_util::{sync::CancellationToken, task::AbortOnDropHandle};
 
+pub(super) const DISKS_SCRIPT: &str = include_str!("collect-disks.sh");
 pub(super) const SCRIPT: &str = include_str!("collect.sh");
 pub(super) const TIMEOUT: Duration = Duration::from_secs(4);
 pub(super) const OUTPUT_LIMIT: usize = 64 * 1024;
@@ -27,21 +29,65 @@ const RETRY_INTERVAL: Duration = Duration::from_secs(15);
 pub(super) trait MetricsCollector: Send + Sync {
     /// Implementations bound execution and output and clean up on cancellation.
     async fn collect(&self, cancel: &CancellationToken) -> Result<String, MetricReason>;
+    async fn collect_disks(&self, _: &CancellationToken) -> Result<String, MetricReason> {
+        Err(MetricReason::UnsupportedPlatform)
+    }
 }
 
-struct CachedSample {
+/// Common cache/lifecycle contract for independently sampled terminal resources.
+#[async_trait]
+pub(super) trait Sample: Clone + Send + 'static {
+    type State: Default + Send;
+    fn unavailable(reason: MetricReason) -> Self;
+    fn set_age(&mut self, age: u64);
+    fn failed(&self) -> bool;
+    async fn collect(
+        collector: &dyn MetricsCollector,
+        cancel: &CancellationToken,
+        state: &mut Self::State,
+    ) -> Self;
+}
+#[async_trait]
+impl Sample for TerminalMetrics {
+    type State = Option<parser::CpuSnapshot>;
+    fn unavailable(reason: MetricReason) -> Self {
+        Self::unavailable(reason)
+    }
+    fn set_age(&mut self, age: u64) {
+        self.sample_age_ms = age;
+    }
+    fn failed(&self) -> bool {
+        self.status == MetricsStatus::Unavailable
+    }
+    async fn collect(
+        collector: &dyn MetricsCollector,
+        cancel: &CancellationToken,
+        state: &mut Self::State,
+    ) -> Self {
+        match collector.collect(cancel).await {
+            Ok(raw) => parser::parse(&raw, state),
+            Err(reason) => {
+                *state = None;
+                Self::unavailable(reason)
+            }
+        }
+    }
+}
+
+struct CachedSample<T> {
     collected_at: Instant,
     retry_at: Instant,
-    data: TerminalMetrics,
+    data: T,
 }
-impl CachedSample {
-    fn response_at(&self, now: Instant) -> TerminalMetrics {
+impl<T: Sample> CachedSample<T> {
+    fn response_at(&self, now: Instant) -> T {
         let mut data = self.data.clone();
-        data.sample_age_ms = now
-            .saturating_duration_since(self.collected_at)
-            .as_millis()
-            .try_into()
-            .unwrap_or(u64::MAX);
+        data.set_age(
+            now.saturating_duration_since(self.collected_at)
+                .as_millis()
+                .try_into()
+                .unwrap_or(u64::MAX),
+        );
         data
     }
 }
@@ -49,19 +95,22 @@ impl CachedSample {
 /// One owned worker per session. It sleeps on a bounded request queue, not a
 /// timer: unattached/hidden terminals never initiate samples. All callers share
 /// the same CPU baseline and cooldown, even when several requests arrive at once.
-pub(super) struct MetricsService {
-    requests: mpsc::Sender<oneshot::Sender<TerminalMetrics>>,
+pub(super) type MetricsService = SamplingService<TerminalMetrics>;
+pub(super) type DisksService = SamplingService<TerminalDisks>;
+
+pub(super) struct SamplingService<T: Sample> {
+    requests: mpsc::Sender<oneshot::Sender<T>>,
     cancel: CancellationToken,
     task: Mutex<Option<AbortOnDropHandle<()>>>,
 }
-impl MetricsService {
+impl<T: Sample> SamplingService<T> {
     pub fn start(collector: Arc<dyn MetricsCollector>, parent: &CancellationToken) -> Arc<Self> {
         let cancel = parent.child_token();
         let worker_cancel = cancel.clone();
-        let (requests, mut receiver) = mpsc::channel::<oneshot::Sender<TerminalMetrics>>(16);
+        let (requests, mut receiver) = mpsc::channel::<oneshot::Sender<T>>(16);
         let task = tokio::spawn(async move {
-            let mut cache: Option<CachedSample> = None;
-            let mut previous = None;
+            let mut cache: Option<CachedSample<T>> = None;
+            let mut previous = T::State::default();
             loop {
                 let response = tokio::select! {
                     biased;
@@ -82,19 +131,13 @@ impl MetricsService {
                 if cache.as_ref().is_some_and(|sample| {
                     Instant::now().saturating_duration_since(sample.collected_at) > RETRY_INTERVAL
                 }) {
-                    previous = None;
+                    previous = T::State::default();
                 }
-                let data = match collector.collect(&worker_cancel).await {
-                    Ok(raw) => parser::parse(&raw, &mut previous),
-                    Err(reason) => {
-                        previous = None;
-                        TerminalMetrics::unavailable(reason)
-                    }
-                };
+                let data = T::collect(collector.as_ref(), &worker_cancel, &mut previous).await;
                 if worker_cancel.is_cancelled() {
                     break;
                 }
-                let interval = if data.status == MetricsStatus::Unavailable {
+                let interval = if data.failed() {
                     RETRY_INTERVAL
                 } else {
                     SAMPLE_INTERVAL
@@ -115,7 +158,7 @@ impl MetricsService {
         })
     }
 
-    pub async fn sample(&self) -> TerminalMetrics {
+    pub async fn sample(&self) -> T {
         let (send, receive) = oneshot::channel();
         let result = tokio::select! {
             biased;
@@ -125,7 +168,7 @@ impl MetricsService {
                 receive.await.ok()
             } => result,
         };
-        result.unwrap_or_else(|| TerminalMetrics::unavailable(MetricReason::SessionInactive))
+        result.unwrap_or_else(|| T::unavailable(MetricReason::SessionInactive))
     }
 
     pub async fn stop(&self) {
@@ -137,7 +180,7 @@ impl MetricsService {
         }
     }
 }
-impl Drop for MetricsService {
+impl<T: Sample> Drop for SamplingService<T> {
     fn drop(&mut self) {
         self.cancel.cancel();
     }
@@ -182,6 +225,50 @@ mod tests {
         service.stop().await;
         assert_eq!(
             service.sample().await.cpu.reason,
+            Some(MetricReason::SessionInactive)
+        );
+    }
+    struct DiskCollector {
+        calls: AtomicUsize,
+        started: tokio::sync::Notify,
+    }
+    #[async_trait]
+    impl MetricsCollector for DiskCollector {
+        async fn collect(&self, _: &CancellationToken) -> Result<String, MetricReason> {
+            Ok(
+                "__FN_METRIC_platform__\nLinux\n__FN_METRIC_uptime__\n42 0\n__FN_METRIC_end__\n"
+                    .into(),
+            )
+        }
+        async fn collect_disks(&self, _: &CancellationToken) -> Result<String, MetricReason> {
+            self.calls.fetch_add(1, Ordering::SeqCst);
+            self.started.notified().await;
+            Ok("__FN_METRIC_disks__\nroot 100 50 50 50% /\n__FN_METRIC_end__\n".into())
+        }
+    }
+    #[tokio::test]
+    async fn disk_viewers_share_cache_without_blocking_overview() {
+        let collector = Arc::new(DiskCollector {
+            calls: AtomicUsize::new(0),
+            started: tokio::sync::Notify::new(),
+        });
+        let cancel = CancellationToken::new();
+        let overview = MetricsService::start(collector.clone(), &cancel);
+        let disks = DisksService::start(collector.clone(), &cancel);
+        assert_eq!(collector.calls.load(Ordering::SeqCst), 0);
+        let (a, b, _) = tokio::join!(disks.sample(), disks.sample(), async {
+            let sample = overview.sample().await;
+            assert_eq!(sample.uptime.value, Some(42.0));
+            collector.started.notify_one();
+        });
+        assert_eq!(a.disks.len(), 1);
+        assert_eq!(a.sampled_at, b.sampled_at);
+        assert_eq!(collector.calls.load(Ordering::SeqCst), 1);
+        cancel.cancel();
+        disks.stop().await;
+        overview.stop().await;
+        assert_eq!(
+            disks.sample().await.reason,
             Some(MetricReason::SessionInactive)
         );
     }

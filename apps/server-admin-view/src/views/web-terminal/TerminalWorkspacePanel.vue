@@ -210,24 +210,11 @@ const selectedTargetEndpoint = computed(() => {
           class="mx-auto h-8 w-8 text-muted-foreground"
         />
         <Server v-else class="mx-auto h-8 w-8 text-muted-foreground" />
-        <p class="mt-3 text-base font-semibold [overflow-wrap:anywhere]">
+        <h2 class="mt-3 text-base font-semibold [overflow-wrap:anywhere]">
           {{ selectedTargetName }}
-        </p>
+        </h2>
         <p class="mt-1 text-sm text-muted-foreground [overflow-wrap:anywhere]">
           {{ selectedTargetEndpoint }}
-        </p>
-        <h2 class="mt-3 text-base font-semibold">
-          {{ t("admin.webTerminal.noSessions", "No sessions on this target") }}
-        </h2>
-        <p class="mt-1 text-sm leading-6 text-muted-foreground">
-          {{
-            selectedTarget.kind === "local"
-              ? t("admin.webTerminal.localNoSessionsDescription")
-              : t(
-                  "admin.webTerminal.noSessionsDescription",
-                  "Create an independent SSH shell. It stays alive while the terminal service is running.",
-                )
-          }}
         </p>
         <Button class="mt-4" :disabled="isCreating" @click="createSession">
           <LoaderCircle v-if="isCreating" class="mr-1.5 h-4 w-4 animate-spin" />

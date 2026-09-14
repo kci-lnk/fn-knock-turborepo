@@ -73,6 +73,7 @@ defineExpose({ clearSelection, setSelectionMode });
     :groups="model.groups"
     :saving="model.isSavingMappings"
     :selected-count="selectedCount"
+    @edit="runBatchAction(actions.batchEdit)"
     @clear="clearSelection"
     @delete="runBatchAction(actions.batchDelete)"
     @disable="runBatchAction(actions.batchDisable)"

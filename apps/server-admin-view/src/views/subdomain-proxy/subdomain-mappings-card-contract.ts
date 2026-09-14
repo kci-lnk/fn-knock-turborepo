@@ -67,6 +67,7 @@ export interface SubdomainMappingsCardProps {
 
 export type SubdomainMappingsCardEmits = {
   "add-auth-service": [];
+  "batch-edit": [hosts: string[], onComplete: () => void];
   "batch-delete": [hosts: string[], onComplete: () => void];
   "batch-disable": [hosts: string[], onComplete: () => void];
   "batch-enable": [hosts: string[], onComplete: () => void];
@@ -108,6 +109,7 @@ export type SubdomainMappingsCardEmits = {
 
 export interface SubdomainMappingsTableActions {
   clearDefault: (mapping: HostMapping) => void;
+  batchEdit: (hosts: string[], onComplete: () => void) => void;
   batchDelete: (hosts: string[], onComplete: () => void) => void;
   batchDisable: (hosts: string[], onComplete: () => void) => void;
   batchEnable: (hosts: string[], onComplete: () => void) => void;

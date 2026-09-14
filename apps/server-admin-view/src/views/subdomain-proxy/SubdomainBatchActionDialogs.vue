@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import SubdomainBatchEditDialog from "./SubdomainBatchEditDialog.vue";
 import SubdomainActionConfirmDialog from "./SubdomainActionConfirmDialog.vue";
 import SubdomainAvailabilityDialog from "./SubdomainAvailabilityDialog.vue";
 import type { SubdomainProxyDialogsController } from "./useSubdomainProxyPage";
@@ -26,6 +27,7 @@ const {
 </script>
 
 <template>
+  <SubdomainBatchEditDialog :controller="controller.batchEdit" />
   <SubdomainActionConfirmDialog
     :open="isBatchMutationOpen"
     :title="batchMutationTitle"

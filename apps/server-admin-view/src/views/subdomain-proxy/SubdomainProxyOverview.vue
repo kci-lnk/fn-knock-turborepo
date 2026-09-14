@@ -61,6 +61,7 @@ const {
   moveMappingsToGroup,
   omitPublicPortConfiguration,
   openAdvancedAuth,
+  openBatchEdit,
   openBatchAvailability,
   openBatchMutation,
   openAvailabilityDialog,
@@ -191,6 +192,7 @@ const {
       @batch-enable="
         (hosts, onComplete) => openBatchMutation(hosts, 'enable', onComplete)
       "
+      @batch-edit="openBatchEdit"
       @batch-schedule="openBatchAvailability"
       @clear-default="clearDefaultMapping"
       @copy-host="copyMappingHost"

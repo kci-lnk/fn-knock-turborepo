@@ -245,10 +245,13 @@ export const useConfigStore = defineStore("config", () => {
     refreshedFaviconHosts: ReadonlySet<string> = new Set(),
     refreshedTitleHosts: ReadonlySet<string> = new Set(),
     previousHosts: ReadonlyMap<string, string> = new Map(),
+    beforeSave?: () => void,
   ) {
     if (hostMappingsSavePromise) {
       await hostMappingsSavePromise;
     }
+    // Validate the draft after any in-flight save has committed its snapshot.
+    beforeSave?.();
     const requestId = ++hostMappingsSnapshotRequestId;
     let reloadConfigAfterSave = false;
     const request = (async () => {

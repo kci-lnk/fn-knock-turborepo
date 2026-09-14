@@ -1,9 +1,8 @@
 <script setup lang="ts">
 import { useI18n } from "vue-i18n";
-import { CalendarClock, Power, PowerOff, Trash2 } from "lucide-vue-next";
 import { Button } from "@/components/ui/button";
 import type { HostMappingGroup } from "@/types";
-import SubdomainBatchGroupMenu from "./SubdomainBatchGroupMenu.vue";
+import SubdomainBatchOperationsMenu from "./SubdomainBatchOperationsMenu.vue";
 
 defineProps<{
   groups: HostMappingGroup[];
@@ -13,6 +12,7 @@ defineProps<{
 
 const emit = defineEmits<{
   clear: [];
+  edit: [];
   disable: [];
   enable: [];
   move: [groupId: string | null];
@@ -45,55 +45,16 @@ const { t } = useI18n();
     >
       {{ t("admin.subdomainProxy.clearSelection") }}
     </Button>
-    <SubdomainBatchGroupMenu
+    <SubdomainBatchOperationsMenu
       :groups="groups"
       :saving="saving"
+      :selected-count="selectedCount"
+      @edit="emit('edit')"
+      @enable="emit('enable')"
+      @disable="emit('disable')"
+      @schedule="emit('schedule')"
+      @delete="emit('delete')"
       @move="emit('move', $event)"
     />
-    <Button
-      size="sm"
-      variant="outline"
-      :disabled="saving"
-      class="h-10 w-full justify-center sm:h-8 sm:w-auto"
-      @click="emit('enable')"
-    >
-      <Power class="mr-2 h-4 w-4" />
-      {{ t("admin.subdomainProxy.enableMapping") }}
-    </Button>
-    <Button
-      size="sm"
-      variant="outline"
-      :disabled="saving"
-      class="h-10 w-full justify-center sm:h-8 sm:w-auto"
-      @click="emit('disable')"
-    >
-      <PowerOff class="mr-2 h-4 w-4" />
-      {{ t("admin.subdomainProxy.disableMapping") }}
-    </Button>
-    <Button
-      size="sm"
-      variant="outline"
-      :disabled="saving"
-      class="h-10 w-full justify-center sm:h-8 sm:w-auto"
-      @click="emit('schedule')"
-    >
-      <CalendarClock class="mr-2 h-4 w-4" />
-      <span class="sm:hidden">{{
-        t("admin.subdomainProxy.batchSchedule")
-      }}</span>
-      <span class="hidden sm:inline">{{
-        t("admin.subdomainProxy.scheduleAvailability")
-      }}</span>
-    </Button>
-    <Button
-      size="sm"
-      variant="destructive"
-      :disabled="saving"
-      class="h-10 w-full justify-center sm:h-8 sm:w-auto"
-      @click="emit('delete')"
-    >
-      <Trash2 class="mr-2 h-4 w-4" />
-      {{ t("admin.subdomainProxy.delete") }}
-    </Button>
   </div>
 </template>

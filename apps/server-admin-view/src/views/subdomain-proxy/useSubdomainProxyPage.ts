@@ -20,6 +20,8 @@ import {
 } from "./model";
 import { useAccessEntryPort } from "@/composables/useAccessEntryPort";
 import { useSubdomainAvailabilityActions } from "./useSubdomainAvailabilityActions";
+import { createBatchGatewayAccess } from "./subdomain-batch-gateway";
+import { useSubdomainBatchEdit } from "./useSubdomainBatchEdit";
 import { useSubdomainBatchActions } from "./useSubdomainBatchActions";
 import { useSubdomainAvailabilityStatus } from "./useSubdomainAvailabilityStatus";
 import { useDelayedHostPopover } from "./useDelayedHostPopover";
@@ -316,6 +318,26 @@ export const useSubdomainProxyPage = () => {
     saveHostMappings: (mappings) => configStore.saveHostMappings(mappings),
     translate: (key, params) => (params ? t(key, params) : t(key)),
   });
+  const batchEdit = useSubdomainBatchEdit({
+    allMappings,
+    isSavingMappings,
+    isWindows: () => configStore.isWindowsDeployment,
+    isAuthServiceTarget,
+    reloadMappings: () => configStore.loadConfig({ force: true }),
+    saveHostMappings: configStore.saveHostMappings,
+    ...createBatchGatewayAccess((kind, hosts) => {
+      if (!configStore.config) return;
+      configStore.config = {
+        ...configStore.config,
+        [kind]: { disabled_hosts: hosts },
+      };
+    }),
+    translate: (key, params) => (params ? t(key, params) : t(key)),
+    onSaved: () => {
+      resetFaviconErrors();
+      toast.success(t("admin.subdomainProxy.batchEdit.saved"));
+    },
+  });
   const targetOptimization = useSubdomainTargetOptimization({
     allMappings,
     isAuthServiceTarget,
@@ -495,6 +517,7 @@ export const useSubdomainProxyPage = () => {
       activeEdgeClientIpProvider,
       addAuthService,
       allMappings,
+      openBatchEdit: batchEdit.openDialog,
       openBatchAvailability: batchActions.openBatchAvailability,
       openBatchMutation: batchActions.openBatchMutation,
       authServiceMapping,
@@ -582,6 +605,7 @@ export const useSubdomainProxyPage = () => {
       visibleMappings,
     },
     dialogs: {
+      batchEdit,
       ...batchActions,
       allMappings,
       availabilityDialogHostLabel,

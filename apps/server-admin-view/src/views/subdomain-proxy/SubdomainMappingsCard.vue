@@ -48,6 +48,7 @@ const saveGroupsAndCloseOnSuccess = (nextGroups: HostMappingGroup[]) => {
   });
 };
 const tableActions: SubdomainMappingsTableActions = {
+  batchEdit: (hosts, onComplete) => emit("batch-edit", hosts, onComplete),
   batchDelete: (hosts, onComplete) => emit("batch-delete", hosts, onComplete),
   batchDisable: (hosts, onComplete) => emit("batch-disable", hosts, onComplete),
   batchEnable: (hosts, onComplete) => emit("batch-enable", hosts, onComplete),

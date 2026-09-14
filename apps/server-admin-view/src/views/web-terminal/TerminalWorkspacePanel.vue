@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { computed } from "vue";
 import {
   Eye,
   Laptop,
@@ -86,6 +87,18 @@ const {
   toggleTerminalFullscreen,
   toolbarDisabled,
 } = props.controller;
+const selectedTargetName = computed(() =>
+  selectedTarget.value?.kind === "local"
+    ? t("admin.webTerminal.localTarget")
+    : selectedTarget.value?.name,
+);
+const selectedTargetEndpoint = computed(() => {
+  const target = selectedTarget.value;
+  if (!target) return "";
+  return target.kind === "local"
+    ? target.executionIdentity
+    : `${target.username}@${target.host}:${target.port}`;
+});
 </script>
 
 <template>
@@ -124,7 +137,7 @@ const {
       v-else-if="!selectedTarget"
       class="grid min-h-[360px] place-items-center rounded-2xl border border-dashed border-border/80 bg-muted/10 p-6 text-center"
     >
-      <div class="max-w-sm">
+      <div class="min-w-0 w-full max-w-sm">
         <Server class="mx-auto h-8 w-8 text-muted-foreground" />
         <h2 class="mt-3 text-base font-semibold">
           {{ t("admin.webTerminal.noTargets", "No SSH targets") }}
@@ -151,13 +164,19 @@ const {
       "
       class="grid min-h-[360px] place-items-center rounded-2xl border border-dashed border-amber-500/30 bg-amber-500/5 p-6 text-center"
     >
-      <div class="max-w-md">
+      <div class="min-w-0 w-full max-w-md">
         <span
           class="mx-auto inline-flex h-12 w-12 items-center justify-center rounded-2xl bg-amber-500/10 text-amber-700 dark:text-amber-300"
         >
           <LockKeyhole v-if="!selectedTarget.enabled" class="h-6 w-6" />
           <ShieldAlert v-else class="h-6 w-6" />
         </span>
+        <p class="mt-3 text-base font-semibold [overflow-wrap:anywhere]">
+          {{ selectedTargetName }}
+        </p>
+        <p class="mt-1 text-sm text-muted-foreground [overflow-wrap:anywhere]">
+          {{ selectedTargetEndpoint }}
+        </p>
         <h2 class="mt-3 text-base font-semibold">
           {{
             selectedTarget.enabled
@@ -185,12 +204,18 @@ const {
       v-else-if="!selectedSession"
       class="grid min-h-[360px] place-items-center rounded-2xl border border-dashed border-border/80 bg-muted/10 p-6 text-center"
     >
-      <div class="max-w-sm">
+      <div class="min-w-0 w-full max-w-sm">
         <Laptop
           v-if="selectedTarget.kind === 'local'"
           class="mx-auto h-8 w-8 text-muted-foreground"
         />
         <Server v-else class="mx-auto h-8 w-8 text-muted-foreground" />
+        <p class="mt-3 text-base font-semibold [overflow-wrap:anywhere]">
+          {{ selectedTargetName }}
+        </p>
+        <p class="mt-1 text-sm text-muted-foreground [overflow-wrap:anywhere]">
+          {{ selectedTargetEndpoint }}
+        </p>
         <h2 class="mt-3 text-base font-semibold">
           {{ t("admin.webTerminal.noSessions", "No sessions on this target") }}
         </h2>

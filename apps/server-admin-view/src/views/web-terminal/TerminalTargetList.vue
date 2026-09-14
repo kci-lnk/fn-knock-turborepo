@@ -1,5 +1,12 @@
 <script setup lang="ts">
 import { computed } from "vue";
+import { useMediaQueryMatch } from "@admin-shared/composables/useMediaQueryMatch";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { useI18n } from "vue-i18n";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -39,6 +46,9 @@ const emit = defineEmits<{
 }>();
 
 const { t } = useI18n();
+const canHover = useMediaQueryMatch(
+  "(min-width: 768px) and (hover: hover) and (pointer: fine)",
+);
 const activePhases = new Set([
   "creating",
   "openingPty",
@@ -162,70 +172,91 @@ const sessionStatus = (session: TerminalSessionRecord) => {
             : 'border-transparent hover:border-border/70 hover:bg-muted/40',
         ]"
       >
-        <button
-          type="button"
-          :class="[
-            'flex w-full items-center text-left outline-none focus-visible:ring-2 focus-visible:ring-ring',
-            collapsed ? 'justify-center p-2.5' : 'gap-2.5 px-3 py-2.5 pr-11',
-          ]"
-          :aria-label="
-            target.kind === 'local'
-              ? t('admin.webTerminal.localTarget')
-              : target.name
-          "
-          :title="
-            collapsed
-              ? target.kind === 'local'
-                ? `${t('admin.webTerminal.localTarget')} — ${target.executionIdentity}`
-                : `${target.name} — ${target.username}@${target.host}`
-              : undefined
-          "
-          @click="emit('select', target.id)"
-        >
-          <span class="relative shrink-0">
-            <Laptop v-if="target.kind === 'local'" class="h-4 w-4" />
-            <Server v-else class="h-4 w-4" />
-            <LockKeyhole
-              v-if="target.kind === 'local' && !target.enabled"
-              class="absolute -bottom-1 -right-1 h-2.5 w-2.5 rounded-full bg-background text-amber-600"
-            />
-            <span
-              v-if="activeCount(target.id)"
-              class="absolute -right-1 -top-1 h-2 w-2 rounded-full border border-background bg-emerald-500"
-            />
-          </span>
-          <span v-if="!collapsed" class="min-w-0 flex-1">
-            <span class="flex items-center gap-1.5">
-              <span class="truncate text-xs font-medium">{{
-                target.kind === "local"
-                  ? t("admin.webTerminal.localTarget")
-                  : target.name
-              }}</span>
-              <Badge
-                v-if="activeCount(target.id)"
-                variant="secondary"
-                class="h-4 px-1 text-[9px] tabular-nums"
+        <TooltipProvider>
+          <Tooltip :disabled="drawer || !canHover">
+            <TooltipTrigger as-child>
+              <button
+                type="button"
+                :class="[
+                  'flex w-full items-center text-left outline-none focus-visible:ring-2 focus-visible:ring-ring',
+                  collapsed
+                    ? 'justify-center p-2.5'
+                    : 'gap-2.5 px-3 py-2.5 pr-11',
+                ]"
+                :aria-label="
+                  target.kind === 'local'
+                    ? t('admin.webTerminal.localTarget')
+                    : target.name
+                "
+                @click="emit('select', target.id)"
               >
-                {{ activeCount(target.id) }}
-              </Badge>
-            </span>
-            <span
-              class="mt-0.5 block truncate text-[10px] text-muted-foreground"
+                <span class="relative shrink-0">
+                  <Laptop v-if="target.kind === 'local'" class="h-4 w-4" />
+                  <Server v-else class="h-4 w-4" />
+                  <LockKeyhole
+                    v-if="target.kind === 'local' && !target.enabled"
+                    class="absolute -bottom-1 -right-1 h-2.5 w-2.5 rounded-full bg-background text-amber-600"
+                  />
+                  <span
+                    v-if="activeCount(target.id)"
+                    class="absolute -right-1 -top-1 h-2 w-2 rounded-full border border-background bg-emerald-500"
+                  />
+                </span>
+                <span v-if="!collapsed" class="min-w-0 flex-1">
+                  <span class="flex items-center gap-1.5">
+                    <span class="truncate text-xs font-medium">{{
+                      target.kind === "local"
+                        ? t("admin.webTerminal.localTarget")
+                        : target.name
+                    }}</span>
+                    <Badge
+                      v-if="activeCount(target.id)"
+                      variant="secondary"
+                      class="h-4 px-1 text-[9px] tabular-nums"
+                    >
+                      {{ activeCount(target.id) }}
+                    </Badge>
+                  </span>
+                  <span
+                    class="mt-0.5 block truncate text-[10px] text-muted-foreground"
+                  >
+                    <template v-if="target.kind === 'local'">
+                      {{ target.executionIdentity }} ·
+                      {{
+                        target.enabled
+                          ? t("admin.webTerminal.localReady")
+                          : t("admin.webTerminal.localLocked")
+                      }}
+                    </template>
+                    <template v-else>
+                      {{ target.username }}@{{ target.host }}:{{ target.port }}
+                    </template>
+                  </span>
+                </span>
+              </button>
+            </TooltipTrigger>
+            <TooltipContent
+              side="right"
+              align="center"
+              class="max-w-[min(20rem,calc(100vw-2rem))] [overflow-wrap:anywhere]"
             >
-              <template v-if="target.kind === 'local'">
-                {{ target.executionIdentity }} ·
+              <p class="font-medium">
                 {{
-                  target.enabled
-                    ? t("admin.webTerminal.localReady")
-                    : t("admin.webTerminal.localLocked")
+                  target.kind === "local"
+                    ? t("admin.webTerminal.localTarget")
+                    : target.name
                 }}
-              </template>
-              <template v-else>
-                {{ target.username }}@{{ target.host }}:{{ target.port }}
-              </template>
-            </span>
-          </span>
-        </button>
+              </p>
+              <p class="mt-1 opacity-80">
+                {{
+                  target.kind === "local"
+                    ? target.executionIdentity
+                    : `${target.username}@${target.host}:${target.port}`
+                }}
+              </p>
+            </TooltipContent>
+          </Tooltip>
+        </TooltipProvider>
 
         <div
           v-if="!collapsed"

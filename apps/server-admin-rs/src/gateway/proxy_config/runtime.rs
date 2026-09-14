@@ -263,15 +263,20 @@ pub(super) fn ensure_go_host_protocol_modes_applied(
                 "Go backend did not apply host visibility for {host}; upgrade the gateway backend"
             ));
         }
-        if let Some(requested_policy) = requested_advanced_auth.get(host)
-            && requested_policy
-                .get("enabled")
+        let requested_policy = requested_advanced_auth.get(host);
+        let echoed_policy = echoed_advanced_auth.get(host);
+        let enabled = |policy: Option<&Value>| {
+            policy
+                .and_then(|value| value.get("enabled"))
                 .and_then(Value::as_bool)
                 .unwrap_or(false)
-            && echoed_advanced_auth
-                .get(host)
-                .map(gateway_advanced_auth_projection)
-                != Some(gateway_advanced_auth_projection(requested_policy))
+        };
+        // A successful removal must also be acknowledged: accepting stale
+        // enabled rules would leave the repaired host unusable after startup.
+        if enabled(requested_policy) != enabled(echoed_policy)
+            || (enabled(requested_policy)
+                && requested_policy.map(gateway_advanced_auth_projection)
+                    != echoed_policy.map(gateway_advanced_auth_projection))
         {
             return Err(format!(
                 "Go backend did not apply advanced authentication for {host}; upgrade the gateway backend"

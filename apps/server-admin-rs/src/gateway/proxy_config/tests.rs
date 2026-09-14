@@ -4239,10 +4239,10 @@ async fn static_path_log_storage_requires_directory_target() {
 }
 
 #[test]
-fn quarantine_requires_gateway_to_acknowledge_disabled_host() {
+fn gateway_must_acknowledge_manually_disabled_host() {
     let requested = build_host_rules_payload_for_config(&json!({"host_mappings": [{
         "host": "broken.example.com", "target": "http://127.0.0.1:8080",
-        "advanced_auth": {"enabled": true, "policy_recovery_required": true}
+        "disabled": true
     }]}));
     ensure_go_host_protocol_modes_applied(&requested, &json!({"data": requested.clone()})).unwrap();
     for disabled in [Value::Null, json!(false)] {
@@ -4252,4 +4252,17 @@ fn quarantine_requires_gateway_to_acknowledge_disabled_host() {
             .unwrap_err();
         assert!(error.contains("disabled state"));
     }
+}
+
+#[test]
+fn gateway_must_acknowledge_advanced_auth_removal() {
+    let requested = build_host_rules_payload_for_config(&json!({"host_mappings": [{
+        "host": "repaired.example.com", "target": "http://127.0.0.1:8080", "use_auth": true
+    }]}));
+    ensure_go_host_protocol_modes_applied(&requested, &json!({"data": requested.clone()})).unwrap();
+    let mut stale = requested.clone();
+    stale["items"][0]["advanced_auth"] = json!({"enabled": true, "policy_version": "stale"});
+    let error =
+        ensure_go_host_protocol_modes_applied(&requested, &json!({"data": stale})).unwrap_err();
+    assert!(error.contains("advanced authentication"));
 }

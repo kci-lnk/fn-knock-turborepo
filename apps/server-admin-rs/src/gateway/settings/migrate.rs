@@ -36,22 +36,12 @@ pub(crate) async fn migrate_visibility_policies_locked(state: &AppState) -> Resu
             .pointer("/gateway_visibility/enabled")
             .and_then(Value::as_bool)
             .unwrap_or(false)
-        || candidate
-            .get("host_mappings")
-            .and_then(Value::as_array)
-            .into_iter()
-            .flatten()
-            .any(|mapping| {
-                mapping
-                    .pointer("/advanced_auth/policy_recovery_required")
-                    .and_then(Value::as_bool)
-                    == Some(true)
-            });
+        || candidate.get("host_mappings") != previous.get("host_mappings");
     if requires_visibility_sync {
         // Both gRPC setters decode and validate the packed ranges and digest.
         // Only persist after the matching Go process has accepted the exact
-        // candidate policy table. Quarantined hosts must also be acknowledged
-        // before persistence, even when no usable policies remain.
+        // candidate policy table and any removed advanced-auth configuration,
+        // even when no usable policies remain.
         proxy_config::sync_go_host_rules_for_config_locked(state, &candidate).await?;
         sync_gateway_visibility_runtime(state, &runtime).await?;
     }
@@ -202,145 +192,32 @@ fn compile_visibility_policy_migration(
         }
 
         for mapping in mappings.iter_mut() {
-            let host = mapping
-                .get("host")
-                .and_then(Value::as_str)
-                .unwrap_or("<unknown>")
-                .to_string();
-            let advanced_auth_enabled = mapping
-                .pointer("/advanced_auth/enabled")
-                .and_then(Value::as_bool)
-                .unwrap_or(false);
-            let mut quarantine = mapping
+            let was_quarantined = mapping
                 .pointer("/advanced_auth/policy_recovery_required")
                 .and_then(Value::as_bool)
-                .unwrap_or(false);
-            for condition in mapping
-                .pointer_mut("/advanced_auth/groups")
-                .and_then(Value::as_array_mut)
-                .into_iter()
-                .flatten()
-                .filter_map(|group| group.get_mut("conditions").and_then(Value::as_array_mut))
-                .flatten()
-            {
-                let target = condition
-                    .get("target")
+                == Some(true);
+            let result = if was_quarantined {
+                Err(
+                    "removing advanced authentication left quarantined by the previous repair"
+                        .to_string(),
+                )
+            } else {
+                migrate_advanced_auth_policy_references(mapping, &mut policies)
+            };
+            if let Err(error) = result {
+                let host = mapping
+                    .get("host")
                     .and_then(Value::as_str)
-                    .unwrap_or_default();
-                if target != "source_ip" && target != "source_region" {
-                    if let Some(object) = condition.as_object_mut() {
-                        object.remove("cidrs");
+                    .unwrap_or("<unknown>");
+                tracing::warn!(%host, %error, "removed invalid advanced authentication; other host authentication settings are unchanged");
+                if let Some(object) = mapping.as_object_mut() {
+                    object.remove("advanced_auth");
+                    // Only the old top-level marker identifies hosts disabled
+                    // by our previous repair. Preserve ordinary manual stops.
+                    if was_quarantined {
+                        object.insert("disabled".to_string(), Value::Bool(false));
                     }
-                    continue;
                 }
-                let condition_id = condition
-                    .get("id")
-                    .and_then(Value::as_str)
-                    .unwrap_or("<unknown>")
-                    .to_string();
-                let existing_id = condition
-                    .get("policy_id")
-                    .and_then(Value::as_str)
-                    .map(str::trim)
-                    .filter(|value| !value.is_empty())
-                    .map(ToString::to_string);
-                let policy = if let Some(id) = existing_id {
-                    match policies
-                        .get(&id)
-                        .ok_or_else(|| {
-                            format!(
-                                "Host mapping {host} advanced auth condition {condition_id} policy {id} is missing"
-                            )
-                        })
-                        .and_then(|encoded| {
-                            CompiledIpSet::from_config_value(&id, encoded).map_err(|error| {
-                                format!(
-                                    "Host mapping {host} advanced auth condition {condition_id} policy is invalid: {error}"
-                                )
-                            })
-                        }) {
-                        Ok(policy) => Some(policy.into_current_format()),
-                        Err(error) if !advanced_auth_enabled => {
-                            tracing::warn!(
-                                %host,
-                                %condition_id,
-                                %error,
-                                "preserving disabled advanced-auth draft without an unusable IP set reference"
-                            );
-                            None
-                        }
-                        Err(error) => {
-                            tracing::error!(%host, %condition_id, %error,
-                                "quarantining host with unrecoverable advanced-auth policy; repair advanced authentication before enabling host");
-                            quarantine = true;
-                            None
-                        },
-                    }
-                } else {
-                    let cidrs = condition
-                        .get("cidrs")
-                        .and_then(Value::as_array)
-                        .into_iter()
-                        .flatten()
-                        .filter_map(Value::as_str)
-                        .collect::<Vec<_>>();
-                    if cidrs.is_empty() {
-                        if advanced_auth_enabled {
-                            tracing::error!(%host, %condition_id,
-                                "quarantining host whose advanced-auth condition has no policy or legacy CIDRs");
-                            quarantine = true;
-                        }
-                        None
-                    } else {
-                        match compile_ip_set(cidrs) {
-                            Ok(policy) => Some(policy),
-                            Err(error) if advanced_auth_enabled => {
-                                tracing::error!(%host, %condition_id, %error,
-                                    "quarantining host with invalid advanced-auth CIDRs");
-                                quarantine = true;
-                                None
-                            }
-                            Err(error) => {
-                                tracing::warn!(%host, %condition_id, %error,
-                                    "preserving disabled advanced-auth draft with invalid legacy CIDRs");
-                                None
-                            }
-                        }
-                    }
-                };
-                let object = condition
-                    .as_object_mut()
-                    .ok_or_else(|| "advanced auth condition must be an object".to_string())?;
-                if let Some(policy) = policy {
-                    object.remove("cidrs");
-                    object.remove("unresolved_policy_id");
-                    object.remove("unresolved_cidrs");
-                    policies.insert(policy.id.clone(), policy.to_config_value());
-                    object.insert("policy_id".to_string(), Value::String(policy.id.clone()));
-                    object.remove("policy_recovery_required");
-                    object
-                        .entry("source_cidr_count".to_string())
-                        .or_insert_with(|| json!(policy.source_cidr_count));
-                    object
-                        .entry("range_count".to_string())
-                        .or_insert_with(|| json!(policy.range_count()));
-                } else {
-                    if let Some(cidrs) = object.remove("cidrs") {
-                        object.insert("unresolved_cidrs".to_string(), cidrs);
-                    }
-                    if let Some(id) = object.remove("policy_id") {
-                        object.insert("unresolved_policy_id".to_string(), id);
-                    }
-                    object.remove("source_cidr_count");
-                    object.remove("range_count");
-                    object.insert("policy_recovery_required".to_string(), Value::Bool(true));
-                }
-            }
-            if quarantine {
-                // Keep the enabled authentication draft and its source selections.
-                // Only a successful explicit auth edit clears this quarantine.
-                mapping["disabled"] = Value::Bool(true);
-                mapping["advanced_auth"]["policy_recovery_required"] = Value::Bool(true);
             }
         }
     }
@@ -436,6 +313,80 @@ fn compile_visibility_policy_migration(
     Ok((candidate, runtime))
 }
 
+// Failure discards the entire host's advanced-auth configuration, rather than
+// deleting one condition and silently changing the meaning of an AND/OR group.
+fn migrate_advanced_auth_policy_references(
+    mapping: &mut Value,
+    policies: &mut Map<String, Value>,
+) -> Result<(), String> {
+    for condition in mapping
+        .pointer_mut("/advanced_auth/groups")
+        .and_then(Value::as_array_mut)
+        .into_iter()
+        .flatten()
+        .filter_map(|group| group.get_mut("conditions").and_then(Value::as_array_mut))
+        .flatten()
+    {
+        let target = condition
+            .get("target")
+            .and_then(Value::as_str)
+            .unwrap_or_default();
+        if target != "source_ip" && target != "source_region" {
+            if let Some(object) = condition.as_object_mut() {
+                object.remove("cidrs");
+            }
+            continue;
+        }
+        let condition_id = condition
+            .get("id")
+            .and_then(Value::as_str)
+            .unwrap_or("<unknown>");
+        let policy = if let Some(id) = condition
+            .get("policy_id")
+            .and_then(Value::as_str)
+            .map(str::trim)
+            .filter(|id| !id.is_empty())
+        {
+            let encoded = policies
+                .get(id)
+                .ok_or_else(|| format!("condition {condition_id} policy {id} is missing"))?;
+            CompiledIpSet::from_config_value(id, encoded)
+                .map_err(|error| format!("condition {condition_id} policy is invalid: {error}"))?
+                .into_current_format()
+        } else {
+            let cidrs = condition
+                .get("cidrs")
+                .and_then(Value::as_array)
+                .into_iter()
+                .flatten()
+                .filter_map(Value::as_str)
+                .collect::<Vec<_>>();
+            if cidrs.is_empty() {
+                return Err(format!(
+                    "condition {condition_id} has no policy or legacy CIDRs"
+                ));
+            }
+            compile_ip_set(cidrs).map_err(|error| format!("condition {condition_id}: {error}"))?
+        };
+        let object = condition
+            .as_object_mut()
+            .ok_or_else(|| "advanced auth condition must be an object".to_string())?;
+        object.remove("cidrs");
+        object.remove("unresolved_policy_id");
+        object.remove("unresolved_cidrs");
+        object.remove("policy_recovery_required");
+        policies.insert(policy.id.clone(), policy.to_config_value());
+        object.insert("policy_id".to_string(), Value::String(policy.id.clone()));
+        object
+            .entry("source_cidr_count".to_string())
+            .or_insert_with(|| json!(policy.source_cidr_count));
+        object
+            .entry("range_count".to_string())
+            .or_insert_with(|| json!(policy.range_count()));
+    }
+    Ok(())
+}
+
 fn policy_transport_value(policy: &CompiledIpSet) -> Value {
     let mut value = policy
         .to_config_value()
@@ -514,157 +465,80 @@ mod tests {
     }
 
     #[test]
-    fn disabled_advanced_auth_draft_does_not_block_boot_when_policy_is_unrecoverable() {
-        let (migrated, _) = compile_visibility_policy_migration(
-            &json!({
-                "host_mappings": [{
-                    "host": "app.example.com",
-                    "advanced_auth": {
-                        "enabled": false,
-                        "groups": [{
-                            "id": "group-1",
-                            "conditions": [{
-                                "id": "condition-1",
-                                "target": "source_region",
-                                "operator": "in",
-                                "policy_id": "ipset-v2:missing",
-                                "selections": [{
-                                    "province": "甘肃",
-                                    "city": "定西",
-                                    "operator": "移动"
-                                }]
-                            }]
-                        }]
-                    }
-                }],
-                "visibility_policies": {}
-            }),
-            &json!({"enabled": false}),
-        )
-        .unwrap();
-
-        let condition =
-            &migrated["host_mappings"][0]["advanced_auth"]["groups"][0]["conditions"][0];
-        assert!(condition.get("policy_id").is_none());
-        assert_eq!(condition["policy_recovery_required"], json!(true));
-        assert_eq!(condition["selections"][0]["province"], json!("甘肃"));
-    }
-
-    #[test]
-    fn enabled_advanced_auth_quarantines_host_when_policy_is_missing() {
-        let (migrated, runtime) = compile_visibility_policy_migration(
-            &json!({
-                "host_mappings": [{
-                    "host": "app.example.com",
-                    "advanced_auth": {
-                        "enabled": true,
-                        "groups": [{
-                            "id": "group-1",
-                            "conditions": [{
-                                "id": "condition-1",
-                                "target": "source_region",
-                                "operator": "in",
-                                "policy_id": "ipset-v2:missing"
-                            }]
-                        }]
-                    }
-                }],
-                "visibility_policies": {}
-            }),
-            &json!({"enabled": false}),
-        )
-        .unwrap();
-
-        let mapping = &migrated["host_mappings"][0];
-        assert_eq!(mapping["disabled"], json!(true));
-        assert_eq!(mapping["advanced_auth"]["enabled"], json!(true));
-        assert_eq!(
-            mapping["advanced_auth"]["policy_recovery_required"],
-            json!(true)
-        );
-        let condition = &mapping["advanced_auth"]["groups"][0]["conditions"][0];
-        assert_eq!(condition["unresolved_policy_id"], json!("ipset-v2:missing"));
-        assert_eq!(condition["policy_recovery_required"], json!(true));
-        assert_eq!(
-            compile_visibility_policy_migration(&migrated, &runtime).unwrap(),
-            (migrated.clone(), runtime)
-        );
-        let payload = proxy_config::build_host_rules_payload_for_config(&migrated);
-        assert_eq!(payload["items"][0]["disabled"], json!(true));
-        assert_eq!(
-            payload["items"][0]["advanced_auth"],
-            json!({"enabled": false})
-        );
-    }
-
-    #[test]
-    fn advanced_auth_policy_failures_are_isolated_and_cannot_be_bypassed_by_toggles() {
-        for condition in [
-            json!({"target": "source_ip", "operator": "not_in", "policy_id": "ipset-v2:broken"}),
-            json!({"target": "source_region", "operator": "in"}),
-            json!({"target": "source_ip", "operator": "in", "cidrs": ["invalid-cidr"]}),
-        ] {
-            let healthy = json!({"host": "healthy.example.com", "target": "http://127.0.0.1:8080"});
-            let original = json!({
-                "host_mappings": [healthy.clone(), {
-                    "host": "broken.example.com", "target": "http://127.0.0.1:8081",
-                    "advanced_auth": {"enabled": true, "groups": [{"conditions": [condition.clone()]}]}
-                }],
-                "visibility_policies": {"ipset-v2:broken": {"corrupt": true}}
-            });
-            let (mut migrated, _) =
-                compile_visibility_policy_migration(&original, &json!({"enabled": false})).unwrap();
-            assert_eq!(migrated["host_mappings"][0], healthy);
-            assert_eq!(migrated["host_mappings"][1]["disabled"], json!(true));
-            assert_eq!(
-                migrated["host_mappings"][1]["advanced_auth"]["groups"][0]["conditions"][0]["operator"],
-                condition["operator"]
-            );
-            // Generic host edits cannot clear the server-owned quarantine.
-            migrated["host_mappings"][1]["disabled"] = json!(false);
-            for enabled in [true, false] {
-                migrated["host_mappings"][1]["advanced_auth"]["enabled"] = json!(enabled);
-                let payload = proxy_config::build_host_rules_payload_for_config(&migrated);
-                assert_eq!(payload["items"][0]["disabled"], json!(false));
-                assert_eq!(payload["items"][1]["disabled"], json!(true));
-                assert_eq!(
-                    payload["items"][1]["advanced_auth"],
-                    json!({"enabled": false})
-                );
-                assert_eq!(payload["visibility_policies"], json!([]));
+    fn invalid_advanced_auth_is_removed_without_disabling_hosts() {
+        for enabled in [true, false] {
+            for disabled in [true, false] {
+                for condition in [
+                    json!({"target": "source_ip", "operator": "not_in", "policy_id": "ipset-v2:missing"}),
+                    json!({"target": "source_region", "operator": "in", "policy_id": "ipset-v2:broken"}),
+                    json!({"target": "source_region", "operator": "in"}),
+                    json!({"target": "source_ip", "cidrs": ["invalid-cidr"]}),
+                    json!({"target": "source_ip", "policy_recovery_required": true, "unresolved_policy_id": "ipset-v2:missing"}),
+                ] {
+                    let policy = compile_ip_set(["203.0.113.0/24"]).unwrap();
+                    let healthy = json!({"host": "healthy.example.com", "advanced_auth": {"enabled": true,
+                        "groups": [{"conditions": [{"target": "source_ip", "policy_id": policy.id,
+                        "source_cidr_count": policy.source_cidr_count, "range_count": policy.range_count()}]}]}});
+                    let original = json!({"host_mappings": [healthy.clone(), {
+                        "host": "broken.example.com", "disabled": disabled, "use_auth": true,
+                        "access_mode": "login_first", "target": "http://127.0.0.1:8080",
+                        "advanced_auth": {"enabled": enabled, "groups": [{"conditions": [condition]}]}
+                    }], "visibility_policies": {(policy.id.clone()): policy.to_config_value(), "ipset-v2:broken": {"corrupt": true}}});
+                    let (migrated, runtime) =
+                        compile_visibility_policy_migration(&original, &json!({"enabled": false}))
+                            .unwrap();
+                    let mut expected = original["host_mappings"][1].clone();
+                    expected.as_object_mut().unwrap().remove("advanced_auth");
+                    assert_eq!(migrated["host_mappings"][0], healthy);
+                    assert_eq!(migrated["host_mappings"][1], expected);
+                    assert_eq!(
+                        migrated["visibility_policies"].as_object().unwrap().len(),
+                        1
+                    );
+                    assert_eq!(
+                        compile_visibility_policy_migration(&migrated, &runtime).unwrap(),
+                        (migrated.clone(), runtime)
+                    );
+                    let payload = proxy_config::build_host_rules_payload_for_config(&migrated);
+                    assert_eq!(payload["items"][1]["disabled"], json!(disabled));
+                    assert_eq!(
+                        payload["items"][1]["advanced_auth"],
+                        json!({"enabled": false})
+                    );
+                    assert_eq!(payload["items"][1]["use_auth"], json!(true));
+                }
             }
         }
     }
 
     #[test]
-    fn disabled_advanced_auth_invalid_cidrs_remain_repairable_without_blocking_boot() {
-        let original = json!({"host_mappings": [{
-            "host": "draft.example.com",
-            "advanced_auth": {"enabled": false, "groups": [{"conditions": [{
-                "target": "source_ip", "cidrs": ["invalid-cidr"]
-            }]}]}
-        }]});
-        let (migrated, runtime) =
-            compile_visibility_policy_migration(&original, &json!({"enabled": false})).unwrap();
-        let mapping = &migrated["host_mappings"][0];
-        assert!(mapping.get("disabled").is_none());
-        assert!(
-            mapping["advanced_auth"]
-                .get("policy_recovery_required")
-                .is_none()
-        );
-        assert_eq!(
-            mapping["advanced_auth"]["groups"][0]["conditions"][0]["unresolved_cidrs"],
-            json!(["invalid-cidr"])
-        );
-        assert_eq!(
-            compile_visibility_policy_migration(&migrated, &runtime).unwrap(),
-            (migrated, runtime)
-        );
+    fn previous_quarantine_is_removed_and_host_can_be_enabled() {
+        for enabled in [true, false] {
+            let original = json!({"host_mappings": [{"host": "old.example.com", "disabled": true,
+                "use_auth": true, "advanced_auth": {"enabled": enabled, "policy_recovery_required": true,
+                "groups": [{"conditions": [{"target": "source_region", "policy_recovery_required": true}]}]}
+            }]});
+            let (migrated, runtime) =
+                compile_visibility_policy_migration(&original, &json!({"enabled": false})).unwrap();
+            assert_eq!(
+                migrated["host_mappings"][0],
+                json!({"host": "old.example.com", "disabled": false, "use_auth": true})
+            );
+            let payload = proxy_config::build_host_rules_payload_for_config(&migrated);
+            assert_eq!(payload["items"][0]["disabled"], json!(false));
+            assert_eq!(
+                payload["items"][0]["advanced_auth"],
+                json!({"enabled": false})
+            );
+            assert_eq!(
+                compile_visibility_policy_migration(&migrated, &runtime).unwrap(),
+                (migrated, runtime)
+            );
+        }
     }
 
     #[tokio::test]
-    async fn quarantine_is_not_persisted_before_gateway_acknowledgement() {
+    async fn auth_removal_is_not_persisted_before_gateway_acknowledgement() {
         let (_directory, state) = migration_test_state().await;
         state
             .storage
@@ -681,7 +555,7 @@ mod tests {
             .unwrap();
         let previous = state.storage.store.get_config().await.unwrap();
         // No gateway is listening. Even with an empty policy table, the
-        // disabled host must be sent before the migration commits.
+        // removed advanced authentication must be sent before the migration commits.
         assert!(migrate_visibility_policies_on_boot(&state).await.is_err());
         assert_eq!(state.storage.store.get_config().await.unwrap(), previous);
     }

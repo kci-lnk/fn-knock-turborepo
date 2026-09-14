@@ -16,7 +16,10 @@ pub(super) struct Native<'a> {
 }
 impl Backend for Native<'_> {
     fn guard(&mut self, journal: &Journal, reverse: bool) -> anyhow::Result<()> {
-        ensure_removals_unreferenced(journal, &snapshot(self.data_dir)?, reverse)
+        let current = snapshot(self.data_dir)?;
+        // Old journals must not be restored into a different supported layout.
+        current.schema.verify_changes(&journal.rows)?;
+        ensure_removals_unreferenced(journal, &current, reverse)
     }
     fn verify_restore(&mut self, journal: &Journal) -> anyhow::Result<()> {
         verify_restored(journal, self.data_dir)

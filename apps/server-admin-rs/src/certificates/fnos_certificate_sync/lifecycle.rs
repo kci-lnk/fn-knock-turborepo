@@ -1,5 +1,8 @@
 //! Reconciliation and recoverable fnOS certificate mutations. No writes occur while planning.
 use super::*;
+#[cfg(test)]
+mod postgres_tests;
+mod schema;
 mod transaction;
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -24,6 +27,7 @@ fn legacy_digest_version() -> u8 {
 
 #[derive(Clone)]
 struct Snapshot {
+    schema: schema::VerifiedSchema,
     rows: Vec<Value>,
     used: Vec<Value>,
     renew: Vec<Value>,
@@ -205,25 +209,11 @@ fn target_digest_version(snapshot: &Snapshot, row: &Value, version: u8) -> anyho
         .collect::<Vec<_>>();
     digest(&(row, files, entries, renew))
 }
-fn verify_schema() -> anyhow::Result<()> {
-    let sql = "SELECT table_name,column_name,data_type,is_nullable,column_default FROM information_schema.columns WHERE table_schema='public' AND table_name IN ('cert','cert_used_config','cert_renew') ORDER BY table_name,ordinal_position";
-    let output = psql(sql)?;
-    // Fingerprint of all 37 columns inspected on the supported fnOS host. Fail closed on upgrades.
-    if hex::encode(Sha256::digest(output.as_bytes()))
-        != "d87cff3c41c319f3387b5240388c7a6e9fd08d924b255d207e9b2bcfa79b9ed8"
-    {
-        bail!("Unsupported fnOS certificate database structure")
-    }
-    let triggers = psql(
-        "SELECT count(*) FROM pg_trigger WHERE tgrelid IN ('public.cert'::regclass,'public.cert_renew'::regclass,'public.cert_used_config'::regclass)",
-    )?;
-    if triggers.trim() != "0" {
-        bail!("Unsupported fnOS certificate database triggers")
-    }
-    Ok(())
+fn verify_schema() -> anyhow::Result<schema::VerifiedSchema> {
+    schema::inspect(psql)
 }
 fn snapshot(data_dir: &Path) -> anyhow::Result<Snapshot> {
-    verify_schema()?;
+    let schema = verify_schema()?;
     let rows = table_rows("cert")?;
     let used = table_rows("cert_used_config")?;
     let renew = table_rows("cert_renew")?;
@@ -267,6 +257,7 @@ fn snapshot(data_dir: &Path) -> anyhow::Result<Snapshot> {
         None => Registry::default(),
     };
     Ok(Snapshot {
+        schema,
         rows,
         used,
         renew,
@@ -373,6 +364,7 @@ fn plan_snapshot(snapshot: Snapshot, config: &Value) -> anyhow::Result<Plan> {
         bail!("Local certificate library has missing or duplicate identities")
     }
     let version = digest(&(
+        &snapshot.schema,
         &snapshot.rows,
         &snapshot.used,
         &snapshot.renew,
@@ -628,9 +620,25 @@ fn json_sql(value: &Value) -> String {
     format!("{}::jsonb", sql_text_expression(&value.to_string()))
 }
 fn apply_rows(changes: &[RowChange], reverse: bool) -> anyhow::Result<()> {
+    let verified = verify_schema()?;
+    let sql = row_changes_sql(changes, reverse, &verified)?;
+    // PostgreSQL error DETAIL can contain row contents (including renewal credentials).
+    psql(&sql).map_err(|_| {
+        anyhow!("fnOS certificate database transaction failed or changed concurrently")
+    })?;
+    Ok(())
+}
+
+fn row_changes_sql(
+    changes: &[RowChange],
+    reverse: bool,
+    schema: &schema::VerifiedSchema,
+) -> anyhow::Result<String> {
+    schema.verify_changes(changes)?;
     let mut sql = String::from(
         "BEGIN; SET LOCAL lock_timeout='5s'; LOCK TABLE public.cert, public.cert_renew, public.cert_used_config IN SHARE ROW EXCLUSIVE MODE;\n",
     );
+    sql.push_str(&schema.transaction_guard_sql()?);
     for cert in changes.iter().filter(|c| c.table == "cert") {
         let renewals = |after: bool| {
             changes
@@ -701,11 +709,7 @@ fn apply_rows(changes: &[RowChange], reverse: bool) -> anyhow::Result<()> {
         }
     }
     sql.push_str("COMMIT;");
-    // PostgreSQL error DETAIL can contain row contents (including renewal credentials).
-    psql(&sql).map_err(|_| {
-        anyhow!("fnOS certificate database transaction failed or changed concurrently")
-    })?;
-    Ok(())
+    Ok(sql)
 }
 fn ensure_parent(path: &Path, data_dir: &Path) -> anyhow::Result<()> {
     let parent = path
@@ -1006,6 +1010,35 @@ fn update_domains(row: &mut Value, entry: &mut Value, parsed: &ParsedCertificate
     entry["san"] = json!(parsed.domains);
 }
 
+// Preserve every existing field, including fnOS extension metadata.
+fn prepare_certificate_row(
+    original: Option<&Value>,
+    parsed: &ParsedCertificate,
+    id: i64,
+    now: i64,
+    kind: &str,
+    schema: &schema::VerifiedSchema,
+) -> anyhow::Result<Value> {
+    let mut row = original.cloned().unwrap_or_else(||json!({"id":id,"domain":parsed.domains[0],"san":parsed.domains.join(","),
+                "valid_from":parsed.valid_from,"valid_to":parsed.valid_to,"encrypt_type":parsed.encrypt_type,"issued_by":parsed.issued_by,
+                "last_renew_time":now,"des":"fn-knock certificate sync","is_default":0,"renewal":0,"source":"upload",
+                "private_key":"","certificate":"","issuer_certificate":"","status":"suc","created_time":now,"updated_time":now}));
+    if original.is_none() {
+        schema.complete_new_cert(&mut row)?;
+    }
+    if kind != "adopt" {
+        row["valid_from"] = json!(parsed.valid_from);
+        row["valid_to"] = json!(parsed.valid_to);
+        row["encrypt_type"] = json!(parsed.encrypt_type);
+        row["issued_by"] = json!(parsed.issued_by);
+        row["status"] = json!("suc");
+        row["last_renew_time"] = json!(now);
+    }
+    row["renewal"] = json!(0);
+    row["updated_time"] = json!(now);
+    Ok(row)
+}
+
 fn prepare(plan: &Plan, selected: &[&Action], data_dir: &Path) -> anyhow::Result<Journal> {
     let snapshot = &plan.snapshot;
     let mut index = snapshot.index.clone();
@@ -1060,10 +1093,14 @@ fn prepare(plan: &Plan, selected: &[&Action], data_dir: &Path) -> anyhow::Result
                 .parsed
                 .as_ref()
                 .ok_or_else(|| anyhow!("Invalid certificate source"))?;
-            let mut row = original.clone().unwrap_or_else(||json!({"id":id,"domain":parsed.domains[0],"san":parsed.domains.join(","),
-                "valid_from":parsed.valid_from,"valid_to":parsed.valid_to,"encrypt_type":parsed.encrypt_type,"issued_by":parsed.issued_by,
-                "last_renew_time":now,"des":"fn-knock certificate sync","is_default":0,"renewal":0,"source":"upload",
-                "private_key":"","certificate":"","issuer_certificate":"","status":"suc","created_time":now,"updated_time":now}));
+            let mut row = prepare_certificate_row(
+                original.as_ref(),
+                parsed,
+                id,
+                now,
+                action.kind,
+                &snapshot.schema,
+            )?;
             if action.kind == "create" {
                 let dir = Path::new(CERT_ROOT).join(format!("fn-knock-{}", Uuid::new_v4()));
                 row["certificate"] = json!(dir.join("cert.crt").to_string_lossy());
@@ -1080,19 +1117,10 @@ fn prepare(plan: &Plan, selected: &[&Action], data_dir: &Path) -> anyhow::Result
             if action.kind != "adopt" {
                 update_domains(&mut row, entry, parsed);
 
-                row["valid_from"] = json!(parsed.valid_from);
-                row["valid_to"] = json!(parsed.valid_to);
-                row["encrypt_type"] = json!(parsed.encrypt_type);
-                row["issued_by"] = json!(parsed.issued_by);
-                row["status"] = json!("suc");
-                row["last_renew_time"] = json!(now);
-
                 entry["validFrom"] = json!(parsed.valid_from);
                 entry["validTo"] = json!(parsed.valid_to);
                 set_certificate_files(&mut files, snapshot, &row, entry, local)?;
             }
-            row["renewal"] = json!(0);
-            row["updated_time"] = json!(now);
             rows.push(RowChange {
                 table: "cert".into(),
                 id,
@@ -1121,6 +1149,8 @@ fn prepare(plan: &Plan, selected: &[&Action], data_dir: &Path) -> anyhow::Result
             });
         }
     }
+    // Reject oversized/invalid values before touching any certificate files or saving a journal.
+    snapshot.schema.verify_changes(&rows)?;
     // Never overwrite a shared file used by a certificate outside this transaction.
     let selected_ids = selected
         .iter()
@@ -1440,7 +1470,7 @@ mod tests {
     use super::*;
     use rcgen::generate_simple_self_signed;
 
-    fn fixture() -> (Snapshot, Value) {
+    pub(super) fn fixture() -> (Snapshot, Value) {
         let cert = generate_simple_self_signed(vec!["sync.example.test".into()]).unwrap();
         let pem = cert.cert.pem();
         let key = cert.signing_key.serialize_pem();
@@ -1452,6 +1482,7 @@ mod tests {
         let index = json!({"certificate":"/cert","privateKey":"/key","fullchain":"","domain":"sync.example.test",
             "san":["sync.example.test"],"validFrom":parsed.valid_from,"validTo":parsed.valid_to,"sum":"fixture","used":false,"appFlag":0});
         let snapshot = Snapshot {
+            schema: schema::baseline(),
             rows: vec![row],
             used: vec![],
             renew: vec![],
@@ -1467,7 +1498,7 @@ mod tests {
         let config = json!({"ssl":{"certificates":[{"id":"local-1","label":"test","cert":pem,"key":key,"updated_at":"1"}]}});
         (snapshot, config)
     }
-    fn managed(snapshot: &mut Snapshot) {
+    pub(super) fn managed(snapshot: &mut Snapshot) {
         snapshot.registry.entries.insert(
             "8".into(),
             Managed {
@@ -1485,6 +1516,61 @@ mod tests {
             .as_str()
             .unwrap()
             .into()
+    }
+
+    #[test]
+    fn complete_rows_preserve_extensions_and_reject_cross_layout_recovery() {
+        let (snapshot, config) = fixture();
+        let parsed = local_candidates(&config)[0].parsed.clone().unwrap();
+        for schema in [schema::baseline(), schema::extended()] {
+            let created = prepare_certificate_row(None, &parsed, 8, 10, "create", &schema).unwrap();
+            let changes = vec![RowChange {
+                table: "cert".into(),
+                id: 8,
+                before: None,
+                after: Some(created.clone()),
+            }];
+            schema.verify_changes(&changes).unwrap();
+            let mut original = created;
+            if original.get("platform").is_some() {
+                assert_eq!(original["platform"], Value::Null);
+                assert_eq!(original["cert_url"], Value::Null);
+                original["platform"] = json!("preserve-me");
+                original["cert_url"] = json!("https://example.test/original");
+                assert!(schema::baseline().verify_changes(&changes).is_err());
+            } else {
+                assert!(schema::extended().verify_changes(&changes).is_err());
+            }
+            for action in ["adopt", "update"] {
+                let after =
+                    prepare_certificate_row(Some(&original), &parsed, 8, 20, action, &schema)
+                        .unwrap();
+                assert_eq!(after.get("platform"), original.get("platform"));
+                assert_eq!(after.get("cert_url"), original.get("cert_url"));
+                assert_eq!(after["created_time"], original["created_time"]);
+            }
+        }
+        let mut malformed = snapshot.rows[0].clone();
+        malformed.as_object_mut().unwrap().remove("domain");
+        assert!(
+            schema::baseline()
+                .complete_new_cert(&mut malformed)
+                .is_err()
+        );
+    }
+
+    #[test]
+    fn schema_changes_invalidate_plans_without_changing_target_digests() {
+        let (snapshot, config) = fixture();
+        let before = target_digest(&snapshot, &snapshot.rows[0]).unwrap();
+        let first = plan_snapshot(snapshot.clone(), &config).unwrap();
+        let mut changed = snapshot;
+        changed.schema = schema::extended();
+        assert_eq!(before, target_digest(&changed, &changed.rows[0]).unwrap());
+        assert_ne!(
+            first.version,
+            plan_snapshot(changed, &config).unwrap().version
+        );
     }
 
     #[test]

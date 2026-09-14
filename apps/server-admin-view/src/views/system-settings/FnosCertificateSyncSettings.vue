@@ -263,7 +263,7 @@ onMounted(load);
           <div
             class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between"
           >
-            <p class="text-sm text-muted-foreground">
+            <p v-if="available" class="text-sm text-muted-foreground">
               {{ t("admin.fnosCertificateSync.summary", details.summary) }}
             </p>
             <Button
@@ -278,7 +278,10 @@ onMounted(load);
             </Button>
           </div>
 
-          <div class="overflow-x-auto rounded-xl border border-border/60">
+          <div
+            v-if="available"
+            class="overflow-x-auto rounded-xl border border-border/60"
+          >
             <table class="w-full min-w-[900px] text-sm">
               <thead
                 class="bg-muted/40 text-left text-xs text-muted-foreground"

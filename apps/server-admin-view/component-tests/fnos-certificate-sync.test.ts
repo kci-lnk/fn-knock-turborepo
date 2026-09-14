@@ -40,10 +40,15 @@ function item(
     local: null,
   };
 }
-async function setup() {
+async function setup(available = true) {
   const details: FnosCertificateSyncDetails = {
     snapshot_version: "revision-1",
-    availability: { available: true, reason: null },
+    availability: {
+      available,
+      reason: available
+        ? null
+        : "Unsupported fnOS certificate database structure: cert.platform missing",
+    },
     config: { auto_sync_enabled: false },
     runtime: {
       running: false,
@@ -99,6 +104,17 @@ async function setup() {
   return wrapper;
 }
 describe("fnOS certificate lifecycle", () => {
+  it("hides counts and the table when structure inspection fails", async () => {
+    const wrapper = await setup(false);
+    expect(wrapper.text()).toContain("cert.platform missing");
+    expect(wrapper.find("table").exists()).toBe(false);
+    expect(wrapper.text()).not.toContain("3 certificates · Create");
+    const button = wrapper
+      .findAll("button")
+      .find((b) => b.text().includes("(2)"))!;
+    expect(button.attributes("disabled")).toBeDefined();
+    expect(SystemAPI.syncFnosCertificates).not.toHaveBeenCalled();
+  });
   it("submits visible actions and the snapshot revision for sync all", async () => {
     const wrapper = await setup();
     const button = wrapper

@@ -4186,6 +4186,8 @@ export const koKRAdmin = {
     moveToGroup: "그룹으로 이동",
     batchActions: "일괄 작업",
     batchEdit: {
+      shortAction: "일괄 편집",
+      moveGroup: "그룹 이동",
       action: "제목 / 도메인 / 대상 편집",
       title: "매핑 {count}개 일괄 편집",
       description: "각 매핑을 편집한 후 이 대화 상자의 변경 사항을 한 번에 저장합니다.",

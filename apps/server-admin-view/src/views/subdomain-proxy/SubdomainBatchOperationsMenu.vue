@@ -1,16 +1,13 @@
 <script setup lang="ts">
-import SubdomainBatchGroupMenu from "./SubdomainBatchGroupMenu.vue";
 import { useI18n } from "vue-i18n";
 import {
   CalendarClock,
-  ChevronDown,
-  Pencil,
+  Ellipsis,
   Power,
   PowerOff,
   Trash2,
 } from "lucide-vue-next";
 import { Button } from "@/components/ui/button";
-import type { HostMappingGroup } from "@/types";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -20,16 +17,13 @@ import {
 } from "@/components/ui/dropdown-menu";
 
 defineProps<{
-  groups: HostMappingGroup[];
   saving: boolean;
   selectedCount: number;
 }>();
 
 const emit = defineEmits<{
-  edit: [];
   disable: [];
   enable: [];
-  move: [groupId: string | null];
   schedule: [];
   delete: [];
 }>();
@@ -42,25 +36,20 @@ const { t } = useI18n();
     <DropdownMenuTrigger as-child>
       <Button
         size="sm"
-        variant="outline"
+        variant="ghost"
         :disabled="saving || selectedCount === 0"
-        class="col-span-2 h-10 w-full sm:ml-auto sm:h-8 sm:w-auto"
+        class="h-10 min-w-0 w-full gap-1 px-0 text-xs sm:h-8 sm:w-auto sm:px-3 sm:text-sm"
+        data-testid="batch-more-trigger"
+        :title="t('common.moreActions')"
+        :aria-label="t('common.moreActions')"
       >
-        {{ t("admin.subdomainProxy.batchActions") }}
-        <ChevronDown class="ml-2 h-4 w-4" />
+        <span class="hidden sm:inline">{{
+          t("admin.subdomainProxy.moreActions")
+        }}</span>
+        <Ellipsis class="size-4 shrink-0" />
       </Button>
     </DropdownMenuTrigger>
     <DropdownMenuContent align="end">
-      <DropdownMenuItem :disabled="saving" @select="emit('edit')">
-        <Pencil class="mr-2 h-4 w-4" />{{
-          t("admin.subdomainProxy.batchEdit.action")
-        }}
-      </DropdownMenuItem>
-      <SubdomainBatchGroupMenu
-        :groups="groups"
-        :saving="saving"
-        @move="emit('move', $event)"
-      />
       <DropdownMenuItem :disabled="saving" @select="emit('enable')">
         <Power class="mr-2 h-4 w-4" />{{
           t("admin.subdomainProxy.enableMapping")

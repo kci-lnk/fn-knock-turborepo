@@ -3855,6 +3855,8 @@ export const zhHantAdmin = {
     moveToGroup: "移至群組",
     batchActions: "批次操作",
     batchEdit: {
+      shortAction: "批次編輯",
+      moveGroup: "移動群組",
       action: "編輯標題 / 網域 / 目標",
       title: "批次編輯 {count} 條對應",
       description: "逐條修改後按「儲存全部」，統一提交此視窗中的修改。",

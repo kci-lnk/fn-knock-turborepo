@@ -4226,6 +4226,8 @@ export const enAdmin = {
     moveToGroup: "Move to group",
     batchActions: "Batch actions",
     batchEdit: {
+      shortAction: "Edit",
+      moveGroup: "Group",
       action: "Edit titles / domains / targets",
       title: "Edit {count} mappings",
       description: "Edit each mapping, then save all changes in this dialog together.",

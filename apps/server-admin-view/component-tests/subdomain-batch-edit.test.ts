@@ -111,33 +111,41 @@ describe("batch mapping editor", () => {
     await flushPromises();
     expect(ctx.editor.open.value).toBe(false);
   });
-  it("moves actions into a keyboard-accessible dropdown and emits edit", async () => {
+  it("keeps editing visible and secondary actions in the more menu", async () => {
     const wrapper = mount(SubdomainMappingsBatchActions, {
       props: { groups: [], saving: false, selectedCount: 2 },
       attachTo: document.body,
       global: { plugins: [i18n()] },
     });
     wrappers.push(wrapper);
-    expect(wrapper.findAll("button")).toHaveLength(2);
-    const trigger = wrapper.find('button[aria-haspopup="menu"]');
+    expect(wrapper.findAll("button")).toHaveLength(3);
+    await wrapper.get('[data-testid="batch-edit-trigger"]').trigger("click");
+    expect(wrapper.emitted("edit")).toHaveLength(1);
+    const trigger = wrapper.get('[data-testid="batch-more-trigger"]');
     await trigger.trigger("keydown", { key: "Enter" });
     await flushPromises();
     const items = [...document.querySelectorAll('[role="menuitem"]')];
     expect(items.map((item) => item.textContent)).toEqual(
       expect.arrayContaining([
-        expect.stringContaining("Edit titles / domains / targets"),
+        expect.stringContaining(en.subdomainProxy.enableMapping),
         expect.stringContaining("Delete"),
       ]),
     );
+    expect(items).toHaveLength(4);
+    expect(
+      items.some((item) =>
+        item.textContent?.includes(en.subdomainProxy.batchEdit.shortAction),
+      ),
+    ).toBe(false);
     (
       items.find((item) =>
-        item.textContent?.includes("Edit titles"),
+        item.textContent?.includes(en.subdomainProxy.disableMapping),
       ) as HTMLElement
     ).click();
     await flushPromises();
-    expect(wrapper.emitted("edit")).toHaveLength(1);
+    expect(wrapper.emitted("disable")).toHaveLength(1);
   });
-  it("preserves group moves through the submenu and disables actions while saving", async () => {
+  it("exposes group selection directly and disables all actions while saving", async () => {
     const wrapper = mount(SubdomainMappingsBatchActions, {
       props: {
         groups: [{ id: "internal", name: "Internal" }],
@@ -148,19 +156,10 @@ describe("batch mapping editor", () => {
       global: { plugins: [i18n()] },
     });
     wrappers.push(wrapper);
+    expect(wrapper.findAll("button")).toHaveLength(4);
     await wrapper
-      .find('button[aria-haspopup="menu"]')
+      .get('[data-testid="batch-group-trigger"]')
       .trigger("keydown", { key: "Enter" });
-    await flushPromises();
-    const groupTrigger = [
-      ...document.querySelectorAll<HTMLElement>('[role="menuitem"]'),
-    ].find((item) =>
-      item.textContent?.includes(en.subdomainProxy.moveToGroup),
-    )!;
-    groupTrigger.focus();
-    groupTrigger.dispatchEvent(
-      new KeyboardEvent("keydown", { key: "ArrowRight", bubbles: true }),
-    );
     await flushPromises();
     const group = [
       ...document.querySelectorAll<HTMLElement>('[role="menuitem"]'),
@@ -169,8 +168,8 @@ describe("batch mapping editor", () => {
     await flushPromises();
     expect(wrapper.emitted("move")).toEqual([["internal"]]);
     await wrapper.setProps({ saving: true });
-    expect(
-      wrapper.find('button[aria-haspopup="menu"]').attributes(),
-    ).toHaveProperty("disabled");
+    for (const action of wrapper.findAll("button")) {
+      expect(action.attributes()).toHaveProperty("disabled");
+    }
   });
 });

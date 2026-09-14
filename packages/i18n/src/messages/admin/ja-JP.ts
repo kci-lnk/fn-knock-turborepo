@@ -4210,6 +4210,8 @@ export const jaJPAdmin = {
     moveToGroup: "グループへ移動",
     batchActions: "一括操作",
     batchEdit: {
+      shortAction: "一括編集",
+      moveGroup: "グループ移動",
       action: "タイトル / ドメイン / 転送先を編集",
       title: "{count} 件のマッピングを一括編集",
       description: "各マッピングを編集し、このダイアログの変更をまとめて保存します。",

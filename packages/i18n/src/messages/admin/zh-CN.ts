@@ -3911,6 +3911,8 @@ export const zhCNAdmin = {
     moveToGroup: "移动到分组",
     batchActions: "批量操作",
     batchEdit: {
+      shortAction: "批量编辑",
+      moveGroup: "移动分组",
       action: "编辑标题 / 域名 / 目标",
       title: "批量编辑 {count} 条映射",
       description: "逐条修改后点击“保存全部”，统一提交本窗口中的修改。",

@@ -36,7 +36,7 @@ const { t } = useI18n();
     <DropdownMenuTrigger as-child>
       <Button
         size="sm"
-        variant="ghost"
+        variant="outline"
         :disabled="saving || selectedCount === 0"
         class="h-10 min-w-0 w-full gap-1 px-0 text-xs sm:h-8 sm:w-auto sm:px-3 sm:text-sm"
         data-testid="batch-more-trigger"

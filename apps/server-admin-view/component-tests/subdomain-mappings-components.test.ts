@@ -117,7 +117,7 @@ describe("subdomain mapping presentation components", () => {
       batch
         .findAll("button")
         .filter((button) => button.classes().includes("h-10")),
-    ).toHaveLength(3);
+    ).toHaveLength(4);
 
     const mapping = {
       ...createDefaultMapping(),

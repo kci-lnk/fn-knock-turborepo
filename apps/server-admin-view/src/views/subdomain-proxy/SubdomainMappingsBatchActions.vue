@@ -41,9 +41,9 @@ const { t } = useI18n();
       </span>
       <Button
         size="sm"
-        variant="ghost"
+        variant="outline"
         :disabled="saving"
-        class="h-8 shrink-0 px-2 text-xs"
+        class="h-10 shrink-0 px-2 text-xs sm:h-8 sm:px-3 sm:text-sm"
         @click="emit('clear')"
       >
         {{ t("admin.subdomainProxy.clearSelection") }}

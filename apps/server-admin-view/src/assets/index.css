@@ -197,6 +197,20 @@
        instead of waiting for a possible double-tap zoom gesture. */
     touch-action: manipulation;
   }
+  /* Action labels should activate without entering native text selection.
+     Exclude editable comboboxes; ordinary links and content remain selectable. */
+  button,
+  [role="button"],
+  [role="tab"],
+  [role="menuitem"],
+  [role="menuitemcheckbox"],
+  [role="menuitemradio"],
+  [role="option"],
+  [role="combobox"]:not(input):not(textarea):not([contenteditable]) {
+    -webkit-user-select: none;
+    user-select: none;
+    -webkit-touch-callout: none;
+  }
   button:not(:disabled),
   [role="button"]:not(button):not([aria-disabled="true"]) {
     cursor: pointer;

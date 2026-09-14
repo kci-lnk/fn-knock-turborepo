@@ -4237,3 +4237,19 @@ async fn static_path_log_storage_requires_directory_target() {
         assert!(!browse.for_log_storage.unwrap_or(false));
     }
 }
+
+#[test]
+fn quarantine_requires_gateway_to_acknowledge_disabled_host() {
+    let requested = build_host_rules_payload_for_config(&json!({"host_mappings": [{
+        "host": "broken.example.com", "target": "http://127.0.0.1:8080",
+        "advanced_auth": {"enabled": true, "policy_recovery_required": true}
+    }]}));
+    ensure_go_host_protocol_modes_applied(&requested, &json!({"data": requested.clone()})).unwrap();
+    for disabled in [Value::Null, json!(false)] {
+        let mut echoed = requested.clone();
+        echoed["items"][0]["disabled"] = disabled;
+        let error = ensure_go_host_protocol_modes_applied(&requested, &json!({"data": echoed}))
+            .unwrap_err();
+        assert!(error.contains("disabled state"));
+    }
+}

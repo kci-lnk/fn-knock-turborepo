@@ -198,6 +198,8 @@ pub(super) fn ensure_go_host_protocol_modes_applied(
         .get("data")
         .ok_or_else(|| "Go backend host-rules response is missing data".to_string())?;
     let requested_modes = host_protocol_modes_by_host(requested, "Host-rules request")?;
+    let requested_disabled = disabled_hosts(requested);
+    let echoed_disabled = disabled_hosts(echoed_payload);
     let echoed_modes = host_protocol_modes_by_host(echoed_payload, "Go backend response")?;
     let requested_target_path_modes =
         host_target_path_modes_by_host(requested, "Host-rules request")?;
@@ -217,6 +219,11 @@ pub(super) fn ensure_go_host_protocol_modes_applied(
                 "Go backend did not apply host mapping {host}; upgrade the gateway backend"
             ));
         };
+        if requested_disabled.contains(host) != echoed_disabled.contains(host) {
+            return Err(format!(
+                "Go backend did not apply disabled state for {host}; upgrade the gateway backend"
+            ));
+        }
         if echoed_mode != requested_mode {
             return Err(format!(
                 "Go backend did not apply HTTPS protocol mode {requested_mode} for {host} (reported {echoed_mode}); upgrade the gateway backend"
@@ -282,6 +289,15 @@ pub(super) fn ensure_go_host_protocol_modes_applied(
         ));
     }
     Ok(())
+}
+
+fn disabled_hosts(payload: &Value) -> HashSet<String> {
+    host_rule_items(payload)
+        .into_iter()
+        .flatten()
+        .filter(|item| item.get("disabled").and_then(Value::as_bool) == Some(true))
+        .map(|item| normalize_host_value(item.get("host").and_then(Value::as_str).unwrap_or("")))
+        .collect()
 }
 
 fn host_targets_by_host(value: &Value) -> Result<HashMap<String, (String, Value)>, String> {

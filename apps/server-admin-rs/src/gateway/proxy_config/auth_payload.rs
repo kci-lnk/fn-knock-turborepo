@@ -77,10 +77,17 @@ fn build_host_rules_payload_with_groups(mappings: &[Value], groups: &[Value]) ->
                 // Do not make unrelated Host edits depend on stale region
                 // data, while still retaining the complete draft and its
                 // policy references in persistent configuration.
+                // Quarantine survives generic host enable/disable edits and auth
+                // toggles. A validated advanced-auth save rebuilds the draft and
+                // clears this server-owned marker.
+                let recovery_required = object.get("advanced_auth")
+                    .and_then(|auth| auth.get("policy_recovery_required"))
+                    .and_then(Value::as_bool)
+                    .unwrap_or(false);
                 let advanced_auth = object
                     .get("advanced_auth")
                     .filter(|value| {
-                        value
+                        !recovery_required && value
                             .get("enabled")
                             .and_then(Value::as_bool)
                             .unwrap_or(false)
@@ -98,7 +105,7 @@ fn build_host_rules_payload_with_groups(mappings: &[Value], groups: &[Value]) ->
                     "suppress_toolbar": object.get("suppress_toolbar").cloned().unwrap_or(Value::Bool(false)),
                     "preserve_host": object.get("preserve_host").cloned().unwrap_or(Value::Bool(true)),
                     "is_default": object.get("is_default").cloned().unwrap_or(Value::Bool(false)),
-                    "disabled": object.get("disabled").cloned().unwrap_or(Value::Bool(false)),
+                    "disabled": recovery_required || object.get("disabled").and_then(Value::as_bool).unwrap_or(false),
                     "availability": object.get("availability").cloned().unwrap_or(Value::Null),
                     "visibility": object.get("visibility").map(|visibility| json!({
                         "mode": visibility.get("mode").and_then(Value::as_str).unwrap_or("inherit"),

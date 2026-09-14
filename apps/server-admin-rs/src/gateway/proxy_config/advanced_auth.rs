@@ -959,6 +959,7 @@ mod tests {
         let mapping = json!({
             "advanced_auth": {
                 "enabled": true,
+                "policy_recovery_required": true,
                 "idle_ttl_seconds": 86400,
                 "max_lifetime_seconds": 2592000,
                 "policy_version": "old-version",
@@ -985,6 +986,7 @@ mod tests {
         )
         .expect("disable policy");
         assert_eq!(disabled["enabled"], false);
+        assert_eq!(disabled["policy_recovery_required"], true);
         assert_eq!(disabled["idle_ttl_seconds"], 3600);
         assert_eq!(disabled["max_lifetime_seconds"], 7200);
         assert_ne!(disabled["policy_version"], "old-version");

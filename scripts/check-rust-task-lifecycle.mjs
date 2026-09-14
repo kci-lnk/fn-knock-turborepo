@@ -3,7 +3,7 @@ import path from "node:path";
 import process from "node:process";
 
 const sourceRoot = path.resolve("apps/server-admin-rs/src");
-const maxDirectSpawnCallSites = 122;
+const maxDirectSpawnCallSites = 124;
 
 // Direct spawns are limited to explicitly audited owners, request-scoped
 // fan-out, subprocess pipe/wait tasks, platform entry points, and tests.
@@ -62,6 +62,9 @@ const auditedBudgets = new Map(
     // one test-only actor retained by the same runtime task registry, and one
     // abort/join cancellation probe owned by AbortOnDropHandle until cleanup.
     "system/terminal/runtime.rs": 4,
+    // Demand-driven metrics worker owned by MetricsService (cancel + join,
+    // abort-on-drop fallback) and one explicitly awaited cancellation test.
+    "system/terminal/metrics/mod.rs": 2,
     // Test-only russh server fixture; every returned handle is explicitly aborted.
     "system/terminal/ssh.rs": 1,
     "system/update.rs": 1,

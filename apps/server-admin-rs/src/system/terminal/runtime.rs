@@ -79,6 +79,7 @@ struct ForceConfirmationGrant {
 }
 
 struct RuntimeSession {
+    metrics: Mutex<Option<Arc<super::metrics::MetricsService>>>,
     state: Mutex<SessionState>,
     api_operation: Mutex<()>,
     output_notify: Notify,
@@ -421,6 +422,7 @@ impl TerminalRuntime {
         };
         let (commands, receiver) = mpsc::channel(COMMAND_QUEUE_CAPACITY);
         let runtime_session = Arc::new(RuntimeSession {
+            metrics: Mutex::new(None),
             state: Mutex::new(SessionState {
                 session: snapshot.clone(),
                 output: OutputBuffer::new(),
@@ -1179,6 +1181,33 @@ impl TerminalRuntime {
         })
     }
 
+    pub async fn attachment_metrics(
+        &self,
+        attachment_id: &str,
+    ) -> TerminalResult<super::metrics::TerminalMetrics> {
+        let session = self.session_for_attachment(attachment_id).await?;
+        if session.state.lock().await.session.phase != SessionPhase::Running {
+            return Ok(super::metrics::TerminalMetrics::unavailable(
+                super::metrics::MetricReason::SessionInactive,
+            ));
+        }
+        let metrics = session.metrics.lock().await.clone();
+        let data = match metrics {
+            Some(metrics) => metrics.sample().await,
+            None => super::metrics::TerminalMetrics::unavailable(
+                super::metrics::MetricReason::WarmingUp,
+            ),
+        };
+        // Detachment/expiry can race with the sample. Never return data to an
+        // attachment that ceased to be valid while awaiting the collector.
+        let mut state = session.state.lock().await;
+        state.expire_attachments();
+        if !state.attachments.contains_key(attachment_id) {
+            return Err(attachment_expired());
+        }
+        Ok(data)
+    }
+
     async fn session_for_attachment(
         &self,
         attachment_id: &str,
@@ -1879,6 +1908,14 @@ async fn run_session_actor(
     shutdown: CancellationToken,
     audit_state: Option<AppState>,
 ) {
+    let metrics_cancel = runtime.cancel.child_token();
+    let _metrics_guard = metrics_cancel.clone().drop_guard();
+    if let Some(collector) = shell.metrics_collector() {
+        *runtime.metrics.lock().await = Some(super::metrics::MetricsService::start(
+            collector,
+            &runtime.cancel,
+        ));
+    }
     let mut explicit_close = false;
     'actor: loop {
         tokio::select! {
@@ -2040,6 +2077,9 @@ async fn run_session_actor(
                 }
             }
         }
+    }
+    if let Some(metrics) = runtime.metrics.lock().await.take() {
+        metrics.stop().await;
     }
     shell.disconnect().await;
     let phase = runtime.state.lock().await.session.phase;
@@ -2307,6 +2347,69 @@ mod unit {
         async fn close(&mut self) {}
 
         async fn disconnect(&mut self) {}
+    }
+
+    #[tokio::test]
+    async fn metrics_allow_viewers_reject_expired_attachments_and_leave_io_live() {
+        use super::super::metrics::{MetricReason, MetricsCollector, MetricsService};
+        struct WaitingCollector(tokio::sync::Notify);
+        #[async_trait]
+        impl MetricsCollector for WaitingCollector {
+            async fn collect(&self, cancel: &CancellationToken) -> Result<String, MetricReason> {
+                self.0.notify_one();
+                cancel.cancelled().await;
+                Err(MetricReason::SessionInactive)
+            }
+        }
+        let runtime = TerminalRuntime::new();
+        let (session, _events, inputs, resizes) = running_mock_session(&runtime).await;
+        let controller = runtime
+            .create_attachment(&session.id, None, None)
+            .await
+            .unwrap();
+        let viewer = runtime
+            .create_attachment(&session.id, None, None)
+            .await
+            .unwrap();
+        assert_eq!(viewer.role, AttachmentRole::Viewer);
+        let collector = Arc::new(WaitingCollector(tokio::sync::Notify::new()));
+        let owned = runtime.session(&session.id).await.unwrap();
+        let service = MetricsService::start(collector.clone(), &owned.cancel);
+        *owned.metrics.lock().await = Some(service.clone());
+        let (sample, _) = tokio::join!(runtime.attachment_metrics(&viewer.id), async {
+            collector.0.notified().await;
+            runtime
+                .send_input(
+                    &controller.id,
+                    controller.generation,
+                    1,
+                    b"vim input".to_vec(),
+                )
+                .await
+                .unwrap();
+            runtime
+                .resize(&controller.id, controller.generation, 1, 100, 30)
+                .await
+                .unwrap();
+            assert_eq!(inputs.lock().unwrap().as_slice(), &[b"vim input".to_vec()]);
+            assert_eq!(resizes.lock().unwrap().as_slice(), &[(100, 30)]);
+            runtime.detach(&viewer.id).await.unwrap();
+            service.stop().await;
+        });
+        assert_eq!(
+            sample.unwrap_err().code,
+            TerminalErrorCode::AttachmentExpired
+        );
+        assert_eq!(
+            runtime
+                .attachment_metrics("unknown")
+                .await
+                .unwrap_err()
+                .code,
+            TerminalErrorCode::AttachmentExpired
+        );
+        let _ = runtime.attachment_metrics(&controller.id).await.unwrap();
+        runtime.shutdown_all().await;
     }
 
     async fn running_mock_session(

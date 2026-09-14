@@ -8,6 +8,7 @@ import {
 } from "vue";
 import { useI18n } from "vue-i18n";
 import { toast } from "@admin-shared/utils/toast";
+import { useTerminalMetrics } from "./useTerminalMetrics";
 import { useTerminalAttachment } from "./useTerminalAttachment";
 import { extractTerminalError, localizeTerminalError } from "./terminal-errors";
 import { useTerminalEmulator } from "./useTerminalEmulator";
@@ -74,6 +75,16 @@ export const useWebTerminalPage = () => {
     onReset: () => emulator?.clearTerminal(),
     onSessionState: (sessionId, phase, details) =>
       sessionsController.updateSessionPhase(sessionId, phase, details),
+  });
+
+  const metricsController = useTerminalMetrics({
+    attachment: attachmentController.attachment,
+    sessionId: sessionsController.selectedSessionId,
+    connected: computed(
+      () =>
+        attachmentController.connected.value &&
+        sessionsController.selectedSession.value?.phase === "running",
+    ),
   });
 
   const controllingAttachment = computed(() =>
@@ -365,6 +376,7 @@ export const useWebTerminalPage = () => {
     (emulator.terminalMountRef.value = element as HTMLElement | null);
 
   return {
+    ...metricsController,
     ...interactions,
     ...presentation,
     ...sessionActions,

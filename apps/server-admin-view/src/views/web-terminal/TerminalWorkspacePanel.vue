@@ -20,11 +20,16 @@ import TerminalConnectionErrorAlert from "./TerminalConnectionErrorAlert.vue";
 import TerminalContextMenu from "./TerminalContextMenu.vue";
 import TerminalMobileToolbar from "./TerminalMobileToolbar.vue";
 import TerminalSessionToolbar from "./TerminalSessionToolbar.vue";
+import TerminalResourceStatusBar from "./TerminalResourceStatusBar.vue";
 import TerminalWindowChrome from "./TerminalWindowChrome.vue";
 import type { WebTerminalPageController } from "./useWebTerminalPage";
 
 const props = defineProps<{ controller: WebTerminalPageController }>();
 const {
+  metrics,
+  metricsLoading,
+  metricsFailed,
+  metricsStale,
   activeAttachment,
   armedModifier,
   armedModifierLabel,
@@ -302,6 +307,14 @@ const selectedTargetEndpoint = computed(() => {
             @select-all="selectAllTerminalText"
           />
         </div>
+        <TerminalResourceStatusBar
+          :metrics="metrics"
+          :loading="metricsLoading"
+          :failed="metricsFailed"
+          :stale="metricsStale"
+          :connection-state="connectionState"
+          :connection-label="statusTone"
+        />
       </div>
 
       <div

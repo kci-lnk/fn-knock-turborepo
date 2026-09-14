@@ -280,7 +280,7 @@ pub(super) async fn open_shell(
     use portable_pty::{PtySize, native_pty_system};
 
     let progress = progress.cloned();
-    tokio::task::spawn_blocking(move || {
+    let shell = tokio::task::spawn_blocking(move || {
         emit_progress(progress.as_ref(), SessionPhase::OpeningPty);
         let pair = native_pty_system()
             .openpty(PtySize {
@@ -315,7 +315,11 @@ pub(super) async fn open_shell(
             TerminalErrorCode::LocalPtyStartFailed,
             "local PTY initializer failed",
         )
-    })?
+    })??;
+    Ok(Box::new(super::shell::MeteredShell {
+        shell,
+        collector: std::sync::Arc::new(super::metrics::LocalCollector),
+    }))
 }
 
 #[cfg(not(unix))]

@@ -6174,6 +6174,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/admin/terminal/attachments/{id}/metrics": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * 查看Web 终端metrics
+         * @description 管理 Web 终端运行时能力和交互会话。。`GET /api/admin/terminal/attachments/{id}/metrics` 用于读取当前状态、配置或导出内容，不会主动修改服务配置。 该操作不要求 JSON 请求体。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
+         */
+        get: operations["attachment_metrics"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/admin/terminal/attachments/{id}/resize": {
         parameters: {
             query?: never;
@@ -11131,6 +11151,14 @@ export interface components {
         };
         /** @enum {string} */
         MemoryDetailsStatus: "available" | "partial" | "unsupported" | "unavailable";
+        /** @enum {string} */
+        MetricReason: "warming_up" | "unsupported_platform" | "missing_command" | "permission_denied" | "invalid_output" | "counter_reset" | "estimated" | "exec_rejected" | "timeout" | "output_limit" | "collection_failed" | "session_inactive";
+        /** @enum {string} */
+        MetricStatus: "available" | "estimated" | "unavailable";
+        /** @enum {string} */
+        MetricsPlatform: "linux" | "macos" | "unknown";
+        /** @enum {string} */
+        MetricsStatus: "available" | "partial" | "unavailable";
         NotificationDeliveryClearBodyData: {
             provider_id?: string | null;
             rule_id?: string | null;
@@ -13260,6 +13288,16 @@ export interface components {
             sessionId: string;
             transport: components["schemas"]["TerminalTransport"];
         };
+        TerminalCapacityMetric: {
+            /** Format: double */
+            percent?: number | null;
+            reason?: null | components["schemas"]["MetricReason"];
+            status: components["schemas"]["MetricStatus"];
+            /** Format: int64 */
+            totalBytes?: number | null;
+            /** Format: int64 */
+            usedBytes?: number | null;
+        };
         /** @enum {string} */
         TerminalErrorCode: "feature_disabled" | "resource_busy" | "invalid_request" | "target_not_found" | "session_not_found" | "host_key_required" | "host_key_mismatch" | "authentication_failed" | "pty_rejected" | "session_limit_reached" | "session_lost" | "attachment_expired" | "controller_conflict" | "target_revision_conflict" | "local_terminal_unsupported" | "local_terminal_disabled" | "local_terminal_risk_acknowledgement_required" | "local_terminal_revision_conflict" | "local_shell_unavailable" | "local_pty_start_failed" | "connect_timeout" | "conflict" | "upstream_unavailable" | "internal_error";
         TerminalErrorEnvelope: {
@@ -13286,6 +13324,28 @@ export interface components {
         };
         /** @enum {string} */
         TerminalEventType: "output" | "status" | "control";
+        TerminalMetrics: {
+            cpu: components["schemas"]["TerminalNumericMetric"];
+            /** @description Capacity of the filesystem mounted at /, not all physical disks. */
+            disk: components["schemas"]["TerminalCapacityMetric"];
+            memory: components["schemas"]["TerminalCapacityMetric"];
+            platform: components["schemas"]["MetricsPlatform"];
+            /**
+             * Format: int64
+             * @description Elapsed time since collection, independent of server/browser wall clocks.
+             */
+            sampleAgeMs: number;
+            sampledAt: string;
+            status: components["schemas"]["MetricsStatus"];
+            uptime: components["schemas"]["TerminalNumericMetric"];
+        };
+        /** @description Numeric metrics use percent (CPU) or seconds (uptime), never formatted text. */
+        TerminalNumericMetric: {
+            reason?: null | components["schemas"]["MetricReason"];
+            status: components["schemas"]["MetricStatus"];
+            /** Format: double */
+            value?: number | null;
+        };
         TerminalSession: {
             backend: components["schemas"]["SessionBackend"];
             /** Format: int32 */
@@ -29212,6 +29272,44 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ApiSuccessEnvelope"];
+                };
+            };
+            /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TerminalErrorEnvelope"];
+                };
+            };
+        };
+    };
+    attachment_metrics: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 「查看Web 终端metrics」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        data: components["schemas"]["TerminalMetrics"];
+                        message?: string | null;
+                        /** @constant */
+                        success: true;
+                    } & {
+                        [key: string]: unknown;
+                    };
                 };
             };
             /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */

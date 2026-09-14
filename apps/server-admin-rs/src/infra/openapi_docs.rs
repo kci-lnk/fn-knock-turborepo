@@ -2252,6 +2252,15 @@ pub(crate) fn build_openapi_document() -> Value {
     insert_typed_enveloped_operation(
         &mut paths,
         &typed_terminal_runtime,
+        "/api/admin/terminal/attachments/{id}/metrics",
+        "get",
+        "TerminalMetrics",
+        None,
+        None,
+    );
+    insert_typed_enveloped_operation(
+        &mut paths,
+        &typed_terminal_runtime,
         "/api/admin/terminal/attachments/{id}/events",
         "get",
         "EventsResult",
@@ -2335,6 +2344,7 @@ pub(crate) fn build_openapi_document() -> Value {
         ("delete", "/api/admin/terminal/sessions/{id}"),
         ("post", "/api/admin/terminal/sessions/{id}/attachments"),
         ("get", "/api/admin/terminal/attachments/{id}/events"),
+        ("get", "/api/admin/terminal/attachments/{id}/metrics"),
         ("post", "/api/admin/terminal/attachments/{id}/input"),
         ("post", "/api/admin/terminal/attachments/{id}/resize"),
         ("post", "/api/admin/terminal/attachments/{id}/control"),

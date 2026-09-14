@@ -10,6 +10,7 @@ pub(crate) mod domain;
 mod http;
 mod legacy_cleanup;
 mod local;
+mod metrics;
 mod repository;
 mod runtime;
 mod secrets;

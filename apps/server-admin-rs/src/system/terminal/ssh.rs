@@ -77,13 +77,18 @@ impl client::Handler for HostKeyHandler {
 }
 
 struct ConnectedShell {
-    pub session: client::Handle<HostKeyHandler>,
+    pub session: Arc<client::Handle<HostKeyHandler>>,
     pub channel: Channel<client::Msg>,
     pub pending_events: VecDeque<ShellEvent>,
 }
 
 #[async_trait]
 impl InteractiveShell for ConnectedShell {
+    fn metrics_collector(&self) -> Option<Arc<dyn super::metrics::MetricsCollector>> {
+        Some(Arc::new(super::metrics::SshCollector(Arc::clone(
+            &self.session,
+        ))))
+    }
     async fn next_event(&mut self) -> ShellEvent {
         if let Some(event) = self.pending_events.pop_front() {
             return event;
@@ -446,7 +451,7 @@ pub(super) async fn open_shell(
     .await?;
 
     Ok(Box::new(ConnectedShell {
-        session,
+        session: Arc::new(session),
         channel,
         pending_events: pending.events,
     }))
@@ -755,6 +760,8 @@ bQP0o+gL5aKK8cQgiIlXeDbRjqhc4+h4EF6lY=\n\
         shells: usize,
         inputs: Vec<Vec<u8>>,
         resizes: Vec<(u32, u32)>,
+        metrics_mode: u8,
+        execs: usize,
     }
 
     #[derive(Clone)]
@@ -805,6 +812,36 @@ bQP0o+gL5aKK8cQgiIlXeDbRjqhc4+h4EF6lY=\n\
             _session: &mut Session,
         ) -> Result<(), Self::Error> {
             reply.accept().await;
+            Ok(())
+        }
+
+        async fn exec_request(
+            &mut self,
+            channel: ChannelId,
+            data: &[u8],
+            session: &mut Session,
+        ) -> Result<(), Self::Error> {
+            assert!(String::from_utf8_lossy(data).starts_with("sh -c '"));
+            let mode = {
+                let mut observed = self.observed.lock().unwrap();
+                observed.execs += 1;
+                observed.metrics_mode
+            };
+            if mode == 1 {
+                session.channel_failure(channel)?;
+                return Ok(());
+            }
+            session.channel_success(channel)?;
+            if mode == 2 {
+                session.data(channel, vec![b'X'; 65537])?;
+            } else if mode == 3 {
+                return Ok(());
+            } else {
+                session.data(channel, b"__FN_METRIC_platform__\nLinux\n__FN_METRIC_uptime__\n123 0\n__FN_METRIC_end__\n".to_vec())?;
+            }
+            session.eof(channel)?;
+            session.exit_status_request(channel, if mode == 4 { 7 } else { 0 })?;
+            session.close(channel)?;
             Ok(())
         }
 
@@ -958,6 +995,57 @@ bQP0o+gL5aKK8cQgiIlXeDbRjqhc4+h4EF6lY=\n\
             updated_at: String::new(),
         };
         (endpoint, target, observed, task)
+    }
+
+    #[tokio::test]
+    async fn metrics_exec_is_isolated_bounded_and_reuses_authentication() {
+        use super::super::metrics::MetricReason;
+        use tokio_util::sync::CancellationToken;
+        let (_, target, observed, task) = start_server(true).await;
+        let mut shell = RusshConnector
+            .open_shell(
+                &target,
+                SshCredential::Password("secret".into()),
+                80,
+                24,
+                None,
+            )
+            .await
+            .unwrap();
+        let collector = shell.metrics_collector().unwrap();
+        assert!(
+            collector
+                .collect(&CancellationToken::new())
+                .await
+                .unwrap()
+                .contains("123 0")
+        );
+        for (mode, expected) in [
+            (1, MetricReason::ExecRejected),
+            (2, MetricReason::OutputLimit),
+            (3, MetricReason::Timeout),
+            (4, MetricReason::CollectionFailed),
+        ] {
+            observed.lock().unwrap().metrics_mode = mode;
+            assert_eq!(
+                collector
+                    .collect(&CancellationToken::new())
+                    .await
+                    .unwrap_err(),
+                expected
+            );
+        }
+        shell.input(b"editor input".to_vec()).await.unwrap();
+        shell.resize(100, 30).await.unwrap();
+        // Shell startup output was not consumed by any metrics request.
+        assert!(matches!(shell.next_event().await, ShellEvent::Data(data) if data == b"ready\r\n"));
+        assert_eq!(observed.lock().unwrap().password_auth_attempts, 1);
+        assert_eq!(observed.lock().unwrap().pty.len(), 1);
+        assert_eq!(observed.lock().unwrap().execs, 5);
+        shell.close().await;
+        shell.disconnect().await;
+        task.abort();
+        let _ = task.await;
     }
 
     #[tokio::test]

@@ -1723,7 +1723,20 @@ fn current_process_rss_bytes() -> Option<u64> {
     (ok != 0).then(|| unsafe { counters.assume_init() }.WorkingSetSize as u64)
 }
 
-#[cfg(not(any(target_os = "linux", target_os = "macos", windows)))]
+#[cfg(target_os = "netbsd")]
+fn current_process_rss_bytes() -> Option<u64> {
+    let mut usage = std::mem::MaybeUninit::<libc::rusage>::zeroed();
+    // SAFETY: getrusage initializes the writable rusage buffer on success.
+    if unsafe { libc::getrusage(libc::RUSAGE_SELF, usage.as_mut_ptr()) } != 0 {
+        return None;
+    }
+    // SAFETY: getrusage returned success above.
+    let usage = unsafe { usage.assume_init() };
+    // NetBSD's ru_maxrss, like other BSDs, is reported in kilobytes.
+    (usage.ru_maxrss >= 0).then(|| usage.ru_maxrss as u64 * 1024)
+}
+
+#[cfg(not(any(target_os = "linux", target_os = "macos", target_os = "netbsd", windows)))]
 fn current_process_rss_bytes() -> Option<u64> {
     None
 }

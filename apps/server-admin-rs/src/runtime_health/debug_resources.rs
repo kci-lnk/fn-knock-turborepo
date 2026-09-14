@@ -301,7 +301,20 @@ fn process_memory(errors: &mut Vec<String>) -> ProcessMemory {
     memory
 }
 
-#[cfg(not(target_os = "linux"))]
+#[cfg(target_os = "netbsd")]
+fn process_memory(errors: &mut Vec<String>) -> ProcessMemory {
+    // No smaps-equivalent breakdown is available; only RSS is reported.
+    let rss_bytes = super::current_process_rss_bytes();
+    if rss_bytes.is_none() {
+        add_error(errors, "memory_breakdown_unsupported");
+    }
+    ProcessMemory {
+        rss_bytes,
+        ..ProcessMemory::default()
+    }
+}
+
+#[cfg(not(any(target_os = "linux", target_os = "netbsd")))]
 fn process_memory(errors: &mut Vec<String>) -> ProcessMemory {
     add_error(errors, "memory_breakdown_unsupported");
     ProcessMemory {
@@ -398,8 +411,9 @@ fn read_cpu(errors: &mut Vec<String>) -> Option<CpuReading> {
     Some(reading)
 }
 
-#[cfg(target_os = "macos")]
+#[cfg(any(target_os = "macos", target_os = "netbsd"))]
 fn read_cpu(errors: &mut Vec<String>) -> Option<CpuReading> {
+    // No per-LWP accounting is wired up yet; only process-level CPU is reported.
     add_error(errors, "thread_cpu_unsupported");
     let mut usage = std::mem::MaybeUninit::<libc::rusage>::zeroed();
     // SAFETY: getrusage initializes the writable rusage buffer on success.
@@ -420,7 +434,7 @@ fn read_cpu(errors: &mut Vec<String>) -> Option<CpuReading> {
     })
 }
 
-#[cfg(not(any(target_os = "linux", target_os = "macos")))]
+#[cfg(not(any(target_os = "linux", target_os = "macos", target_os = "netbsd")))]
 fn read_cpu(errors: &mut Vec<String>) -> Option<CpuReading> {
     add_error(errors, "process_cpu_unsupported");
     add_error(errors, "thread_cpu_unsupported");
@@ -466,7 +480,17 @@ pub(crate) fn collect_memory_details() -> MemoryDetails {
             MemoryDetailsStatus::Partial
         };
     }
-    #[cfg(not(target_os = "linux"))]
+    #[cfg(target_os = "netbsd")]
+    {
+        add_error(&mut details.errors, "memory_maps_unsupported");
+        add_error(&mut details.errors, "allocator_stats_unsupported");
+        details.status = if details.rss_bytes.is_some() {
+            MemoryDetailsStatus::Partial
+        } else {
+            MemoryDetailsStatus::Unavailable
+        };
+    }
+    #[cfg(not(any(target_os = "linux", target_os = "netbsd")))]
     {
         add_error(&mut details.errors, "memory_maps_unsupported");
         add_error(&mut details.errors, "allocator_stats_unsupported");

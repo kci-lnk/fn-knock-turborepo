@@ -1725,15 +1725,42 @@ fn current_process_rss_bytes() -> Option<u64> {
 
 #[cfg(target_os = "netbsd")]
 fn current_process_rss_bytes() -> Option<u64> {
-    let mut usage = std::mem::MaybeUninit::<libc::rusage>::zeroed();
-    // SAFETY: getrusage initializes the writable rusage buffer on success.
-    if unsafe { libc::getrusage(libc::RUSAGE_SELF, usage.as_mut_ptr()) } != 0 {
+    // getrusage's ru_maxrss is the process's *peak* RSS, not its current
+    // value -- unsuitable for a live sample series, since it never
+    // decreases even after memory is freed. Use the kern.proc2 sysctl's
+    // p_vm_rssize (current resident pages) instead, same as ps(1)/top(1).
+    let mut info = std::mem::MaybeUninit::<libc::kinfo_proc2>::zeroed();
+    let mut size = std::mem::size_of::<libc::kinfo_proc2>();
+    let mib = [
+        libc::CTL_KERN,
+        libc::KERN_PROC2,
+        libc::KERN_PROC_PID,
+        std::process::id() as libc::c_int,
+        size as libc::c_int,
+        1,
+    ];
+    // SAFETY: `mib` is a valid 6-element MIB for NetBSD's kern.proc2/PID
+    // query, and `info`/`size` describe a buffer sized for exactly one
+    // kinfo_proc2 record.
+    let ret = unsafe {
+        libc::sysctl(
+            mib.as_ptr(),
+            mib.len() as libc::c_uint,
+            info.as_mut_ptr().cast(),
+            &mut size,
+            std::ptr::null(),
+            0,
+        )
+    };
+    if ret != 0 || size != std::mem::size_of::<libc::kinfo_proc2>() {
         return None;
     }
-    // SAFETY: getrusage returned success above.
-    let usage = unsafe { usage.assume_init() };
-    // NetBSD's ru_maxrss, like other BSDs, is reported in kilobytes.
-    (usage.ru_maxrss >= 0).then(|| usage.ru_maxrss as u64 * 1024)
+    // SAFETY: sysctl reported success and filled the buffer completely.
+    let info = unsafe { info.assume_init() };
+    // SAFETY: sysconf is read-only and does not retain any pointers.
+    let page_size = unsafe { libc::sysconf(libc::_SC_PAGESIZE) };
+    (page_size > 0 && info.p_vm_rssize >= 0)
+        .then(|| info.p_vm_rssize as u64 * page_size as u64)
 }
 
 #[cfg(not(any(target_os = "linux", target_os = "macos", target_os = "netbsd", windows)))]
@@ -2397,7 +2424,7 @@ mod tests {
     }
 
     #[test]
-    #[cfg(any(target_os = "linux", target_os = "macos", windows))]
+    #[cfg(any(target_os = "linux", target_os = "macos", target_os = "netbsd", windows))]
     fn current_process_rss_is_reported() {
         assert!(current_process_rss_bytes().is_some_and(|bytes| bytes > 0));
     }

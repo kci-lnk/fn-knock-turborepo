@@ -11721,7 +11721,7 @@ export interface components {
             auth_source: "panel_session" | "reauth_session" | null;
             authenticated: boolean;
             /** @enum {string} */
-            deployment_target: "fpk" | "fpk-lite" | "docker" | "openwrt" | "linux" | "macos" | "synology" | "windows" | "dev";
+            deployment_target: "fpk" | "fpk-lite" | "docker" | "openwrt" | "linux" | "netbsd" | "macos" | "synology" | "windows" | "dev";
             enabled: boolean;
             locale: components["schemas"]["LocaleConfigData"];
             password_configured: boolean;

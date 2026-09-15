@@ -20,9 +20,12 @@ struct AppMetadata {
 }
 
 /// `protoc_bin_vendored` only ships prebuilt binaries for a handful of
-/// platforms (Linux/macOS/Windows). Elsewhere, honor an explicit `PROTOC`
-/// override first, then fall back to a `protoc` already on PATH (e.g. a
-/// system package) before giving up.
+/// platforms (Linux/macOS/Windows), and even there an explicit `PROTOC`
+/// always wins. Elsewhere, fall back to a `protoc` already on PATH (e.g. a
+/// system package) rather than failing outright. The vendored binary is
+/// preferred over PATH when both are available, so the pinned, reproducible
+/// version keeps being used on already-supported platforms unless the
+/// caller opts out via `PROTOC`.
 fn resolve_protoc() -> PathBuf {
     if let Ok(protoc) = env::var("PROTOC") {
         return PathBuf::from(protoc);
@@ -58,6 +61,7 @@ fn main() {
     println!("cargo:rerun-if-changed={}", proto_file.display());
     println!("cargo:rerun-if-env-changed=FN_KNOCK_GATEWAY_COMMIT");
     println!("cargo:rerun-if-env-changed=PROTOC");
+    println!("cargo:rerun-if-env-changed=PATH");
 
     let protoc = resolve_protoc();
     // SAFETY: build scripts run single-threaded here before tonic_build reads

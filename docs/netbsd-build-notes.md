@@ -76,8 +76,7 @@ can SIGKILL the final `rustc` codegen/link step with no other error output
 (no NetBSD OOM-killer log line, just a bare `signal: 9, SIGKILL`). 8 GB was
 comfortably enough for a clean build; 4 GB was not.
 
-With those two fixed, `cargo build --release --manifest-path
-apps/server-admin-rs/Cargo.toml` behaves exactly as it does on Linux/macOS.
+With those two fixed, `cargo build --release --manifest-path apps/server-admin-rs/Cargo.toml` behaves exactly as it does on Linux/macOS.
 
 ## Building the Go gateway (`Go-Reauth-Proxy`)
 
@@ -117,8 +116,8 @@ Turbo and run each app's own script directly instead of
 `npx turbo run build --filter=...`:
 
 ```sh
-cd apps/server-admin-view && npm run build
-cd apps/server-auth-view && npm run build
+(cd apps/server-admin-view && npm run build)
+(cd apps/server-auth-view && npm run build)
 ```
 
 **2. A cascade of "native binding not found" errors from Rust-native npm
@@ -134,14 +133,7 @@ None of these ship a NetBSD-native build. Two of them (`rolldown`,
 `@tailwindcss/oxide`) already have a WASM/WASI fallback path built into
 their loader — it's just never installed automatically, because npm's
 `optionalDependencies` platform matching skips it for an unrecognized
-platform even though it would work fine. Install the matching wasm32-wasi
-package explicitly:
-
-```sh
-npm install @rolldown/binding-wasm32-wasi@<version matching your rolldown> \
-            @tailwindcss/oxide-wasm32-wasi@<version matching your oxide> \
-            --no-save --force
-```
+platform even though it would work fine.
 
 `lightningcss` has no such fallback wired into its own loader, but the
 same team publishes a separate `lightningcss-wasm` package with a
@@ -149,9 +141,16 @@ synchronous WASM init (safe as a drop-in for the native API). It needs one
 line patched into `node_modules/lightningcss/node/index.js`'s `catch`
 block to `require('lightningcss-wasm')` as a final fallback.
 
-Install all of these **together in one `npm install ... --force`
+Install all three of these **together in one `npm install ... --force`
 command** — installing them separately causes each to evict the other's
-transitive deps (npm treats them as "extraneous" against the lockfile).
+transitive deps (npm treats them as "extraneous" against the lockfile):
+
+```sh
+npm install @rolldown/binding-wasm32-wasi@<version matching your rolldown> \
+            @tailwindcss/oxide-wasm32-wasi@<version matching your oxide> \
+            lightningcss-wasm@<version matching your lightningcss> \
+            --no-save --force
+```
 
 **Unrelated but also hit along the way:** `vue-tsc -b` on this monorepo's
 full TS project graph exceeds Node's default V8 heap on memory-constrained

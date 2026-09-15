@@ -1032,6 +1032,19 @@ start_gateway() {
     return 1
 }
 
+backend_glibc_tunables() {
+    local tunables="${GLIBC_TUNABLES:-}"
+    # The NAS backend has few allocator-heavy workers. Avoid retaining a
+    # separate small-object cache on every Rust/SQLite thread. glibc reads this
+    # before main(), so mallopt in the Rust binary cannot configure it.
+    # Preserve explicit administrator settings and all unrelated tunables.
+    case ":${tunables}:" in
+        *:glibc.malloc.tcache_count=*) ;;
+        *) tunables="${tunables:+${tunables}:}glibc.malloc.tcache_count=0" ;;
+    esac
+    printf '%s' "${tunables}"
+}
+
 start_backend() {
     if [ -f "${BACKEND_PID_FILE}" ]; then
         local pid
@@ -1085,8 +1098,11 @@ start_backend() {
         expected_gateway_start="${expected_gateway_pid}:$(printf '%s\n' "${expected_gateway_stat}" | awk '{print $20}')"
     fi
     log_msg "Starting Rust backend (admin-view-port=${ADMIN_VIEW_PORT}, backend-port=${BACKEND_PORT}, auth-port=${AUTH_PORT})..."
+    local backend_allocator_tunables
+    backend_allocator_tunables="$(backend_glibc_tunables)"
     (
         cd "${APP_HOME}" && \
+        GLIBC_TUNABLES="${backend_allocator_tunables}" \
         ADMIN_STATIC_PATH="${ADMIN_STATIC_PATH}" \
         AUTH_STATIC_PATH="${AUTH_STATIC_PATH}" \
         FN_KNOCK_RUNTIME_TARGET="fpk" \

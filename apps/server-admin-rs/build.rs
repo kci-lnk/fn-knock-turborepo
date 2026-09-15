@@ -19,13 +19,11 @@ struct AppMetadata {
     backup_import_min_version: String,
 }
 
-/// `protoc_bin_vendored` only ships prebuilt binaries for a handful of
-/// platforms (Linux/macOS/Windows), and even there an explicit `PROTOC`
-/// always wins. Elsewhere, fall back to a `protoc` already on PATH (e.g. a
-/// system package) rather than failing outright. The vendored binary is
-/// preferred over PATH when both are available, so the pinned, reproducible
-/// version keeps being used on already-supported platforms unless the
-/// caller opts out via `PROTOC`.
+/// Resolution order: an explicit `PROTOC` env var always wins; otherwise
+/// prefer a `protoc` already on PATH (e.g. a system package); otherwise
+/// fall back to `protoc_bin_vendored`'s prebuilt binary, which only covers
+/// a handful of platforms (Linux/macOS/Windows) and is unavailable
+/// elsewhere, including NetBSD.
 fn resolve_protoc() -> PathBuf {
     if let Ok(protoc) = env::var("PROTOC") {
         return PathBuf::from(protoc);

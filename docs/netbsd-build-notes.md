@@ -63,10 +63,10 @@ export PATH="$HOME/bin:/usr/pkg/bin:/usr/pkg/sbin:$PATH"
 ### `protoc` resolution
 
 `protoc_bin_vendored` only ships prebuilt `protoc` binaries for
-Linux/macOS/Windows. `build.rs` falls back to a `protoc` found on `PATH`
-(or an explicit `PROTOC` env var) when no vendored binary exists for the
-host platform, so simply having pkgsrc's `protobuf` installed and on
-`PATH` is enough — no extra configuration needed.
+Linux/macOS/Windows — no build for NetBSD. `build.rs` resolves an explicit
+`PROTOC` env var first, then a `protoc` found on `PATH`, then the vendored
+binary as a last resort. Simply having pkgsrc's `protobuf` installed and
+on `PATH` is enough — no extra configuration needed.
 
 ### Release profile RAM usage
 

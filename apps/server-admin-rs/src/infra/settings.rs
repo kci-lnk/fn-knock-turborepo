@@ -58,7 +58,7 @@ impl Settings {
             runtime_profile::detect_deployment_target(Some(&runtime_target));
         let protected_admin_runtime = matches!(
             detected_runtime_target.as_str(),
-            "docker" | "openwrt" | "linux" | "macos" | "windows"
+            "docker" | "openwrt" | "linux" | "netbsd" | "macos" | "windows"
         );
         let backend_port_default = if detected_runtime_target == "openwrt" {
             17998
@@ -379,7 +379,7 @@ fn auth_bridge_concurrency_profile(runtime_target: &str) -> AuthBridgeConcurrenc
         },
         // Container, generic server, and desktop runtimes can absorb wider
         // I/O-bound authorization bursts. available_parallelism is quota-aware.
-        "docker" | "linux" | "macos" | "windows" => AuthBridgeConcurrencyProfile {
+        "docker" | "linux" | "netbsd" | "macos" | "windows" => AuthBridgeConcurrencyProfile {
             per_cpu: 16,
             cap: 256,
         },
@@ -449,6 +449,7 @@ fn normalize_runtime_target_env(value: &str) -> String {
         "fpk-lite" | "fpk_lite" => "fpk-lite".to_string(),
         "openwrt" => "openwrt".to_string(),
         "linux" => "linux".to_string(),
+        "netbsd" => "netbsd".to_string(),
         "macos" | "darwin" => "macos".to_string(),
         "synology" | "dsm" => "synology".to_string(),
         "windows" => "windows".to_string(),

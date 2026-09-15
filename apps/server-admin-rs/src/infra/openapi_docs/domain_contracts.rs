@@ -1658,7 +1658,8 @@ pub(super) fn components() -> Map<String, Value> {
         "PanelBootstrapData",
         "deployment_target",
         &[
-            "fpk", "fpk-lite", "docker", "openwrt", "linux", "macos", "synology", "windows", "dev",
+            "fpk", "fpk-lite", "docker", "openwrt", "linux", "netbsd", "macos", "synology",
+            "windows", "dev",
         ],
     );
     set_property_enum(

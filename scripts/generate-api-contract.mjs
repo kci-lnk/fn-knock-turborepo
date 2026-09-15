@@ -2280,6 +2280,7 @@ function validateContract(openapiPath) {
       "docker",
       "openwrt",
       "linux",
+      "netbsd",
       "macos",
       "synology",
       "windows",

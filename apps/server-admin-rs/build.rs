@@ -27,15 +27,16 @@ fn resolve_protoc() -> PathBuf {
     if let Ok(protoc) = env::var("PROTOC") {
         return PathBuf::from(protoc);
     }
+    if let Some(path) = find_protoc_on_path() {
+        return path;
+    }
     match protoc_bin_vendored::protoc_bin_path() {
         Ok(path) => path,
-        Err(vendored_err) => find_protoc_on_path().unwrap_or_else(|| {
-            panic!(
-                "resolve protoc: no vendored binary for this platform ({vendored_err}) and no \
-                 `protoc` found on PATH; install protoc (e.g. via your system package manager) \
-                 or set the PROTOC environment variable to its path"
-            )
-        }),
+        Err(vendored_err) => panic!(
+            "resolve protoc: no vendored binary for this platform ({vendored_err}) and no \
+             `protoc` found on PATH; install protoc (e.g. via your system package manager) \
+             or set the PROTOC environment variable to its path"
+        ),
     }
 }
 

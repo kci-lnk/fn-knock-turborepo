@@ -1220,6 +1220,8 @@ enum HttpAuthMode {
   HTTP_AUTH_MODE_PREFLIGHT_ONLY = 1;
   HTTP_AUTH_MODE_VERIFY_ONLY = 2;
   HTTP_AUTH_MODE_PREFLIGHT_AND_VERIFY = 3;
+  // Read-only host-scoped grant/probe inspection; never issues or renews.
+  HTTP_AUTH_MODE_INSPECT_SUBDOMAIN_GRANT = 4;
 }
 
 enum AuthCacheScope {
@@ -1288,6 +1290,8 @@ message AuthorizeHttpResponse {
   VerifyAuthResponse verify = 2;
   AuthCacheScope preflight_cache_scope = 3;
   AuthCacheScope verify_cache_scope = 4;
+  // Request-local only; defaults to false for older peers and failures.
+  bool subdomain_grant_security_exempt = 5;
 }
 
 message VerifyStreamAuthRequest {

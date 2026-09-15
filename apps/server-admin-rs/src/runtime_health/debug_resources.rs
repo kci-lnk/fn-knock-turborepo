@@ -9,7 +9,7 @@ use utoipa::ToSchema;
 const MAX_SMAPS_BYTES: usize = 2 * 1024 * 1024;
 #[cfg(any(target_os = "linux", test))]
 const MAX_MAPPINGS: usize = 4096;
-#[cfg(target_os = "linux")]
+#[cfg(any(target_os = "linux", target_os = "netbsd"))]
 const MAX_THREADS: usize = 256;
 const MAX_TOP_ENTRIES: usize = 8;
 
@@ -411,7 +411,7 @@ fn read_cpu(errors: &mut Vec<String>) -> Option<CpuReading> {
     Some(reading)
 }
 
-#[cfg(any(target_os = "macos", target_os = "netbsd"))]
+#[cfg(target_os = "macos")]
 fn read_cpu(errors: &mut Vec<String>) -> Option<CpuReading> {
     // No per-LWP accounting is wired up yet; only process-level CPU is reported.
     add_error(errors, "thread_cpu_unsupported");
@@ -432,6 +432,119 @@ fn read_cpu(errors: &mut Vec<String>) -> Option<CpuReading> {
         seconds,
         threads: BTreeMap::new(),
     })
+}
+
+#[cfg(target_os = "netbsd")]
+fn read_cpu(errors: &mut Vec<String>) -> Option<CpuReading> {
+    let mut usage = std::mem::MaybeUninit::<libc::rusage>::zeroed();
+    // SAFETY: getrusage initializes the writable rusage buffer on success.
+    if unsafe { libc::getrusage(libc::RUSAGE_SELF, usage.as_mut_ptr()) } != 0 {
+        add_error(errors, "process_cpu_unavailable");
+        return None;
+    }
+    // SAFETY: getrusage returned success above.
+    let usage = unsafe { usage.assume_init() };
+    let seconds = usage.ru_utime.tv_sec as f64
+        + usage.ru_stime.tv_sec as f64
+        + (usage.ru_utime.tv_usec as f64 + usage.ru_stime.tv_usec as f64) / 1_000_000.0;
+    let mut reading = CpuReading {
+        at: Instant::now(),
+        identity: u64::from(std::process::id()),
+        seconds,
+        threads: BTreeMap::new(),
+    };
+
+    let Some(lwps) = read_netbsd_lwps() else {
+        add_error(errors, "thread_cpu_unavailable");
+        return Some(reading);
+    };
+    for lwp in lwps.into_iter().take(MAX_THREADS) {
+        let tid = lwp.l_lid as u64;
+        reading.threads.insert(
+            tid,
+            ThreadReading {
+                // NetBSD's kinfo_lwp has no per-LWP start-time field to guard
+                // against tid reuse the way Linux's start_ticks does; the
+                // monotonic-CPU-time check in `percentage()` already rejects
+                // a reused tid whose rtime regressed, so identity == tid here.
+                identity: tid,
+                seconds: lwp.l_rtime_sec as f64 + lwp.l_rtime_usec as f64 / 1_000_000.0,
+                name: netbsd_thread_name(&lwp.l_name),
+            },
+        );
+    }
+    Some(reading)
+}
+
+/// Queries `kern.lwp` for the calling process's threads. Two-pass sysctl:
+/// first with a null buffer to size the result, then a real fetch sized a
+/// few entries larger in case the thread count grew in between.
+#[cfg(target_os = "netbsd")]
+fn read_netbsd_lwps() -> Option<Vec<libc::kinfo_lwp>> {
+    let elem_size = std::mem::size_of::<libc::kinfo_lwp>() as libc::c_int;
+    let mut mib = [
+        libc::CTL_KERN,
+        libc::KERN_LWP,
+        std::process::id() as libc::c_int,
+        elem_size,
+        0,
+    ];
+    let mut len: libc::size_t = 0;
+    // SAFETY: `mib` is a valid 5-element kern.lwp MIB; a null `oldp` with a
+    // valid `oldlenp` only queries the required buffer size.
+    if unsafe {
+        libc::sysctl(
+            mib.as_ptr(),
+            mib.len() as libc::c_uint,
+            std::ptr::null_mut(),
+            &mut len,
+            std::ptr::null(),
+            0,
+        )
+    } != 0
+    {
+        return None;
+    }
+    let count = len / std::mem::size_of::<libc::kinfo_lwp>() + 4;
+    mib[4] = count as libc::c_int;
+    let mut buf: Vec<libc::kinfo_lwp> = Vec::with_capacity(count);
+    let mut len = (count * std::mem::size_of::<libc::kinfo_lwp>()) as libc::size_t;
+    // SAFETY: `buf` has capacity for `count` kinfo_lwp records and `len`
+    // describes exactly that many bytes; sysctl writes at most `len` bytes
+    // and reports the actual bytes written back through `len`.
+    if unsafe {
+        libc::sysctl(
+            mib.as_ptr(),
+            mib.len() as libc::c_uint,
+            buf.as_mut_ptr().cast(),
+            &mut len,
+            std::ptr::null(),
+            0,
+        )
+    } != 0
+    {
+        return None;
+    }
+    let actual = len / std::mem::size_of::<libc::kinfo_lwp>();
+    // SAFETY: sysctl reported `actual` complete kinfo_lwp records written.
+    unsafe { buf.set_len(actual) };
+    Some(buf)
+}
+
+#[cfg(target_os = "netbsd")]
+fn netbsd_thread_name(raw: &[libc::c_char]) -> &'static str {
+    let len = raw.iter().take_while(|byte| **byte != 0).count();
+    // SAFETY: `raw[..len]` contains only the non-NUL bytes preceding the
+    // terminator found above.
+    let bytes: Vec<u8> = raw[..len].iter().map(|byte| *byte as u8).collect();
+    // Thread names are set by this application's own code; only disclose
+    // labels we recognize.
+    match std::str::from_utf8(&bytes).unwrap_or("") {
+        "server-admin-rs" => "server-admin-rs",
+        "tokio-rt-worker" => "tokio-rt-worker",
+        "fn-knock-local-" => "local-pty-worker",
+        _ => "other-thread",
+    }
 }
 
 #[cfg(not(any(target_os = "linux", target_os = "macos", target_os = "netbsd")))]
@@ -483,7 +596,7 @@ pub(crate) fn collect_memory_details() -> MemoryDetails {
     #[cfg(target_os = "netbsd")]
     {
         add_error(&mut details.errors, "memory_maps_unsupported");
-        add_error(&mut details.errors, "allocator_stats_unsupported");
+        details.allocator = allocator_stats(&mut details.errors);
         details.status = if details.rss_bytes.is_some() {
             MemoryDetailsStatus::Partial
         } else {
@@ -526,6 +639,82 @@ fn allocator_stats(errors: &mut Vec<String>) -> Option<AllocatorStats> {
 fn allocator_stats(errors: &mut Vec<String>) -> Option<AllocatorStats> {
     add_error(errors, "allocator_stats_unsupported");
     None
+}
+
+#[cfg(target_os = "netbsd")]
+unsafe extern "C" {
+    // NetBSD's base libc always builds jemalloc under this prefix, so this
+    // can be linked directly (unlike glibc's mallinfo2, which needs a
+    // runtime version check and is looked up via dlsym instead).
+    fn __je_mallctl(
+        name: *const std::os::raw::c_char,
+        oldp: *mut std::os::raw::c_void,
+        oldlenp: *mut libc::size_t,
+        newp: *mut std::os::raw::c_void,
+        newlen: libc::size_t,
+    ) -> std::os::raw::c_int;
+}
+
+#[cfg(target_os = "netbsd")]
+fn je_stat(name: &std::ffi::CStr) -> Option<libc::size_t> {
+    let mut value: libc::size_t = 0;
+    let mut size = std::mem::size_of::<libc::size_t>() as libc::size_t;
+    // SAFETY: `name` is a NUL-terminated mallctl key documented to accept a
+    // read of a single size_t; `value`/`size` describe a writable buffer of
+    // exactly that size, and no `newp` is passed so no value is set.
+    let rc = unsafe {
+        __je_mallctl(
+            name.as_ptr(),
+            (&raw mut value).cast(),
+            &mut size,
+            std::ptr::null_mut(),
+            0,
+        )
+    };
+    (rc == 0).then_some(value)
+}
+
+#[cfg(target_os = "netbsd")]
+fn allocator_stats(errors: &mut Vec<String>) -> Option<AllocatorStats> {
+    // jemalloc caches its stats; "epoch" must be bumped before reading them
+    // to see up-to-date numbers.
+    let mut epoch: u64 = 1;
+    let mut epoch_size = std::mem::size_of::<u64>() as libc::size_t;
+    // SAFETY: "epoch" takes and returns a u64; `epoch`/`epoch_size` describe
+    // a readable and writable 8-byte buffer for both oldp and newp.
+    unsafe {
+        __je_mallctl(
+            c"epoch".as_ptr(),
+            (&raw mut epoch).cast(),
+            &mut epoch_size,
+            (&raw mut epoch).cast(),
+            epoch_size,
+        );
+    }
+    let (Some(allocated), Some(active), Some(resident), Some(mapped), Some(metadata)) = (
+        je_stat(c"stats.allocated"),
+        je_stat(c"stats.active"),
+        je_stat(c"stats.resident"),
+        je_stat(c"stats.mapped"),
+        je_stat(c"stats.metadata"),
+    ) else {
+        add_error(errors, "allocator_stats_unavailable");
+        return None;
+    };
+    Some(AllocatorStats {
+        allocated_bytes: allocated as u64,
+        // Pages jemalloc's arenas currently hold but are not backing a live
+        // allocation (rounding/slack within active size-class slabs).
+        free_bytes: active.saturating_sub(allocated) as u64,
+        mmap_bytes: mapped as u64,
+        arena_bytes: active as u64,
+        // Best-effort estimate of resident pages that are neither actively
+        // used nor metadata, i.e. dirty/cached pages jemalloc could purge;
+        // jemalloc's base stats.* namespace has no direct "releasable" key.
+        releasable_bytes: resident
+            .saturating_sub(active)
+            .saturating_sub(metadata) as u64,
+    })
 }
 
 #[cfg(any(target_os = "linux", test))]

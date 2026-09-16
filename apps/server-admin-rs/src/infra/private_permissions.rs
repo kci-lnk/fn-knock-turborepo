@@ -40,7 +40,7 @@ pub(crate) fn secure_windows_path(path: &Path, directory: bool) -> Result<(), St
             format!("*{service_sid}:(OI)(CI)M"),
         ]);
     }
-    let status = Command::new(icacls)
+    let mut status = Command::new(&icacls)
         .arg(path)
         .args(["/inheritance:r", "/grant:r"])
         .args(grants)
@@ -50,6 +50,25 @@ pub(crate) fn secure_windows_path(path: &Path, directory: bool) -> Result<(), St
         .stderr(Stdio::null())
         .status()
         .map_err(|error| error.to_string())?;
+    // Test fixtures and first-run installs may not have the service SID
+    // registered yet. Keep the file protected by SYSTEM/Administrators and
+    // let the installed service add its SID on the next startup.
+    if !status.success() && status.code() == Some(1332) {
+        let fallback = vec![
+            "*S-1-5-18:F".to_string(),
+            "*S-1-5-32-544:F".to_string(),
+        ];
+        status = Command::new(&icacls)
+            .arg(path)
+            .args(["/inheritance:r", "/grant:r"])
+            .args(fallback)
+            .args(["/L", "/Q"])
+            .stdin(Stdio::null())
+            .stdout(Stdio::null())
+            .stderr(Stdio::null())
+            .status()
+            .map_err(|error| error.to_string())?;
+    }
     if !status.success() {
         return Err(format!("icacls.exe failed with {status}"));
     }

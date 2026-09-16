@@ -51,13 +51,24 @@ pub(crate) fn secure_windows_path(path: &Path, directory: bool) -> Result<(), St
         .status()
         .map_err(|error| error.to_string())?;
     // Test fixtures and first-run installs may not have the service SID
-    // registered yet. Keep the file protected by SYSTEM/Administrators and
-    // let the installed service add its SID on the next startup.
+    // registered yet. Retain access for the creating principal so the
+    // operation can complete and later cleanup/rotation remains possible;
+    // SYSTEM and Administrators remain the only other principals.
     if !status.success() && status.code() == Some(1332) {
+        let current_sid = current_windows_sid(&system_directory)?;
         let fallback = vec![
             "*S-1-5-18:F".to_string(),
             "*S-1-5-32-544:F".to_string(),
+            format!("*{current_sid}:M"),
         ];
+        let mut fallback = fallback;
+        if directory {
+            fallback.extend([
+                "*S-1-5-18:(OI)(CI)F".to_string(),
+                "*S-1-5-32-544:(OI)(CI)F".to_string(),
+                format!("*{current_sid}:(OI)(CI)M"),
+            ]);
+        }
         status = Command::new(&icacls)
             .arg(path)
             .args(["/inheritance:r", "/grant:r"])
@@ -75,6 +86,34 @@ pub(crate) fn secure_windows_path(path: &Path, directory: bool) -> Result<(), St
     Ok(())
 }
 
+fn current_windows_sid(system_directory: &Path) -> Result<String, String> {
+    let output = std::process::Command::new(system_directory.join("whoami.exe"))
+        .args(["/user", "/fo", "csv", "/nh"])
+        .stdin(std::process::Stdio::null())
+        .output()
+        .map_err(|error| format!("query current Windows SID: {error}"))?;
+    if !output.status.success() {
+        return Err(format!("whoami.exe /user failed with {}", output.status));
+    }
+    let output = String::from_utf8_lossy(&output.stdout);
+    let sid = output
+        .lines()
+        .find_map(|line| line.rsplit(',').next())
+        .map(|sid| sid.trim().trim_matches('"'))
+        .filter(|sid| is_windows_sid(sid))
+        .ok_or_else(|| "whoami.exe did not return a valid current-user SID".to_string())?;
+    Ok(sid.to_string())
+}
+
+fn is_windows_sid(value: &str) -> bool {
+    value.starts_with("S-1-")
+        && value.split('-').skip(2).all(|component| {
+            !component.is_empty()
+                && component.bytes().all(|byte| byte.is_ascii_digit())
+                && component.parse::<u32>().is_ok()
+        })
+}
+
 fn is_service_sid(value: &str) -> bool {
     let Some(suffix) = value.strip_prefix("S-1-5-80-") else {
         return false;
@@ -90,7 +129,7 @@ fn is_service_sid(value: &str) -> bool {
 
 #[cfg(test)]
 mod tests {
-    use super::is_service_sid;
+    use super::{is_service_sid, is_windows_sid};
 
     #[test]
     fn service_sid_validation_rejects_other_principals_and_acl_syntax() {
@@ -104,5 +143,12 @@ mod tests {
         ] {
             assert!(!is_service_sid(invalid), "{invalid}");
         }
+    }
+
+    #[test]
+    fn current_user_sid_validation_requires_numeric_windows_sid() {
+        assert!(is_windows_sid("S-1-5-21-1-2-3-1001"));
+        assert!(!is_windows_sid("S-1-5-21-1-2-3-user"));
+        assert!(!is_windows_sid("S-1-5-21-1-2-3-4294967296"));
     }
 }

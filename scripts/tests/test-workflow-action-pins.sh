@@ -67,6 +67,10 @@ assert_action_pin \
   "actions/attest-build-provenance" \
   "0f67c3f4856b2e3261c31976d6725780e5e4c373" \
   "v4.1.1"
+assert_action_pin \
+  "vmactions/netbsd-vm" \
+  "00081e82b14bc40114eb97f32b4455306828516b" \
+  "v1.4.6"
 
 if grep -RHFq \
   -e "uses: arduino/setup-protoc@" \

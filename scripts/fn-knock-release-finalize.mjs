@@ -72,6 +72,8 @@ function classify(name) {
       architecture: linuxMatch[1] === "arm" ? "armv7" : linuxMatch[1],
     };
   }
+  const netbsdMatch = name.match(/^fn-knock-netbsd-.+-amd64\.tar\.gz$/);
+  if (netbsdMatch) return { platform: "netbsd", architecture: "amd64" };
   const macosMatch = name.match(/macos-[^-]+-(amd64|arm64)\.tar\.gz$/);
   if (macosMatch) {
     return { platform: "macos", architecture: macosMatch[1] };
@@ -127,9 +129,9 @@ async function main() {
   );
   const excludedFiles = inventory.filter(isPerArtifactMetadata);
   const files = inventory.filter((name) => !isPerArtifactMetadata(name));
-  if (files.length !== 23) {
+  if (files.length !== 24) {
     fail(
-      `public release inventory must contain exactly 23 deliverables before metadata; found ${files.length}`,
+      `public release inventory must contain exactly 24 deliverables before metadata; found ${files.length}`,
     );
   }
   requireNames(files, [
@@ -138,6 +140,7 @@ async function main() {
     `fn-knock-linux-${version}-amd64.tar.gz`,
     `fn-knock-linux-${version}-arm64.tar.gz`,
     `fn-knock-linux-${version}-arm.tar.gz`,
+    `fn-knock-netbsd-${version}-amd64.tar.gz`,
     `fn-knock-macos-${version}-amd64.tar.gz`,
     `fn-knock-macos-${version}-arm64.tar.gz`,
     `fn-knock-${version}-windows-x86_64-unsigned-setup.exe`,

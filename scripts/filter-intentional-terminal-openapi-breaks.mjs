@@ -92,6 +92,20 @@ const filteredContract = (document) => {
 
 const baseline = JSON.parse(readFileSync(baselinePath, "utf8"));
 const current = JSON.parse(readFileSync(currentPath, "utf8"));
+// oasdiff's parser rejects OpenAPI 3.1 boolean array-item schemas. Preserve
+// their meaning using equivalent schema objects; do not suppress any diff.
+const normalizeBooleanItems = (value) => {
+  if (!value || typeof value !== "object") return;
+  if (
+    (value.type === "array" || (Array.isArray(value.type) && value.type.includes("array"))) &&
+    typeof value.items === "boolean"
+  ) {
+    value.items = value.items ? {} : { not: {} };
+  }
+  for (const child of Object.values(value)) normalizeBooleanItems(child);
+};
+normalizeBooleanItems(baseline);
+normalizeBooleanItems(current);
 const isRecordedSshMigration =
   isLegacyTerminalContract(baseline) && isSshTerminalV1Contract(current);
 

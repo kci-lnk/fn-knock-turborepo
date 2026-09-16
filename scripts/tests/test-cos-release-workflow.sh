@@ -77,8 +77,14 @@ done
   fail "quality must start after preflight"
 [ "$(job_needs macos)" = "[preflight, build-common]" ] ||
   fail "macOS packages must use the frozen source and shared runtime"
-[ "$(job_needs publish)" = "[preflight, quality, assemble, windows-unsigned, macos, docker-manifest]" ] ||
+[ "$(job_needs publish)" = "[preflight, quality, assemble, windows-unsigned, macos, netbsd, docker-manifest]" ] ||
   fail "publish must wait for quality and every release artifact"
+[ "$(job_needs netbsd)" = "preflight" ] ||
+  fail "NetBSD must build the frozen release source"
+grep -Fq 'uses: ./.github/workflows/netbsd.yml' "${WORKFLOW}" ||
+  fail "Release must call the native NetBSD builder"
+grep -Fq "needs.netbsd.result == 'success'" "${WORKFLOW}" ||
+  fail "NetBSD package verification must be a release gate"
 grep -Fq "needs.quality.result == 'success'" "${WORKFLOW}" ||
   fail "publish must retain quality as a release gate"
 grep -Fq -- '-SkipChecks' "${WORKFLOW}" ||

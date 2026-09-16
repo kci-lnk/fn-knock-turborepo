@@ -40,6 +40,41 @@ const contract = JSON.parse(
 };
 
 describe("runtime health API contract", () => {
+  it("preserves resident metric contracts and separates virtual-only mappings", () => {
+    for (const name of ["MemoryCategory", "AnonymousRegion"]) {
+      const schema = contract.components.schemas[name]!;
+      for (const field of [
+        "rss_bytes",
+        "pss_bytes",
+        "anonymous_bytes",
+        "private_dirty_bytes",
+        "swap_bytes",
+        "anonymous_huge_bytes",
+      ]) {
+        assert.ok(schema.required?.includes(field), `${name}.${field}`);
+        const property = schema.properties?.[field] as { type?: string };
+        assert.equal(property.type, "integer", `${name}.${field}`);
+      }
+    }
+    assert.ok(
+      contract.components.schemas.MemoryDetails.properties?.virtual_memory_maps,
+    );
+    for (const name of ["VirtualMemoryCategory", "VirtualAnonymousRegion"]) {
+      const schema = contract.components.schemas[name]!;
+      assert.ok(schema.required?.includes("size_bytes"));
+      for (const field of [
+        "rss_bytes",
+        "pss_bytes",
+        "anonymous_bytes",
+        "private_dirty_bytes",
+        "swap_bytes",
+        "anonymous_huge_bytes",
+      ]) {
+        assert.equal(schema.properties?.[field], undefined, `${name}.${field}`);
+      }
+    }
+  });
+
   it("keeps all runtime health operations typed", () => {
     for (const [method, path] of [
       ["get", "/api/admin/runtime-health"],

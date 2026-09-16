@@ -79,7 +79,7 @@ describe("admin panel reset guides", () => {
       "sudo knock reset-panel-password",
     ]);
     assert.deepEqual(guideCommands("netbsd"), [
-      "sudo knock reset-panel-password",
+      "/path/to/server-admin-rs reset-panel-password",
     ]);
     assert.deepEqual(guideCommands("macos"), [
       "sudo knock reset-panel-password",

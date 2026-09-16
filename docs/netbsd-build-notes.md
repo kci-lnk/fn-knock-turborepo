@@ -9,6 +9,23 @@ Docker VM (4 vCPU / 8 GB RAM); a fat-LTO release build of `server-admin-rs`
 needs roughly that much RAM to avoid getting OOM-killed during the final
 link step.
 
+## GitHub Actions and Release archives
+
+`.github/workflows/netbsd.yml` builds NetBSD 11.0/amd64 on pull requests and
+manual runs, and is called by the unified Release workflow. Frontends and
+the Go gateway are built on Linux; Rust is built and the packaged stack is
+smoke-tested in a NetBSD VM. Rust 1.96.0 and the VM action are pinned, with
+a SHA-256 check for the Rust distribution. CI uses thin LTO and eight
+codegen units so native linking fits hosted-runner memory.
+
+Release publication requires the NetBSD job to pass and includes
+`fn-knock-netbsd-<version>-amd64.tar.gz` in the release manifest and
+`SHA256SUMS`. PR/manual runs also expose the verified package as an Actions
+artifact. The archive includes a README with startup/reset commands; no
+NetBSD npm workarounds or compiler installation are needed to run it.
+The panel reset guide's `/path/to/server-admin-rs` is a placeholder for the
+executable in the installed archive or your manual build.
+
 ## `netbsd` is a recognized runtime target
 
 `FN_KNOCK_RUNTIME_TARGET=netbsd` is now accepted the same way `linux`,
@@ -64,8 +81,8 @@ export PATH="$HOME/bin:/usr/pkg/bin:/usr/pkg/sbin:$PATH"
 
 `protoc_bin_vendored` only ships prebuilt `protoc` binaries for
 Linux/macOS/Windows — no build for NetBSD. `build.rs` resolves an explicit
-`PROTOC` env var first, then a `protoc` found on `PATH`, then the vendored
-binary as a last resort. Simply having pkgsrc's `protobuf` installed and
+`PROTOC` env var first, then the vendored binary, then a working `protoc`
+found on `PATH` when no vendored binary exists for the build host. Simply having pkgsrc's `protobuf` installed and
 on `PATH` is enough — no extra configuration needed.
 
 ### Release profile RAM usage
@@ -91,12 +108,14 @@ cd Go-Reauth-Proxy
 go build -ldflags="-X go-reauth-proxy/pkg/version.Version=<version> -X go-reauth-proxy/pkg/version.Commit=<commit>" -o server ./cmd/server
 ```
 
-Set `-X ...version.Commit` to the `gatewayCommit` value in this repo's
-`version.json` — `server-admin-rs` refuses to talk to a gateway whose
-compiled-in commit string doesn't match (`gateway source commit
-mismatch`), as a supply-chain integrity check. Passing the two `-X` flags
-above (matching this repo's own `Taskfile.yml`) satisfies it for a manual
-build.
+Before building, check out the exact gateway source revision recorded in
+this repo's `version.json` as `gatewayCommit`, and verify that
+`git rev-parse HEAD` in the gateway checkout matches that value. Set
+`-X ...version.Commit` to that verified commit and `-X ...version.Version`
+to the product version. `server-admin-rs` rejects a gateway whose compiled-in
+commit string does not match (`gateway source commit mismatch`). This is
+a compatibility check, not proof of the binary's source: never label an
+unrelated gateway checkout with the expected commit just to pass it.
 
 ## Building the frontend (`server-admin-view`, `server-auth-view`)
 
@@ -169,6 +188,11 @@ vars matter for a manual/dev run that aren't obvious from the README:
   listener at all (silently — no error, no 7991 port). Host-firewall
   auto-management stays off either way, same as a plain Linux install —
   see "Known gaps" below.
+- `ADMIN_VIEW_HOST` — defaults to `0.0.0.0`, exposing the password-protected
+  management listener on every IPv4 interface. For a local/manual setup,
+  use `127.0.0.1` and an SSH tunnel. If remote access is intentional, restrict
+  access with your own firewall; NetBSD host-firewall management is not
+  provided.
 - `ADMIN_STATIC_PATH` / `AUTH_STATIC_PATH` — point these at the two
   frontend apps' `dist/` output, or the panel serves 200s with no content.
 
@@ -177,6 +201,7 @@ Example (single host, both processes started manually):
 ```sh
 export FN_KNOCK_INTERNAL_RPC_TOKEN=<shared-secret>
 export FN_KNOCK_RUNTIME_TARGET=netbsd
+export ADMIN_VIEW_HOST=127.0.0.1
 export ADMIN_STATIC_PATH=$(pwd)/apps/server-admin-view/dist
 export AUTH_STATIC_PATH=$(pwd)/apps/server-auth-view/dist
 
@@ -193,14 +218,36 @@ A successful handshake looks like this in the gateway's JSON log
 {"component":"gateway_dataplane","event":"listener_bound","reason_code":"proxy_stack_started"}
 ```
 
+## Resetting the admin panel password
+
+NetBSD manual builds do not install the Linux/macOS `knock` wrapper. From
+the same repository directory, as the same OS user and with the same
+environment as the running backend, run:
+
+```sh
+./apps/server-admin-rs/target/release/server-admin-rs reset-panel-password
+```
+
+In particular, preserve `FN_KNOCK_SQLITE_PATH`, `FN_KNOCK_DATA_DIR`, and
+`FN_KNOCK_GATEWAY_CONFIG_DIR` if set: the reset must open the running
+service's database. A different working directory or a `sudo` invocation
+that drops those variables can target a different database. The command
+clears the password, sessions, and login backoff state; immediately set a
+new password through your restricted management connection.
+
 ## Known gaps
 
-- Memory maps has no equivalent to Linux's per-region dirty/swap/
-  transparent-huge-page byte counts — NetBSD exposes no mechanism to
-  measure these. RSS/PSS/anonymous-bytes per category and per region are
-  real, measured values (via `mincore()`); the three unmeasured fields are
-  reported as `null` rather than a fabricated zero, flagged by the
-  `memory_maps_incomplete` error code.
+- Memory maps reports mapping counts and virtual sizes, with the largest
+  anonymous regions ranked by virtual size in `virtual_memory_maps`. The
+  legacy resident-metric arrays remain empty: per-region/category RSS, PSS,
+  anonymous resident bytes, dirty, swap, and huge-page counts are unavailable.
+  The UI displays unknown values, with `memory_maps_incomplete` indicating
+  partial data. Existing Linux response fields keep their numeric types. `mincore()` also
+  counts pages resident in a backing object, not necessarily in this
+  process's resident set, and object reference counts cannot measure PSS.
+  File-backed private mappings may contain anonymous COW pages, so their
+  anonymous resident bytes cannot be assumed to be zero either. Process
+  RSS is measured separately with `kern.proc2` and remains available.
 - Host firewall auto-management (`host_firewall_available`) is off, same
   as any other non-`fpk` deployment target — this is a deliberate product
   restriction unrelated to NetBSD (it's also off for a plain Linux

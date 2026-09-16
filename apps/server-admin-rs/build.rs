@@ -20,33 +20,40 @@ struct AppMetadata {
 }
 
 /// Resolution order: an explicit `PROTOC` env var always wins; otherwise
-/// prefer a `protoc` already on PATH (e.g. a system package); otherwise
-/// fall back to `protoc_bin_vendored`'s prebuilt binary, which only covers
-/// a handful of platforms (Linux/macOS/Windows) and is unavailable
-/// elsewhere, including NetBSD.
+/// keep the vendored version on supported build hosts. Only platforms with
+/// no vendored binary (including NetBSD) fall back to a working PATH protoc.
 fn resolve_protoc() -> PathBuf {
-    if let Ok(protoc) = env::var("PROTOC") {
+    if let Some(protoc) = env::var_os("PROTOC") {
         return PathBuf::from(protoc);
-    }
-    if let Some(path) = find_protoc_on_path() {
-        return path;
     }
     match protoc_bin_vendored::protoc_bin_path() {
         Ok(path) => path,
-        Err(vendored_err) => panic!(
-            "resolve protoc: no vendored binary for this platform ({vendored_err}) and no \
-             `protoc` found on PATH; install protoc (e.g. via your system package manager) \
+        Err(vendored_err) => find_protoc_on_path().unwrap_or_else(|| {
+            panic!(
+                "resolve protoc: no vendored binary for this platform ({vendored_err}) and no \
+             working `protoc` found on PATH; install protoc (e.g. via your system package manager) \
              or set the PROTOC environment variable to its path"
-        ),
+            )
+        }),
     }
 }
 
 fn find_protoc_on_path() -> Option<PathBuf> {
     let path_var = env::var_os("PATH")?;
-    let exe_name = if cfg!(windows) { "protoc.exe" } else { "protoc" };
+    let exe_name = if cfg!(windows) {
+        "protoc.exe"
+    } else {
+        "protoc"
+    };
     env::split_paths(&path_var)
         .map(|dir| dir.join(exe_name))
-        .find(|candidate| candidate.is_file())
+        .find(|candidate| {
+            candidate.is_file()
+                && std::process::Command::new(candidate)
+                    .arg("--version")
+                    .output()
+                    .is_ok_and(|output| output.status.success())
+        })
 }
 
 fn main() {

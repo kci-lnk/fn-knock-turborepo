@@ -12,18 +12,6 @@ const MAX_MAPPINGS: usize = 4096;
 #[cfg(any(target_os = "linux", target_os = "netbsd"))]
 const MAX_THREADS: usize = 256;
 const MAX_TOP_ENTRIES: usize = 8;
-// Bounds on the netbsd mincore() residency walk: skip any single mapping
-// larger than this, and stop walking once this many bytes have been queried
-// in total, so one diagnostics call can never scan an unbounded amount of
-// address space. mincore() only walks page-table residency bits (it never
-// reads or writes mapped contents), so even a large span is cheap; a
-// reserved-but-mostly-unfaulted thread stack alone can span 100+ MiB, so
-// the per-region cap must stay well above that to avoid skipping ordinary
-// mappings and reporting them as memory_maps_region_unmeasured.
-#[cfg(target_os = "netbsd")]
-const MAX_VMMAP_REGION_BYTES: u64 = 1024 * 1024 * 1024;
-#[cfg(target_os = "netbsd")]
-const MAX_VMMAP_TOTAL_BYTES: u64 = 4 * 1024 * 1024 * 1024;
 
 #[derive(Clone, Debug, Serialize, Deserialize, ToSchema)]
 pub(crate) struct ResourceSample {
@@ -78,6 +66,9 @@ pub(crate) struct MemoryDetails {
     pub threads: Option<u64>,
     pub categories: Vec<MemoryCategory>,
     pub largest_anonymous_regions: Vec<AnonymousRegion>,
+    /// NetBSD virtual mapping sizes; legacy resident-metric arrays stay empty.
+    #[schema(required = true)]
+    pub virtual_memory_maps: Option<VirtualMemoryMaps>,
     #[schema(required = true)]
     pub allocator: Option<AllocatorStats>,
     /// Static diagnostic codes, never paths, environment values or file content.
@@ -92,13 +83,9 @@ pub(crate) struct MemoryCategory {
     pub rss_bytes: u64,
     pub pss_bytes: u64,
     pub anonymous_bytes: u64,
-    /// `null` when the platform cannot measure this (never a fabricated zero).
-    #[schema(required = true)]
-    pub private_dirty_bytes: Option<u64>,
-    #[schema(required = true)]
-    pub swap_bytes: Option<u64>,
-    #[schema(required = true)]
-    pub anonymous_huge_bytes: Option<u64>,
+    pub private_dirty_bytes: u64,
+    pub swap_bytes: u64,
+    pub anonymous_huge_bytes: u64,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, ToSchema)]
@@ -109,19 +96,39 @@ pub(crate) struct AnonymousRegion {
     pub rss_bytes: u64,
     pub pss_bytes: u64,
     pub anonymous_bytes: u64,
-    /// `null` when the platform cannot measure this (never a fabricated zero).
-    #[schema(required = true)]
-    pub private_dirty_bytes: Option<u64>,
-    #[schema(required = true)]
-    pub swap_bytes: Option<u64>,
-    #[schema(required = true)]
-    pub anonymous_huge_bytes: Option<u64>,
+    pub private_dirty_bytes: u64,
+    pub swap_bytes: u64,
+    pub anonymous_huge_bytes: u64,
+}
+
+/// Virtual mapping data for platforms without Linux-compatible resident metrics.
+/// No RSS/PSS/anonymous-residency values can be inferred from these sizes.
+#[derive(Clone, Debug, Serialize, Deserialize, ToSchema, Default)]
+pub(crate) struct VirtualMemoryMaps {
+    pub categories: Vec<VirtualMemoryCategory>,
+    /// Ranked by virtual size, not by resident anonymous bytes.
+    pub largest_anonymous_regions: Vec<VirtualAnonymousRegion>,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize, ToSchema)]
+pub(crate) struct VirtualMemoryCategory {
+    pub category: String,
+    pub mappings: u64,
+    pub size_bytes: u64,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize, ToSchema)]
+pub(crate) struct VirtualAnonymousRegion {
+    pub category: String,
+    pub permissions: String,
+    pub size_bytes: u64,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, ToSchema)]
 pub(crate) struct AllocatorStats {
-    /// Arena allocations; excludes mmap allocations and may include caches.
-    /// glibc: mallinfo2 uordblks. NetBSD (jemalloc): stats.allocated.
+    /// Allocator-reported live allocations. glibc: mallinfo2 uordblks
+    /// (excludes mmap allocations). NetBSD (jemalloc): stats.allocated
+    /// (includes large allocations backed by mmap).
     pub allocated_bytes: u64,
     /// Allocator-reported free arena space, not necessarily resident or
     /// releasable. glibc: mallinfo2 fordblks. NetBSD (jemalloc):
@@ -600,6 +607,7 @@ pub(crate) fn collect_memory_details() -> MemoryDetails {
         threads: memory.threads,
         categories: Vec::new(),
         largest_anonymous_regions: Vec::new(),
+        virtual_memory_maps: None,
         allocator: None,
         errors,
     };
@@ -627,11 +635,14 @@ pub(crate) fn collect_memory_details() -> MemoryDetails {
     }
     #[cfg(target_os = "netbsd")]
     {
-        let (categories, largest_anonymous_regions) = netbsd_memory_maps(&mut details.errors);
-        details.categories = categories;
-        details.largest_anonymous_regions = largest_anonymous_regions;
+        details.virtual_memory_maps = netbsd_memory_maps(&mut details.errors);
         details.allocator = allocator_stats(&mut details.errors);
-        details.status = if details.categories.is_empty() && details.rss_bytes.is_none() {
+        details.status = if details
+            .virtual_memory_maps
+            .as_ref()
+            .is_none_or(|maps| maps.categories.is_empty())
+            && details.rss_bytes.is_none()
+        {
             MemoryDetailsStatus::Unavailable
         } else if details.errors.is_empty() {
             MemoryDetailsStatus::Available
@@ -715,17 +726,20 @@ fn allocator_stats(errors: &mut Vec<String>) -> Option<AllocatorStats> {
     // jemalloc caches its stats; "epoch" must be bumped before reading them
     // to see up-to-date numbers.
     let mut epoch: u64 = 1;
-    let mut epoch_size = std::mem::size_of::<u64>() as libc::size_t;
-    // SAFETY: "epoch" takes and returns a u64; `epoch`/`epoch_size` describe
-    // a readable and writable 8-byte buffer for both oldp and newp.
-    unsafe {
+    // SAFETY: "epoch" accepts a u64 new value to refresh the statistics.
+    // We do not request its previous value, so no output pointers are needed.
+    let rc = unsafe {
         __je_mallctl(
             c"epoch".as_ptr(),
+            std::ptr::null_mut(),
+            std::ptr::null_mut(),
             (&raw mut epoch).cast(),
-            &mut epoch_size,
-            (&raw mut epoch).cast(),
-            epoch_size,
-        );
+            std::mem::size_of::<u64>(),
+        )
+    };
+    if rc != 0 {
+        add_error(errors, "allocator_stats_unavailable");
+        return None;
     }
     let (Some(allocated), Some(active), Some(resident), Some(mapped), Some(metadata)) = (
         je_stat(c"stats.allocated"),
@@ -747,9 +761,7 @@ fn allocator_stats(errors: &mut Vec<String>) -> Option<AllocatorStats> {
         // Best-effort estimate of resident pages that are neither actively
         // used nor metadata, i.e. dirty/cached pages jemalloc could purge;
         // jemalloc's base stats.* namespace has no direct "releasable" key.
-        releasable_bytes: resident
-            .saturating_sub(active)
-            .saturating_sub(metadata) as u64,
+        releasable_bytes: resident.saturating_sub(active).saturating_sub(metadata) as u64,
     })
 }
 
@@ -766,23 +778,28 @@ fn read_netbsd_vmmap() -> Option<Vec<libc::kinfo_vmentry>> {
     if ptr.is_null() {
         return None;
     }
-    // SAFETY: `ptr` was just returned non-null above alongside `count`, so it
-    // points to `count` contiguous, initialized kinfo_vmentry records.
-    let entries = unsafe { std::slice::from_raw_parts(ptr, count) }.to_vec();
+    // Keep one extra entry so the summarizer can report truncation without
+    // duplicating the entire libutil allocation in Rust.
+    let retained = count.min(MAX_MAPPINGS + 1);
+    // SAFETY: `ptr` points to `count` initialized records; retained <= count.
+    let entries = unsafe { std::slice::from_raw_parts(ptr, retained) }.to_vec();
     // SAFETY: `ptr` came from kinfo_getvmmap's internal malloc and has not
     // been freed yet; the copied-out `entries` no longer borrow from it.
     unsafe { libc::free(ptr.cast()) };
     Some(entries)
 }
 
-/// No filename or address is ever kept in the returned category: only
-/// whether a backing file exists distinguishes anonymous from file mappings.
+/// A missing path can also be a device or an unlinked vnode. Classify by
+/// kernel entry type, never by path contents (and never expose the path).
 #[cfg(target_os = "netbsd")]
-fn netbsd_region_category(path: &[libc::c_char]) -> &'static str {
-    if path.first().copied().unwrap_or(0) == 0 {
-        "anonymous_mappings"
-    } else {
-        "file_or_special"
+fn netbsd_region_category(entry: &libc::kinfo_vmentry) -> &'static str {
+    // NetBSD 11 sys/sysctl.h: KVME_TYPE_ANON = 5, KVME_TYPE_UNKNOWN = 255.
+    // libc exposes the record but does not export these type constants.
+    match entry.kve_type {
+        // NetBSD fill_vmentry uses UNKNOWN when there is no backing object
+        // or submap, including ordinary anonymous amap-backed mappings.
+        5 | 255 => "anonymous_mappings",
+        _ => "file_or_special",
     }
 }
 
@@ -816,129 +833,65 @@ fn netbsd_region_permissions(entry: &libc::kinfo_vmentry) -> String {
     permissions
 }
 
-// mincore(2) defines only bit 0 of each output byte ("page is resident");
-// the remaining bits are reserved and NetBSD names no constant for it.
 #[cfg(target_os = "netbsd")]
-const NETBSD_MINCORE_RESIDENT: u8 = 0x1;
-
-/// Counts resident pages in `[start, end)` via mincore(). Read-only: it
-/// queries page-residency bits without reading or writing mapped contents.
-/// Returns `None` if residency could not be measured (oversized mapping or a
-/// failed/raced mincore call), which the caller must not treat as zero.
-#[cfg(target_os = "netbsd")]
-fn netbsd_region_resident_bytes(start: u64, end: u64, page_size: u64, budget: &mut u64) -> Option<u64> {
-    let span = end.checked_sub(start).filter(|span| *span > 0)?;
-    if span > MAX_VMMAP_REGION_BYTES || span > *budget {
+fn netbsd_memory_maps(errors: &mut Vec<String>) -> Option<VirtualMemoryMaps> {
+    let Some(entries) = read_netbsd_vmmap() else {
+        add_error(errors, "memory_maps_unavailable");
         return None;
-    }
-    let pages = span.div_ceil(page_size);
-    let mut vec = vec![0u8; pages as usize];
-    // SAFETY: `start` is a page-aligned start address from this process's
-    // own kinfo_vmentry list; `vec` provides one output byte per page across
-    // exactly `span` bytes, matching what mincore requires.
-    let result = unsafe {
-        libc::mincore(
-            start as usize as *mut libc::c_void,
-            span as libc::size_t,
-            vec.as_mut_ptr().cast(),
-        )
     };
-    if result != 0 {
-        return None;
-    }
-    *budget -= span;
-    let resident_pages = vec
-        .iter()
-        .filter(|byte| *byte & NETBSD_MINCORE_RESIDENT != 0)
-        .count() as u64;
-    Some(resident_pages * page_size)
+    Some(summarize_netbsd_memory_maps(&entries, errors))
 }
 
 #[cfg(target_os = "netbsd")]
-fn netbsd_memory_maps(errors: &mut Vec<String>) -> (Vec<MemoryCategory>, Vec<AnonymousRegion>) {
-    let Some(mut entries) = read_netbsd_vmmap() else {
-        add_error(errors, "memory_maps_unavailable");
-        return (Vec::new(), Vec::new());
-    };
+fn summarize_netbsd_memory_maps(
+    entries: &[libc::kinfo_vmentry],
+    errors: &mut Vec<String>,
+) -> VirtualMemoryMaps {
     if entries.len() > MAX_MAPPINGS {
         add_error(errors, "memory_maps_count_truncated");
-        entries.truncate(MAX_MAPPINGS);
     }
-    // SAFETY: sysconf reads a process-independent numeric clock/page setting.
-    let page_size = unsafe { libc::sysconf(libc::_SC_PAGESIZE) };
-    if page_size <= 0 {
-        add_error(errors, "memory_maps_unavailable");
-        return (Vec::new(), Vec::new());
-    }
-    let page_size = page_size as u64;
-    let mut budget = MAX_VMMAP_TOTAL_BYTES;
-    let mut region_unmeasured = false;
-    let mut categories: BTreeMap<&'static str, MemoryCategory> = BTreeMap::new();
-    let mut largest = Vec::<AnonymousRegion>::new();
-    for entry in &entries {
-        let category = netbsd_region_category(&entry.kve_path);
-        let size_bytes = entry.kve_end.saturating_sub(entry.kve_start);
-        let Some(rss_bytes) =
-            netbsd_region_resident_bytes(entry.kve_start, entry.kve_end, page_size, &mut budget)
+    let mut categories: BTreeMap<&'static str, VirtualMemoryCategory> = BTreeMap::new();
+    let mut largest = Vec::<VirtualAnonymousRegion>::new();
+    for entry in entries.iter().take(MAX_MAPPINGS) {
+        let Some(size_bytes) = entry
+            .kve_end
+            .checked_sub(entry.kve_start)
+            .filter(|size| *size > 0)
         else {
-            // Oversized mapping, exhausted scan budget, or a raced/failed
-            // mincore call: this region contributes no data at all rather
-            // than a misleading zero.
-            region_unmeasured = true;
+            add_error(errors, "memory_maps_region_unmeasured");
             continue;
         };
-        // A region's resident bytes belong to at most one sharer's "fair
-        // share"; kve_ref_count approximates the object's total sharers.
-        let pss_bytes = rss_bytes / u64::from(entry.kve_ref_count.max(1));
-        // Regions we classified as anonymous have no backing file, so their
-        // resident bytes are by construction anonymous resident bytes too.
-        let anonymous_bytes = if category == "anonymous_mappings" {
-            rss_bytes
-        } else {
-            0
-        };
-        let bucket = categories.entry(category).or_insert_with(|| MemoryCategory {
-            category: category.to_string(),
-            mappings: 0,
-            size_bytes: 0,
-            rss_bytes: 0,
-            pss_bytes: 0,
-            anonymous_bytes: 0,
-            private_dirty_bytes: None,
-            swap_bytes: None,
-            anonymous_huge_bytes: None,
-        });
+        let category = netbsd_region_category(entry);
+        // mincore includes pages cached in the backing object, even when
+        // absent from this process's resident set. kve_ref_count is an object
+        // reference count, not per-page sharing. Neither provides RSS/PSS,
+        // nor the anonymous COW breakdown of file-backed private mappings.
+        let bucket = categories
+            .entry(category)
+            .or_insert_with(|| VirtualMemoryCategory {
+                category: category.to_string(),
+                mappings: 0,
+                size_bytes: 0,
+            });
         bucket.mappings += 1;
         bucket.size_bytes = bucket.size_bytes.saturating_add(size_bytes);
-        bucket.rss_bytes = bucket.rss_bytes.saturating_add(rss_bytes);
-        bucket.pss_bytes = bucket.pss_bytes.saturating_add(pss_bytes);
-        bucket.anonymous_bytes = bucket.anonymous_bytes.saturating_add(anonymous_bytes);
-        if anonymous_bytes > 0 {
-            largest.push(AnonymousRegion {
+        if category == "anonymous_mappings" {
+            largest.push(VirtualAnonymousRegion {
                 category: category.to_string(),
                 permissions: netbsd_region_permissions(entry),
                 size_bytes,
-                rss_bytes,
-                pss_bytes,
-                anonymous_bytes,
-                private_dirty_bytes: None,
-                swap_bytes: None,
-                anonymous_huge_bytes: None,
             });
-            largest.sort_by_key(|region| std::cmp::Reverse(region.anonymous_bytes));
+            // Only virtual sizes are measurable here; do not imply a ranking
+            // by resident anonymous bytes as Linux's smaps can provide.
+            largest.sort_by_key(|region| std::cmp::Reverse(region.size_bytes));
             largest.truncate(MAX_TOP_ENTRIES);
         }
     }
-    if region_unmeasured {
-        add_error(errors, "memory_maps_region_unmeasured");
+    add_error(errors, "memory_maps_incomplete");
+    VirtualMemoryMaps {
+        categories: categories.into_values().collect(),
+        largest_anonymous_regions: largest,
     }
-    if !entries.is_empty() {
-        // Per-region dirty/swap/anon-huge accounting has no NetBSD
-        // equivalent exposed via mincore(); those fields stay 0 for every
-        // category/region here (never a measured true zero).
-        add_error(errors, "memory_maps_incomplete");
-    }
-    (categories.into_values().collect(), largest)
 }
 
 #[cfg(any(target_os = "linux", test))]
@@ -1045,9 +998,9 @@ fn parse_smaps(raw: &str, truncated: bool, max_mappings: usize) -> ParsedSmaps {
                 rss_bytes: amount.rss,
                 pss_bytes: amount.pss,
                 anonymous_bytes: amount.anonymous,
-                private_dirty_bytes: Some(amount.private_dirty),
-                swap_bytes: Some(amount.swap),
-                anonymous_huge_bytes: Some(amount.anonymous_huge),
+                private_dirty_bytes: amount.private_dirty,
+                swap_bytes: amount.swap,
+                anonymous_huge_bytes: amount.anonymous_huge,
             });
             largest.sort_by_key(|region| std::cmp::Reverse(region.anonymous_bytes));
             largest.truncate(MAX_TOP_ENTRIES);
@@ -1114,9 +1067,9 @@ fn parse_smaps(raw: &str, truncated: bool, max_mappings: usize) -> ParsedSmaps {
                 rss_bytes: amount.rss,
                 pss_bytes: amount.pss,
                 anonymous_bytes: amount.anonymous,
-                private_dirty_bytes: Some(amount.private_dirty),
-                swap_bytes: Some(amount.swap),
-                anonymous_huge_bytes: Some(amount.anonymous_huge),
+                private_dirty_bytes: amount.private_dirty,
+                swap_bytes: amount.swap,
+                anonymous_huge_bytes: amount.anonymous_huge,
             })
             .collect(),
         largest_anonymous_regions: largest,
@@ -1334,63 +1287,106 @@ mod tests {
 
     #[cfg(target_os = "netbsd")]
     #[test]
-    fn netbsd_region_resident_bytes_matches_touched_pages() {
-        // SAFETY: sysconf reads a process-independent numeric page-size setting.
-        let page_size = unsafe { libc::sysconf(libc::_SC_PAGESIZE) } as u64;
-        let pages = 8u64;
-        let len = (page_size * pages) as libc::size_t;
-        // SAFETY: a fresh, anonymous, private mapping owned solely by this
-        // test; no other thread can observe or race its contents.
-        let ptr = unsafe {
-            libc::mmap(
-                std::ptr::null_mut(),
-                len,
-                libc::PROT_READ | libc::PROT_WRITE,
-                libc::MAP_PRIVATE | libc::MAP_ANON,
-                -1,
-                0,
-            )
-        };
-        assert_ne!(ptr, libc::MAP_FAILED);
-        // SAFETY: `ptr` is the just-created mapping of exactly `len` bytes;
-        // writing to every byte forces every page to become resident.
-        unsafe { std::ptr::write_bytes(ptr.cast::<u8>(), 1, len) };
-        let mut budget = MAX_VMMAP_TOTAL_BYTES;
-        let start = ptr as u64;
-        let end = start + len as u64;
-        let resident = netbsd_region_resident_bytes(start, end, page_size, &mut budget);
-        // SAFETY: `ptr`/`len` describe exactly the mapping created above,
-        // which nothing else references.
-        unsafe { libc::munmap(ptr, len) };
-        assert_eq!(resident, Some(len as u64));
+    fn netbsd_maps_omit_unmeasurable_metrics_and_classify_pathless_files() {
+        // SAFETY: kinfo_vmentry is a C record containing only integer fields
+        // and character arrays, all of which admit a zero representation.
+        let mut anonymous: libc::kinfo_vmentry = unsafe { std::mem::zeroed() };
+        anonymous.kve_start = 4096;
+        anonymous.kve_end = 8192;
+        anonymous.kve_type = 255; // KVME_TYPE_UNKNOWN (no object/submap).
+        anonymous.kve_ref_count = 42;
+        let mut vnode = anonymous;
+        vnode.kve_type = 2; // KVME_TYPE_VNODE, including unlinked files.
+        let mut device = anonymous;
+        device.kve_type = 4; // KVME_TYPE_DEVICE.
+        let mut errors = Vec::new();
+        let VirtualMemoryMaps {
+            categories,
+            largest_anonymous_regions: largest,
+        } = summarize_netbsd_memory_maps(&[anonymous, vnode, device], &mut errors);
+        let file = categories
+            .iter()
+            .find(|entry| entry.category == "file_or_special")
+            .unwrap();
+        assert_eq!(file.mappings, 2);
+        assert_eq!(file.size_bytes, 8192);
+        assert_eq!(largest.len(), 1);
+        assert_eq!(largest[0].size_bytes, 4096);
+        let json = serde_json::to_value(&categories).unwrap();
+        for category in json.as_array().unwrap() {
+            for field in [
+                "rss_bytes",
+                "pss_bytes",
+                "anonymous_bytes",
+                "private_dirty_bytes",
+                "swap_bytes",
+                "anonymous_huge_bytes",
+            ] {
+                assert!(category.get(field).is_none(), "{field}");
+            }
+        }
+        assert!(errors.iter().any(|error| error == "memory_maps_incomplete"));
+
+        let mut errors = Vec::new();
+        let VirtualMemoryMaps {
+            categories,
+            largest_anonymous_regions: largest,
+        } = summarize_netbsd_memory_maps(&vec![anonymous; MAX_MAPPINGS + 1], &mut errors);
+        assert_eq!(categories[0].mappings, MAX_MAPPINGS as u64);
+        assert_eq!(largest.len(), MAX_TOP_ENTRIES);
+        assert!(
+            errors
+                .iter()
+                .any(|error| error == "memory_maps_count_truncated")
+        );
     }
 
     #[cfg(target_os = "netbsd")]
     #[test]
     fn netbsd_memory_maps_reports_self_process() {
         let mut errors = Vec::new();
-        let (categories, largest) = netbsd_memory_maps(&mut errors);
+        let VirtualMemoryMaps {
+            categories,
+            largest_anonymous_regions: largest,
+        } = netbsd_memory_maps(&mut errors).unwrap();
         assert!(!categories.is_empty());
         assert!(
             categories
                 .iter()
                 .any(|category| category.category == "file_or_special")
         );
-        let total_rss: u64 = categories.iter().map(|category| category.rss_bytes).sum();
-        assert!(total_rss > 0);
+        let total_size: u64 = categories.iter().map(|category| category.size_bytes).sum();
+        assert!(total_size > 0);
         // Dirty/swap/anon-huge accounting is never measured on NetBSD; the
         // caller must be told the data is partial rather than see false zeros.
+        assert!(errors.iter().any(|error| error == "memory_maps_incomplete"));
+        for region in &largest {
+            assert_eq!(region.category, "anonymous_mappings");
+            assert!(region.size_bytes > 0);
+        }
+    }
+
+    #[cfg(target_os = "netbsd")]
+    #[test]
+    fn netbsd_memory_details_keep_resident_metrics_separate_from_virtual_maps() {
+        let details = collect_memory_details();
+        assert!(details.rss_bytes.is_some_and(|value| value > 0));
+        assert!(details.allocator.is_some());
+        assert!(details.categories.is_empty());
+        assert!(details.largest_anonymous_regions.is_empty());
+        assert!(details.virtual_memory_maps.is_some());
+        assert_eq!(details.status, MemoryDetailsStatus::Partial);
         assert!(
-            errors
+            details
+                .errors
                 .iter()
                 .any(|error| error == "memory_maps_incomplete")
         );
-        for category in &categories {
-            assert!(category.pss_bytes <= category.rss_bytes);
-        }
-        for region in &largest {
-            assert_eq!(region.category, "anonymous_mappings");
-            assert!(region.anonymous_bytes > 0);
-        }
+        assert!(
+            !details
+                .errors
+                .iter()
+                .any(|error| error == "allocator_stats_unavailable")
+        );
     }
 }

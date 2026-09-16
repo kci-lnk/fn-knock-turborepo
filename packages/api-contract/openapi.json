@@ -1950,7 +1950,7 @@
       "AllocatorStats": {
         "properties": {
           "allocated_bytes": {
-            "description": "Arena allocations; excludes mmap allocations and may include caches.\nglibc: mallinfo2 uordblks. NetBSD (jemalloc): stats.allocated.",
+            "description": "Allocator-reported live allocations. glibc: mallinfo2 uordblks\n(excludes mmap allocations). NetBSD (jemalloc): stats.allocated\n(includes large allocations backed by mmap).",
             "format": "int64",
             "minimum": 0,
             "type": "integer"
@@ -1997,10 +1997,7 @@
           "anonymous_huge_bytes": {
             "format": "int64",
             "minimum": 0,
-            "type": [
-              "integer",
-              "null"
-            ]
+            "type": "integer"
           },
           "category": {
             "type": "string"
@@ -2009,13 +2006,9 @@
             "type": "string"
           },
           "private_dirty_bytes": {
-            "description": "`null` when the platform cannot measure this (never a fabricated zero).",
             "format": "int64",
             "minimum": 0,
-            "type": [
-              "integer",
-              "null"
-            ]
+            "type": "integer"
           },
           "pss_bytes": {
             "format": "int64",
@@ -2035,10 +2028,7 @@
           "swap_bytes": {
             "format": "int64",
             "minimum": 0,
-            "type": [
-              "integer",
-              "null"
-            ]
+            "type": "integer"
           }
         },
         "required": [
@@ -14776,10 +14766,7 @@
           "anonymous_huge_bytes": {
             "format": "int64",
             "minimum": 0,
-            "type": [
-              "integer",
-              "null"
-            ]
+            "type": "integer"
           },
           "category": {
             "type": "string"
@@ -14790,13 +14777,9 @@
             "type": "integer"
           },
           "private_dirty_bytes": {
-            "description": "`null` when the platform cannot measure this (never a fabricated zero).",
             "format": "int64",
             "minimum": 0,
-            "type": [
-              "integer",
-              "null"
-            ]
+            "type": "integer"
           },
           "pss_bytes": {
             "format": "int64",
@@ -14816,10 +14799,7 @@
           "swap_bytes": {
             "format": "int64",
             "minimum": 0,
-            "type": [
-              "integer",
-              "null"
-            ]
+            "type": "integer"
           }
         },
         "required": [
@@ -14911,6 +14891,17 @@
               "integer",
               "null"
             ]
+          },
+          "virtual_memory_maps": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/VirtualMemoryMaps",
+                "description": "NetBSD virtual mapping sizes; legacy resident-metric arrays stay empty."
+              }
+            ]
           }
         },
         "required": [
@@ -14923,6 +14914,7 @@
           "threads",
           "categories",
           "largest_anonymous_regions",
+          "virtual_memory_maps",
           "allocator",
           "errors"
         ],
@@ -24927,6 +24919,73 @@
           "forceUpdate",
           "check",
           "download"
+        ],
+        "type": "object"
+      },
+      "VirtualAnonymousRegion": {
+        "properties": {
+          "category": {
+            "type": "string"
+          },
+          "permissions": {
+            "type": "string"
+          },
+          "size_bytes": {
+            "format": "int64",
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "category",
+          "permissions",
+          "size_bytes"
+        ],
+        "type": "object"
+      },
+      "VirtualMemoryCategory": {
+        "properties": {
+          "category": {
+            "type": "string"
+          },
+          "mappings": {
+            "format": "int64",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "size_bytes": {
+            "format": "int64",
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "category",
+          "mappings",
+          "size_bytes"
+        ],
+        "type": "object"
+      },
+      "VirtualMemoryMaps": {
+        "description": "Virtual mapping data for platforms without Linux-compatible resident metrics.\nNo RSS/PSS/anonymous-residency values can be inferred from these sizes.",
+        "properties": {
+          "categories": {
+            "items": {
+              "$ref": "#/components/schemas/VirtualMemoryCategory"
+            },
+            "type": "array"
+          },
+          "largest_anonymous_regions": {
+            "description": "Ranked by virtual size, not by resident anonymous bytes.",
+            "items": {
+              "$ref": "#/components/schemas/VirtualAnonymousRegion"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "categories",
+          "largest_anonymous_regions"
         ],
         "type": "object"
       },

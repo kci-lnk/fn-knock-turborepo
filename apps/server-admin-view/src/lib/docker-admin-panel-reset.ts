@@ -22,7 +22,7 @@ export const linuxAdminPanelResetCommands = {
 } as const;
 
 export const netbsdAdminPanelResetCommands = {
-  reset: "sudo knock reset-panel-password",
+  reset: "/path/to/server-admin-rs reset-panel-password",
 } as const;
 
 export const macosAdminPanelResetCommands = {

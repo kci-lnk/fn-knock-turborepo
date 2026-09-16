@@ -17,6 +17,7 @@ const KNOWN_PACKAGE_TYPES = [
   "synology",
   "linux",
   "macos",
+  "netbsd",
   "windows",
 ];
 const RELEASE_NOTES_HEADER = [
@@ -175,6 +176,13 @@ const packageIdentity = (artifact) => {
       type: "linux",
       arch,
       key: `files/${artifact.version}/linux/${arch}/${name}`,
+    };
+  }
+  if (artifact.platform === "netbsd" && name.endsWith(".tar.gz")) {
+    return {
+      type: "netbsd",
+      arch: architecture,
+      key: `files/${artifact.version}/netbsd/${architecture}/${name}`,
     };
   }
   if (artifact.platform === "macos" && name.endsWith(".tar.gz")) {
@@ -423,10 +431,10 @@ export const buildReleasePlan = async ({
     manifest.version !== version ||
     manifest.tag !== `v${version}` ||
     !Array.isArray(manifest.artifacts) ||
-    manifest.artifacts.length !== 23
+    manifest.artifacts.length !== 24
   ) {
     fail(
-      "release-manifest.json does not describe the expected 23-file release",
+      "release-manifest.json does not describe the expected 24-file release",
     );
   }
 
@@ -464,7 +472,7 @@ export const buildReleasePlan = async ({
     }
     const entry = {
       type: identity.type,
-      ...(["linux", "macos", "synology"].includes(identity.type)
+      ...(["linux", "macos", "netbsd", "synology"].includes(identity.type)
         ? { version }
         : {}),
       arch: identity.arch,
@@ -482,7 +490,7 @@ export const buildReleasePlan = async ({
         size: artifact.size,
         sha256: artifact.sha256,
         contentType: artifactContentType(artifact.name),
-        ...(["linux", "macos", "windows"].includes(identity.type)
+        ...(["linux", "macos", "netbsd", "windows"].includes(identity.type)
           ? { cacheControl: POINTER_CACHE_CONTROL }
           : {}),
       }),
@@ -520,6 +528,7 @@ export const buildReleasePlan = async ({
   );
   assertKeys(packages.synology, ["armv7", "armv8", "x86_64"], "Synology");
   assertKeys(packages.linux, ["amd64", "arm", "arm64"], "Linux");
+  assertKeys(packages.netbsd, ["amd64"], "NetBSD");
   assertKeys(packages.macos, ["amd64", "arm64"], "macOS");
   assertKeys(packages.windows, ["x86_64"], "Windows");
 

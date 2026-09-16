@@ -7970,8 +7970,9 @@ export interface components {
         AllocatorStats: {
             /**
              * Format: int64
-             * @description Arena allocations; excludes mmap allocations and may include caches.
-             *     glibc: mallinfo2 uordblks. NetBSD (jemalloc): stats.allocated.
+             * @description Allocator-reported live allocations. glibc: mallinfo2 uordblks
+             *     (excludes mmap allocations). NetBSD (jemalloc): stats.allocated
+             *     (includes large allocations backed by mmap).
              */
             allocated_bytes: number;
             /** Format: int64 */
@@ -7999,14 +8000,11 @@ export interface components {
             /** Format: int64 */
             anonymous_bytes: number;
             /** Format: int64 */
-            anonymous_huge_bytes: number | null;
+            anonymous_huge_bytes: number;
             category: string;
             permissions: string;
-            /**
-             * Format: int64
-             * @description `null` when the platform cannot measure this (never a fabricated zero).
-             */
-            private_dirty_bytes: number | null;
+            /** Format: int64 */
+            private_dirty_bytes: number;
             /** Format: int64 */
             pss_bytes: number;
             /** Format: int64 */
@@ -8014,7 +8012,7 @@ export interface components {
             /** Format: int64 */
             size_bytes: number;
             /** Format: int64 */
-            swap_bytes: number | null;
+            swap_bytes: number;
         };
         ApiErrorEnvelope: {
             /**
@@ -11145,15 +11143,12 @@ export interface components {
             /** Format: int64 */
             anonymous_bytes: number;
             /** Format: int64 */
-            anonymous_huge_bytes: number | null;
+            anonymous_huge_bytes: number;
             category: string;
             /** Format: int64 */
             mappings: number;
-            /**
-             * Format: int64
-             * @description `null` when the platform cannot measure this (never a fabricated zero).
-             */
-            private_dirty_bytes: number | null;
+            /** Format: int64 */
+            private_dirty_bytes: number;
             /** Format: int64 */
             pss_bytes: number;
             /** Format: int64 */
@@ -11161,7 +11156,7 @@ export interface components {
             /** Format: int64 */
             size_bytes: number;
             /** Format: int64 */
-            swap_bytes: number | null;
+            swap_bytes: number;
         };
         MemoryDetails: {
             allocator: null | components["schemas"]["AllocatorStats"];
@@ -11181,6 +11176,7 @@ export interface components {
             swap_bytes: number | null;
             /** Format: int64 */
             threads: number | null;
+            virtual_memory_maps: null | components["schemas"]["VirtualMemoryMaps"];
         };
         /** @enum {string} */
         MemoryDetailsStatus: "available" | "partial" | "unsupported" | "unavailable";
@@ -13566,6 +13562,28 @@ export interface components {
             latest: null | components["schemas"]["UpdateLatestData"];
             localVersion: string;
             updateEnabled: boolean;
+        };
+        VirtualAnonymousRegion: {
+            category: string;
+            permissions: string;
+            /** Format: int64 */
+            size_bytes: number;
+        };
+        VirtualMemoryCategory: {
+            category: string;
+            /** Format: int64 */
+            mappings: number;
+            /** Format: int64 */
+            size_bytes: number;
+        };
+        /**
+         * @description Virtual mapping data for platforms without Linux-compatible resident metrics.
+         *     No RSS/PSS/anonymous-residency values can be inferred from these sizes.
+         */
+        VirtualMemoryMaps: {
+            categories: components["schemas"]["VirtualMemoryCategory"][];
+            /** @description Ranked by virtual size, not by resident anonymous bytes. */
+            largest_anonymous_regions: components["schemas"]["VirtualAnonymousRegion"][];
         };
         WafConfigData: {
             /** @constant */

@@ -26,26 +26,30 @@ jobs:
           ref: ${{ inputs.source_sha || github.sha }}
           persist-credentials: false
 
-      - name: Resolve build identity
+      - name: Resolve product version
         id: identity
-        env:
-          GATEWAY_SHA: ${{ inputs.gateway_sha }}
         shell: bash
         run: |
           set -euo pipefail
           version="$(jq -r .version version.json)"
-          gateway="${GATEWAY_SHA:-$(jq -r .gatewayCommit version.json)}"
-          [[ "$gateway" =~ ^[0-9a-f]{40}$ ]]
-          printf 'version=%s\ngateway=%s\n' "$version" "$gateway" >> "$GITHUB_OUTPUT"
-          printf 'FN_KNOCK_VERSION=%s\nFN_KNOCK_GATEWAY_COMMIT=%s\n' "$version" "$gateway" >> "$GITHUB_ENV"
+          printf 'version=%s\n' "$version" >> "$GITHUB_OUTPUT"
+          printf 'FN_KNOCK_VERSION=%s\n' "$version" >> "$GITHUB_ENV"
 
-      - name: Checkout frozen Go gateway
+      - name: Checkout Go gateway
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           repository: kci-lnk/Go-Reauth-Proxy
           path: Go-Reauth-Proxy
-          ref: ${{ steps.identity.outputs.gateway }}
+          ref: ${{ inputs.gateway_sha || 'main' }}
           persist-credentials: false
+
+      - name: Freeze checked-out Go gateway commit
+        shell: bash
+        run: |
+          set -euo pipefail
+          sha="$(git -C Go-Reauth-Proxy rev-parse HEAD)"
+          [[ "$sha" =~ ^[0-9a-f]{40}$ ]]
+          printf 'FN_KNOCK_GATEWAY_COMMIT=%s\n' "$sha" >> "$GITHUB_ENV"
 
       - name: Set up Node.js
         uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0

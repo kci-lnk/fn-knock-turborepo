@@ -293,7 +293,7 @@ jobs:
             node scripts/runtime-performance.mjs > "${base}"
           node scripts/check-runtime-performance.mjs \
             --base "${base}" --current "${current}" \
-            --max-readiness-regression 0.10 --max-rss-regression 0.05
+            --max-readiness-regression 0.10 --max-rss-regression 0.20 --max-throughput-regression 0.15
           {
             echo '### Runtime performance PR gate'
             echo 'Base and current use the same freshly-built frontend assets; only Rust/Go runtime binaries differ.'

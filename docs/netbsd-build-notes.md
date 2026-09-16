@@ -108,14 +108,22 @@ cd Go-Reauth-Proxy
 go build -ldflags="-X go-reauth-proxy/pkg/version.Version=<version> -X go-reauth-proxy/pkg/version.Commit=<commit>" -o server ./cmd/server
 ```
 
-Before building, check out the exact gateway source revision recorded in
-this repo's `version.json` as `gatewayCommit`, and verify that
-`git rev-parse HEAD` in the gateway checkout matches that value. Set
-`-X ...version.Commit` to that verified commit and `-X ...version.Version`
-to the product version. `server-admin-rs` rejects a gateway whose compiled-in
-commit string does not match (`gateway source commit mismatch`). This is
-a compatibility check, not proof of the binary's source: never label an
-unrelated gateway checkout with the expected commit just to pass it.
+Before building either executable, select and freeze a gateway checkout:
+
+```sh
+export FN_KNOCK_GATEWAY_COMMIT="$(git -C /path/to/Go-Reauth-Proxy rev-parse HEAD)"
+```
+
+Keep that environment when running `cargo build`, and set the Go
+`-X ...version.Commit` flag to the same actual checkout SHA. Set
+`-X ...version.Version` to the product version. CI selects current gateway
+`main` once; unified Release builds pass the revision frozen by preflight.
+The historical `version.json` gateway revision is only a fallback for
+manual Rust builds without this environment override.
+`server-admin-rs` rejects a gateway whose compiled-in commit differs
+(`gateway source commit mismatch`). This is a compatibility check, not
+proof of the binary's source: never label an unrelated checkout with an
+expected commit just to pass it.
 
 ## Building the frontend (`server-admin-view`, `server-auth-view`)
 

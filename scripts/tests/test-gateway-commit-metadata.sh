@@ -128,4 +128,12 @@ if grep -Fq 'if [ -f "${dst}" ]; then' "${ROOT_DIR}/scripts/fn-knock-docker.sh";
   fail "Docker no-build mode accepts Rust binaries without commit metadata validation"
 fi
 
+if grep -Fq 'gatewayCommit' "${ROOT_DIR}/.github/workflows/netbsd.yml"; then
+  fail "NetBSD workflow uses historical version.json gateway metadata"
+fi
+grep -Fq "ref: \${{ inputs.gateway_sha || 'main' }}" "${ROOT_DIR}/.github/workflows/netbsd.yml" || \
+  fail "NetBSD workflow does not accept the release's frozen gateway revision"
+grep -Fq 'sha="$(git -C Go-Reauth-Proxy rev-parse HEAD)"' "${ROOT_DIR}/.github/workflows/netbsd.yml" || \
+  fail "NetBSD workflow does not record its actual gateway checkout"
+
 printf '[test-gateway-commit-metadata] gateway commit metadata validation passed\n'

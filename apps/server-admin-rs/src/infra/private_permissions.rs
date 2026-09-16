@@ -1,17 +1,15 @@
 //! Private credential ACLs shared by local secret stores.
-use std::path::Path;
-#[cfg(not(test))]
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
-#[cfg(test)]
-pub(crate) fn secure_windows_path(_path: &Path, _directory: bool) -> Result<(), String> {
-    // Tests intentionally overwrite and remove their temporary fixtures after
-    // exercising recovery paths. Production builds always apply the ACL below.
-    Ok(())
-}
-
-#[cfg(not(test))]
 pub(crate) fn secure_windows_path(path: &Path, directory: bool) -> Result<(), String> {
+    // The Windows test suite deliberately overwrites and removes its own
+    // temporary fixtures. This escape hatch is available only to debug builds
+    // that explicitly opt in; release binaries always enforce the ACL below.
+    if cfg!(debug_assertions)
+        && std::env::var("FN_KNOCK_TEST_DISABLE_PRIVATE_ACLS").as_deref() == Ok("1")
+    {
+        return Ok(());
+    }
     use std::process::{Command, Stdio};
 
     let system_root = std::env::var_os("SystemRoot").unwrap_or_else(|| r"C:\Windows".into());
@@ -101,7 +99,6 @@ pub(crate) fn secure_windows_path(path: &Path, directory: bool) -> Result<(), St
     Ok(())
 }
 
-#[cfg(not(test))]
 fn current_windows_sid(system_directory: &Path) -> Result<String, String> {
     let output = std::process::Command::new(system_directory.join("whoami.exe"))
         .args(["/user", "/fo", "csv", "/nh"])

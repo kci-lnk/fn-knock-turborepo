@@ -80,15 +80,46 @@ fn configure_allocator_for_low_memory() {
     // server-admin-rs is latency-light but memory-sensitive on NAS targets.
     // Keep glibc from creating large per-thread arenas and return bursty startup
     // allocations to the kernel more eagerly.
+    let mmap_threshold =
+        allocator_mmap_threshold(env::var("FN_KNOCK_RUNTIME_TARGET").ok().as_deref());
     // SAFETY: mallopt mutates process-wide glibc allocator tunables before the
     // Tokio runtime starts and does not access Rust-managed memory.
     unsafe {
         libc::mallopt(libc::M_ARENA_MAX, 1);
         libc::mallopt(libc::M_TRIM_THRESHOLD, 128 * 1024);
-        libc::mallopt(libc::M_MMAP_THRESHOLD, 128 * 1024);
+        libc::mallopt(libc::M_MMAP_THRESHOLD, mmap_threshold);
         libc::mallopt(libc::M_TOP_PAD, 0);
     }
 }
 
 #[cfg(not(all(target_os = "linux", target_env = "gnu")))]
 fn configure_allocator_for_low_memory() {}
+
+#[cfg(any(test, all(target_os = "linux", target_env = "gnu")))]
+fn allocator_mmap_threshold(runtime_target: Option<&str>) -> i32 {
+    // The 32 KiB policy was validated with the FPK launcher's tcache setting.
+    // Keep the existing policy for other deployments and direct invocations.
+    match runtime_target {
+        Some("fpk") => 32 * 1024,
+        _ => 128 * 1024,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn mmap_policy_is_scoped_to_explicit_fpk_deployments() {
+        assert_eq!(super::allocator_mmap_threshold(Some("fpk")), 32 * 1024);
+        for target in [
+            None,
+            Some(""),
+            Some("fpk-lite"),
+            Some("docker"),
+            Some("openwrt"),
+            Some("synology"),
+            Some("unknown"),
+        ] {
+            assert_eq!(super::allocator_mmap_threshold(target), 128 * 1024);
+        }
+    }
+}

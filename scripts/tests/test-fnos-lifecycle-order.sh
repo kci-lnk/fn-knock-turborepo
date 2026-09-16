@@ -145,6 +145,22 @@ cat > "${firewall_bin_dir}/iptables" <<'EOF'
 #!/bin/bash
 last="${!#}"
 case "${MOCK_FIREWALL_MODE:-absent}" in
+  nft)
+    if [ "${last}" = --version ]; then
+      echo 'iptables v1.8.9 (nf_tables)'
+      exit 0
+    fi
+    case " $* " in
+      *" -S "*) echo 'table is incompatible, use nft tool' >&2; exit 1 ;;
+      *" -C "*)
+        [ "${last}" = FNK_FNC_OUT ] && [ -f "${MOCK_NFT_STATE}.jump" ]; exit $? ;;
+      *" -D "*) rm -f "${MOCK_NFT_STATE}.jump" ;;
+      *" -X "*)
+        [ ! -f "${MOCK_NFT_STATE}.jump" ] || exit 1
+        rm -f "${MOCK_NFT_STATE}" ;;
+    esac
+    exit 0
+    ;;
   error)
     echo 'xtables lock unavailable' >&2
     exit 2
@@ -180,8 +196,23 @@ EOF
 chmod 755 "${firewall_bin_dir}/iptables"
 cp "${firewall_bin_dir}/iptables" "${firewall_bin_dir}/ip6tables"
 
+cat > "${firewall_bin_dir}/nft" <<'EOF'
+#!/bin/bash
+if [ "${MOCK_NFT_ERROR:-0}" = 1 ]; then
+  echo 'Operation not permitted' >&2
+  exit 1
+fi
+if [ "$3" = ip ] && [ "$4" = nat ] && [ "$5" = FNK_FNC_OUT ] && [ -f "${MOCK_NFT_STATE}" ]; then
+  echo 'table ip nat { chain FNK_FNC_OUT { } }'
+  exit 0
+fi
+echo 'Error: No such file or directory' >&2
+exit 1
+EOF
+chmod 755 "${firewall_bin_dir}/nft"
+
 cleanup_functions="$(sed -n \
-  '/^cleanup_fn_connect_waf_rules_once() {/,/^generate_random_hex() {/p' \
+  '/^fn_connect_waf_chain_exists() {/,/^generate_random_hex() {/p' \
   "${MAIN_ENTRYPOINT}" | sed '$d')"
 (
   PATH="${firewall_bin_dir}:${PATH}"
@@ -191,6 +222,20 @@ cleanup_functions="$(sed -n \
   sleep() { :; }
   FIREWALL_WAIT_SECONDS=1
   eval "${cleanup_functions}"
+
+  export MOCK_FIREWALL_MODE=nft
+  export MOCK_NFT_STATE="${WORK_DIR}/nft-chain"
+  touch "${MOCK_NFT_STATE}" "${MOCK_NFT_STATE}.jump"
+  # The whole table cannot be rendered by iptables, but owned chain metadata
+  # remains readable with nft and must trigger cleanup before the gateway exits.
+  cleanup_fn_connect_waf_rules || fail 'nft mixed table cleanup failed'
+  [ ! -f "${MOCK_NFT_STATE}" ] || fail 'nft stale redirect chain survived cleanup'
+  fn_connect_waf_rules_absent || fail 'clean nft state was not accepted'
+  export MOCK_NFT_ERROR=1
+  nft_status=0
+  fn_connect_waf_rules_absent || nft_status=$?
+  [ "${nft_status}" -eq 2 ] || fail 'nft permission error was treated as absence'
+  export MOCK_NFT_ERROR=0
 
   export MOCK_FIREWALL_MODE=absent
   fn_connect_waf_rules_absent || fail 'absent firewall state was not accepted'

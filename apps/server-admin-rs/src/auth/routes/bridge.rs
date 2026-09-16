@@ -286,6 +286,7 @@ async fn run_auth_bridge_once(state: AppState, shutdown: &CancellationToken) -> 
     let capabilities = vec![
         AUTHORIZE_HTTP_V1_CAPABILITY.to_string(),
         "subdomain_rule_grant_v1".to_string(),
+        "inspect_subdomain_grant_v1".to_string(),
     ];
     let ready = AuthBridgeEnvelope {
         request_id: String::new(),
@@ -587,6 +588,19 @@ async fn handle_authorize_http(
     let mut response = empty_authorize_http_response();
 
     let config = state.storage.store.config_snapshot();
+    if request.mode == HttpAuthMode::InspectSubdomainGrant as i32 {
+        // No normal-access resolution, issuance, renewal or IP trust side effects.
+        response.subdomain_grant_security_exempt =
+            subdomain_grant::has_valid_probe(&state, &headers, &config)
+                || match subdomain_grant::inspect_existing(&state, &headers, &config).await {
+                    Ok(grant) => grant.is_some(),
+                    Err(error) => {
+                        tracing::warn!(%error, "subdomain grant security inspection failed");
+                        false
+                    }
+                };
+        return response;
+    }
     let translator = translator_from_config(&config);
     let matched_rule_valid = request
         .subdomain_rule_match
@@ -712,6 +726,7 @@ fn empty_authorize_http_response() -> AuthorizeHttpResponse {
         verify: None,
         preflight_cache_scope: AuthCacheScope::None as i32,
         verify_cache_scope: AuthCacheScope::None as i32,
+        subdomain_grant_security_exempt: false,
     }
 }
 
@@ -732,6 +747,7 @@ fn authorize_http_preparation_error(
 
 fn http_auth_stages(mode: i32) -> (bool, bool) {
     match HttpAuthMode::try_from(mode).unwrap_or(HttpAuthMode::Unspecified) {
+        HttpAuthMode::InspectSubdomainGrant => (false, false),
         HttpAuthMode::PreflightOnly => (true, false),
         HttpAuthMode::VerifyOnly => (false, true),
         HttpAuthMode::PreflightAndVerify | HttpAuthMode::Unspecified => (true, true),
@@ -1830,6 +1846,95 @@ mod tests {
             cookies::SUBDOMAIN_RULE_GRANT_COOKIE_NAME
         )));
 
+        let mut inspection = AuthorizeHttpRequest {
+            context: Some(AuthContext {
+                client_ip: "203.0.113.20".into(),
+                forwarded_host: "allowed.example.com".into(),
+                forwarded_proto: "https".into(),
+                path: "/uncommon-grant-test".into(),
+                cookie: probe_cookie.clone(),
+                ..Default::default()
+            }),
+            mode: HttpAuthMode::InspectSubdomainGrant as i32,
+            ..Default::default()
+        };
+        for _ in 0..2 {
+            let result = handle_authorize_http(state.clone(), inspection.clone()).await;
+            assert!(result.subdomain_grant_security_exempt);
+            assert!(result.verify.is_none() && result.preflight.is_none());
+        }
+        assert_eq!(
+            state
+                .storage
+                .store
+                .count_keys_by_prefix("fn_knock:auth:subdomain_rule_grant:")
+                .await
+                .unwrap(),
+            0
+        );
+        state
+            .storage
+            .store
+            .save_scanner_settings(&json!({
+                "enabled": true, "windowMinutes": 10, "threshold": 3, "blacklistTtlSeconds": 3600
+            }))
+            .await
+            .unwrap();
+        let mut preflight = inspection.clone();
+        preflight.mode = HttpAuthMode::PreflightOnly as i32;
+        assert!(
+            !handle_authorize_http(state.clone(), preflight.clone())
+                .await
+                .preflight
+                .unwrap()
+                .deny
+        );
+        assert!(
+            state
+                .storage
+                .store
+                .scanner_suspicious_hits_since("203.0.113.20", 0)
+                .await
+                .unwrap()
+                .is_empty()
+        );
+        state
+            .storage
+            .store
+            .add_scanner_blacklist_record(
+                "203.0.113.20",
+                &json!({"ip":"203.0.113.20"}),
+                time_utils::now_ms(),
+                3600,
+            )
+            .await
+            .unwrap();
+        assert!(
+            !handle_authorize_http(state.clone(), preflight.clone())
+                .await
+                .preflight
+                .unwrap()
+                .deny
+        );
+        let mut anonymous = preflight.clone();
+        anonymous.context.as_mut().unwrap().cookie.clear();
+        assert!(
+            handle_authorize_http(state.clone(), anonymous)
+                .await
+                .preflight
+                .unwrap()
+                .deny
+        );
+        let mut strict = preflight.clone();
+        strict.context.as_mut().unwrap().access_mode = "strict_whitelist".into();
+        assert!(
+            handle_authorize_http(state.clone(), strict)
+                .await
+                .preflight
+                .unwrap()
+                .deny
+        );
+
         // The entry-only rule no longer matches this path. A client that
         // returned the signed probe must still pass the combined preflight so
         // verify can exchange it for the persistent host-scoped credential.
@@ -1858,9 +1963,138 @@ mod tests {
         assert!(second_preflight.access_denied_reason.is_empty());
         let second_verify = second.verify.expect("second verify response");
         assert!(second_verify.success);
+        assert!(!second_preflight.deny);
+        assert!(!second_verify.login_authenticated);
         assert_eq!(second_verify.auth_grant_state, "issued");
         assert_eq!(second_verify.set_cookies.len(), 1);
         assert!(!second_verify.set_cookies[0].contains("=p1."));
+        inspection.context.as_mut().unwrap().cookie = second_verify.set_cookies[0]
+            .split(';')
+            .next()
+            .unwrap()
+            .into();
+        let keys = state
+            .storage
+            .store
+            .scan_keys("fn_knock:auth:subdomain_rule_grant:", 10)
+            .await
+            .unwrap();
+        assert_eq!(keys.len(), 1);
+        let key = &keys[0];
+        let raw = state
+            .storage
+            .store
+            .get_string_value_auth(key)
+            .await
+            .unwrap()
+            .unwrap();
+        // Make renewal due so a mistakenly mutating inspection is observable.
+        let mut aged: Value = serde_json::from_str(&raw).unwrap();
+        aged["last_access_at"] = json!(time_utils::now_ms() / 1000 - 120);
+        let raw = aged.to_string();
+        state
+            .storage
+            .store
+            .set_string_value(key, &raw)
+            .await
+            .unwrap();
+        assert!(
+            handle_authorize_http(state.clone(), inspection.clone())
+                .await
+                .subdomain_grant_security_exempt
+        );
+        assert_eq!(
+            state
+                .storage
+                .store
+                .get_string_value_auth(key)
+                .await
+                .unwrap()
+                .unwrap(),
+            raw
+        );
+        preflight.context = inspection.context.clone();
+        assert!(
+            !handle_authorize_http(state.clone(), preflight.clone())
+                .await
+                .preflight
+                .unwrap()
+                .deny
+        );
+        preflight.mode = HttpAuthMode::PreflightAndVerify as i32;
+        let renewed = handle_authorize_http(state.clone(), preflight)
+            .await
+            .verify
+            .unwrap();
+        assert!(renewed.success && !renewed.login_authenticated);
+        assert_eq!(renewed.auth_grant_state, "renewed");
+        assert_eq!(renewed.set_cookies.len(), 1);
+        let mut forged = inspection.clone();
+        forged.context.as_mut().unwrap().cookie =
+            format!("{}=forged", cookies::SUBDOMAIN_RULE_GRANT_COOKIE_NAME);
+        assert!(
+            !handle_authorize_http(state.clone(), forged)
+                .await
+                .subdomain_grant_security_exempt
+        );
+        let mut invalid = inspection.clone();
+        invalid.context.as_mut().unwrap().forwarded_host = "other.example.com".into();
+        assert!(
+            !handle_authorize_http(state.clone(), invalid)
+                .await
+                .subdomain_grant_security_exempt
+        );
+        for field in ["hard_expires_at", "last_access_at"] {
+            let mut record: Value = serde_json::from_str(&raw).unwrap();
+            record[field] = json!(1);
+            state
+                .storage
+                .store
+                .set_string_value(key, &record.to_string())
+                .await
+                .unwrap();
+            assert!(
+                !handle_authorize_http(state.clone(), inspection.clone())
+                    .await
+                    .subdomain_grant_security_exempt
+            );
+        }
+        state
+            .storage
+            .store
+            .set_string_value(key, &raw)
+            .await
+            .unwrap();
+        let original = state.storage.store.get_config().await.unwrap()["host_mappings"]
+            .as_array()
+            .unwrap()
+            .clone();
+        for (field, value) in [
+            ("enabled", json!(false)),
+            ("policy_version", json!("rotated")),
+            ("groups", json!([])),
+        ] {
+            let current = state.storage.store.get_config().await.unwrap()["host_mappings"]
+                .as_array()
+                .unwrap()
+                .clone();
+            let mut changed = original.clone();
+            changed[0]["advanced_auth"][field] = value;
+            assert!(
+                state
+                    .storage
+                    .store
+                    .compare_and_set_host_mappings(&current, &changed)
+                    .await
+                    .unwrap()
+                    .is_some()
+            );
+            assert!(
+                !handle_authorize_http(state.clone(), inspection.clone())
+                    .await
+                    .subdomain_grant_security_exempt
+            );
+        }
         assert_eq!(
             state
                 .storage

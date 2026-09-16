@@ -223,25 +223,25 @@ pub(crate) fn start_fnos_connect_waf_reconciler(state: AppState) {
         let mut first = true;
         let mut enabled = None;
         let mut retry_required = false;
-        let mut reload_config = true;
         loop {
             if enabled.is_some() {
                 let periodic = enabled == Some(true) || retry_required;
-                let notified = tokio::select! {
+                tokio::select! {
                     _ = state.shutdown.cancelled() => break,
-                    _ = state.fnos_connect_waf_notify.notified() => true,
-                    _ = time::sleep(FNOS_CONNECT_RECONCILE_INTERVAL), if periodic => false,
+                    _ = state.fnos_connect_waf_notify.notified() => {},
+                    _ = time::sleep(FNOS_CONNECT_RECONCILE_INTERVAL), if periodic => {},
                 };
-                if notified {
-                    reload_config = true;
-                }
             }
 
-            if reload_config {
+            // Serialize the config read with API updates as well as rule writes.
+            // Otherwise a queued reconcile can reinstall rules after disable.
+            let guard = state.fnos_connect_waf_update_lock.lock().await;
+            {
                 let config = match state.storage.store.get_config().await {
                     Ok(config) => config,
                     Err(error) => {
                         tracing::warn!(%error, "failed to load FN Connect WAF config during reconcile");
+                        drop(guard);
                         tokio::select! {
                             _ = state.shutdown.cancelled() => break,
                             _ = state.fnos_connect_waf_notify.notified() => {}
@@ -256,11 +256,9 @@ pub(crate) fn start_fnos_connect_waf_reconciler(state: AppState) {
                         .and_then(Value::as_bool)
                         .unwrap_or(false),
                 );
-                reload_config = false;
             }
 
             let enabled = enabled.unwrap_or(false);
-            let _guard = state.fnos_connect_waf_update_lock.lock().await;
             if !enabled && !first {
                 let current = state.fnos_connect_waf_status.read().await;
                 if !retry_required && !disabled_fnos_connect_waf_needs_reconcile(&current) {

@@ -117,6 +117,25 @@ wait_runtime_ready() {
     return 1
 }
 
+# Inspect only our chains: listing an entire iptables-nft table can fail when
+# another application has installed native nft expressions in that table.
+fn_connect_waf_chain_exists() {
+    local firewall="$1" table="$2" chain="$3"
+    local output="" family="ip" status=0
+    if "${firewall}" --version 2>/dev/null | grep -q '(nf_tables)'; then
+        [ "${firewall}" = ip6tables ] && family="ip6"
+        output="$(nft list chain "${family}" "${table}" "${chain}" 2>&1)" || status=$?
+    else
+        output="$("${firewall}" -w "${FIREWALL_WAIT_SECONDS}" -t "${table}" -S "${chain}" 2>&1)" || status=$?
+    fi
+    [ "${status}" -eq 0 ] && return 0
+    case "${output}" in
+        *"No such file or directory"*|*"No chain/target/match by that name"*|*"does not exist"*) return 1 ;;
+    esac
+    log_msg "FN Connect WAF chain inspection failed: ${firewall} ${table} ${chain}: ${output}"
+    return 2
+}
+
 cleanup_fn_connect_waf_rules_once() {
     local firewall=""
     local comment="fn-knock:fn-connect-waf"
@@ -191,7 +210,7 @@ cleanup_fn_connect_waf_rules_once() {
             "filter|FNK_FNC_IN"; do
             table="${table_chain%%|*}"
             chain="${table_chain#*|}"
-            if ! "${firewall}" -w "${FIREWALL_WAIT_SECONDS}" -t "${table}" -S "${chain}" >/dev/null 2>&1; then
+            if ! fn_connect_waf_chain_exists "${firewall}" "${table}" "${chain}"; then
                 continue
             fi
             if ! "${firewall}" -w "${FIREWALL_WAIT_SECONDS}" -t "${table}" -F "${chain}" >/dev/null 2>&1; then
@@ -215,6 +234,22 @@ fn_connect_waf_rules_absent() {
 
     for firewall in iptables ip6tables; do
         command -v "${firewall}" >/dev/null 2>&1 || continue
+
+        if "${firewall}" --version 2>/dev/null | grep -q '(nf_tables)'; then
+            local table_chain="" chain="" chain_status=0
+            for table_chain in "nat|FNK_FNC_PRE" "nat|FNK_FNC_OUT" "nat|FNK_FNC_WAF" "filter|FNK_FNC_IN"; do
+                table="${table_chain%%|*}"
+                chain="${table_chain#*|}"
+                chain_status=0
+                fn_connect_waf_chain_exists "${firewall}" "${table}" "${chain}" || chain_status=$?
+                case "${chain_status}" in
+                    0) return 1 ;;
+                    1) ;;
+                    *) return 2 ;;
+                esac
+            done
+            continue
+        fi
 
         for table in nat filter; do
             error=""
@@ -1032,6 +1067,19 @@ start_gateway() {
     return 1
 }
 
+backend_glibc_tunables() {
+    local tunables="${GLIBC_TUNABLES:-}"
+    # The NAS backend has few allocator-heavy workers. Avoid retaining a
+    # separate small-object cache on every Rust/SQLite thread. glibc reads this
+    # before main(), so mallopt in the Rust binary cannot configure it.
+    # Preserve explicit administrator settings and all unrelated tunables.
+    case ":${tunables}:" in
+        *:glibc.malloc.tcache_count=*) ;;
+        *) tunables="${tunables:+${tunables}:}glibc.malloc.tcache_count=0" ;;
+    esac
+    printf '%s' "${tunables}"
+}
+
 start_backend() {
     if [ -f "${BACKEND_PID_FILE}" ]; then
         local pid
@@ -1085,8 +1133,11 @@ start_backend() {
         expected_gateway_start="${expected_gateway_pid}:$(printf '%s\n' "${expected_gateway_stat}" | awk '{print $20}')"
     fi
     log_msg "Starting Rust backend (admin-view-port=${ADMIN_VIEW_PORT}, backend-port=${BACKEND_PORT}, auth-port=${AUTH_PORT})..."
+    local backend_allocator_tunables
+    backend_allocator_tunables="$(backend_glibc_tunables)"
     (
         cd "${APP_HOME}" && \
+        GLIBC_TUNABLES="${backend_allocator_tunables}" \
         ADMIN_STATIC_PATH="${ADMIN_STATIC_PATH}" \
         AUTH_STATIC_PATH="${AUTH_STATIC_PATH}" \
         FN_KNOCK_RUNTIME_TARGET="fpk" \

@@ -271,6 +271,89 @@ fn acme_command_log_quotes_paths_with_spaces() {
     );
 }
 
+#[cfg(unix)]
+#[tokio::test]
+async fn acme_relative_home_creates_account_key_in_persistent_directory() {
+    // Keep cwd unchanged: other tests can run concurrently.
+    let cwd = env::current_dir().unwrap();
+    let directory = tempfile::tempdir_in(&cwd).unwrap();
+    let relative_data = directory.path().strip_prefix(&cwd).unwrap().join("data");
+    let state = acme_test_state_with_data_dir(relative_data, "linux").await;
+    install_from_bundled_zip_blocking(&state).unwrap();
+    let workspace = AcmeCommandWorkspace::prepare(&state).unwrap().unwrap();
+    let mut args = shared_acme_args(&state, Some("letsencrypt"));
+    workspace.rewrite_home_args(&mut args);
+    let home = Path::new(&args[1]);
+    assert!(std::fs::read_link(home).unwrap().is_absolute());
+    assert_eq!(args[1], args[3]);
+    let key_suffix = "ca/acme-v02.api.letsencrypt.org/directory/account.key";
+    // Invoke the bundled script's actual key-generation function offline.
+    let output = Command::new(acme_executable_path(&state))
+        .arg("_createkey")
+        .arg("ec-256")
+        .arg(home.join(key_suffix))
+        .output()
+        .await
+        .unwrap();
+    assert!(
+        output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    drop(workspace);
+    assert!(!home.exists());
+    assert!(acme_home_dir(&state).join(key_suffix).is_file());
+}
+
+#[cfg(unix)]
+#[tokio::test]
+async fn acme_workspace_reports_missing_or_invalid_persistent_home() {
+    let (_directory, state) = acme_test_state().await;
+    let home = acme_home_dir(&state);
+    let error = AcmeCommandWorkspace::prepare(&state).err().unwrap();
+    assert!(error.to_string().contains("Cannot resolve ACME home"));
+    assert!(error.to_string().contains(&home.display().to_string()));
+    std::fs::write(&home, b"not a directory").unwrap();
+    let error = AcmeCommandWorkspace::prepare(&state).err().unwrap();
+    assert!(error.to_string().contains("ACME home is not a directory"));
+}
+
+#[test]
+fn acme_error_brief_preserves_filesystem_cause() {
+    let stderr = "mkdir: cannot create directory '/tmp/acme/home': File exists\nCannot create path: /tmp/acme/home/ca\nAccount key creation error.\nError creating account key.\n";
+    let brief = command_output_brief("debug credential=value", stderr);
+    assert!(brief.contains("mkdir:"));
+    assert!(brief.contains("File exists"));
+    assert!(brief.contains("Error creating account key."));
+    assert!(!brief.contains("credential"));
+    assert_eq!(command_output_brief("", ""), "");
+    assert_eq!(
+        command_output_brief("one\ntwo\nthree\nfour", ""),
+        ": two | three | four"
+    );
+}
+
+#[cfg(unix)]
+#[tokio::test]
+async fn acme_workspace_reports_unwritable_persistent_home() {
+    use std::os::unix::fs::PermissionsExt;
+
+    // root can write through ordinary permission restrictions.
+    if unsafe { libc::geteuid() } == 0 {
+        return;
+    }
+    let (_directory, state) = acme_test_state().await;
+    let home = acme_home_dir(&state);
+    std::fs::create_dir(&home).unwrap();
+    std::fs::set_permissions(&home, std::fs::Permissions::from_mode(0o500)).unwrap();
+    let result = AcmeCommandWorkspace::prepare(&state);
+    std::fs::set_permissions(&home, std::fs::Permissions::from_mode(0o700)).unwrap();
+    let error = result.err().expect("reject unwritable ACME home");
+    assert!(error.to_string().contains("Cannot write to ACME home"));
+    assert!(error.to_string().contains(&home.display().to_string()));
+    assert_eq!(std::fs::read_dir(home).unwrap().count(), 0);
+}
+
 fn test_application(id: &str, domains: &[&str]) -> Value {
     json!({
         "id": id,

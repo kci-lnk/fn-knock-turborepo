@@ -484,6 +484,37 @@ impl AcmeCommandWorkspace {
             return Ok(None);
         }
 
+        let original_home = acme_home_dir(state);
+        // A relative symlink target is resolved from /tmp/.../home's parent,
+        // not from the service working directory. Resolve it before linking,
+        // but retain original_home for matching the caller's command arguments.
+        let resolved_home = std::fs::canonicalize(&original_home).map_err(|error| {
+            anyhow::anyhow!(
+                "Cannot resolve ACME home {}: {error}",
+                original_home.display()
+            )
+        })?;
+        if !resolved_home.is_dir() {
+            anyhow::bail!("ACME home is not a directory: {}", resolved_home.display());
+        }
+        // Fail with the persistent path and OS error, before acme.sh hides it
+        // behind an account-key failure referring only to a temporary symlink.
+        let probe = tempfile::Builder::new()
+            .prefix(".fn-knock-write-check-")
+            .tempfile_in(&resolved_home)
+            .map_err(|error| {
+                anyhow::anyhow!(
+                    "Cannot write to ACME home {}: {error}",
+                    resolved_home.display()
+                )
+            })?;
+        probe.close().map_err(|error| {
+            anyhow::anyhow!(
+                "Cannot remove ACME write probe in {}: {error}",
+                resolved_home.display()
+            )
+        })?;
+
         // acme.sh builds its curl command in a shell variable and expands that
         // variable without quotes. In particular, HTTP_HEADER defaults below
         // --config-home, so a macOS data path such as "Application Support"
@@ -513,12 +544,19 @@ impl AcmeCommandWorkspace {
         #[cfg(unix)]
         {
             use std::os::unix::fs::DirBuilderExt;
-            std::fs::DirBuilder::new().mode(0o700).create(&path)?;
+            std::fs::DirBuilder::new()
+                .mode(0o700)
+                .create(&path)
+                .map_err(|error| {
+                    anyhow::anyhow!(
+                        "Cannot create ACME temporary directory {}: {error}",
+                        path.display()
+                    )
+                })?;
         }
         #[cfg(not(unix))]
         std::fs::create_dir(&path)?;
 
-        let original_home = acme_home_dir(state);
         #[cfg(unix)]
         let command_home = path.join("home");
         #[cfg(not(unix))]
@@ -529,11 +567,12 @@ impl AcmeCommandWorkspace {
             command_home,
         };
         #[cfg(unix)]
-        if let Err(error) =
-            std::os::unix::fs::symlink(&workspace.original_home, &workspace.command_home)
-        {
-            drop(workspace);
-            return Err(error.into());
+        if let Err(error) = std::os::unix::fs::symlink(&resolved_home, &workspace.command_home) {
+            anyhow::bail!(
+                "Cannot link ACME home {} to {}: {error}",
+                workspace.command_home.display(),
+                resolved_home.display()
+            );
         }
         Ok(Some(workspace))
     }
@@ -817,17 +856,28 @@ fn shell_quote_acme_arg(value: &str) -> String {
 }
 
 pub(super) fn command_output_brief(stdout: &str, stderr: &str) -> String {
-    let brief = format!("{stdout}\n{stderr}")
+    let output = format!("{stdout}\n{stderr}");
+    let lines = output
         .lines()
         .map(str::trim)
         .filter(|line| !line.is_empty())
-        .rev()
-        .take(3)
-        .collect::<Vec<_>>()
-        .into_iter()
-        .rev()
-        .collect::<Vec<_>>()
-        .join(" | ");
+        .collect::<Vec<_>>();
+    let tail_start = lines.len().saturating_sub(3);
+    // acme.sh emits several generic errors after mkdir's useful OS error.
+    // Keep a bounded number of filesystem diagnostics without exposing the
+    // rest of the debug output (which can contain credentials).
+    let mut brief_lines = lines[..tail_start]
+        .iter()
+        .copied()
+        .filter(|line| {
+            ["mkdir:", "touch:", "chmod:"]
+                .iter()
+                .any(|prefix| line.starts_with(prefix))
+        })
+        .take(2)
+        .collect::<Vec<_>>();
+    brief_lines.extend_from_slice(&lines[tail_start..]);
+    let brief = brief_lines.join(" | ");
     if brief.is_empty() {
         String::new()
     } else {

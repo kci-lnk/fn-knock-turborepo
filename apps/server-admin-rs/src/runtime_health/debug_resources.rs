@@ -15,11 +15,15 @@ const MAX_TOP_ENTRIES: usize = 8;
 // Bounds on the netbsd mincore() residency walk: skip any single mapping
 // larger than this, and stop walking once this many bytes have been queried
 // in total, so one diagnostics call can never scan an unbounded amount of
-// address space.
+// address space. mincore() only walks page-table residency bits (it never
+// reads or writes mapped contents), so even a large span is cheap; a
+// reserved-but-mostly-unfaulted thread stack alone can span 100+ MiB, so
+// the per-region cap must stay well above that to avoid skipping ordinary
+// mappings and reporting them as memory_maps_region_unmeasured.
 #[cfg(target_os = "netbsd")]
-const MAX_VMMAP_REGION_BYTES: u64 = 64 * 1024 * 1024;
+const MAX_VMMAP_REGION_BYTES: u64 = 1024 * 1024 * 1024;
 #[cfg(target_os = "netbsd")]
-const MAX_VMMAP_TOTAL_BYTES: u64 = 512 * 1024 * 1024;
+const MAX_VMMAP_TOTAL_BYTES: u64 = 4 * 1024 * 1024 * 1024;
 
 #[derive(Clone, Debug, Serialize, Deserialize, ToSchema)]
 pub(crate) struct ResourceSample {

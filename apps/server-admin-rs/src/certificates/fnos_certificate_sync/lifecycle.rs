@@ -732,7 +732,7 @@ fn ensure_parent(path: &Path, data_dir: &Path) -> anyhow::Result<()> {
     if root != Path::new(CERT_ROOT) {
         set_private_directory_permissions(&root)?;
         if let Some(parent) = root.parent() {
-            fs::File::open(parent)?.sync_all()?;
+            sync_directory(parent)?;
         }
     }
     let relative = parent.strip_prefix(&root)?;
@@ -746,7 +746,7 @@ fn ensure_parent(path: &Path, data_dir: &Path) -> anyhow::Result<()> {
             fs::create_dir(&current)?;
             set_private_directory_permissions(&current)?;
             if let Some(parent) = current.parent() {
-                fs::File::open(parent)?.sync_all()?;
+                sync_directory(parent)?;
             }
         }
         if fs::symlink_metadata(&current)?.file_type().is_symlink() {
@@ -788,7 +788,7 @@ fn write_content_with_metadata(
     }
     temp.as_file().sync_all()?;
     temp.persist(path).map_err(|error| error.error)?;
-    fs::File::open(parent)?.sync_all()?;
+    sync_directory(parent)?;
     Ok(())
 }
 fn check_file(change: &FileChange, reverse: bool) -> anyhow::Result<()> {
@@ -841,11 +841,23 @@ fn apply_file(change: &FileChange, reverse: bool, data_dir: &Path) -> anyhow::Re
             validate_fixed_regular_file(Path::new(&change.path))?;
             fs::remove_file(&change.path)?;
             if let Some(parent) = Path::new(&change.path).parent() {
-                fs::File::open(parent)?.sync_all()?;
+                sync_directory(parent)?;
             }
             Ok(())
         }
     }
+}
+
+#[cfg(unix)]
+fn sync_directory(path: &Path) -> std::io::Result<()> {
+    fs::File::open(path)?.sync_all()
+}
+
+#[cfg(not(unix))]
+fn sync_directory(_path: &Path) -> std::io::Result<()> {
+    // Windows does not allow opening a directory as a regular file. The
+    // replacement file has already been flushed before its atomic rename.
+    Ok(())
 }
 fn save_journal(path: &Path, journal: &Journal, data_dir: &Path) -> anyhow::Result<()> {
     write_content(path, &serde_json::to_vec(journal)?, data_dir)

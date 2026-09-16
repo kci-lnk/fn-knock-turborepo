@@ -822,14 +822,9 @@ fn netbsd_region_permissions(entry: &libc::kinfo_vmentry) -> String {
     } else {
         '-'
     });
-    // kinfo_vmentry has no direct shared/private bit; a copy-on-write entry
-    // behaves like Linux's private ('p') mappings, anything else like 's'.
-    let flags = entry.kve_flags as libc::c_int;
-    permissions.push(if flags & libc::KVME_FLAG_COW != 0 {
-        'p'
-    } else {
-        's'
-    });
+    // COW does not determine whether a mapping is shared between processes.
+    // Preserve the familiar four-column layout without inventing p/s semantics.
+    permissions.push('?');
     permissions
 }
 
@@ -1295,6 +1290,10 @@ mod tests {
         anonymous.kve_end = 8192;
         anonymous.kve_type = 255; // KVME_TYPE_UNKNOWN (no object/submap).
         anonymous.kve_ref_count = 42;
+        anonymous.kve_protection = libc::KVME_PROT_READ as _;
+        assert_eq!(netbsd_region_permissions(&anonymous), "r--?");
+        anonymous.kve_flags = libc::KVME_FLAG_COW as _;
+        assert_eq!(netbsd_region_permissions(&anonymous), "r--?");
         let mut vnode = anonymous;
         vnode.kve_type = 2; // KVME_TYPE_VNODE, including unlinked files.
         let mut device = anonymous;

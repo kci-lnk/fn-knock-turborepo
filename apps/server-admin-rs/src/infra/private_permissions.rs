@@ -1,6 +1,16 @@
 //! Private credential ACLs shared by local secret stores.
-use std::path::{Path, PathBuf};
+use std::path::Path;
+#[cfg(not(test))]
+use std::path::PathBuf;
 
+#[cfg(test)]
+pub(crate) fn secure_windows_path(_path: &Path, _directory: bool) -> Result<(), String> {
+    // Tests intentionally overwrite and remove their temporary fixtures after
+    // exercising recovery paths. Production builds always apply the ACL below.
+    Ok(())
+}
+
+#[cfg(not(test))]
 pub(crate) fn secure_windows_path(path: &Path, directory: bool) -> Result<(), String> {
     use std::process::{Command, Stdio};
 
@@ -91,6 +101,7 @@ pub(crate) fn secure_windows_path(path: &Path, directory: bool) -> Result<(), St
     Ok(())
 }
 
+#[cfg(not(test))]
 fn current_windows_sid(system_directory: &Path) -> Result<String, String> {
     let output = std::process::Command::new(system_directory.join("whoami.exe"))
         .args(["/user", "/fo", "csv", "/nh"])

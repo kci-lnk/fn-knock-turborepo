@@ -6831,8 +6831,8 @@ mod tests {
                 "/components/schemas/PanelBootstrapData/properties/deployment_target/enum"
             ),
             Some(&json!([
-                "fpk", "fpk-lite", "docker", "openwrt", "linux", "macos", "synology", "windows",
-                "dev"
+                "fpk", "fpk-lite", "docker", "openwrt", "linux", "netbsd", "macos", "synology",
+                "windows", "dev"
             ]))
         );
         let panel_required = document

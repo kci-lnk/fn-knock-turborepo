@@ -1950,7 +1950,7 @@
       "AllocatorStats": {
         "properties": {
           "allocated_bytes": {
-            "description": "glibc arena allocations; excludes mmap allocations and may include caches.",
+            "description": "Arena allocations; excludes mmap allocations and may include caches.\nglibc: mallinfo2 uordblks. NetBSD (jemalloc): stats.allocated.",
             "format": "int64",
             "minimum": 0,
             "type": "integer"
@@ -1961,7 +1961,7 @@
             "type": "integer"
           },
           "free_bytes": {
-            "description": "Allocator-reported free arena space, not necessarily resident or releasable.",
+            "description": "Allocator-reported free arena space, not necessarily resident or\nreleasable. glibc: mallinfo2 fordblks. NetBSD (jemalloc):\nstats.active minus stats.allocated (slack within active slabs).",
             "format": "int64",
             "minimum": 0,
             "type": "integer"
@@ -1972,7 +1972,7 @@
             "type": "integer"
           },
           "releasable_bytes": {
-            "description": "glibc's top-most releasable space estimate; no reclamation is performed.",
+            "description": "Best-effort estimate of space the allocator could give back to the\nOS; semantics are allocator-specific and not directly comparable\nacross platforms. glibc: mallinfo2's top-most releasable estimate.\nNetBSD (jemalloc): resident pages that are neither active nor\nmetadata (dirty/cached pages jemalloc could purge).",
             "format": "int64",
             "minimum": 0,
             "type": "integer"
@@ -1997,7 +1997,10 @@
           "anonymous_huge_bytes": {
             "format": "int64",
             "minimum": 0,
-            "type": "integer"
+            "type": [
+              "integer",
+              "null"
+            ]
           },
           "category": {
             "type": "string"
@@ -2006,9 +2009,13 @@
             "type": "string"
           },
           "private_dirty_bytes": {
+            "description": "`null` when the platform cannot measure this (never a fabricated zero).",
             "format": "int64",
             "minimum": 0,
-            "type": "integer"
+            "type": [
+              "integer",
+              "null"
+            ]
           },
           "pss_bytes": {
             "format": "int64",
@@ -2028,7 +2035,10 @@
           "swap_bytes": {
             "format": "int64",
             "minimum": 0,
-            "type": "integer"
+            "type": [
+              "integer",
+              "null"
+            ]
           }
         },
         "required": [
@@ -14766,7 +14776,10 @@
           "anonymous_huge_bytes": {
             "format": "int64",
             "minimum": 0,
-            "type": "integer"
+            "type": [
+              "integer",
+              "null"
+            ]
           },
           "category": {
             "type": "string"
@@ -14777,9 +14790,13 @@
             "type": "integer"
           },
           "private_dirty_bytes": {
+            "description": "`null` when the platform cannot measure this (never a fabricated zero).",
             "format": "int64",
             "minimum": 0,
-            "type": "integer"
+            "type": [
+              "integer",
+              "null"
+            ]
           },
           "pss_bytes": {
             "format": "int64",
@@ -14799,7 +14816,10 @@
           "swap_bytes": {
             "format": "int64",
             "minimum": 0,
-            "type": "integer"
+            "type": [
+              "integer",
+              "null"
+            ]
           }
         },
         "required": [

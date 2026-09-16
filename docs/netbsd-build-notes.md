@@ -195,11 +195,12 @@ A successful handshake looks like this in the gateway's JSON log
 
 ## Known gaps
 
-- No per-thread CPU accounting in the runtime diagnostics panel
-  (`thread_cpu_unsupported` stays set) — would need
-  `sysctl(KERN_LWP)`/`kvm(3)` bindings, not implemented here.
-- No smaps-equivalent memory breakdown (anonymous/file/swap split) — only
-  total RSS is reported.
+- Memory maps has no equivalent to Linux's per-region dirty/swap/
+  transparent-huge-page byte counts — NetBSD exposes no mechanism to
+  measure these. RSS/PSS/anonymous-bytes per category and per region are
+  real, measured values (via `mincore()`); the three unmeasured fields are
+  reported as `null` rather than a fabricated zero, flagged by the
+  `memory_maps_incomplete` error code.
 - Host firewall auto-management (`host_firewall_available`) is off, same
   as any other non-`fpk` deployment target — this is a deliberate product
   restriction unrelated to NetBSD (it's also off for a plain Linux

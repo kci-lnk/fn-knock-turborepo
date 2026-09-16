@@ -7970,21 +7970,28 @@ export interface components {
         AllocatorStats: {
             /**
              * Format: int64
-             * @description glibc arena allocations; excludes mmap allocations and may include caches.
+             * @description Arena allocations; excludes mmap allocations and may include caches.
+             *     glibc: mallinfo2 uordblks. NetBSD (jemalloc): stats.allocated.
              */
             allocated_bytes: number;
             /** Format: int64 */
             arena_bytes: number;
             /**
              * Format: int64
-             * @description Allocator-reported free arena space, not necessarily resident or releasable.
+             * @description Allocator-reported free arena space, not necessarily resident or
+             *     releasable. glibc: mallinfo2 fordblks. NetBSD (jemalloc):
+             *     stats.active minus stats.allocated (slack within active slabs).
              */
             free_bytes: number;
             /** Format: int64 */
             mmap_bytes: number;
             /**
              * Format: int64
-             * @description glibc's top-most releasable space estimate; no reclamation is performed.
+             * @description Best-effort estimate of space the allocator could give back to the
+             *     OS; semantics are allocator-specific and not directly comparable
+             *     across platforms. glibc: mallinfo2's top-most releasable estimate.
+             *     NetBSD (jemalloc): resident pages that are neither active nor
+             *     metadata (dirty/cached pages jemalloc could purge).
              */
             releasable_bytes: number;
         };
@@ -7992,11 +7999,14 @@ export interface components {
             /** Format: int64 */
             anonymous_bytes: number;
             /** Format: int64 */
-            anonymous_huge_bytes: number;
+            anonymous_huge_bytes: number | null;
             category: string;
             permissions: string;
-            /** Format: int64 */
-            private_dirty_bytes: number;
+            /**
+             * Format: int64
+             * @description `null` when the platform cannot measure this (never a fabricated zero).
+             */
+            private_dirty_bytes: number | null;
             /** Format: int64 */
             pss_bytes: number;
             /** Format: int64 */
@@ -8004,7 +8014,7 @@ export interface components {
             /** Format: int64 */
             size_bytes: number;
             /** Format: int64 */
-            swap_bytes: number;
+            swap_bytes: number | null;
         };
         ApiErrorEnvelope: {
             /**
@@ -11135,12 +11145,15 @@ export interface components {
             /** Format: int64 */
             anonymous_bytes: number;
             /** Format: int64 */
-            anonymous_huge_bytes: number;
+            anonymous_huge_bytes: number | null;
             category: string;
             /** Format: int64 */
             mappings: number;
-            /** Format: int64 */
-            private_dirty_bytes: number;
+            /**
+             * Format: int64
+             * @description `null` when the platform cannot measure this (never a fabricated zero).
+             */
+            private_dirty_bytes: number | null;
             /** Format: int64 */
             pss_bytes: number;
             /** Format: int64 */
@@ -11148,7 +11161,7 @@ export interface components {
             /** Format: int64 */
             size_bytes: number;
             /** Format: int64 */
-            swap_bytes: number;
+            swap_bytes: number | null;
         };
         MemoryDetails: {
             allocator: null | components["schemas"]["AllocatorStats"];

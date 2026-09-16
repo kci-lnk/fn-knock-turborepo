@@ -92,9 +92,13 @@ pub(crate) struct MemoryCategory {
     pub rss_bytes: u64,
     pub pss_bytes: u64,
     pub anonymous_bytes: u64,
-    pub private_dirty_bytes: u64,
-    pub swap_bytes: u64,
-    pub anonymous_huge_bytes: u64,
+    /// `null` when the platform cannot measure this (never a fabricated zero).
+    #[schema(required = true)]
+    pub private_dirty_bytes: Option<u64>,
+    #[schema(required = true)]
+    pub swap_bytes: Option<u64>,
+    #[schema(required = true)]
+    pub anonymous_huge_bytes: Option<u64>,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, ToSchema)]
@@ -105,20 +109,31 @@ pub(crate) struct AnonymousRegion {
     pub rss_bytes: u64,
     pub pss_bytes: u64,
     pub anonymous_bytes: u64,
-    pub private_dirty_bytes: u64,
-    pub swap_bytes: u64,
-    pub anonymous_huge_bytes: u64,
+    /// `null` when the platform cannot measure this (never a fabricated zero).
+    #[schema(required = true)]
+    pub private_dirty_bytes: Option<u64>,
+    #[schema(required = true)]
+    pub swap_bytes: Option<u64>,
+    #[schema(required = true)]
+    pub anonymous_huge_bytes: Option<u64>,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, ToSchema)]
 pub(crate) struct AllocatorStats {
-    /// glibc arena allocations; excludes mmap allocations and may include caches.
+    /// Arena allocations; excludes mmap allocations and may include caches.
+    /// glibc: mallinfo2 uordblks. NetBSD (jemalloc): stats.allocated.
     pub allocated_bytes: u64,
-    /// Allocator-reported free arena space, not necessarily resident or releasable.
+    /// Allocator-reported free arena space, not necessarily resident or
+    /// releasable. glibc: mallinfo2 fordblks. NetBSD (jemalloc):
+    /// stats.active minus stats.allocated (slack within active slabs).
     pub free_bytes: u64,
     pub mmap_bytes: u64,
     pub arena_bytes: u64,
-    /// glibc's top-most releasable space estimate; no reclamation is performed.
+    /// Best-effort estimate of space the allocator could give back to the
+    /// OS; semantics are allocator-specific and not directly comparable
+    /// across platforms. glibc: mallinfo2's top-most releasable estimate.
+    /// NetBSD (jemalloc): resident pages that are neither active nor
+    /// metadata (dirty/cached pages jemalloc could purge).
     pub releasable_bytes: u64,
 }
 
@@ -470,6 +485,9 @@ fn read_cpu(errors: &mut Vec<String>) -> Option<CpuReading> {
         add_error(errors, "thread_cpu_unavailable");
         return Some(reading);
     };
+    if lwps.len() > MAX_THREADS {
+        add_error(errors, "thread_list_truncated");
+    }
     for lwp in lwps.into_iter().take(MAX_THREADS) {
         let tid = lwp.l_lid as u64;
         reading.threads.insert(
@@ -550,11 +568,13 @@ fn netbsd_thread_name(raw: &[libc::c_char]) -> &'static str {
     // terminator found above.
     let bytes: Vec<u8> = raw[..len].iter().map(|byte| *byte as u8).collect();
     // Thread names are set by this application's own code; only disclose
-    // labels we recognize.
+    // labels we recognize. KI_LNAMELEN (20 bytes) truncates the PTY worker
+    // names ("fn-knock-local-pty-reader" etc.) before they reach here, so
+    // match on the shared prefix rather than the full name.
     match std::str::from_utf8(&bytes).unwrap_or("") {
         "server-admin-rs" => "server-admin-rs",
         "tokio-rt-worker" => "tokio-rt-worker",
-        "fn-knock-local-" => "local-pty-worker",
+        name if name.starts_with("fn-knock-local-") => "local-pty-worker",
         _ => "other-thread",
     }
 }
@@ -884,9 +904,9 @@ fn netbsd_memory_maps(errors: &mut Vec<String>) -> (Vec<MemoryCategory>, Vec<Ano
             rss_bytes: 0,
             pss_bytes: 0,
             anonymous_bytes: 0,
-            private_dirty_bytes: 0,
-            swap_bytes: 0,
-            anonymous_huge_bytes: 0,
+            private_dirty_bytes: None,
+            swap_bytes: None,
+            anonymous_huge_bytes: None,
         });
         bucket.mappings += 1;
         bucket.size_bytes = bucket.size_bytes.saturating_add(size_bytes);
@@ -901,9 +921,9 @@ fn netbsd_memory_maps(errors: &mut Vec<String>) -> (Vec<MemoryCategory>, Vec<Ano
                 rss_bytes,
                 pss_bytes,
                 anonymous_bytes,
-                private_dirty_bytes: 0,
-                swap_bytes: 0,
-                anonymous_huge_bytes: 0,
+                private_dirty_bytes: None,
+                swap_bytes: None,
+                anonymous_huge_bytes: None,
             });
             largest.sort_by_key(|region| std::cmp::Reverse(region.anonymous_bytes));
             largest.truncate(MAX_TOP_ENTRIES);
@@ -1025,9 +1045,9 @@ fn parse_smaps(raw: &str, truncated: bool, max_mappings: usize) -> ParsedSmaps {
                 rss_bytes: amount.rss,
                 pss_bytes: amount.pss,
                 anonymous_bytes: amount.anonymous,
-                private_dirty_bytes: amount.private_dirty,
-                swap_bytes: amount.swap,
-                anonymous_huge_bytes: amount.anonymous_huge,
+                private_dirty_bytes: Some(amount.private_dirty),
+                swap_bytes: Some(amount.swap),
+                anonymous_huge_bytes: Some(amount.anonymous_huge),
             });
             largest.sort_by_key(|region| std::cmp::Reverse(region.anonymous_bytes));
             largest.truncate(MAX_TOP_ENTRIES);
@@ -1094,9 +1114,9 @@ fn parse_smaps(raw: &str, truncated: bool, max_mappings: usize) -> ParsedSmaps {
                 rss_bytes: amount.rss,
                 pss_bytes: amount.pss,
                 anonymous_bytes: amount.anonymous,
-                private_dirty_bytes: amount.private_dirty,
-                swap_bytes: amount.swap,
-                anonymous_huge_bytes: amount.anonymous_huge,
+                private_dirty_bytes: Some(amount.private_dirty),
+                swap_bytes: Some(amount.swap),
+                anonymous_huge_bytes: Some(amount.anonymous_huge),
             })
             .collect(),
         largest_anonymous_regions: largest,

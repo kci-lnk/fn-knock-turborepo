@@ -28,16 +28,22 @@ pub(crate) fn secure_windows_path(path: &Path, directory: bool) -> Result<(), St
         .split_whitespace()
         .find(|value| is_service_sid(value))
         .ok_or_else(|| "sc.exe did not return a valid service SID".to_string())?;
+    // The service normally invokes this as its own SID. Tests and initial
+    // provisioning may invoke it as a different principal, which must retain
+    // access to finish the atomic write and cleanup.
+    let current_sid = current_windows_sid(&system_directory)?;
     let mut grants = vec![
         "*S-1-5-18:F".to_string(),
         "*S-1-5-32-544:F".to_string(),
         format!("*{service_sid}:M"),
+        format!("*{current_sid}:M"),
     ];
     if directory {
         grants.extend([
             "*S-1-5-18:(OI)(CI)F".to_string(),
             "*S-1-5-32-544:(OI)(CI)F".to_string(),
             format!("*{service_sid}:(OI)(CI)M"),
+            format!("*{current_sid}:(OI)(CI)M"),
         ]);
     }
     let mut status = Command::new(&icacls)
@@ -55,7 +61,6 @@ pub(crate) fn secure_windows_path(path: &Path, directory: bool) -> Result<(), St
     // operation can complete and later cleanup/rotation remains possible;
     // SYSTEM and Administrators remain the only other principals.
     if !status.success() && status.code() == Some(1332) {
-        let current_sid = current_windows_sid(&system_directory)?;
         let fallback = vec![
             "*S-1-5-18:F".to_string(),
             "*S-1-5-32-544:F".to_string(),

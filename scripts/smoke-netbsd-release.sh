@@ -3,7 +3,7 @@
 set -eu
 [ "$(uname -s)" = NetBSD ] || exit 1
 archive=${1:?archive is required}
-work=$(mktemp -d /tmp/fn-knock-netbsd-smoke.XXXXXX)
+work=$(mktemp -d "${TMPDIR:-/var/tmp}/fn-knock-netbsd-smoke.XXXXXX")
 backend_pid=
 gateway_pid=
 cleanup() {

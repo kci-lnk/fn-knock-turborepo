@@ -17,7 +17,7 @@ cargo test --locked --manifest-path "$manifest" --lib current_process_rss_is_rep
 cargo test --locked --manifest-path "$manifest" --lib infra::openapi_docs::tests
 cargo build --locked --release --manifest-path "$manifest" --bin server-admin-rs
 
-stage=$(mktemp -d /tmp/fn-knock-netbsd-stage.XXXXXX)
+stage=$(mktemp -d "${TMPDIR:-/var/tmp}/fn-knock-netbsd-stage.XXXXXX")
 trap 'rm -rf "$stage"' EXIT HUP INT TERM
 app="$stage/fn-knock"
 mkdir -p "$app/bin" "$app/ui/www" "$app/server-auth-view/dist" "$app/server/server-admin/resources"

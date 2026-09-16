@@ -1,0 +1,2 @@
+# The embedded API contract must retain canonical generator bytes on Windows.
+packages/api-contract/openapi.json text eol=lf

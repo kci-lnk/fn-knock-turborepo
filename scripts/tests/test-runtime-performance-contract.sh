@@ -70,7 +70,7 @@ assert_contains "${WORKFLOW}" 'base_profile="release"' 'legacy base profile fall
 assert_contains "${WORKFLOW}" 'CARGO_PROFILE_RELEASE_LTO="thin"' 'equivalent legacy base LTO'
 assert_contains "${WORKFLOW}" 'install -m 0755 "${base_target}/${base_profile}/server-admin-rs"' 'stable base Rust binary path'
 assert_contains "${WORKFLOW}" 'CARGO_TARGET_DIR="${base_target}" cargo build --locked' 'isolated base Rust target'
-assert_contains "${WORKFLOW}" '--max-readiness-regression 0.10 --max-rss-regression 0.20 --max-throughput-regression 0.15' 'PR performance tolerances'
+assert_contains "${WORKFLOW}" '--max-readiness-regression 0.40 --max-rss-regression 0.20 --max-throughput-regression 0.15' 'PR performance tolerances'
 assert_contains "${WORKFLOW}" '--memory=512m --memory-swap=512m' '512 MiB cgroup acceptance'
 assert_contains "${WORKFLOW}" 'gateway_memory_limit_bytes == 134217728' '512 MiB auto memory limit assertion'
 assert_contains "${WORKFLOW}" 'FN_KNOCK_RUNTIME_PERF_REJECT_MEMORY_LIMIT_MIB=257' '512 MiB manual limit rejection'

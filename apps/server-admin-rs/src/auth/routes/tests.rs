@@ -1161,7 +1161,10 @@ async fn expired_follow_session_auto_grant_is_unauthorized_instead_of_scope_deni
     let wait_ms = expiry_seconds
         .saturating_mul(1_000)
         .saturating_sub(time_utils::now_ms())
-        .saturating_add(50) as u64;
+        .saturating_add(50)
+        // Slow filesystem setup can already pass the expiry deadline.
+        // Clamp before the unsigned conversion to avoid an effectively infinite sleep.
+        .max(0) as u64;
     tokio::time::sleep(std::time::Duration::from_millis(wait_ms)).await;
 
     let mut headers = forwarded_headers("app.example.com");

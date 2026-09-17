@@ -141,7 +141,7 @@ pub fn get_runtime_capabilities(profile: &RuntimeProfile) -> RuntimeCapabilities
 pub fn admin_panel_protected_runtime(state: &AppState) -> bool {
     matches!(
         get_runtime_profile(state).deployment_target.as_str(),
-        "docker" | "openwrt" | "linux" | "macos" | "windows"
+        "docker" | "openwrt" | "linux" | "netbsd" | "macos" | "windows"
     )
 }
 
@@ -279,6 +279,7 @@ pub(crate) fn normalize_deployment_target(value: &str) -> Option<&'static str> {
         "fpk-lite" | "fpk_lite" => Some("fpk-lite"),
         "openwrt" => Some("openwrt"),
         "linux" => Some("linux"),
+        "netbsd" => Some("netbsd"),
         "macos" | "darwin" => Some("macos"),
         "synology" | "dsm" => Some("synology"),
         "windows" => Some("windows"),

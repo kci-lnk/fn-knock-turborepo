@@ -93,6 +93,28 @@ const memoryRows = computed(() =>
       ]
     : [],
 );
+const memoryCategories = computed(() => {
+  const memory = report.value?.memory;
+  if (!memory) return [];
+  return memory.virtual_memory_maps
+    ? memory.virtual_memory_maps.categories.map((row) => ({
+        ...row,
+        rss_bytes: null,
+        pss_bytes: null,
+      }))
+    : memory.categories;
+});
+const anonymousRegions = computed(() => {
+  const memory = report.value?.memory;
+  if (!memory) return [];
+  return memory.virtual_memory_maps
+    ? memory.virtual_memory_maps.largest_anonymous_regions.map((row) => ({
+        ...row,
+        rss_bytes: null,
+        anonymous_bytes: null,
+      }))
+    : memory.largest_anonymous_regions;
+});
 const allocatorRows = computed(() => {
   const allocator = report.value?.memory?.allocator;
   return allocator
@@ -363,11 +385,12 @@ const download = () => {
                   </dd>
                 </div>
               </dl>
-              <div v-if="report.memory.categories.length" class="overflow-auto">
+              <div v-if="memoryCategories.length" class="overflow-auto">
                 <table class="w-full text-left text-xs tabular-nums">
                   <thead>
                     <tr class="border-b text-muted-foreground">
                       <th class="p-2">{{ t(key("category")) }}</th>
+                      <th class="p-2">{{ t(key("size")) }}</th>
                       <th class="p-2">RSS</th>
                       <th class="p-2">PSS</th>
                       <th class="p-2">{{ t(key("mappings")) }}</th>
@@ -375,11 +398,14 @@ const download = () => {
                   </thead>
                   <tbody>
                     <tr
-                      v-for="row in report.memory.categories"
+                      v-for="row in memoryCategories"
                       :key="row.category"
                       class="border-b"
                     >
                       <td class="p-2">{{ categoryLabel(row.category) }}</td>
+                      <td class="whitespace-nowrap p-2">
+                        {{ bytes(row.size_bytes) }}
+                      </td>
                       <td class="whitespace-nowrap p-2">
                         {{ bytes(row.rss_bytes) }}
                       </td>
@@ -407,10 +433,7 @@ const download = () => {
                   </div>
                 </dl>
               </details>
-              <details
-                v-if="report.memory.largest_anonymous_regions.length"
-                class="text-xs"
-              >
+              <details v-if="anonymousRegions.length" class="text-xs">
                 <summary class="cursor-pointer py-1">
                   {{ t(key("largestRegions")) }}
                 </summary>
@@ -426,8 +449,7 @@ const download = () => {
                     </thead>
                     <tbody>
                       <tr
-                        v-for="(region, index) in report.memory
-                          .largest_anonymous_regions"
+                        v-for="(region, index) in anonymousRegions"
                         :key="index"
                         class="border-b"
                       >

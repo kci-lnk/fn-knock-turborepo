@@ -713,9 +713,16 @@ jobs:
           printf '%s\n' "${digest}" | grep -Eq '^sha256:[0-9a-f]{64}$'
           printf 'digest=%s\n' "${digest}" >> "${GITHUB_OUTPUT}"
 
+  netbsd:
+    needs: preflight
+    uses: ./.github/workflows/netbsd.yml
+    with:
+      source_sha: ${{ needs.preflight.outputs.source_sha }}
+      gateway_sha: ${{ needs.preflight.outputs.go_sha }}
+
   publish:
     needs:
-      [preflight, quality, assemble, windows-unsigned, macos, docker-manifest]
+      [preflight, quality, assemble, windows-unsigned, macos, netbsd, docker-manifest]
     if: >-
       always() &&
       needs.preflight.result == 'success' &&
@@ -723,6 +730,7 @@ jobs:
       needs.assemble.result == 'success' &&
       needs.windows-unsigned.result == 'success' &&
       needs.macos.result == 'success' &&
+      needs.netbsd.result == 'success' &&
       (github.event_name != 'push' || needs.docker-manifest.result == 'success')
     runs-on: ubuntu-24.04
     timeout-minutes: 60

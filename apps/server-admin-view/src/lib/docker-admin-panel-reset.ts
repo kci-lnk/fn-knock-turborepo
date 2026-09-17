@@ -21,6 +21,10 @@ export const linuxAdminPanelResetCommands = {
   reset: "sudo knock reset-panel-password",
 } as const;
 
+export const netbsdAdminPanelResetCommands = {
+  reset: "/path/to/server-admin-rs reset-panel-password",
+} as const;
+
 export const macosAdminPanelResetCommands = {
   reset: "sudo knock reset-panel-password",
 } as const;
@@ -89,6 +93,15 @@ const resetGuides = {
       {
         labelKey: "admin.components.dockerAdminGate.resetStepLinux",
         command: linuxAdminPanelResetCommands.reset,
+      },
+    ],
+  },
+  netbsd: {
+    descriptionKey: "admin.components.dockerAdminGate.resetDescriptionDevice",
+    steps: [
+      {
+        labelKey: "admin.components.dockerAdminGate.resetStepLinux",
+        command: netbsdAdminPanelResetCommands.reset,
       },
     ],
   },

@@ -208,10 +208,12 @@ pub(super) fn remove_file_if_exists(path: &Path) -> RedisResult<()> {
 }
 
 pub(super) fn sync_file(path: &Path) -> RedisResult<()> {
-    std::fs::OpenOptions::new()
-        .read(true)
-        .open(path)?
-        .sync_all()?;
+    let mut options = std::fs::OpenOptions::new();
+    options.read(true);
+    // Windows FlushFileBuffers requires GENERIC_WRITE on the file handle.
+    #[cfg(windows)]
+    options.write(true);
+    options.open(path)?.sync_all()?;
     Ok(())
 }
 

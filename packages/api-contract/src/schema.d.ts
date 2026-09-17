@@ -7970,21 +7970,29 @@ export interface components {
         AllocatorStats: {
             /**
              * Format: int64
-             * @description glibc arena allocations; excludes mmap allocations and may include caches.
+             * @description Allocator-reported live allocations. glibc: mallinfo2 uordblks
+             *     (excludes mmap allocations). NetBSD (jemalloc): stats.allocated
+             *     (includes large allocations backed by mmap).
              */
             allocated_bytes: number;
             /** Format: int64 */
             arena_bytes: number;
             /**
              * Format: int64
-             * @description Allocator-reported free arena space, not necessarily resident or releasable.
+             * @description Allocator-reported free arena space, not necessarily resident or
+             *     releasable. glibc: mallinfo2 fordblks. NetBSD (jemalloc):
+             *     stats.active minus stats.allocated (slack within active slabs).
              */
             free_bytes: number;
             /** Format: int64 */
             mmap_bytes: number;
             /**
              * Format: int64
-             * @description glibc's top-most releasable space estimate; no reclamation is performed.
+             * @description Best-effort estimate of space the allocator could give back to the
+             *     OS; semantics are allocator-specific and not directly comparable
+             *     across platforms. glibc: mallinfo2's top-most releasable estimate.
+             *     NetBSD (jemalloc): resident pages that are neither active nor
+             *     metadata (dirty/cached pages jemalloc could purge).
              */
             releasable_bytes: number;
         };
@@ -11168,6 +11176,7 @@ export interface components {
             swap_bytes: number | null;
             /** Format: int64 */
             threads: number | null;
+            virtual_memory_maps: null | components["schemas"]["VirtualMemoryMaps"];
         };
         /** @enum {string} */
         MemoryDetailsStatus: "available" | "partial" | "unsupported" | "unavailable";
@@ -11721,7 +11730,7 @@ export interface components {
             auth_source: "panel_session" | "reauth_session" | null;
             authenticated: boolean;
             /** @enum {string} */
-            deployment_target: "fpk" | "fpk-lite" | "docker" | "openwrt" | "linux" | "macos" | "synology" | "windows" | "dev";
+            deployment_target: "fpk" | "fpk-lite" | "docker" | "openwrt" | "linux" | "netbsd" | "macos" | "synology" | "windows" | "dev";
             enabled: boolean;
             locale: components["schemas"]["LocaleConfigData"];
             password_configured: boolean;
@@ -13553,6 +13562,28 @@ export interface components {
             latest: null | components["schemas"]["UpdateLatestData"];
             localVersion: string;
             updateEnabled: boolean;
+        };
+        VirtualAnonymousRegion: {
+            category: string;
+            permissions: string;
+            /** Format: int64 */
+            size_bytes: number;
+        };
+        VirtualMemoryCategory: {
+            category: string;
+            /** Format: int64 */
+            mappings: number;
+            /** Format: int64 */
+            size_bytes: number;
+        };
+        /**
+         * @description Virtual mapping data for platforms without Linux-compatible resident metrics.
+         *     No RSS/PSS/anonymous-residency values can be inferred from these sizes.
+         */
+        VirtualMemoryMaps: {
+            categories: components["schemas"]["VirtualMemoryCategory"][];
+            /** @description Ranked by virtual size, not by resident anonymous bytes. */
+            largest_anonymous_regions: components["schemas"]["VirtualAnonymousRegion"][];
         };
         WafConfigData: {
             /** @constant */

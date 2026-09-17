@@ -35,6 +35,7 @@ const artifactDefinitions = () => [
   [`fn-knock-linux-${VERSION}-amd64.tar.gz`, "linux", "amd64"],
   [`fn-knock-linux-${VERSION}-arm64.tar.gz`, "linux", "arm64"],
   [`fn-knock-linux-${VERSION}-arm.tar.gz`, "linux", "armv7"],
+  [`fn-knock-netbsd-${VERSION}-amd64.tar.gz`, "netbsd", "amd64"],
   [`fn-knock-macos-${VERSION}-amd64.tar.gz`, "macos", "amd64"],
   [`fn-knock-macos-${VERSION}-arm64.tar.gz`, "macos", "arm64"],
   [`app-meta-fn-knock_${VERSION}-r1_all.ipk`, "openwrt", "all"],
@@ -262,13 +263,17 @@ const oldPointers = (plan) => {
   return values;
 };
 
-test("builds a complete 23-package COS plan", async (context) => {
+test("builds a complete 24-package COS plan", async (context) => {
   const fixture = await createFixture();
   context.after(() => rm(fixture.root, { recursive: true, force: true }));
   const plan = await buildFixturePlan(fixture);
 
-  assert.equal(plan.manifest.artifacts.length, 23);
-  assert.equal(plan.versionObjects.length, 26);
+  assert.equal(plan.manifest.artifacts.length, 24);
+  assert.equal(plan.versionObjects.length, 27);
+  assert.equal(
+    plan.latestCore.packages.netbsd.amd64.object_key,
+    `files/${VERSION}/netbsd/amd64/fn-knock-netbsd-${VERSION}-amd64.tar.gz`,
+  );
   assert.equal("header" in plan.latestCore, false);
   assert.equal(plan.latestCore.force_update, false);
   assert.ok(

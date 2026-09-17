@@ -1,0 +1,146 @@
+name: NetBSD amd64
+
+on:
+  pull_request:
+  workflow_dispatch:
+  workflow_call:
+    inputs:
+      source_sha:
+        type: string
+        default: ""
+      gateway_sha:
+        type: string
+        default: ""
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 180
+    steps:
+      - name: Checkout fn-knock
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          ref: ${{ inputs.source_sha || github.sha }}
+          persist-credentials: false
+
+      - name: Resolve product version
+        id: identity
+        shell: bash
+        run: |
+          set -euo pipefail
+          version="$(jq -r .version version.json)"
+          printf 'version=%s\n' "$version" >> "$GITHUB_OUTPUT"
+          printf 'FN_KNOCK_VERSION=%s\n' "$version" >> "$GITHUB_ENV"
+
+      - name: Checkout Go gateway
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          repository: kci-lnk/Go-Reauth-Proxy
+          path: Go-Reauth-Proxy
+          ref: ${{ inputs.gateway_sha || 'main' }}
+          persist-credentials: false
+
+      - name: Freeze checked-out Go gateway commit
+        shell: bash
+        run: |
+          set -euo pipefail
+          sha="$(git -C Go-Reauth-Proxy rev-parse HEAD)"
+          [[ "$sha" =~ ^[0-9a-f]{40}$ ]]
+          printf 'FN_KNOCK_GATEWAY_COMMIT=%s\n' "$sha" >> "$GITHUB_ENV"
+
+      - name: Set up Node.js
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
+        with:
+          node-version: "22.22.3"
+          cache: npm
+
+      - name: Set up Go
+        uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6
+        with:
+          go-version-file: Go-Reauth-Proxy/go.mod
+          cache-dependency-path: Go-Reauth-Proxy/go.sum
+
+      - name: Build frontends and cross-compile the NetBSD gateway
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm install --global npm@10.8.2
+          npm ci
+          npx turbo run build --filter=server-admin-view --filter=server-auth-view
+          bash scripts/verify-go-control-api-contract.sh Go-Reauth-Proxy
+          test "$(git -C Go-Reauth-Proxy rev-parse HEAD)" = "$FN_KNOCK_GATEWAY_COMMIT"
+          mkdir -p dist/netbsd-input
+          (
+            cd Go-Reauth-Proxy
+            CGO_ENABLED=0 GOOS=netbsd GOARCH=amd64 GOFLAGS=-mod=readonly \
+              go build -trimpath \
+                -ldflags "-s -w -X go-reauth-proxy/pkg/version.Version=${FN_KNOCK_VERSION} -X go-reauth-proxy/pkg/version.Commit=${FN_KNOCK_GATEWAY_COMMIT}" \
+                -o ../dist/netbsd-input/go-reauth-proxy ./cmd/server
+          )
+          # Native npm dependencies are not needed in the VM. Avoid syncing them.
+          find . -name node_modules -type d -prune -exec rm -rf '{}' +
+
+      - name: Build, test, and smoke-test on NetBSD 11.0
+        uses: vmactions/netbsd-vm@00081e82b14bc40114eb97f32b4455306828516b # v1.4.6
+        with:
+          release: "11.0"
+          arch: x86_64
+          usesh: true
+          mem: 5120
+          envs: FN_KNOCK_VERSION FN_KNOCK_GATEWAY_COMMIT
+          prepare: |
+            set -eu
+            /usr/sbin/pkg_add -u curl gmake perl protobuf pkgconf
+            export PATH="/usr/pkg/bin:/usr/pkg/sbin:$PATH"
+            mkdir -p /var/tmp/fn-knock-build
+            df -h
+            archive=/var/tmp/fn-knock-build/rust-1.96.0-x86_64-unknown-netbsd.tar.xz
+            curl --fail --location --retry 5 \
+              https://static.rust-lang.org/dist/rust-1.96.0-x86_64-unknown-netbsd.tar.xz \
+              --output "$archive"
+            test "$(sha256 -q "$archive")" = 93423d2f2fbb470cd5927fec491d26449a6a22e562e39c8a4de454c28e2bf4c5
+            tar -xJf "$archive" -C /var/tmp/fn-knock-build \
+              --exclude rust-1.96.0-x86_64-unknown-netbsd/rust-docs \
+              --exclude rust-1.96.0-x86_64-unknown-netbsd/rust-docs-json-preview
+            /bin/sh /var/tmp/fn-knock-build/rust-1.96.0-x86_64-unknown-netbsd/install.sh \
+              --prefix=/opt/rust --components=rustc,cargo,rust-std-x86_64-unknown-netbsd
+            rm -rf "$archive" /var/tmp/fn-knock-build/rust-1.96.0-x86_64-unknown-netbsd
+            mkdir -p /opt/fn-knock-build-tools
+            ln -sf /usr/pkg/bin/gmake /opt/fn-knock-build-tools/make
+          run: |
+            set -eu
+            cd "$GITHUB_WORKSPACE"
+            export PATH="/opt/fn-knock-build-tools:/opt/rust/bin:/usr/pkg/bin:/usr/pkg/sbin:$PATH"
+            export TMPDIR=/var/tmp/fn-knock-build
+            export CARGO_TARGET_DIR=/var/tmp/fn-knock-build/target
+            export CARGO_BUILD_JOBS=2
+            export CARGO_PROFILE_DEV_DEBUG=0
+            export CARGO_PROFILE_TEST_DEBUG=0
+            # Keep native linking within the hosted runner's memory budget.
+            export CARGO_PROFILE_RELEASE_LTO=thin
+            export CARGO_PROFILE_RELEASE_CODEGEN_UNITS=8
+            sh scripts/build-netbsd-release.sh
+
+      - name: Upload verified NetBSD package
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: fn-knock-netbsd-${{ steps.identity.outputs.version }}-amd64
+          path: dist/netbsd/fn-knock-netbsd-*.tar.gz
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Wrap package for the unified release publisher
+        shell: bash
+        run: tar -czf release-netbsd-assets.tar.gz -C dist/netbsd .
+
+      - name: Upload unified release input
+        if: github.event_name != 'pull_request'
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: release-netbsd-assets
+          path: release-netbsd-assets.tar.gz
+          if-no-files-found: error
+          retention-days: 14

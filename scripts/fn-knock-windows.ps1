@@ -129,8 +129,11 @@ function Invoke-RustChecksAndBuild {
   $env:FN_KNOCK_COMMIT = $Commit
   $env:FN_KNOCK_GATEWAY_COMMIT = $GoCommit
   if (-not $SkipChecks) {
-    cargo test --locked --manifest-path $manifest
+    # Match the workspace suite: shared password-hash capacity requires serial tests.
+    $env:FN_KNOCK_TEST_DISABLE_PRIVATE_ACLS = "1"
+    cargo test --locked --manifest-path $manifest -- --test-threads=1
     Assert-LastExitCode "Rust unit tests"
+    Remove-Item Env:FN_KNOCK_TEST_DISABLE_PRIVATE_ACLS -ErrorAction SilentlyContinue
     cargo check --locked --manifest-path $manifest --target $Target
     Assert-LastExitCode "Rust Windows check"
   }

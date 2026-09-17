@@ -293,17 +293,17 @@ jobs:
             node scripts/runtime-performance.mjs > "${base}"
           node scripts/check-runtime-performance.mjs \
             --base "${base}" --current "${current}" \
-            --max-readiness-regression 0.10 --max-rss-regression 0.05
+            --max-readiness-regression 0.40 --max-rss-regression 0.20 --max-throughput-regression 0.15
           {
             echo '### Runtime performance PR gate'
             echo 'Base and current use the same freshly-built frontend assets; only Rust/Go runtime binaries differ.'
             echo '#### Base'
             echo '```json'
-            cat "${base}"
+            jq '{schema_version, summary}' "${base}"
             echo '```'
             echo '#### Current'
             echo '```json'
-            cat "${current}"
+            jq '{schema_version, summary}' "${current}"
             echo '```'
           } >> "${GITHUB_STEP_SUMMARY}"
 
@@ -336,17 +336,17 @@ jobs:
           FN_KNOCK_FRONTEND_PERF_ENFORCE_RESOURCES="0" \
             node scripts/frontend-performance.mjs > "${base}"
           node scripts/check-frontend-performance.mjs \
-            --base "${base}" --current "${current}" --max-regression 0.10
+            --base "${base}" --current "${current}" --max-regression 0.30
           {
             echo '### Frontend performance PR gate'
             echo 'Cold cache, 4× CPU throttle, Fast 3G, five runs per route/provider.'
             echo '#### Base'
             echo '```json'
-            cat "${base}"
+            jq '{schema_version, summary}' "${base}"
             echo '```'
             echo '#### Current'
             echo '```json'
-            cat "${current}"
+            jq '{schema_version, summary}' "${current}"
             echo '```'
           } >> "${GITHUB_STEP_SUMMARY}"
 

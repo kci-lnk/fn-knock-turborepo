@@ -52,6 +52,7 @@ for name in \
   "fn-knock-linux-${VERSION}-arm64.tar.gz.sha256" \
   "fn-knock-linux-${VERSION}-arm.tar.gz" \
   "fn-knock-linux-${VERSION}-arm.tar.gz.sha256" \
+  "fn-knock-netbsd-${VERSION}-amd64.tar.gz" \
   "fn-knock-macos-${VERSION}-amd64.tar.gz" \
   "fn-knock-macos-${VERSION}-amd64.tar.gz.sha256" \
   "fn-knock-macos-${VERSION}-arm64.tar.gz" \
@@ -110,7 +111,8 @@ jq -e \
     .channel == "stable" and
     .prerelease == false and
     .control_api_version == $control_api_version and
-    (.artifacts | length) == 23 and
+    (.artifacts | length) == 24 and
+    ([.artifacts[] | select(.platform == "netbsd") | .architecture] == ["amd64"]) and
     ([.artifacts[].name | endswith(".sha256") or endswith(".json")] | any | not) and
     ([.artifacts[].name | select(startswith("app-meta-"))] | length) == 2 and
     ([.artifacts[] | select(.platform == "openwrt" and (.name | endswith(".ipk"))) | .architecture] | sort) == ["aarch64_cortex-a53", "aarch64_generic", "all", "arm_cortex-a5_vfpv4", "arm_cortex-a7_neon-vfpv4", "x86_64"] and
@@ -123,8 +125,8 @@ jq -e \
     .docker.platforms == ["linux/amd64", "linux/arm64", "linux/arm/v7"]
   ' \
   "${ASSETS_DIR}/release-manifest.json" >/dev/null
-[ "$(wc -l < "${ASSETS_DIR}/SHA256SUMS" | tr -d ' ')" = "24" ] || \
-  fail "SHA256SUMS does not cover 23 public deliverables and release-manifest.json"
+[ "$(wc -l < "${ASSETS_DIR}/SHA256SUMS" | tr -d ' ')" = "25" ] || \
+  fail "SHA256SUMS does not cover 24 public deliverables and release-manifest.json"
 if find "${ASSETS_DIR}" -maxdepth 1 -type f \
   \( -name '*.sha256' -o \( -name '*.json' ! -name 'release-manifest.json' \) \) |
     grep -q .
@@ -144,7 +146,7 @@ FN_KNOCK_WINDOWS_METADATA_DIR="${WINDOWS_METADATA_DIR}" \
   node "${ROOT_DIR}/scripts/fn-knock-cos-publish.mjs" plan >/dev/null
 jq -e \
   '
-    (.version_objects | length) == 26 and
+    (.version_objects | length) == 27 and
     (.mutable_objects | length) == 9
   ' \
   "${COS_OUTPUT_DIR}/publish-plan.json" >/dev/null
@@ -159,6 +161,6 @@ jq -e \
 run_finalize >/dev/null
 
 printf 'unexpected\n' > "${ASSETS_DIR}/unexpected.bin"
-expect_failure "exactly 23 deliverables" run_finalize
+expect_failure "exactly 24 deliverables" run_finalize
 
 printf '[test-release-finalize] all inventory tests passed\n'

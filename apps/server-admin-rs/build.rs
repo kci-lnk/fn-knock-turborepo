@@ -19,6 +19,43 @@ struct AppMetadata {
     backup_import_min_version: String,
 }
 
+/// Resolution order: an explicit `PROTOC` env var always wins; otherwise
+/// keep the vendored version on supported build hosts. Only platforms with
+/// no vendored binary (including NetBSD) fall back to a working PATH protoc.
+fn resolve_protoc() -> PathBuf {
+    if let Some(protoc) = env::var_os("PROTOC") {
+        return PathBuf::from(protoc);
+    }
+    match protoc_bin_vendored::protoc_bin_path() {
+        Ok(path) => path,
+        Err(vendored_err) => find_protoc_on_path().unwrap_or_else(|| {
+            panic!(
+                "resolve protoc: no vendored binary for this platform ({vendored_err}) and no \
+             working `protoc` found on PATH; install protoc (e.g. via your system package manager) \
+             or set the PROTOC environment variable to its path"
+            )
+        }),
+    }
+}
+
+fn find_protoc_on_path() -> Option<PathBuf> {
+    let path_var = env::var_os("PATH")?;
+    let exe_name = if cfg!(windows) {
+        "protoc.exe"
+    } else {
+        "protoc"
+    };
+    env::split_paths(&path_var)
+        .map(|dir| dir.join(exe_name))
+        .find(|candidate| {
+            candidate.is_file()
+                && std::process::Command::new(candidate)
+                    .arg("--version")
+                    .output()
+                    .is_ok_and(|output| output.status.success())
+        })
+}
+
 fn main() {
     let manifest_dir = PathBuf::from(env::var("CARGO_MANIFEST_DIR").expect("CARGO_MANIFEST_DIR"));
     let version_file = manifest_dir.join("../../version.json");
@@ -28,8 +65,10 @@ fn main() {
     println!("cargo:rerun-if-changed={}", version_file.display());
     println!("cargo:rerun-if-changed={}", proto_file.display());
     println!("cargo:rerun-if-env-changed=FN_KNOCK_GATEWAY_COMMIT");
+    println!("cargo:rerun-if-env-changed=PROTOC");
+    println!("cargo:rerun-if-env-changed=PATH");
 
-    let protoc = protoc_bin_vendored::protoc_bin_path().expect("resolve vendored protoc");
+    let protoc = resolve_protoc();
     // SAFETY: build scripts run single-threaded here before tonic_build reads
     // PROTOC, so no concurrent environment access is introduced.
     unsafe {

@@ -29,6 +29,7 @@ describe("admin panel reset guides", () => {
       "docker",
       "openwrt",
       "linux",
+      "netbsd",
       "macos",
       "windows",
     ]);
@@ -39,6 +40,7 @@ describe("admin panel reset guides", () => {
       "docker",
       "openwrt",
       "linux",
+      "netbsd",
       "macos",
       "synology",
       "windows",
@@ -48,6 +50,7 @@ describe("admin panel reset guides", () => {
         "docker",
         "openwrt",
         "linux",
+        "netbsd",
         "macos",
         "windows",
       ].includes(target);
@@ -75,6 +78,9 @@ describe("admin panel reset guides", () => {
     assert.deepEqual(guideCommands("linux"), [
       "sudo knock reset-panel-password",
     ]);
+    assert.deepEqual(guideCommands("netbsd"), [
+      "/path/to/server-admin-rs reset-panel-password",
+    ]);
     assert.deepEqual(guideCommands("macos"), [
       "sudo knock reset-panel-password",
     ]);
@@ -84,7 +90,13 @@ describe("admin panel reset guides", () => {
   });
 
   it("never leaks Docker instructions into non-Docker guides", () => {
-    for (const target of ["openwrt", "linux", "macos", "windows"] as const) {
+    for (const target of [
+      "openwrt",
+      "linux",
+      "netbsd",
+      "macos",
+      "windows",
+    ] as const) {
       assert.doesNotMatch(guideCommands(target).join("\n"), /docker|compose/iu);
     }
   });

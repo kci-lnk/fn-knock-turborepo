@@ -2229,13 +2229,16 @@ fn cap_file_tail(path: &Path, max_bytes: u64) -> std::io::Result<()> {
 }
 
 fn private_append_file(path: &Path) -> std::io::Result<File> {
-    // Windows grants append-only handles FILE_APPEND_DATA but not the write
-    // access needed by `set_len` during log clearing. Request both rights.
-    let file = OpenOptions::new()
-        .create(true)
-        .append(true)
-        .write(true)
-        .open(path)?;
+    let mut options = OpenOptions::new();
+    options.create(true).append(true);
+    #[cfg(windows)]
+    {
+        // FILE_APPEND_DATA alone does not authorize SetEndOfFile. Request
+        // generic write explicitly so clearing and rotation share one handle.
+        use std::os::windows::fs::OpenOptionsExt;
+        options.access_mode(windows_sys::Win32::Foundation::GENERIC_WRITE);
+    }
+    let file = options.open(path)?;
     set_private_file_permissions(path)?;
     Ok(file)
 }

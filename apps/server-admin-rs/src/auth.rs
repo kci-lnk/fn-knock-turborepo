@@ -4,6 +4,7 @@ pub(crate) mod cookies;
 pub(crate) mod diagnostics;
 pub(crate) mod fnos_share_bypass;
 pub(crate) mod hmac;
+pub(crate) mod hmac_nonce;
 pub(crate) mod ldap;
 pub(crate) mod mobility;
 pub(crate) mod mode;

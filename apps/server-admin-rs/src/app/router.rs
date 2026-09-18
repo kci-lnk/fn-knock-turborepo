@@ -395,7 +395,9 @@ mod tests {
         let response = backend_router(state, true)
             .oneshot(
                 Request::get("/api/admin/dashboard/online-ips")
-                    .extension(axum::extract::ConnectInfo("127.0.0.1:12345".parse::<std::net::SocketAddr>().unwrap()))
+                    .extension(axum::extract::ConnectInfo(
+                        "127.0.0.1:12345".parse::<std::net::SocketAddr>().unwrap(),
+                    ))
                     .body(Body::empty())
                     .unwrap(),
             )
@@ -679,6 +681,82 @@ mod tests {
             .await
             .unwrap();
         assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
+    }
+
+    #[tokio::test]
+    async fn hmac_replay_protection_does_not_wait_for_sqlite_writer() {
+        const SECRET: &str = "memory-nonce-test";
+        let (_directory, state) = auth_router_test_state(SECRET).await;
+        let database =
+            tokio_rusqlite::rusqlite::Connection::open(&state.settings.sqlite_path).unwrap();
+        database.execute_batch("BEGIN IMMEDIATE").unwrap();
+        let app = Router::new()
+            .route(
+                "/api/auth/session",
+                axum::routing::get(
+                    |verified: Option<
+                        axum::Extension<crate::auth::hmac::VerifiedInternalRequest>,
+                    >| async move {
+                        if verified.is_some() {
+                            StatusCode::NO_CONTENT
+                        } else {
+                            StatusCode::FORBIDDEN
+                        }
+                    },
+                ),
+            )
+            .layer(middleware::from_fn_with_state(
+                state.clone(),
+                hmac_middleware,
+            ));
+        let timestamp = crate::time_utils::now_ms().to_string();
+        let nonce = "memory-nonce-00112233";
+        let message = format!(
+            "fn-knock-v1\nGET\n/api/auth/session\n{}\n{timestamp}\n{nonce}",
+            crate::crypto_utils::sha256_hex_bytes([])
+        );
+        let signature = crate::crypto_utils::hmac_sha256_hex(SECRET.as_bytes(), message.as_bytes());
+        let invalid = Request::get("/api/auth/session")
+            .header(header::HOST, "127.0.0.1:7997")
+            .header("x-timestamp", &timestamp)
+            .header("x-nonce", nonce)
+            .header("x-signature", "invalid")
+            .body(Body::empty())
+            .unwrap();
+        let rejected = tokio::time::timeout(
+            std::time::Duration::from_millis(500),
+            app.clone().oneshot(invalid),
+        )
+        .await
+        .unwrap()
+        .unwrap();
+        assert_eq!(rejected.status(), StatusCode::UNAUTHORIZED);
+        for expected in [StatusCode::NO_CONTENT, StatusCode::UNAUTHORIZED] {
+            let request = Request::get("/api/auth/session")
+                .header(header::HOST, "127.0.0.1:7997")
+                .header("x-timestamp", &timestamp)
+                .header("x-nonce", nonce)
+                .header("x-signature", &signature)
+                .body(Body::empty())
+                .unwrap();
+            let response = tokio::time::timeout(
+                std::time::Duration::from_millis(500),
+                app.clone().oneshot(request),
+            )
+            .await
+            .expect("HMAC must not queue behind SQLite")
+            .unwrap();
+            assert_eq!(response.status(), expected);
+        }
+        let count: i64 = database
+            .query_row(
+                "SELECT count(*) FROM kv_strings WHERE key LIKE '%memory-nonce-00112233%'",
+                [],
+                |r| r.get(0),
+            )
+            .unwrap();
+        assert_eq!(count, 0);
+        database.execute_batch("ROLLBACK").unwrap();
     }
 
     #[tokio::test]

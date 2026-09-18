@@ -51,6 +51,7 @@ pub struct AppStateInner {
     /// in memory avoids a typed/legacy storage reconciliation on every SPA
     /// navigation while locale writes and restore syncs update it explicitly.
     pub(crate) browser_locale: RwLock<String>,
+    pub(crate) hmac_nonces: crate::auth::hmac_nonce::HmacNonceCache,
     pub fallback_client: reqwest::Client,
     pub asset_download_client: reqwest::Client,
     pub auto_https: AutoHttpsRedirectManager,
@@ -467,6 +468,7 @@ impl AppState {
                 runtime_health,
                 static_files,
                 browser_locale: RwLock::new(browser_locale),
+                hmac_nonces: crate::auth::hmac_nonce::HmacNonceCache::new(),
                 fallback_client,
                 asset_download_client,
                 auto_https: AutoHttpsRedirectManager::new(),

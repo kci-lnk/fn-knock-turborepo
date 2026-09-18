@@ -35,7 +35,7 @@ fn hmac_text(translator: &Translator, key: &str) -> String {
 }
 
 async fn hmac_error(state: &AppState, status: StatusCode, key: &str) -> Response {
-    let translator = Translator::from_state(state).await;
+    let translator = Translator::new(state.browser_locale.read().await.as_str());
     response::error(status, hmac_text(&translator, key))
 }
 
@@ -68,7 +68,9 @@ pub async fn hmac_middleware(
         Err((status, key)) => return hmac_error(&state, status, key).await,
     };
 
-    if (time_utils::now_ms() - headers.timestamp_ms).abs() > 5 * 60 * 1000 {
+    if time_utils::now_ms().abs_diff(headers.timestamp_ms)
+        > super::hmac_nonce::TIMESTAMP_WINDOW_MS as u64
+    {
         return hmac_error(&state, StatusCode::UNAUTHORIZED, "timestampExpired").await;
     }
 
@@ -108,26 +110,32 @@ pub async fn hmac_middleware(
         return hmac_error(&state, StatusCode::UNAUTHORIZED, "invalidSignature").await;
     }
 
-    match state
-        .storage
-        .store
-        .set_nonce_if_not_exists(&headers.nonce, 600)
-        .await
+    // The body may have taken time to arrive; do not admit an expired
+    // signature just because it was fresh before buffering the body.
+    if time_utils::now_ms().abs_diff(headers.timestamp_ms)
+        > super::hmac_nonce::TIMESTAMP_WINDOW_MS as u64
     {
-        Ok(true) => {
+        return hmac_error(&state, StatusCode::UNAUTHORIZED, "timestampExpired").await;
+    }
+
+    use super::hmac_nonce::Admission;
+    match state.hmac_nonces.admit(&headers.nonce) {
+        Admission::Accepted => {
             let mut request = Request::from_parts(parts, Body::from(body));
             request.extensions_mut().insert(VerifiedInternalRequest);
             next.run(request).await
         }
-        Ok(false) => hmac_error(&state, StatusCode::UNAUTHORIZED, "nonceReused").await,
-        Err(error) => {
-            tracing::warn!(%error, "failed to store HMAC nonce");
-            hmac_error(
-                &state,
-                StatusCode::INTERNAL_SERVER_ERROR,
-                "nonceVerifyFailed",
-            )
-            .await
+        Admission::Replay => hmac_error(&state, StatusCode::UNAUTHORIZED, "nonceReused").await,
+        Admission::Unavailable => {
+            let mut reply = response::error(
+                StatusCode::SERVICE_UNAVAILABLE,
+                "Authentication service is temporarily busy",
+            );
+            reply.headers_mut().insert(
+                header::RETRY_AFTER,
+                axum::http::HeaderValue::from_static("1"),
+            );
+            reply
         }
     }
 }
@@ -192,7 +200,7 @@ fn parse_hmac_headers(
     let Some(timestamp_ms) = parse_js_parse_int_radix_10(&timestamp) else {
         return Err((StatusCode::BAD_REQUEST, "invalidTimestampFormat"));
     };
-    if nonce.len() < 8 {
+    if !(8..=128).contains(&nonce.len()) {
         return Err((StatusCode::BAD_REQUEST, "invalidNonceLength"));
     }
 
@@ -383,6 +391,18 @@ mod tests {
 
         headers.insert(header::HOST, "127.0.0.1.example.com".parse().unwrap());
         assert!(!uses_loopback_authority(&headers));
+    }
+
+    #[test]
+    fn oversized_nonce_is_rejected_before_signature_work() {
+        let mut headers = HeaderMap::new();
+        headers.insert("x-timestamp", "1700000000000".parse().unwrap());
+        headers.insert("x-signature", "invalid".parse().unwrap());
+        headers.insert("x-nonce", "x".repeat(129).parse().unwrap());
+        assert_eq!(
+            parse_hmac_headers(&headers).unwrap_err(),
+            (StatusCode::BAD_REQUEST, "invalidNonceLength")
+        );
     }
 
     #[test]

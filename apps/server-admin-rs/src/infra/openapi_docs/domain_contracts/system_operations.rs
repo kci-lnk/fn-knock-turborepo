@@ -584,6 +584,9 @@ pub(super) struct FnosCertificateSyncUpdateData {
 
 #[derive(Serialize, ToSchema)]
 pub(super) struct FnosCertificateSyncBodyData {
+    /// Recover pending transactions and resume automation only on success. No selections allowed.
+    #[schema(nullable = false)]
+    recovery_only: Option<bool>,
     /// Explicit actions from the current preview. An empty array performs no actions.
     action_ids: Option<Vec<String>>,
     /// Required with action_ids. Stale snapshots return HTTP 409.
@@ -607,6 +610,10 @@ pub(super) struct FnosCertificateSyncSummaryData {
 
 #[derive(Serialize, ToSchema)]
 pub(super) struct FnosCertificateSyncRuntimeData {
+    #[schema(nullable = false)]
+    automatic_paused: Option<bool>,
+    #[schema(nullable = false)]
+    recovery_required: Option<bool>,
     running: bool,
     #[schema(required = true)]
     last_sync_at: Option<i64>,

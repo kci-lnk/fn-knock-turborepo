@@ -1,0 +1,518 @@
+[
+  {
+    "label": "business_old_old",
+    "go": 2412,
+    "rust": 2412,
+    "tcache": 7,
+    "mmap_threshold": 131072,
+    "phases": [
+      {
+        "workers": 16,
+        "requests": 8557,
+        "statuses": {
+          "200": 7609,
+          "401": 948
+        },
+        "errors": {},
+        "p50_ms": 22.15,
+        "p99_ms": 103.4,
+        "max_ms": 115.14,
+        "bytes": 142644315
+      },
+      {
+        "workers": 64,
+        "requests": 7141,
+        "statuses": {
+          "200": 6354,
+          "401": 787
+        },
+        "errors": {},
+        "p50_ms": 101.5,
+        "p99_ms": 673.91,
+        "max_ms": 743.34,
+        "bytes": 119113357
+      }
+    ],
+    "after_idle": {
+      "workers": 8,
+      "requests": 709,
+      "statuses": {
+        "200": 632,
+        "401": 77
+      },
+      "errors": {},
+      "p50_ms": 21.25,
+      "p99_ms": 103.28,
+      "max_ms": 105.35,
+      "bytes": 11892944
+    },
+    "process_exit": [
+      null,
+      null
+    ],
+    "resources": {
+      "go": {
+        "cpu_seconds": 9.45,
+        "peak_rss_kib": 75336,
+        "peak_fds": 145,
+        "end": {
+          "cpu_ticks": 985,
+          "rss_kib": 75336,
+          "fds": 81
+        }
+      },
+      "rust": {
+        "cpu_seconds": 40.79,
+        "peak_rss_kib": 40868,
+        "peak_fds": 91,
+        "end": {
+          "cpu_ticks": 4113,
+          "rss_kib": 40412,
+          "fds": 89
+        }
+      }
+    },
+    "observed_upstream_protocol": "HTTP/2.0",
+    "injected_outage": [
+      [
+        503,
+        "connect_unavailable",
+        10879
+      ],
+      [
+        503,
+        "connect_unavailable",
+        10879
+      ],
+      [
+        503,
+        "connect_unavailable",
+        10879
+      ],
+      [
+        503,
+        "connect_unavailable",
+        10879
+      ],
+      [
+        503,
+        "connect_unavailable",
+        10879
+      ]
+    ],
+    "restored": [
+      [
+        200,
+        null,
+        65536
+      ],
+      [
+        200,
+        null,
+        65536
+      ],
+      [
+        200,
+        null,
+        65536
+      ],
+      [
+        200,
+        null,
+        65536
+      ],
+      [
+        200,
+        null,
+        65536
+      ]
+    ]
+  },
+  {
+    "label": "business_new_new",
+    "go": 2415,
+    "rust": 2415,
+    "tcache": 0,
+    "mmap_threshold": 32768,
+    "phases": [
+      {
+        "workers": 16,
+        "requests": 8450,
+        "statuses": {
+          "200": 7511,
+          "401": 939
+        },
+        "errors": {},
+        "p50_ms": 16.25,
+        "p99_ms": 118.16,
+        "max_ms": 158.62,
+        "bytes": 140101751
+      },
+      {
+        "workers": 64,
+        "requests": 6977,
+        "statuses": {
+          "200": 6195,
+          "401": 782
+        },
+        "errors": {},
+        "p50_ms": 101.88,
+        "p99_ms": 700.84,
+        "max_ms": 770.63,
+        "bytes": 115715134
+      }
+    ],
+    "after_idle": {
+      "workers": 8,
+      "requests": 711,
+      "statuses": {
+        "200": 634,
+        "401": 77
+      },
+      "errors": {},
+      "p50_ms": 13.56,
+      "p99_ms": 102.72,
+      "max_ms": 105.43,
+      "bytes": 12089200
+    },
+    "process_exit": [
+      null,
+      null
+    ],
+    "resources": {
+      "go": {
+        "cpu_seconds": 8.68,
+        "peak_rss_kib": 69132,
+        "peak_fds": 145,
+        "end": {
+          "cpu_ticks": 904,
+          "rss_kib": 67348,
+          "fds": 81
+        }
+      },
+      "rust": {
+        "cpu_seconds": 40.5,
+        "peak_rss_kib": 40628,
+        "peak_fds": 89,
+        "end": {
+          "cpu_ticks": 4107,
+          "rss_kib": 40044,
+          "fds": 89
+        }
+      }
+    },
+    "observed_upstream_protocol": "HTTP/2.0",
+    "injected_outage": [
+      [
+        503,
+        "connect_unavailable",
+        10879
+      ],
+      [
+        503,
+        "connect_unavailable",
+        10879
+      ],
+      [
+        503,
+        "connect_unavailable",
+        10879
+      ],
+      [
+        503,
+        "connect_unavailable",
+        10879
+      ],
+      [
+        503,
+        "connect_unavailable",
+        10879
+      ]
+    ],
+    "restored": [
+      [
+        200,
+        null,
+        65536
+      ],
+      [
+        200,
+        null,
+        65536
+      ],
+      [
+        200,
+        null,
+        65536
+      ],
+      [
+        200,
+        null,
+        65536
+      ],
+      [
+        200,
+        null,
+        65536
+      ]
+    ]
+  },
+  {
+    "label": "business_old_new",
+    "go": 2412,
+    "rust": 2415,
+    "tcache": 0,
+    "mmap_threshold": 32768,
+    "phases": [
+      {
+        "workers": 16,
+        "requests": 8531,
+        "statuses": {
+          "200": 7584,
+          "401": 947
+        },
+        "errors": {},
+        "p50_ms": 16.25,
+        "p99_ms": 115.14,
+        "max_ms": 157.16,
+        "bytes": 141746691
+      },
+      {
+        "workers": 64,
+        "requests": 6807,
+        "statuses": {
+          "200": 6031,
+          "401": 776
+        },
+        "errors": {},
+        "p50_ms": 101.87,
+        "p99_ms": 718.72,
+        "max_ms": 782.56,
+        "bytes": 113021850
+      }
+    ],
+    "after_idle": {
+      "workers": 8,
+      "requests": 710,
+      "statuses": {
+        "200": 633,
+        "401": 77
+      },
+      "errors": {},
+      "p50_ms": 13.27,
+      "p99_ms": 102.74,
+      "max_ms": 104.04,
+      "bytes": 12006093
+    },
+    "process_exit": [
+      null,
+      null
+    ],
+    "resources": {
+      "go": {
+        "cpu_seconds": 8.8,
+        "peak_rss_kib": 79268,
+        "peak_fds": 145,
+        "end": {
+          "cpu_ticks": 928,
+          "rss_kib": 79268,
+          "fds": 81
+        }
+      },
+      "rust": {
+        "cpu_seconds": 40.93,
+        "peak_rss_kib": 40912,
+        "peak_fds": 89,
+        "end": {
+          "cpu_ticks": 4131,
+          "rss_kib": 40052,
+          "fds": 89
+        }
+      }
+    },
+    "observed_upstream_protocol": "HTTP/2.0",
+    "injected_outage": [
+      [
+        503,
+        "connect_unavailable",
+        10879
+      ],
+      [
+        503,
+        "connect_unavailable",
+        10879
+      ],
+      [
+        503,
+        "connect_unavailable",
+        10879
+      ],
+      [
+        503,
+        "connect_unavailable",
+        10879
+      ],
+      [
+        503,
+        "connect_unavailable",
+        10879
+      ]
+    ],
+    "restored": [
+      [
+        200,
+        null,
+        65536
+      ],
+      [
+        200,
+        null,
+        65536
+      ],
+      [
+        200,
+        null,
+        65536
+      ],
+      [
+        200,
+        null,
+        65536
+      ],
+      [
+        200,
+        null,
+        65536
+      ]
+    ]
+  },
+  {
+    "label": "business_new_old",
+    "go": 2415,
+    "rust": 2412,
+    "tcache": 7,
+    "mmap_threshold": 131072,
+    "phases": [
+      {
+        "workers": 16,
+        "requests": 8343,
+        "statuses": {
+          "200": 7420,
+          "401": 923
+        },
+        "errors": {},
+        "p50_ms": 22.6,
+        "p99_ms": 106.18,
+        "max_ms": 262.89,
+        "bytes": 139154247
+      },
+      {
+        "workers": 64,
+        "requests": 7267,
+        "statuses": {
+          "200": 6478,
+          "401": 789
+        },
+        "errors": {},
+        "p50_ms": 101.42,
+        "p99_ms": 655.64,
+        "max_ms": 726.79,
+        "bytes": 122477607
+      }
+    ],
+    "after_idle": {
+      "workers": 8,
+      "requests": 691,
+      "statuses": {
+        "200": 615,
+        "401": 76
+      },
+      "errors": {},
+      "p50_ms": 22.52,
+      "p99_ms": 103.02,
+      "max_ms": 105.35,
+      "bytes": 11462784
+    },
+    "process_exit": [
+      null,
+      null
+    ],
+    "resources": {
+      "go": {
+        "cpu_seconds": 9.39,
+        "peak_rss_kib": 63076,
+        "peak_fds": 145,
+        "end": {
+          "cpu_ticks": 973,
+          "rss_kib": 60556,
+          "fds": 81
+        }
+      },
+      "rust": {
+        "cpu_seconds": 40.46,
+        "peak_rss_kib": 40680,
+        "peak_fds": 90,
+        "end": {
+          "cpu_ticks": 4095,
+          "rss_kib": 40136,
+          "fds": 89
+        }
+      }
+    },
+    "observed_upstream_protocol": "HTTP/2.0",
+    "injected_outage": [
+      [
+        503,
+        "connect_unavailable",
+        10879
+      ],
+      [
+        503,
+        "connect_unavailable",
+        10879
+      ],
+      [
+        503,
+        "connect_unavailable",
+        10879
+      ],
+      [
+        503,
+        "connect_unavailable",
+        10879
+      ],
+      [
+        503,
+        "connect_unavailable",
+        10879
+      ]
+    ],
+    "restored": [
+      [
+        200,
+        null,
+        65536
+      ],
+      [
+        200,
+        null,
+        65536
+      ],
+      [
+        200,
+        null,
+        65536
+      ],
+      [
+        200,
+        null,
+        65536
+      ],
+      [
+        200,
+        null,
+        65536
+      ]
+    ]
+  }
+]

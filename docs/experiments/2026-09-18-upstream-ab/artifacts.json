@@ -1,0 +1,18 @@
+{
+  "2412": {
+    "version": "2.4.12",
+    "source_commit": "8571b8253c32757d231e59c0c52688338a4c8718",
+    "gateway_commit": "2f528589de1b49618d64edbdc91fbda20a8bc131",
+    "control_api_version": 26,
+    "built_at": "2026-09-12T09:46:23.704Z",
+    "fpk_sha256": "5f1f2b8a05d7d5c87bd39627bdfe8badd403cdc7711a0ae7ef54dd0b54df4120"
+  },
+  "2415": {
+    "version": "2.4.15",
+    "source_commit": "517ad9b360ee5d6648e09b3a4a826f9563b33962",
+    "gateway_commit": "e3a7fe7470c6f3df1881fd619b528f3715964d2f",
+    "control_api_version": 26,
+    "built_at": "2026-09-17T11:52:28.942Z",
+    "fpk_sha256": "c31f1caa052564abb5f0162af48713e0f8f727592b542e871b7e92687e5bfe29"
+  }
+}

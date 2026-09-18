@@ -2344,6 +2344,12 @@ export const zhCNAdmin = {
     deleteConfirmDescription: "删除后需重新下载才能使用。",
   },
   fnosCertificateSync: {
+    automaticPaused: "证书操作中断或失败，自动同步已暂停，备份已保留。",
+    recoveryNotice:
+      "手动恢复可能短暂中断飞牛访问。恢复成功后，已开启的自动同步将继续运行。",
+    recover: "重试恢复",
+    recoveryCompleted: "恢复完成",
+
     entryTitle: "飞牛 SSL 证书库同步",
     entryDescription: "将本系统证书同步到飞牛，支持新增、更新和删除",
     entrySummary: "飞牛共 {total} 张证书，{syncable} 张待同步",

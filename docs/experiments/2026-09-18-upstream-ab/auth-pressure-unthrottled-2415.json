@@ -1,0 +1,57 @@
+{
+  "label": "auth-pressure-unthrottled-2415",
+  "results": [
+    {
+      "phase": "normal_external_cookie_pressure",
+      "requests": 8227,
+      "statuses": {
+        "200": 6175,
+        "302": 2050,
+        "503": 2
+      },
+      "p99_seconds": 0.433,
+      "rust_exit": null,
+      "rust_fds": 90,
+      "rust_memory": [
+        "VmHWM:\t   37336 kB",
+        "VmRSS:\t   37088 kB",
+        "Threads:\t14"
+      ]
+    },
+    {
+      "phase": "sqlite_writer_locked",
+      "requests": 240,
+      "statuses": {
+        "500": 1,
+        "200": 48,
+        "503": 64,
+        "TimeoutError: timed out": 127
+      },
+      "p99_seconds": 7.02,
+      "rust_exit": null,
+      "rust_fds": 28,
+      "rust_memory": [
+        "VmHWM:\t   37480 kB",
+        "VmRSS:\t   37296 kB",
+        "Threads:\t14"
+      ]
+    },
+    {
+      "phase": "after_lock_release",
+      "requests": 2970,
+      "statuses": {
+        "200": 2230,
+        "302": 736,
+        "503": 4
+      },
+      "p99_seconds": 0.395,
+      "rust_exit": null,
+      "rust_fds": 90,
+      "rust_memory": [
+        "VmHWM:\t   38432 kB",
+        "VmRSS:\t   38148 kB",
+        "Threads:\t14"
+      ]
+    }
+  ]
+}

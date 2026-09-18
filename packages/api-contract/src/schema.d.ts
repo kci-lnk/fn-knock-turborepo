@@ -9879,6 +9879,8 @@ export interface components {
         FnosCertificateSyncBodyData: {
             /** @description Explicit actions from the current preview. An empty array performs no actions. */
             action_ids?: string[] | null;
+            /** @description Recover pending transactions and resume automation only on success. No selections allowed. */
+            recovery_only?: boolean;
             /** @description Required with action_ids. Stale snapshots return HTTP 409. */
             snapshot_version?: string | null;
             /** @description Legacy update-only selection. Cannot be combined with action_ids. */
@@ -9940,11 +9942,13 @@ export interface components {
             summary: components["schemas"]["FnosCertificateSyncSummaryData"];
         };
         FnosCertificateSyncRuntimeData: {
+            automatic_paused?: boolean;
             failed_target_ids: string[];
             last_error: string | null;
             last_result: null | components["schemas"]["FnosCertificateSyncSummaryData"];
             /** Format: int64 */
             last_sync_at: number | null;
+            recovery_required?: boolean;
             running: boolean;
         };
         FnosCertificateSyncSummaryData: {

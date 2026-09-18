@@ -40,7 +40,7 @@ function item(
     local: null,
   };
 }
-async function setup(available = true) {
+async function setup(available = true, paused = false) {
   const details: FnosCertificateSyncDetails = {
     snapshot_version: "revision-1",
     availability: {
@@ -52,6 +52,8 @@ async function setup(available = true) {
     config: { auto_sync_enabled: false },
     runtime: {
       running: false,
+      automatic_paused: paused,
+      recovery_required: paused,
       last_sync_at: null,
       last_result: null,
       last_error: null,
@@ -104,6 +106,63 @@ async function setup(available = true) {
   return wrapper;
 }
 describe("fnOS certificate lifecycle", () => {
+  it("offers explicit recovery even when a pending transaction makes preview unavailable", async () => {
+    const recover = vi
+      .spyOn(SystemAPI, "recoverFnosCertificates")
+      .mockRejectedValue(new Error("still unsafe"));
+    const wrapper = await setup(false, true);
+    expect(wrapper.get('[role="alert"]').text()).toContain(
+      "Backups have been preserved",
+    );
+    const button = wrapper
+      .findAll("button")
+      .find((b) => b.text() === "Retry recovery")!;
+    expect(button.attributes("disabled")).toBeUndefined();
+    await button.trigger("click");
+    await flushPromises();
+    expect(recover).toHaveBeenCalledOnce();
+    expect(SystemAPI.syncFnosCertificates).not.toHaveBeenCalled();
+    expect(wrapper.get('[role="alert"]').text()).toContain(
+      "Automatic certificate sync is paused",
+    );
+  });
+
+  it("clears the pause banner after successful explicit recovery", async () => {
+    const wrapper = await setup(false, true);
+    vi.spyOn(SystemAPI, "recoverFnosCertificates").mockImplementation(
+      async () => {
+        const details = await SystemAPI.getFnosCertificateSyncDetails();
+        return {
+          details: {
+            ...details,
+            runtime: {
+              ...details.runtime,
+              automatic_paused: false,
+              recovery_required: false,
+            },
+          },
+          summary: {
+            created: 0,
+            updated: 0,
+            deleted: 0,
+            adopted: 0,
+            synced: 0,
+            skipped: 0,
+            failed: 0,
+            rolled_back: true,
+          },
+        };
+      },
+    );
+    await wrapper
+      .findAll("button")
+      .find((b) => b.text() === "Retry recovery")!
+      .trigger("click");
+    await flushPromises();
+    expect(wrapper.find('[role="alert"]').exists()).toBe(false);
+    expect(SystemAPI.syncFnosCertificates).not.toHaveBeenCalled();
+  });
+
   it("hides counts and the table when structure inspection fails", async () => {
     const wrapper = await setup(false);
     expect(wrapper.text()).toContain("cert.platform missing");

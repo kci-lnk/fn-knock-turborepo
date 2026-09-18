@@ -1,0 +1,150 @@
+[
+  {
+    "label": "mixed_old_new",
+    "go": 2412,
+    "rust": 2415,
+    "tcache": 7,
+    "mmap_threshold": 131072,
+    "phases": [
+      {
+        "workers": 16,
+        "requests": 7848,
+        "statuses": {
+          "200": 6536,
+          "401": 1312
+        },
+        "errors": {},
+        "p50_ms": 19.08,
+        "p99_ms": 152.11,
+        "max_ms": 187.51,
+        "bytes": 2139864
+      },
+      {
+        "workers": 64,
+        "requests": 4539,
+        "statuses": {
+          "200": 3771,
+          "401": 768
+        },
+        "errors": {},
+        "p50_ms": 158.89,
+        "p99_ms": 797.37,
+        "max_ms": 859.56,
+        "bytes": 1240164
+      }
+    ],
+    "after_idle": {
+      "workers": 8,
+      "requests": 616,
+      "statuses": {
+        "200": 512,
+        "401": 104
+      },
+      "errors": {},
+      "p50_ms": 19.86,
+      "p99_ms": 132.54,
+      "max_ms": 140.81,
+      "bytes": 167733
+    },
+    "process_exit": [
+      null,
+      null
+    ],
+    "resources": {
+      "go": {
+        "cpu_seconds": 5.26,
+        "peak_rss_kib": 57596,
+        "peak_fds": 144,
+        "end": {
+          "cpu_ticks": 538,
+          "rss_kib": 56212,
+          "fds": 80
+        }
+      },
+      "rust": {
+        "cpu_seconds": 41.36,
+        "peak_rss_kib": 38688,
+        "peak_fds": 89,
+        "end": {
+          "cpu_ticks": 4155,
+          "rss_kib": 38688,
+          "fds": 89
+        }
+      }
+    }
+  },
+  {
+    "label": "mixed_new_old",
+    "go": 2415,
+    "rust": 2412,
+    "tcache": 7,
+    "mmap_threshold": 131072,
+    "phases": [
+      {
+        "workers": 16,
+        "requests": 7731,
+        "statuses": {
+          "200": 6447,
+          "401": 1284
+        },
+        "errors": {},
+        "p50_ms": 34.64,
+        "p99_ms": 133.79,
+        "max_ms": 164.77,
+        "bytes": 2655929
+      },
+      {
+        "workers": 64,
+        "requests": 4766,
+        "statuses": {
+          "200": 3986,
+          "401": 780
+        },
+        "errors": {},
+        "p50_ms": 141.72,
+        "p99_ms": 772.87,
+        "max_ms": 835.63,
+        "bytes": 1649858
+      }
+    ],
+    "after_idle": {
+      "workers": 8,
+      "requests": 617,
+      "statuses": {
+        "200": 514,
+        "401": 103
+      },
+      "errors": {},
+      "p50_ms": 40.77,
+      "p99_ms": 115.54,
+      "max_ms": 118.81,
+      "bytes": 212508
+    },
+    "process_exit": [
+      null,
+      null
+    ],
+    "resources": {
+      "go": {
+        "cpu_seconds": 5.68,
+        "peak_rss_kib": 45356,
+        "peak_fds": 144,
+        "end": {
+          "cpu_ticks": 576,
+          "rss_kib": 43444,
+          "fds": 80
+        }
+      },
+      "rust": {
+        "cpu_seconds": 41.71,
+        "peak_rss_kib": 37764,
+        "peak_fds": 90,
+        "end": {
+          "cpu_ticks": 4191,
+          "rss_kib": 37568,
+          "fds": 89
+        }
+      }
+    }
+  }
+]

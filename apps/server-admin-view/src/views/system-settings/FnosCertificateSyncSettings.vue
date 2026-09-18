@@ -37,11 +37,13 @@ const { t, locale } = useI18n();
 const details = ref<FnosCertificateSyncDetails | null>(null);
 const loading = ref(false);
 const saving = ref(false);
+const recovering = ref(false);
 const syncingIds = ref<string[]>([]);
 
 const busy = computed(
   () =>
     saving.value ||
+    recovering.value ||
     syncingIds.value.length > 0 ||
     details.value?.runtime.running,
 );
@@ -89,6 +91,26 @@ const updateAutoSync = async (enabled: boolean) => {
     });
   } finally {
     saving.value = false;
+  }
+};
+
+const recover = async () => {
+  if (busy.value) return;
+  recovering.value = true;
+  try {
+    const result = await SystemAPI.recoverFnosCertificates();
+    details.value = result.details;
+    toast.success(t("admin.fnosCertificateSync.recoveryCompleted"));
+  } catch (error) {
+    toast.error(t("admin.fnosCertificateSync.syncFailed"), {
+      description: extractErrorMessage(
+        error,
+        t("admin.fnosCertificateSync.syncFailed"),
+      ),
+    });
+    await load();
+  } finally {
+    recovering.value = false;
   }
 };
 
@@ -228,6 +250,21 @@ onMounted(load);
           </div>
 
           <div
+            v-if="
+              details.runtime.automatic_paused ||
+              details.runtime.recovery_required
+            "
+            role="alert"
+            class="space-y-3 rounded-xl border border-destructive/25 bg-destructive/5 p-4 text-sm"
+          >
+            <p>{{ t("admin.fnosCertificateSync.automaticPaused") }}</p>
+            <p>{{ t("admin.fnosCertificateSync.recoveryNotice") }}</p>
+            <Button :disabled="busy" @click="recover">
+              {{ t("admin.fnosCertificateSync.recover") }}
+            </Button>
+          </div>
+
+          <div
             class="flex flex-col gap-4 rounded-xl border border-border/60 bg-muted/10 p-5 sm:flex-row sm:items-center sm:justify-between"
           >
             <div class="space-y-1">
@@ -255,7 +292,9 @@ onMounted(load);
             <Switch
               :id="`${a11yId}-fnoscertificatesyncsettings-1`"
               :model-value="details.config.auto_sync_enabled"
-              :disabled="busy || !available"
+              :disabled="
+                busy || (!available && !details.config.auto_sync_enabled)
+              "
               @update:model-value="updateAutoSync($event === true)"
             />
           </div>

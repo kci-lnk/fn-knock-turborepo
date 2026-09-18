@@ -98,6 +98,7 @@ mod tests {
         fail: Option<&'static str>,
         bind_after_refresh: bool,
         bound: bool,
+        refreshes: usize,
     }
     impl Fake {
         fn checkpoint(&mut self, name: &str) -> anyhow::Result<()> {
@@ -166,6 +167,7 @@ mod tests {
             Ok(())
         }
         fn refresh(&mut self) -> anyhow::Result<()> {
+            self.refreshes += 1;
             self.checkpoint("refresh")?;
             self.bound |= self.bind_after_refresh;
             Ok(())
@@ -216,6 +218,7 @@ mod tests {
             row: row_before.clone(),
             fail: None,
             bind_after_refresh: false,
+            refreshes: 0,
             bound: false,
         };
         (
@@ -233,6 +236,28 @@ mod tests {
             backend,
         )
     }
+    #[test]
+    fn recovery_failure_does_not_restart_services_on_subsequent_automatic_ticks() {
+        let dir = tempfile::tempdir().unwrap();
+        let (journal, mut backend) = fixture("update");
+        apply(&journal, &mut backend).unwrap();
+        let initial_refreshes = backend.refreshes;
+        backend.fail = Some("restore_verify");
+        for _ in 0..3 {
+            assert!(
+                automatic::run(dir.path(), true, || {
+                    automatic::mark_attempt(dir.path())?;
+                    restore(&journal, &mut backend)
+                })
+                .is_err()
+            );
+        }
+        assert_eq!(backend.refreshes, initial_refreshes + 1);
+        assert_eq!(backend.row, journal.rows[0].before);
+        automatic::run(dir.path(), false, || restore(&journal, &mut backend)).unwrap();
+        assert!(!automatic::automatic_paused(dir.path()).unwrap());
+    }
+
     #[test]
     fn every_failure_stage_restores_create_update_and_delete() {
         for kind in ["create", "update", "delete"] {

@@ -9627,6 +9627,10 @@
               "null"
             ]
           },
+          "recovery_only": {
+            "description": "Recover pending transactions and resume automation only on success. No selections allowed.",
+            "type": "boolean"
+          },
           "snapshot_version": {
             "description": "Required with action_ids. Stale snapshots return HTTP 409.",
             "type": [
@@ -9909,6 +9913,9 @@
       },
       "FnosCertificateSyncRuntimeData": {
         "properties": {
+          "automatic_paused": {
+            "type": "boolean"
+          },
           "failed_target_ids": {
             "items": {
               "type": "string"
@@ -9937,6 +9944,9 @@
               "integer",
               "null"
             ]
+          },
+          "recovery_required": {
+            "type": "boolean"
           },
           "running": {
             "type": "boolean"

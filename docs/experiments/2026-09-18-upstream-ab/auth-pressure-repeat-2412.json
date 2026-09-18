@@ -1,0 +1,22 @@
+{
+  "label": "auth-pressure-repeat-2412",
+  "results": [
+    {
+      "phase": "normal_external_cookie_pressure",
+      "requests": 10190,
+      "statuses": {
+        "200": 7649,
+        "302": 2541
+      },
+      "p99_seconds": 0.351,
+      "anomalies": [],
+      "rust_exit": null,
+      "rust_fds": 90,
+      "rust_memory": [
+        "VmHWM:\t   37760 kB",
+        "VmRSS:\t   37516 kB",
+        "Threads:\t12"
+      ]
+    }
+  ]
+}

@@ -227,6 +227,14 @@ export const SystemAPI = {
     const res = await apiClient.post("/config/fnos_certificate_sync", payload);
     return res.data.data;
   },
+  async recoverFnosCertificates(): Promise<FnosCertificateSyncResponse> {
+    const payload = { recovery_only: true } satisfies FnosCertificateSyncBody;
+    const res = await apiClient.post(
+      "/config/fnos_certificate_sync/sync",
+      payload,
+    );
+    return res.data.data;
+  },
   async syncFnosCertificates(
     action_ids: string[],
     snapshot_version: string,

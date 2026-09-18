@@ -48,6 +48,7 @@ pub(crate) struct StaticFileCatalog {
 pub(crate) struct StaticFileCatalogs {
     pub(crate) admin: StaticFileCatalog,
     pub(crate) auth: StaticFileCatalog,
+    auth_index: Option<String>,
 }
 
 impl StaticFileCatalogs {
@@ -55,8 +56,21 @@ impl StaticFileCatalogs {
         Self {
             admin: StaticFileCatalog::build(admin_root),
             auth: StaticFileCatalog::build(auth_root),
+            auth_index: read_auth_index(auth_root),
         }
     }
+}
+
+// Packaged entry documents are immutable for a running process. Cache this
+// small template once instead of scheduling a filesystem read on every login.
+fn read_auth_index(root: &Path) -> Option<String> {
+    const MAX_INDEX_BYTES: usize = 1024 * 1024;
+    let file = std::fs::File::open(root.join("index.html")).ok()?;
+    let mut html = String::new();
+    file.take((MAX_INDEX_BYTES + 1) as u64)
+        .read_to_string(&mut html)
+        .ok()?;
+    (html.len() <= MAX_INDEX_BYTES).then_some(html)
 }
 
 impl StaticFileCatalog {
@@ -212,7 +226,7 @@ fn auth_html_base(path: &str, headers: &HeaderMap) -> &'static str {
 }
 
 async fn auth_index_response(
-    root: &Path,
+    html: Option<&str>,
     path: &str,
     headers: &HeaderMap,
     method: &Method,
@@ -220,7 +234,7 @@ async fn auth_index_response(
     if method != Method::GET && method != Method::HEAD {
         return method_not_allowed();
     }
-    let Ok(html) = tokio::fs::read_to_string(root.join("index.html")).await else {
+    let Some(html) = html else {
         return not_found();
     };
     let html = html.replacen(
@@ -254,8 +268,13 @@ async fn serve_auth_index(
     headers: &HeaderMap,
     method: &Method,
 ) -> Response {
-    let mut response =
-        auth_index_response(&state.settings.auth_static_path, path, headers, method).await;
+    let mut response = auth_index_response(
+        state.static_files.auth_index.as_deref(),
+        path,
+        headers,
+        method,
+    )
+    .await;
     if let Some(cookie) = locale_cookie(state).await {
         response.headers_mut().append(header::SET_COOKIE, cookie);
     }
@@ -835,6 +854,20 @@ mod tests {
         time::{Duration, SystemTime},
     };
 
+    #[test]
+    fn auth_index_cache_is_bounded_and_survives_file_removal() {
+        let directory = tempfile::tempdir().unwrap();
+        let path = directory.path().join("index.html");
+        std::fs::write(&path, "<html>login</html>").unwrap();
+        let catalog = super::StaticFileCatalogs::build(directory.path(), directory.path());
+        std::fs::remove_file(&path).unwrap();
+        assert_eq!(catalog.auth_index.as_deref(), Some("<html>login</html>"));
+        std::fs::write(&path, vec![b'x'; 1024 * 1024 + 1]).unwrap();
+        assert!(super::read_auth_index(directory.path()).is_none());
+        std::fs::write(&path, [0xff]).unwrap();
+        assert!(super::read_auth_index(directory.path()).is_none());
+    }
+
     #[tokio::test]
     async fn auth_html_base_is_correct_before_browser_preloading() {
         let dir = tempfile::tempdir().unwrap();
@@ -868,7 +901,7 @@ mod tests {
             headers.insert(header::IF_NONE_MATCH, HeaderValue::from_static("*"));
             for method in [Method::GET, Method::HEAD] {
                 let response =
-                    super::auth_index_response(dir.path(), path, &headers, &method).await;
+                    super::auth_index_response(Some(html), path, &headers, &method).await;
                 assert_eq!(response.status(), StatusCode::OK);
                 for header in [
                     header::CONTENT_ENCODING,

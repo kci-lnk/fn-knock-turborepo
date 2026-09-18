@@ -2513,6 +2513,13 @@ export const koKRAdmin = {
     deleteConfirmDescription: "사용하기 전에 다시 다운로드해야 합니다.",
   },
   fnosCertificateSync: {
+    automaticPaused:
+      "인증서 작업이 중단되거나 실패하여 자동 동기화가 일시 중지되었습니다. 백업은 보존됩니다.",
+    recoveryNotice:
+      "수동 복구 중 fnOS 접속이 잠시 중단될 수 있습니다. 복구에 성공하면 활성화된 자동 동기화가 재개됩니다.",
+    recover: "복구 재시도",
+    recoveryCompleted: "복구 완료",
+
     entryTitle: "FNOS SSL 인증서 동기화",
     entryDescription: "로컬 인증서를 fnOS에 동기화하며 생성, 갱신 및 삭제 지원",
     entrySummary: "FNOS 인증서 {total}개, 동기화 대기 {syncable}개",

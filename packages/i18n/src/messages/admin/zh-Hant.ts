@@ -2288,6 +2288,12 @@ export const zhHantAdmin = {
     deleteConfirmDescription: "刪除後需重新下載才能使用。",
   },
   fnosCertificateSync: {
+    automaticPaused: "憑證操作中斷或失敗，自動同步已暫停，備份已保留。",
+    recoveryNotice:
+      "手動復原可能短暫中斷飛牛存取。復原成功後，已啟用的自動同步將繼續執行。",
+    recover: "重試復原",
+    recoveryCompleted: "復原完成",
+
     entryTitle: "飛牛 SSL 證書庫同步",
     entryDescription: "將本系統憑證同步至飛牛，支援新增、更新及刪除",
     entrySummary: "飛牛共 {total} 張證書，{syncable} 張待同步",

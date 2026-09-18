@@ -94,13 +94,15 @@ struct UpdateConfigBody {
 
 #[derive(Debug, Deserialize)]
 struct SyncBody {
+    #[serde(default)]
+    recovery_only: bool,
     action_ids: Option<Vec<String>>,
     snapshot_version: Option<String>,
     #[serde(default)]
     target_ids: Vec<String>,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Default, Serialize)]
 struct SyncSummary {
     created: usize,
     updated: usize,
@@ -148,7 +150,7 @@ pub fn start_fnos_certificate_sync_tasks(state: AppState) {
         {
             let _guard = task_state.fnos_certificate_sync_lock.lock().await;
             let data_dir = task_state.settings.data_dir.clone();
-            match tokio::task::spawn_blocking(move || lifecycle::recover(&data_dir)).await {
+            match tokio::task::spawn_blocking(move || lifecycle::recover_automatic(&data_dir)).await {
                 Ok(Ok(())) => {},
                 Ok(Err(error)) => record_failure(&task_state, &error.to_string(), &[]).await,
                 Err(error) => record_failure(&task_state, &error.to_string(), &[]).await,
@@ -171,9 +173,17 @@ pub fn start_fnos_certificate_sync_tasks(state: AppState) {
                         }
                     }
                     let _guard = task_state.fnos_certificate_sync_lock.lock().await;
+                    match automatic_paused(&task_state).await {
+                        Ok(true) => continue,
+                        Err(error) => {
+                            record_failure(&task_state, &error.to_string(), &[]).await;
+                            continue;
+                        }
+                        Ok(false) => {},
+                    }
                     if !auto_sync_enabled(&task_state).await {
                         let data_dir = task_state.settings.data_dir.clone();
-                        match tokio::task::spawn_blocking(move || lifecycle::recover(&data_dir)).await {
+                        match tokio::task::spawn_blocking(move || lifecycle::recover_automatic(&data_dir)).await {
                             Ok(Ok(())) => {},
                             Ok(Err(error)) => record_failure(&task_state, &error.to_string(), &[]).await,
                             Err(error) => record_failure(&task_state, &error.to_string(), &[]).await,
@@ -190,7 +200,7 @@ pub fn start_fnos_certificate_sync_tasks(state: AppState) {
                     record_running(&task_state).await;
                     let data_dir = task_state.settings.data_dir.clone();
                     let result = tokio::task::spawn_blocking(move || {
-                        lifecycle::execute(&data_dir, &local_config, None, None, None)
+                        lifecycle::execute_automatic(&data_dir, &local_config)
                     }).await;
                     match result {
                         Ok(Ok(summary)) => record_success(&task_state, &summary).await,
@@ -260,6 +270,16 @@ async fn update_config(
 
 #[utoipa::path(post, path = "/api/admin/config/fnos_certificate_sync/sync", tag = "config", operation_id = "post_api_admin_config_fnos_certificate_sync_sync", responses((status = 200, description = "fnOS certificate sync result"), (status = 400, description = "Invalid action selection"), (status = 409, description = "Stale certificate synchronization preview")))]
 async fn sync_now(State(state): State<AppState>, Json(body): Json<SyncBody>) -> Response {
+    if body.recovery_only
+        && (body.action_ids.is_some()
+            || body.snapshot_version.is_some()
+            || !body.target_ids.is_empty())
+    {
+        return response::error(
+            axum::http::StatusCode::BAD_REQUEST,
+            "Recovery-only requests cannot include synchronization selections",
+        );
+    }
     let ids = match parse_target_ids(&body.target_ids) {
         Ok(ids) => ids,
         Err(error) => {
@@ -280,19 +300,32 @@ async fn sync_now(State(state): State<AppState>, Json(body): Json<SyncBody>) -> 
         );
     }
     let _guard = state.fnos_certificate_sync_lock.lock().await;
-    let local_config = match state.storage.store.get_config().await {
-        Ok(value) => value,
-        Err(error) => {
-            return response::error(
-                axum::http::StatusCode::INTERNAL_SERVER_ERROR,
-                error.to_string(),
-            );
+    let local_config = if body.recovery_only {
+        Value::Null
+    } else {
+        match state.storage.store.get_config().await {
+            Ok(value) => value,
+            Err(error) => {
+                return response::error(
+                    axum::http::StatusCode::INTERNAL_SERVER_ERROR,
+                    error.to_string(),
+                );
+            }
         }
     };
     record_running(&state).await;
     let data_dir = state.settings.data_dir.clone();
     let requested_ids = ids.iter().map(ToString::to_string).collect::<Vec<_>>();
     match tokio::task::spawn_blocking(move || {
+        if body.recovery_only {
+            let rolled_back = lifecycle::pending_recovery(&data_dir)
+                .map_err(|e| SyncExecutionError::new(e, &[]))?;
+            lifecycle::recover(&data_dir).map_err(|e| SyncExecutionError::new(e, &[]))?;
+            return Ok(SyncSummary {
+                rolled_back,
+                ..SyncSummary::default()
+            });
+        }
         lifecycle::execute(
             &data_dir,
             &local_config,
@@ -349,30 +382,33 @@ async fn build_details(state: &AppState) -> anyhow::Result<Value> {
     let config = state.storage.store.get_config().await?;
     let local_config = config.clone();
     let data_dir = state.settings.data_dir.clone();
-    let comparison =
-        tokio::task::spawn_blocking(move || lifecycle::plan(&data_dir, &local_config)).await;
+    let observed = tokio::task::spawn_blocking(move || {
+        let paused = lifecycle::automatic_paused(&data_dir).unwrap_or(true);
+        let recovery = lifecycle::pending_recovery(&data_dir).unwrap_or(true);
+        (lifecycle::plan(&data_dir, &local_config), paused, recovery)
+    })
+    .await;
+    let (comparison, paused, recovery) = match observed {
+        Ok(value) => value,
+        Err(error) => (Err(anyhow!(error)), true, true),
+    };
     let (environment_available, availability_reason, version, summary, mut items) = match comparison
     {
-        Ok(Ok(plan)) => {
+        Ok(plan) => {
             let (summary, items) = plan.details();
             (true, Value::Null, plan.version, summary, items)
         }
-        result => {
-            let error = match result {
-                Ok(Err(error)) => error,
-                Err(error) => anyhow!(error),
-                _ => anyhow!("Unavailable"),
-            };
-            (
-                false,
-                json!(sanitize_availability_error(&error)),
-                String::new(),
-                json!({"total":0,"syncable":0,"up_to_date":0,"create":0,"update":0,"delete":0,"adopt":0}),
-                Vec::new(),
-            )
-        }
+        Err(error) => (
+            false,
+            json!(sanitize_availability_error(&error)),
+            String::new(),
+            json!({"total":0,"syncable":0,"up_to_date":0,"create":0,"update":0,"delete":0,"adopt":0}),
+            Vec::new(),
+        ),
     };
-    let runtime = state.fnos_certificate_sync_status.read().await.clone();
+    let mut runtime = state.fnos_certificate_sync_status.read().await.clone();
+    runtime["automatic_paused"] = json!(paused);
+    runtime["recovery_required"] = json!(recovery);
     for item in &mut items {
         if item["action"] != "none"
             && runtime["failed_target_ids"]
@@ -909,15 +945,27 @@ fn sql_text_expression(value: &str) -> String {
 }
 
 fn restart_and_verify_services() -> anyhow::Result<()> {
+    let operation_id = Uuid::new_v4().to_string();
     for service in ["network_service.service", "trim_nginx.service"] {
-        let status = Command::new("systemctl")
-            .args(["restart", service])
+        let started = std::time::Instant::now();
+        tracing::warn!(event = "certificate_service_restart_started", %operation_id, service);
+        let status = Command::new("timeout")
+            .args(["--kill-after=5", "30", "systemctl", "restart", service])
             .status()?;
+        tracing::warn!(event = "certificate_service_restart_finished", %operation_id, service,
+            success = status.success(), duration_ms = started.elapsed().as_millis() as u64);
         if !status.success() {
             bail!("failed to restart {service}")
         }
-        let status = Command::new("systemctl")
-            .args(["is-active", "--quiet", service])
+        let status = Command::new("timeout")
+            .args([
+                "--kill-after=5",
+                "10",
+                "systemctl",
+                "is-active",
+                "--quiet",
+                service,
+            ])
             .status()?;
         if !status.success() {
             bail!("{service} is not active")
@@ -1006,7 +1054,23 @@ async fn record_success(state: &AppState, summary: &SyncSummary) {
     *status = json!({ "running": false, "last_sync_at": time_utils::now_ms(), "last_result": summary, "last_error": null, "failed_target_ids": [] });
 }
 
+// Metadata validation can block on NAS storage. Never run it on the shared
+// async executor used by HTTP auth and the authentication bridge.
+async fn automatic_paused(state: &AppState) -> anyhow::Result<bool> {
+    let data_dir = state.settings.data_dir.clone();
+    tokio::task::spawn_blocking(move || lifecycle::automatic_paused(&data_dir)).await?
+}
+
 async fn record_failure(state: &AppState, error: &str, ids: &[String]) {
+    if automatic_paused(state).await.unwrap_or(true) {
+        state.runtime_health.operational_log(
+            "WARN",
+            "fnos_certificate_sync",
+            "automatic_paused",
+            "certificate_operation_failed",
+            Default::default(),
+        );
+    }
     let mut status = state.fnos_certificate_sync_status.write().await;
     *status = json!({ "running": false, "last_sync_at": time_utils::now_ms(), "last_result": null, "last_error": error, "failed_target_ids": ids });
 }

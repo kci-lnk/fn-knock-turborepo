@@ -2531,6 +2531,13 @@ export const jaJPAdmin = {
     deleteConfirmDescription: "再度使用するには、ダウンロードが必要です。",
   },
   fnosCertificateSync: {
+    automaticPaused:
+      "証明書の操作が中断または失敗したため、自動同期を一時停止しました。バックアップは保持されています。",
+    recoveryNotice:
+      "手動復旧により fnOS へのアクセスが一時的に中断される場合があります。復旧に成功すると、有効な自動同期が再開されます。",
+    recover: "復旧を再試行",
+    recoveryCompleted: "復旧が完了しました",
+
     entryTitle: "FNOS SSL 証明書同期",
     entryDescription: "ローカル証明書を fnOS に同期し、作成・更新・削除に対応",
     entrySummary: "FNOS 証明書 {total} 件、同期待ち {syncable} 件",

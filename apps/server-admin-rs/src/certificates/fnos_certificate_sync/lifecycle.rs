@@ -1,9 +1,11 @@
 //! Reconciliation and recoverable fnOS certificate mutations. No writes occur while planning.
 use super::*;
+mod automatic;
 #[cfg(test)]
 mod postgres_tests;
 mod schema;
 mod transaction;
+pub(super) use automatic::automatic_paused;
 use std::collections::{BTreeMap, BTreeSet};
 
 #[derive(Clone, Debug, Default, Serialize, Deserialize)]
@@ -889,8 +891,10 @@ fn process_lock(data_dir: &Path) -> anyhow::Result<fs::File> {
     Ok(file)
 }
 pub(super) fn recover(data_dir: &Path) -> anyhow::Result<()> {
-    let _lock = process_lock(data_dir)?;
-    recover_locked(data_dir)
+    automatic::run(data_dir, false, || recover_locked(data_dir))
+}
+pub(super) fn recover_automatic(data_dir: &Path) -> anyhow::Result<()> {
+    automatic::run(data_dir, true, || recover_locked(data_dir))
 }
 fn recover_locked(data_dir: &Path) -> anyhow::Result<()> {
     let root = data_dir.join("fnos-certificate-sync/transactions");
@@ -908,6 +912,7 @@ fn recover_locked(data_dir: &Path) -> anyhow::Result<()> {
             continue;
         }
         verify_schema()?;
+        automatic::mark_attempt(data_dir)?;
         rollback(&journal, data_dir)
             .context("Unfinished certificate synchronization needs recovery; backup preserved")?;
         journal.completed = true;
@@ -915,7 +920,7 @@ fn recover_locked(data_dir: &Path) -> anyhow::Result<()> {
     }
     Ok(())
 }
-fn pending_recovery(data_dir: &Path) -> anyhow::Result<bool> {
+pub(super) fn pending_recovery(data_dir: &Path) -> anyhow::Result<bool> {
     let root = data_dir.join("fnos-certificate-sync/transactions");
     if !root.exists() {
         return Ok(false);
@@ -1245,9 +1250,24 @@ pub(super) fn execute(
     version: Option<&str>,
     legacy_ids: Option<&[i64]>,
 ) -> Result<SyncSummary, SyncExecutionError> {
+    execute_mode(data_dir, config, action_ids, version, legacy_ids, false)
+}
+pub(super) fn execute_automatic(
+    data_dir: &Path,
+    config: &Value,
+) -> Result<SyncSummary, SyncExecutionError> {
+    execute_mode(data_dir, config, None, None, None, true)
+}
+fn execute_mode(
+    data_dir: &Path,
+    config: &Value,
+    action_ids: Option<&[String]>,
+    version: Option<&str>,
+    legacy_ids: Option<&[i64]>,
+    automatic: bool,
+) -> Result<SyncSummary, SyncExecutionError> {
     let mut attempted = action_ids.unwrap_or_default().to_vec();
     let mut work = || -> anyhow::Result<SyncSummary> {
-        let _lock = process_lock(data_dir)?;
         recover_locked(data_dir)?;
         let plan = plan(data_dir, config)?;
         if version.is_some_and(|v| v != plan.version) {
@@ -1295,6 +1315,7 @@ pub(super) fn execute(
         let path = data_dir
             .join("fnos-certificate-sync/transactions")
             .join(format!("{}-{}.json", time_utils::now_ms(), Uuid::new_v4()));
+        automatic::mark_attempt(data_dir)?;
         save_journal(&path, &journal, data_dir)?;
         let result = transaction::apply(
             &journal,
@@ -1345,7 +1366,7 @@ pub(super) fn execute(
         }
         Ok(summary)
     };
-    let result = work();
+    let result = automatic::run(data_dir, automatic, &mut work);
     result.map_err(|error| SyncExecutionError::new(error, &attempted))
 }
 fn verify_applied(journal: &Journal, selected: &[&Action], data_dir: &Path) -> anyhow::Result<()> {

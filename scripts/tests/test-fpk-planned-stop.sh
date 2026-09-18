@@ -1,10 +1,15 @@
 #!/bin/bash
 set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+if [ "$#" -eq 0 ]; then
+    bash "$0" "${ROOT_DIR}/apps/fn-knock/cmd/main"
+    bash "$0" "${ROOT_DIR}/apps/fn-knock-lite/cmd/main"
+    exit 0
+fi
 WORK_DIR="$(mktemp -d "${TMPDIR:-/tmp}/fn-knock-planned-stop.XXXXXX")"
 trap 'rm -rf "${WORK_DIR}"' EXIT
 fail() { echo "[planned-stop] $*" >&2; exit 1; }
-ENTRY="${ROOT_DIR}/apps/fn-knock/cmd/main"
+ENTRY="$1"
 bash -n "${ENTRY}"
 # Exercise the production shell handshake using isolated files and mocked process identities.
 sed -n '/^planned_stop_write() {/,/^stop_pid() {/p' "${ENTRY}" | sed '$d' > "${WORK_DIR}/functions.sh"
@@ -81,8 +86,43 @@ prepare_planned_stop || fail 'old-version upgrade compatibility broken'
 python3 - "${ENTRY}" <<'PY'
 import sys
 s=open(sys.argv[1]).read().split('\nstop() {',1)[1].split('\nstatus() {',1)[0]
-assert s.index('cleanup_fn_connect_waf_for_stop 1') < s.index('if ! prepare_planned_stop; then') < s.index('stop_service "${GATEWAY_PID_FILE}"')
+if 'cleanup_fn_connect_waf_for_stop 1' in s:
+    assert s.index('cleanup_fn_connect_waf_for_stop 1') < s.index('if ! prepare_planned_stop; then')
+assert s.index('if ! prepare_planned_stop; then') < s.index('stop_service "${GATEWAY_PID_FILE}"')
 assert s.index('planned_stop_write gateway_stopped') < s.index('stop_service "${BACKEND_PID_FILE}"')
 assert 'flock -o -w 5' in open(sys.argv[1]).read()
 PY
+# Execute the real stop function with mocked process operations: never signal a live PID.
+sed -n '/^stop() {/,/^status() {/p' "${ENTRY}" | sed '$d' > "${WORK_DIR}/stop.sh"
+. "${WORK_DIR}/stop.sh"
+validate_lifecycle_timeouts() { return 0; }
+resolve_gateway_bin() { return 0; }
+cleanup_fn_connect_waf_for_stop() { return 0; }
+prepare_planned_stop() { echo prepare >> "${WORK_DIR}/calls"; [ "${FAIL_AT}" != prepare ]; }
+cancel_planned_stop() { echo cancel >> "${WORK_DIR}/calls"; }
+planned_stop_write() { echo "$1" >> "${WORK_DIR}/calls"; }
+stop_service() { echo "$2" >> "${WORK_DIR}/calls"; [ "${FAIL_AT}" != "$2" ]; }
+stop_matching_processes() { return 0; }
+stop_external_resources() { echo resources >> "${WORK_DIR}/calls"; }
+READINESS_MARKER="${WORK_DIR}/ready"
+GATEWAY_BIN="mock-gateway"
+BACKEND_ENTRY="mock-backend"
+for FAIL_AT in prepare Gateway Backend none; do
+    : > "${WORK_DIR}/calls"
+    if stop; then
+        [ "${FAIL_AT}" = none ] || fail 'stop ignored a failure'
+    else
+        [ "${FAIL_AT}" != none ] || fail 'normal stop failed'
+    fi
+    python3 - "${WORK_DIR}/calls" "${FAIL_AT}" <<'PYTEST'
+import pathlib,sys
+expected = {
+    'prepare': ['prepare', 'cancel'],
+    'Gateway': ['prepare', 'Gateway', 'cancel'],
+    'Backend': ['prepare', 'Gateway', 'gateway_stopped', 'Backend', 'cancel'],
+    'none': ['prepare', 'Gateway', 'gateway_stopped', 'Backend', 'resources'],
+}
+assert pathlib.Path(sys.argv[1]).read_text().splitlines() == expected[sys.argv[2]]
+PYTEST
+done
 printf '[planned-stop] handshake, stale ACK, cancellation, upgrade compatibility and stop ordering passed\n'

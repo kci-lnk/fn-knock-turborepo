@@ -488,8 +488,16 @@ impl RuntimeHealth {
     }
 
     async fn initialize_session(&self, state: &AppState) -> anyhow::Result<()> {
-        if let Some(raw) = state.storage.store.get_string_value(SESSION_KEY).await?
-            && let Ok(previous) = serde_json::from_str::<Value>(&raw)
+        let previous = state
+            .storage
+            .store
+            .get_string_value(SESSION_KEY)
+            .await?
+            .and_then(|raw| serde_json::from_str::<Value>(&raw).ok());
+        let clean_shutdown = previous.as_ref().is_some_and(|previous| {
+            previous.get("state").and_then(Value::as_str) == Some("stopped")
+        });
+        if let Some(previous) = &previous
             && previous.get("state").and_then(Value::as_str) == Some("running")
         {
             self.inner
@@ -508,6 +516,12 @@ impl RuntimeHealth {
                 }),
             };
             self.publish_or_buffer(state, input).await;
+        }
+        // Clear the durable baseline before replacing the clean-stop marker.
+        // Otherwise an interrupted startup can resurrect a pre-update instance
+        // on retry and report a normal application restart as a gateway crash.
+        if clean_shutdown {
+            state.storage.store.delete_key(GATEWAY_INSTANCE_KEY).await?;
         }
         self.persist_session(state, "starting").await?;
         let previous_gateway = state
@@ -679,6 +693,16 @@ impl RuntimeHealth {
             reason_code,
             fields,
         );
+        // Expected lifecycle changes belong in diagnostic logs only. Do not
+        // create event-center records (and therefore notification work), even
+        // when a notification rule explicitly includes INFO events.
+        if matches!(
+            event_type,
+            "FN_EVENT_RUNTIME_STARTED" | "FN_EVENT_RUNTIME_STOPPED"
+        ) || (event_type == "FN_EVENT_RUNTIME_RESTARTED" && reason_code == "platform_start")
+        {
+            return;
+        }
         self.publish_or_buffer(
             state,
             RuntimeEventInput {
@@ -1471,7 +1495,6 @@ pub(crate) async fn start_runtime_monitor(state: AppState) -> anyhow::Result<()>
                         Some(&runtime.inner.management_instance_id),
                     ).await;
                     let _ = runtime.persist_session(&state, "stopped").await;
-                    runtime.inner.logger.log("INFO", "management", "stopped", "graceful_shutdown", Map::new());
                     runtime.flush_pending(&state).await;
                     runtime.inner.logger.flush().await;
                     runtime.inner.monitor_stopped.store(true, Ordering::Release);
@@ -2981,6 +3004,155 @@ mod tests {
             .await
             .unwrap();
         assert_eq!(events.get("total").and_then(Value::as_i64), Some(0));
+    }
+
+    #[tokio::test]
+    async fn expected_lifecycle_changes_do_not_create_events_or_pending_notifications() {
+        let (_directory, state) = runtime_test_state().await;
+        for (event, component, reason) in [
+            ("FN_EVENT_RUNTIME_STARTED", "management", "process_start"),
+            (
+                "FN_EVENT_RUNTIME_STOPPED",
+                "management",
+                "graceful_shutdown",
+            ),
+            (
+                "FN_EVENT_RUNTIME_STARTED",
+                "gateway_process",
+                "instance_observed",
+            ),
+            (
+                "FN_EVENT_RUNTIME_RESTARTED",
+                "gateway_process",
+                "platform_start",
+            ),
+        ] {
+            state
+                .runtime_health
+                .publish_lifecycle(
+                    &state,
+                    event,
+                    "INFO",
+                    component,
+                    reason,
+                    Some("expected-instance"),
+                )
+                .await;
+        }
+        let events = state
+            .storage
+            .store
+            .list_system_events(1, 10, "", None, None, Some("RUNTIME_MONITOR"))
+            .await
+            .unwrap();
+        assert_eq!(events["total"], 0);
+        assert!(
+            state
+                .runtime_health
+                .inner
+                .pending_events
+                .lock()
+                .await
+                .is_empty()
+        );
+    }
+
+    #[tokio::test]
+    async fn normal_monitor_start_and_shutdown_leave_no_lifecycle_events() {
+        let (_directory, state) = runtime_test_state().await;
+        start_runtime_monitor(state.clone()).await.unwrap();
+        state
+            .runtime_health
+            .mark_session_ready(&state)
+            .await
+            .unwrap();
+        state.shutdown.cancel();
+        state
+            .runtime_health
+            .wait_stopped(Duration::from_secs(5))
+            .await;
+        assert!(
+            state
+                .runtime_health
+                .inner
+                .monitor_stopped
+                .load(Ordering::Acquire)
+        );
+        let session: Value = serde_json::from_str(
+            &state
+                .storage
+                .store
+                .get_string_value(SESSION_KEY)
+                .await
+                .unwrap()
+                .unwrap(),
+        )
+        .unwrap();
+        assert_eq!(session["state"], "stopped");
+        let events = state
+            .storage
+            .store
+            .list_system_events(1, 10, "", None, None, Some("RUNTIME_MONITOR"))
+            .await
+            .unwrap();
+        assert_eq!(events["total"], 0);
+    }
+
+    #[tokio::test]
+    async fn clean_application_restart_resets_gateway_baseline_but_later_crash_is_reported() {
+        let (_directory, state) = runtime_test_state().await;
+        let runtime = &state.runtime_health;
+        runtime.persist_session(&state, "stopped").await.unwrap();
+        state
+            .storage
+            .store
+            .set_string_value_with_optional_ttl(
+                GATEWAY_INSTANCE_KEY,
+                "before-update",
+                Some(RUNTIME_STATE_TTL_SECONDS),
+            )
+            .await
+            .unwrap();
+        runtime.initialize_session(&state).await.unwrap();
+        // Simulate interruption before the first probe, then a fresh startup.
+        // The retired instance must not return from durable storage on retry.
+        let runtime = RuntimeHealth::new(&state.settings.data_dir, "test").unwrap();
+        runtime.initialize_session(&state).await.unwrap();
+        for instance in ["after-update", "after-update", "unexpected-replacement"] {
+            runtime
+                .inner
+                .trackers
+                .lock()
+                .await
+                .get_mut("gateway_process")
+                .unwrap()
+                .health
+                .instance_id = Some(instance.to_string());
+            runtime.observe_gateway_instance(&state).await;
+            let events = state
+                .storage
+                .store
+                .list_system_events(1, 10, "", None, None, Some("RUNTIME_MONITOR"))
+                .await
+                .unwrap();
+            if instance == "after-update" {
+                assert_eq!(events["total"], 0);
+            } else {
+                assert_eq!(events["total"], 1);
+                assert_eq!(events["events"][0]["type"], "FN_EVENT_RUNTIME_RESTARTED");
+                assert_eq!(events["events"][0]["level"], "WARN");
+            }
+            assert_eq!(
+                state
+                    .storage
+                    .store
+                    .get_string_value(GATEWAY_INSTANCE_KEY)
+                    .await
+                    .unwrap()
+                    .as_deref(),
+                Some(instance)
+            );
+        }
     }
 
     #[tokio::test]

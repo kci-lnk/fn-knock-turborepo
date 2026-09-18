@@ -176,7 +176,7 @@ impl StopController {
             state: StdMutex::new(StopState::default()),
             wake_probe: Notify::new(),
             expected_instance: StdMutex::new(None),
-            expected_start: StdMutex::new(if supervisor == "fpk" {
+            expected_start: StdMutex::new(if matches!(supervisor, "fpk" | "fpk-lite") {
                 std::env::var("FN_KNOCK_EXPECTED_GATEWAY_START").ok()
             } else {
                 None
@@ -263,8 +263,10 @@ fn planned_stop_poll_delay(watching: bool, active: bool) -> Duration {
 
 impl RuntimeHealth {
     pub(super) async fn start_planned_stop_control(&self, state: &AppState) -> anyhow::Result<()> {
-        // FPK is the first protocol producer. Never interpret unbound legacy stop hints.
-        if state.settings.runtime_target != "fpk" || !cfg!(target_os = "linux") {
+        // Both FPK variants produce instance-bound requests. Ignore legacy stop hints.
+        if !matches!(state.settings.runtime_target.as_str(), "fpk" | "fpk-lite")
+            || !cfg!(target_os = "linux")
+        {
             return Ok(());
         }
         let directory = &self.inner.planned_stop.directory;
@@ -845,6 +847,43 @@ mod tests {
         assert!(!matches_expected_start("42:986", 42, stat));
         assert!(!matches_expected_start("43:987", 42, stat));
         assert!(!matches_expected_start("", 42, stat));
+    }
+
+    #[tokio::test]
+    async fn acknowledged_platform_start_is_silent_but_later_replacement_is_not() {
+        let (_directory, state, _) = setup_control().await;
+        let runtime = &state.runtime_health;
+        *runtime.inner.seen_gateway_instance.lock().await = Some("before-update".into());
+        // This cache is populated only after PID/start-time validation.
+        *runtime.inner.planned_stop.expected_instance.lock().unwrap() = Some("gateway-1".into());
+        runtime.observe_gateway_instance(&state).await;
+        runtime.observe_gateway_instance(&state).await;
+        let events = state
+            .storage
+            .store
+            .list_system_events(1, 10, "", None, None, Some("RUNTIME_MONITOR"))
+            .await
+            .unwrap();
+        assert_eq!(events["total"], 0);
+        runtime
+            .inner
+            .trackers
+            .lock()
+            .await
+            .get_mut("gateway_process")
+            .unwrap()
+            .health
+            .instance_id = Some("unexpected-replacement".into());
+        runtime.observe_gateway_instance(&state).await;
+        let events = state
+            .storage
+            .store
+            .list_system_events(1, 10, "", None, None, Some("RUNTIME_MONITOR"))
+            .await
+            .unwrap();
+        assert_eq!(events["total"], 1);
+        assert_eq!(events["events"][0]["type"], "FN_EVENT_RUNTIME_RESTARTED");
+        assert_eq!(events["events"][0]["level"], "WARN");
     }
     #[test]
     fn old_operation_cannot_replay_after_a_later_canceled_operation() {

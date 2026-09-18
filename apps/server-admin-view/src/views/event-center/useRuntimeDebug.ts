@@ -14,6 +14,7 @@ import type {
 } from "@/types/runtime-debug";
 
 const POLL_INTERVAL_MS = 2_000;
+const IDLE_POLL_INTERVAL_MS = 30_000;
 type DebugAction = "start" | "stop" | "memory";
 
 export const useRuntimeDebug = (options: {
@@ -45,7 +46,15 @@ export const useRuntimeDebug = (options: {
   const schedule = () => {
     clearTimer();
     if (!enabled() || unavailable.value) return;
-    timer = setTimeout(() => void refresh(), POLL_INTERVAL_MS);
+    // Keep active work responsive, but avoid serializing the same completed
+    // history every two seconds. A slow idle refresh still discovers captures
+    // started by another tab or administrator.
+    const busy =
+      report.value?.capture.status === "running" || report.value?.memory_refreshing;
+    timer = setTimeout(
+      () => void refresh(),
+      busy ? POLL_INTERVAL_MS : IDLE_POLL_INTERVAL_MS,
+    );
   };
   const request = async (
     fetcher: (signal: AbortSignal) => Promise<RuntimeDebugResponse>,

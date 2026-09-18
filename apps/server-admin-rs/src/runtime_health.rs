@@ -2,6 +2,7 @@ pub(crate) mod debug;
 pub(crate) mod debug_resources;
 pub(crate) mod operations;
 pub(crate) mod planned_stop;
+mod planned_stop_watch;
 #[cfg(test)]
 mod recovery_tests;
 pub(crate) mod routes;

@@ -253,6 +253,14 @@ fn process_start_ticks(raw: &str) -> Option<&str> {
         .then_some(value)
 }
 
+fn planned_stop_poll_delay(watching: bool, active: bool) -> Duration {
+    if watching && !active {
+        Duration::from_secs(1)
+    } else {
+        Duration::from_millis(100)
+    }
+}
+
 impl RuntimeHealth {
     pub(super) async fn start_planned_stop_control(&self, state: &AppState) -> anyhow::Result<()> {
         // FPK is the first protocol producer. Never interpret unbound legacy stop hints.
@@ -285,18 +293,45 @@ impl RuntimeHealth {
         let runtime = self.clone();
         let control_state = state.clone();
         state.spawn_background("runtime-planned-stop", async move {
-            let mut tick = tokio::time::interval(Duration::from_millis(100));
-            tick.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
+            let mut watcher = match super::planned_stop_watch::RequestWatch::new(
+                &runtime.inner.planned_stop.directory,
+            ) {
+                Ok(watcher) => Some(watcher),
+                Err(error) => {
+                    tracing::warn!(%error, "planned stop watch unavailable; using polling");
+                    None
+                }
+            };
             let mut descriptor = String::new();
             let mut last_error = Instant::now() - Duration::from_secs(30);
             loop {
+                if control_state.shutdown.is_cancelled() {
+                    break;
+                }
+                if let Err(error) = runtime.poll_planned_stop(&mut descriptor).await
+                    && last_error.elapsed() >= Duration::from_secs(30)
+                {
+                    tracing::warn!(%error, "planned stop control unavailable");
+                    last_error = Instant::now();
+                }
+                // Notifications handle requests immediately. Keep a one-second
+                // safety scan for missed changes and gateway identity updates,
+                // comfortably below the platform's three-second ACK timeout.
+                // Active leases and unavailable watches retain the old cadence.
+                let active = runtime.inner.planned_stop.lock().active.is_some();
+                let delay = planned_stop_poll_delay(watcher.is_some(), active);
                 tokio::select! {
                     _ = control_state.shutdown.cancelled() => break,
-                    _ = tick.tick() => {
-                        if let Err(error) = runtime.poll_planned_stop(&mut descriptor).await
-                            && last_error.elapsed() >= Duration::from_secs(30) {
-                            tracing::warn!(%error, "planned stop control unavailable");
-                            last_error = Instant::now();
+                    _ = tokio::time::sleep(delay) => {},
+                    result = async {
+                        match &watcher {
+                            Some(watcher) => watcher.changed().await,
+                            None => std::future::pending().await,
+                        }
+                    } => {
+                        if let Err(error) = result {
+                            tracing::warn!(%error, "planned stop watch lost; using polling");
+                            watcher = None;
                         }
                     }
                 }
@@ -428,6 +463,17 @@ impl RuntimeHealth {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn polling_only_slows_while_idle_with_a_working_watch() {
+        assert_eq!(planned_stop_poll_delay(true, false), Duration::from_secs(1));
+        for (watching, active) in [(false, false), (false, true), (true, true)] {
+            assert_eq!(
+                planned_stop_poll_delay(watching, active),
+                Duration::from_millis(100)
+            );
+        }
+    }
+
     fn request(action: &str) -> Request {
         Request {
             version: 1,

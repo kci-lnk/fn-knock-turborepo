@@ -204,7 +204,54 @@ describe("runtime debug capture lifecycle", () => {
     expect(api.getDebug).toHaveBeenCalledTimes(3);
   });
 
+  it("slows completed captures to 30 seconds and discovers work started elsewhere", async () => {
+    api.getDebug.mockResolvedValue({ data: makeReport("running") });
+    const { debug } = harness(true);
+    await flushPromises();
+    api.getDebug.mockResolvedValue({ data: makeReport("completed") });
+    await vi.advanceTimersByTimeAsync(2_000);
+    expect(debug.report.value?.capture.status).toBe("completed");
+    expect(api.getDebug).toHaveBeenCalledTimes(2);
+    await vi.advanceTimersByTimeAsync(29_999);
+    expect(api.getDebug).toHaveBeenCalledTimes(2);
+    api.getDebug.mockResolvedValue({ data: makeReport("running") });
+    await vi.advanceTimersByTimeAsync(1);
+    expect(debug.running.value).toBe(true);
+    expect(api.getDebug).toHaveBeenCalledTimes(3);
+    await vi.advanceTimersByTimeAsync(2_000);
+    expect(api.getDebug).toHaveBeenCalledTimes(4);
+  });
+
+  it("keeps memory refresh responsive and slows down after it finishes", async () => {
+    const { debug } = harness(true);
+    await flushPromises();
+    const refreshing = makeReport();
+    refreshing.memory_refreshing = true;
+    api.refreshDebugMemory.mockResolvedValue({ data: refreshing });
+    await debug.refreshMemory();
+    api.getDebug.mockResolvedValue({ data: makeReport() });
+    await vi.advanceTimersByTimeAsync(2_000);
+    expect(api.getDebug).toHaveBeenCalledTimes(2);
+    expect(debug.report.value?.memory_refreshing).toBe(false);
+    await vi.advanceTimersByTimeAsync(29_999);
+    expect(api.getDebug).toHaveBeenCalledTimes(2);
+    await vi.advanceTimersByTimeAsync(1);
+    expect(api.getDebug).toHaveBeenCalledTimes(3);
+  });
+
+  it("refreshes idle reports slowly but resumes active polling after a local start", async () => {
+    const { debug } = harness(true);
+    await flushPromises();
+    await vi.advanceTimersByTimeAsync(29_999);
+    expect(api.getDebug).toHaveBeenCalledTimes(1);
+    await debug.start();
+    api.getDebug.mockResolvedValue({ data: makeReport("running") });
+    await vi.advanceTimersByTimeAsync(2_000);
+    expect(api.getDebug).toHaveBeenCalledTimes(2);
+  });
+
   it("aborts and ignores an old read after a capture starts", async () => {
+    api.getDebug.mockResolvedValue({ data: makeReport("running") });
     const { debug } = harness(true);
     await flushPromises();
     let resolveOld!: (data: RuntimeDebugResponse) => void;

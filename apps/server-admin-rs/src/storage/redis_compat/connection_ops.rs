@@ -725,7 +725,15 @@ impl ConnectionManager {
     }
 
     pub(super) async fn execute_command(&mut self, command: CommandSpec) -> RedisResult<CmdOutput> {
-        self.call(move |conn| {
+        // Fixed labels only: never expose keys, script bodies or command args.
+        let label = match command.name.as_str() {
+            "MGET" => "redis_compat.MGET",
+            "SCAN" => "redis_compat.SCAN",
+            "EVAL" => "redis_compat.EVAL",
+            "ZRANGE" | "ZRANGEBYSCORE" | "ZREVRANGEBYSCORE" => "redis_compat.zrange",
+            _ => "redis_compat.command",
+        };
+        self.call_named(label, move |conn| {
             let tx = immediate_transaction(conn)?;
             let sync_mobility = command_typed_mobility_scope(&command);
             let output = execute_command_tx(&tx, command)?;

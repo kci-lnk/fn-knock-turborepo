@@ -160,3 +160,37 @@ async fn sqlite_operation_capture_keeps_old_execution_out_of_new_generation() {
     assert_eq!(snapshot.generation, generation);
     assert!(snapshot.operations.is_empty());
 }
+
+#[tokio::test]
+async fn command_capture_distinguishes_batch_reads_without_recording_keys() {
+    let mut manager = temp_manager().await;
+    let recorder = manager.diagnostics();
+    recorder.start();
+    let _: Vec<Option<String>> = cmd("MGET")
+        .arg("private-session-key")
+        .query_async(&mut manager)
+        .await
+        .unwrap();
+    let _: (String, Vec<String>) = cmd("SCAN")
+        .arg("0")
+        .arg("MATCH")
+        .arg("private:*")
+        .query_async(&mut manager)
+        .await
+        .unwrap();
+    let snapshot = recorder.snapshot();
+    assert_eq!(snapshot.operations.len(), 2);
+    for label in ["redis_compat.MGET", "redis_compat.SCAN"] {
+        assert!(
+            snapshot
+                .operations
+                .iter()
+                .any(|op| op.label == label && op.calls == 1)
+        );
+    }
+    assert!(
+        !serde_json::to_string(&snapshot)
+            .unwrap()
+            .contains("private")
+    );
+}

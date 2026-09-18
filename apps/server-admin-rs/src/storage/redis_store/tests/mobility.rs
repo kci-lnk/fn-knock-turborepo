@@ -815,3 +815,61 @@ async fn login_backoff_shadow_rebuilds_after_backup_restore_and_clear() {
     target.clear_all_keys().await.expect("clear restored store");
     assert_eq!(target.typed.typed_login_backoff.count().await.unwrap(), 0);
 }
+
+#[tokio::test]
+async fn mget_expiry_repairs_typed_shadow_and_rolls_back_on_repair_failure() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("mget.sqlite3");
+    let store = Store::connect(&path).await.unwrap();
+    let ip = "192.0.2.199";
+    store.register_login_backoff_failure(ip).await.unwrap();
+    let key = login_backoff_key(ip);
+    let fixture = open_fixture_connection(&path);
+    fixture
+        .execute(
+            "UPDATE kv_keys SET expires_at_ms = 0 WHERE key = ?1",
+            [&key],
+        )
+        .unwrap();
+    fixture
+        .execute_batch(
+            "CREATE TRIGGER fail_mget_shadow_cleanup BEFORE DELETE ON login_backoff_attempts
+         BEGIN SELECT RAISE(FAIL, 'forced shadow cleanup failure'); END;",
+        )
+        .unwrap();
+    let mut conn = store.conn();
+    let failed: crate::storage::StorageResult<Vec<Option<String>>> = redis::cmd("MGET")
+        .arg(key.clone())
+        .query_async(&mut conn)
+        .await;
+    assert!(failed.is_err());
+    let remaining: i64 = fixture
+        .query_row(
+            "SELECT COUNT(*) FROM kv_keys WHERE key = ?1",
+            [&key],
+            |row| row.get(0),
+        )
+        .unwrap();
+    assert_eq!(
+        remaining, 1,
+        "cleanup and shadow repair must roll back together"
+    );
+    fixture
+        .execute_batch("DROP TRIGGER fail_mget_shadow_cleanup")
+        .unwrap();
+    let values: Vec<Option<String>> = redis::cmd("MGET")
+        .arg(key)
+        .query_async(&mut conn)
+        .await
+        .unwrap();
+    assert_eq!(values, vec![None]);
+    assert!(
+        store
+            .typed
+            .typed_login_backoff
+            .load(ip)
+            .await
+            .unwrap()
+            .is_none()
+    );
+}

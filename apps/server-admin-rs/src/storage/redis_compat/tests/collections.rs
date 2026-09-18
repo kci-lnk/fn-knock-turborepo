@@ -219,3 +219,245 @@ async fn analytics_batch_excludes_keys_that_expire_while_waiting_for_admission()
         .unwrap();
     assert!(still_exists, "analytics reads must remain read-only");
 }
+
+#[tokio::test]
+async fn mget_batches_preserve_order_duplicates_types_and_missing_values_without_writes() {
+    let manager = temp_manager().await;
+    manager
+        .call(|conn| {
+            let tx = immediate_transaction(conn)?;
+            for index in 0..1205 {
+                set_string_tx(
+                    &tx,
+                    &format!("batch:{index}"),
+                    &format!("value:{index}"),
+                    None,
+                )?;
+            }
+            set_string_tx(&tx, "future", "alive", Some(now_ms() + 60_000))?;
+            ensure_key_tx(&tx, "hash", "hash", None)?;
+            // Quoting characters must stay parameters, never become SQL syntax.
+            set_string_tx(&tx, "quote:'?雪", "quoted", None)?;
+            let mut keys = (0..1205)
+                .rev()
+                .map(|index| format!("batch:{index}"))
+                .collect::<Vec<_>>();
+            keys.extend(
+                [
+                    "missing",
+                    "hash",
+                    "batch:400",
+                    "batch:400",
+                    "future",
+                    "quote:'?雪",
+                ]
+                .map(str::to_string),
+            );
+            let expected = keys
+                .iter()
+                .map(|key| string_get_tx(&tx, key))
+                .collect::<RedisResult<Vec<_>>>()?;
+            let changes = tx.total_changes();
+            assert_eq!(strings_get_tx(&tx, &keys)?, expected);
+            assert_eq!(
+                tx.total_changes(),
+                changes,
+                "live reads should not mutate storage"
+            );
+            assert!(strings_get_tx(&tx, &[])?.is_empty());
+            tx.commit()?;
+            Ok(())
+        })
+        .await
+        .unwrap();
+}
+
+#[tokio::test]
+async fn mget_expiry_keeps_cleanup_and_cascade_semantics() {
+    let mut manager = temp_manager().await;
+    manager
+        .call(|conn| {
+            let tx = immediate_transaction(conn)?;
+            set_string_tx(&tx, "expired", "stale", Some(now_ms() - 1))?;
+            tx.execute(
+                "UPDATE kv_strings SET value = x'80' WHERE key = 'expired'",
+                [],
+            )?;
+            set_string_tx(&tx, "live", "fresh", None)?;
+            ensure_key_tx(&tx, "expired_hash", "hash", Some(now_ms() - 1))?;
+            tx.execute(
+                "INSERT INTO kv_hash VALUES ('expired_hash', 'field', 'stale')",
+                [],
+            )?;
+            tx.commit()?;
+            Ok(())
+        })
+        .await
+        .unwrap();
+    let values: Vec<Option<String>> = cmd("MGET")
+        .arg(
+            [
+                "live",
+                "expired",
+                "expired_hash",
+                "expired",
+                "missing",
+                "live",
+            ]
+            .map(str::to_string)
+            .to_vec(),
+        )
+        .query_async(&mut manager)
+        .await
+        .unwrap();
+    assert_eq!(
+        values,
+        vec![
+            Some("fresh".into()),
+            None,
+            None,
+            None,
+            None,
+            Some("fresh".into())
+        ]
+    );
+    manager
+        .call(|conn| {
+            let count: i64 = conn.query_row(
+                "SELECT (SELECT COUNT(*) FROM kv_keys WHERE key IN ('expired', 'expired_hash'))
+                  + (SELECT COUNT(*) FROM kv_strings WHERE key = 'expired')
+                  + (SELECT COUNT(*) FROM kv_hash WHERE key = 'expired_hash')",
+                [],
+                |row| row.get(0),
+            )?;
+            assert_eq!(count, 0);
+            Ok(())
+        })
+        .await
+        .unwrap();
+}
+
+#[test]
+#[ignore = "manual elapsed-time comparison; timing is not a CI assertion"]
+fn mget_event_batch_elapsed_comparison() {
+    let mut conn = rusqlite::Connection::open_in_memory().unwrap();
+    conn.execute_batch(REDIS_COMPATIBLE_KEYSPACE_SQL).unwrap();
+    conn.pragma_update(None, "foreign_keys", "ON").unwrap();
+    let tx = immediate_transaction(&mut conn).unwrap();
+    let keys = (0..200).map(|i| format!("event:{i}")).collect::<Vec<_>>();
+    for key in &keys {
+        set_string_tx(&tx, key, &"x".repeat(500), None).unwrap();
+    }
+    let expected = keys
+        .iter()
+        .map(|key| string_get_tx(&tx, key).unwrap())
+        .collect::<Vec<_>>();
+    assert_eq!(strings_get_tx(&tx, &keys).unwrap(), expected);
+    let started = Instant::now();
+    for _ in 0..100 {
+        for key in &keys {
+            std::hint::black_box(string_get_tx(&tx, key).unwrap());
+        }
+    }
+    let original = started.elapsed();
+    let started = Instant::now();
+    for _ in 0..100 {
+        std::hint::black_box(strings_get_tx(&tx, &keys).unwrap());
+    }
+    eprintln!(
+        "200 event keys x 100, original={original:?}, batched={:?}",
+        started.elapsed()
+    );
+}
+
+#[tokio::test]
+async fn mget_checks_expiry_after_primary_admission() {
+    let mut manager = temp_manager().await;
+    manager.set("queued-expiry", "stale").await.unwrap();
+    let permit = manager
+        .primary_admission
+        .clone()
+        .acquire_owned()
+        .await
+        .unwrap();
+    let worker = manager.clone();
+    let read = cmd("MGET")
+        .arg("queued-expiry")
+        .query_async::<Vec<Option<String>>>(&mut manager);
+    tokio::pin!(read);
+    // Poll once to put the read behind admission, then expire the key without
+    // timing sleeps. The queued read must sample expiry after it is admitted.
+    std::future::poll_fn(|cx| {
+        assert!(std::future::Future::poll(read.as_mut(), cx).is_pending());
+        std::task::Poll::Ready(())
+    })
+    .await;
+    worker
+        .db
+        .call(|conn| {
+            conn.execute(
+                "UPDATE kv_keys SET expires_at_ms = 0 WHERE key = 'queued-expiry'",
+                [],
+            )?;
+            Ok::<(), rusqlite::Error>(())
+        })
+        .await
+        .unwrap();
+    drop(permit);
+    assert_eq!(read.await.unwrap(), vec![None]);
+    worker
+        .call(|conn| {
+            let count: i64 = conn.query_row(
+                "SELECT COUNT(*) FROM kv_keys WHERE key = 'queued-expiry'",
+                [],
+                |row| row.get(0),
+            )?;
+            assert_eq!(count, 0);
+            Ok(())
+        })
+        .await
+        .unwrap();
+}
+
+#[tokio::test]
+async fn mget_later_batch_failure_rolls_back_earlier_expiry_cleanup() {
+    let mut manager = temp_manager().await;
+    manager
+        .call(|conn| {
+            let tx = immediate_transaction(conn)?;
+            set_string_tx(&tx, "expired-first-batch", "old", Some(now_ms() - 1))?;
+            set_string_tx(&tx, "corrupt-next-batch", "invalid", None)?;
+            tx.execute(
+                "UPDATE kv_strings SET value = x'80' WHERE key = 'corrupt-next-batch'",
+                [],
+            )?;
+            tx.commit()?;
+            Ok(())
+        })
+        .await
+        .unwrap();
+    let mut keys = vec!["expired-first-batch".to_string(); 400];
+    keys.push("corrupt-next-batch".to_string());
+    assert!(
+        cmd("MGET")
+            .arg(keys)
+            .query_async::<Vec<Option<String>>>(&mut manager)
+            .await
+            .is_err()
+    );
+    manager
+        .call(|conn| {
+            let count: i64 = conn.query_row(
+                "SELECT COUNT(*) FROM kv_keys WHERE key = 'expired-first-batch'",
+                [],
+                |row| row.get(0),
+            )?;
+            assert_eq!(
+                count, 1,
+                "a later chunk must not commit an earlier chunk's cleanup"
+            );
+            Ok(())
+        })
+        .await
+        .unwrap();
+}

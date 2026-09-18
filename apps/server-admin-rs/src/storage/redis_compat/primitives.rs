@@ -220,6 +220,78 @@ pub(crate) fn string_get_tx(
     .map_err(Into::into)
 }
 
+// Stay below SQLite's conservative parameter limit and bound temporary memory.
+const MGET_BATCH_SIZE: usize = 400;
+
+pub(super) fn strings_get_tx(
+    tx: &rusqlite::Transaction<'_>,
+    keys: &[String],
+) -> RedisResult<Vec<Option<String>>> {
+    let mut values = Vec::with_capacity(keys.len());
+    for batch in keys.chunks(MGET_BATCH_SIZE) {
+        let placeholders = vec!["?"; batch.len()].join(",");
+        let sql = format!(
+            "SELECT k.key, k.kind, k.expires_at_ms, s.value
+             FROM kv_keys AS k LEFT JOIN kv_strings AS s ON s.key = k.key
+             WHERE k.key IN ({placeholders})"
+        );
+        let read_at = now_ms();
+        let mut records = {
+            let mut statement = tx.prepare_cached(&sql)?;
+            statement
+                .query_map(params_from_iter(batch.iter()), |row| {
+                    let kind = row.get::<_, String>(1)?;
+                    let expiry = row.get::<_, Option<i64>>(2)?;
+                    // The sequential path never decodes a non-string or an
+                    // already-expired value (which could itself be malformed).
+                    let value = if kind == "string" && expiry.is_none_or(|at| at > read_at) {
+                        row.get::<_, Option<String>>(3)?
+                    } else {
+                        None
+                    };
+                    Ok((row.get::<_, String>(0)?, (kind, expiry, value, 0)))
+                })?
+                .collect::<Result<HashMap<_, _>, _>>()?
+        };
+        // Expiry can delete compatibility keys and repair typed shadows. Keep
+        // the original ordered read/cleanup path whenever a batch has expired
+        // keys; do not silently turn MGET into a read that skips those repairs.
+        // Check after the query so keys expiring during it take that path too.
+        let now = now_ms();
+        if records
+            .values()
+            .any(|(_, expiry, _, _)| expiry.is_some_and(|at| at <= now))
+        {
+            // The sequential fallback will load these values again.
+            drop(records);
+            for key in batch {
+                values.push(string_get_tx(tx, key)?);
+            }
+        } else {
+            // IN deduplicates and reorders keys; MGET must do neither. Missing
+            // keys and non-string values must still produce positional nulls.
+            // Move each value on its final occurrence instead of retaining a
+            // second copy of every payload until the batch finishes. Only
+            // duplicate keys require clones to satisfy the owned return type.
+            for (index, key) in batch.iter().enumerate() {
+                if let Some((_, _, _, last_index)) = records.get_mut(key) {
+                    *last_index = index;
+                }
+            }
+            values.extend(batch.iter().enumerate().map(|(index, key)| {
+                records.get_mut(key).and_then(|(_, _, value, last_index)| {
+                    if index == *last_index {
+                        value.take()
+                    } else {
+                        value.clone()
+                    }
+                })
+            }));
+        }
+    }
+    Ok(values)
+}
+
 pub(super) fn set_string_tx(
     tx: &rusqlite::Transaction<'_>,
     key: &str,

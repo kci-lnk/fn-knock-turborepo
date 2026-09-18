@@ -50,13 +50,7 @@ pub(super) fn execute_command_tx(
             let key = arg(&args, 0)?;
             Ok(CmdOutput::OptionalString(string_get_tx(tx, key)?))
         }
-        "MGET" => {
-            let mut values = Vec::with_capacity(args.len());
-            for key in args {
-                values.push(string_get_tx(tx, &key)?);
-            }
-            Ok(CmdOutput::OptionalStrings(values))
-        }
+        "MGET" => Ok(CmdOutput::OptionalStrings(strings_get_tx(tx, &args)?)),
         "SET" => set_command_tx(tx, &args),
         "SETEX" => {
             let key = arg(&args, 0)?.to_string();

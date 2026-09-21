@@ -528,6 +528,7 @@ fn segment_label(segment: &str) -> String {
         "stream-active-ips" => "流映射活跃 IP".to_string(),
         "advanced_auth" => "高级认证".to_string(),
         "analytics" => "分析".to_string(),
+        "ip-groups" => "IP访问来源".to_string(),
         "appearance" => "外观".to_string(),
         "applications" => "应用".to_string(),
         "archive" => "归档".to_string(),

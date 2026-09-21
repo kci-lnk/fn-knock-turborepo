@@ -14,8 +14,8 @@ import {
   STATUS_FILTER_OPTIONS,
   WAF_FILTER_OPTIONS,
 } from "./model";
-
 const { searchQuery } = defineProps<{
+  summary?: string;
   activeCredentialLabel: string;
   activeLoggedInLabel: string;
   activeStatusLabel: string;
@@ -41,7 +41,6 @@ const { searchQuery } = defineProps<{
 const emit = defineEmits<{ "update:searchQuery": [value: string] }>();
 const { t } = useI18n();
 </script>
-
 <template>
   <div class="border-b px-3 py-3 sm:px-4">
     <div class="flex flex-col gap-2 lg:flex-row lg:items-start">
@@ -79,7 +78,6 @@ const { t } = useI18n();
             </SelectItem>
           </SelectContent>
         </Select>
-
         <Select
           :model-value="selectedStatus"
           @update:model-value="handleStatusChange"
@@ -192,9 +190,11 @@ const { t } = useI18n();
     <div
       class="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-muted-foreground"
     >
-      <span>
-        {{ cursorPageLabel }} ·
-        {{ t("admin.gatewayRequestLogs.rowsCount", { count: entriesCount }) }}
+      <span :class="summary !== undefined ? 'font-medium text-foreground' : ''">
+        {{
+          summary ??
+          `${cursorPageLabel} · ${t("admin.gatewayRequestLogs.rowsCount", { count: entriesCount })}`
+        }}
       </span>
       <span>{{ activeStatusLabel }}</span>
       <span>{{ activeLoggedInLabel }}</span>

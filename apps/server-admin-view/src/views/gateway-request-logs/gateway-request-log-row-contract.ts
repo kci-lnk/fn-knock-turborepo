@@ -1,6 +1,7 @@
 import type { SelectableGatewayLogEntry } from "./useGatewayLogIpSelection";
 
 export interface GatewayRequestLogRowProps {
+  absoluteTime?: boolean;
   blockIpsFromLogs: (ips: string[]) => Promise<void> | void;
   entry: SelectableGatewayLogEntry;
   getConnectionSourceText: (entry: SelectableGatewayLogEntry) => string;

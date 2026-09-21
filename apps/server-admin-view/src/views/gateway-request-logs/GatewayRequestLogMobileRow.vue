@@ -11,7 +11,7 @@ import {
   Unlock,
 } from "lucide-vue-next";
 import ConfirmDangerTooltip from "@/components/ConfirmDangerTooltip.vue";
-import HumanFriendlyTime from "@admin-shared/components/common/HumanFriendlyTime.vue";
+import GatewayLogTime from "./GatewayLogTime.vue";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import type { GatewayRequestLogRowProps } from "./gateway-request-log-row-contract";
@@ -63,7 +63,7 @@ const authDecisionLabel = (value?: string) =>
           <span
             class="inline-flex h-5 shrink-0 items-center rounded-full bg-muted px-2 text-[10px] font-medium leading-none text-muted-foreground"
           >
-            <HumanFriendlyTime :value="entry.time" :locale="locale" />
+            <GatewayLogTime :value="entry.time" :locale="locale" :absolute="absoluteTime" />
           </span>
           <span
             class="shrink-0 font-mono text-[10px] tracking-[0.1em] text-muted-foreground"

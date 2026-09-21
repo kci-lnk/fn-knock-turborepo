@@ -12224,6 +12224,100 @@
         ],
         "type": "object"
       },
+      "GatewayLogIpGroupData": {
+        "properties": {
+          "client_errors": {
+            "format": "int64",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "client_ip": {
+            "type": "string"
+          },
+          "first_seen": {
+            "type": "string"
+          },
+          "hosts": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "last_seen": {
+            "type": "string"
+          },
+          "requests": {
+            "format": "int64",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "server_errors": {
+            "format": "int64",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "waf_hits": {
+            "format": "int64",
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "client_ip",
+          "requests",
+          "hosts",
+          "client_errors",
+          "server_errors",
+          "waf_hits",
+          "first_seen",
+          "last_seen"
+        ],
+        "type": "object"
+      },
+      "GatewayLogIpGroupsData": {
+        "properties": {
+          "date": {
+            "type": "string"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/GatewayLogIpGroupData"
+            },
+            "type": "array"
+          },
+          "limit": {
+            "minimum": 0,
+            "type": "integer"
+          },
+          "page": {
+            "minimum": 0,
+            "type": "integer"
+          },
+          "total": {
+            "minimum": 0,
+            "type": "integer"
+          },
+          "total_ips": {
+            "minimum": 0,
+            "type": "integer"
+          },
+          "total_requests": {
+            "format": "int64",
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "date",
+          "page",
+          "limit",
+          "total",
+          "total_ips",
+          "total_requests",
+          "items"
+        ],
+        "type": "object"
+      },
       "GatewayLoggingConfigData": {
         "properties": {
           "capacity_dropped_entries": {
@@ -42042,6 +42136,15 @@
               "pattern": "^(?:trc|waf)_[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
               "type": "string"
             }
+          },
+          {
+            "description": "Exact client IP, or unknown for missing client IP",
+            "in": "query",
+            "name": "client_ip",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
           }
         ],
         "responses": {
@@ -42087,6 +42190,161 @@
           }
         },
         "summary": "查看网关日志日志条目",
+        "tags": [
+          "gateway-logs"
+        ],
+        "x-fn-knock-contract-source": "utoipa"
+      }
+    },
+    "/api/admin/gateway-logs/ip-groups": {
+      "get": {
+        "description": "配置、检索和分析网关访问日志。。`GET /api/admin/gateway-logs/ip-groups` 用于读取当前状态、配置或导出内容，不会主动修改服务配置。 该操作不要求 JSON 请求体。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。",
+        "operationId": "get_api_admin_gateway_logs_ip_groups",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "date",
+            "required": false,
+            "schema": {
+              "format": "date",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "page",
+            "required": false,
+            "schema": {
+              "minimum": 1,
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "pattern": "^[1-9][0-9]*$",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "search",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "status",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "logged_in",
+            "required": false,
+            "schema": {
+              "enum": [
+                "true",
+                "false"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "credential",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "waf_status",
+            "required": false,
+            "schema": {
+              "enum": [
+                "has_waf",
+                "none"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "description": "Exact client IP, or unknown for missing client IP",
+            "in": "query",
+            "name": "client_ip",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "sort",
+            "required": false,
+            "schema": {
+              "default": "requests",
+              "enum": [
+                "requests",
+                "last_seen",
+                "client_errors",
+                "server_errors",
+                "waf_hits"
+              ],
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "properties": {
+                    "data": {
+                      "$ref": "#/components/schemas/GatewayLogIpGroupsData"
+                    },
+                    "message": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "success": {
+                      "const": true,
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "success",
+                    "data"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "「查看网关日志IP访问来源」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorEnvelope"
+                }
+              }
+            },
+            "description": "接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。"
+          }
+        },
+        "summary": "查看网关日志IP访问来源",
         "tags": [
           "gateway-logs"
         ],

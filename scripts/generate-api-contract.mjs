@@ -590,6 +590,7 @@ function validateContract(openapiPath) {
     ["get /api/admin/gateway-logs/dates", null],
     ["get /api/admin/gateway-logs/entries", null],
     ["delete /api/admin/gateway-logs/entries", "GatewayLogDeleteBodyData"],
+    ["get /api/admin/gateway-logs/ip-groups", null],
     ["get /api/admin/gateway-logs/analytics", null],
     ["post /api/admin/gateway-logs/analytics", null],
     ["get /api/admin/wol/local-relay", null],

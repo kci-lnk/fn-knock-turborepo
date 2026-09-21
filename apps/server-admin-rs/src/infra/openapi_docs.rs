@@ -586,13 +586,27 @@ pub(crate) fn build_openapi_document() -> Value {
         {"name":"waf_status","in":"query","required":false,"schema":{"type":"string","enum":["has_waf","none"]}},
         {"name":"trace_id","in":"query","required":false,"schema":{"type":"string","pattern":crate::trace_id::TRACE_ID_PATTERN}}
     ]);
+    let mut gateway_log_ip_parameters = gateway_log_entries_parameters.clone();
+    if let Some(items) = gateway_log_ip_parameters.as_array_mut() {
+        items.retain(|item| {
+            !["pagination", "cursor", "trace_id"].contains(&item["name"].as_str().unwrap_or(""))
+        });
+        items.push(json!({"name":"client_ip","in":"query","required":false,"schema":{"type":"string"},"description":"Exact client IP, or unknown for missing client IP"}));
+        items.push(json!({"name":"sort","in":"query","required":false,"schema":{"type":"string","enum":["requests","last_seen","client_errors","server_errors","waf_hits"],"default":"requests"}}));
+    }
     insert_typed_enveloped_operation(
         &mut paths,
         &typed_gateway_logs,
         "/api/admin/gateway-logs/entries",
         "get",
         "GatewayLogEntriesData",
-        Some(gateway_log_entries_parameters),
+        Some({
+            let mut parameters = gateway_log_entries_parameters;
+            if let Some(items) = parameters.as_array_mut() {
+                items.push(json!({"name":"client_ip","in":"query","required":false,"schema":{"type":"string"},"description":"Exact client IP, or unknown for missing client IP"}));
+            }
+            parameters
+        }),
         None,
     );
     insert_typed_enveloped_operation(
@@ -603,6 +617,15 @@ pub(crate) fn build_openapi_document() -> Value {
         "GatewayLogDeleteData",
         None,
         Some("GatewayLogDeleteBodyData"),
+    );
+    insert_typed_enveloped_operation(
+        &mut paths,
+        &typed_gateway_logs,
+        "/api/admin/gateway-logs/ip-groups",
+        "get",
+        "GatewayLogIpGroupsData",
+        Some(gateway_log_ip_parameters),
+        None,
     );
     let gateway_log_analytics_parameters = json!([
         {"name":"from","in":"query","required":false,"schema":{"type":"string","format":"date"}},
@@ -5105,7 +5128,7 @@ mod tests {
                 }
             }
         }
-        assert_eq!(operations, 464);
+        assert_eq!(operations, 465);
         assert_eq!(documented_tags, operation_tags);
         assert!(documented_tags.iter().all(|tag| {
             tags.iter().any(|item| {
@@ -5851,7 +5874,7 @@ mod tests {
             .filter_map(Value::as_object)
             .flat_map(|path| path.values())
             .collect::<Vec<_>>();
-        assert_eq!(operations.len(), 464);
+        assert_eq!(operations.len(), 465);
         assert!(
             operations
                 .iter()

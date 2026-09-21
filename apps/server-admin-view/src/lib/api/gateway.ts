@@ -32,6 +32,13 @@ type GatewayLogDirectory =
 type GatewayLogEntriesQuery = NonNullable<
   ApiContractOperations["get_api_admin_gateway_logs_entries"]["parameters"]["query"]
 >;
+export type GatewayLogIpGroup =
+  ApiContractComponents["schemas"]["GatewayLogIpGroupData"];
+export type GatewayLogIpGroups =
+  ApiContractComponents["schemas"]["GatewayLogIpGroupsData"];
+export type GatewayLogIpGroupsQuery = NonNullable<
+  ApiContractOperations["get_api_admin_gateway_logs_ip_groups"]["parameters"]["query"]
+>;
 type GatewayLogAnalyticsQuery = NonNullable<
   ApiContractOperations["get_api_admin_gateway_logs_analytics"]["parameters"]["query"]
 >;
@@ -116,6 +123,15 @@ export const GatewayLogsAPI = {
   ): Promise<GatewayLogEntriesPayload> {
     const res = await apiClient.get("/gateway-logs/entries", {
       params,
+    });
+    return res.data.data;
+  },
+  async getIpGroups(
+    params: GatewayLogIpGroupsQuery,
+  ): Promise<GatewayLogIpGroups> {
+    const res = await apiClient.get("/gateway-logs/ip-groups", {
+      params,
+      timeout: 125_000,
     });
     return res.data.data;
   },

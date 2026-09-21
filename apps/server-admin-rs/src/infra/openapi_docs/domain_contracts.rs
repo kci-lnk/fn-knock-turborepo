@@ -668,6 +668,8 @@ struct BackupImportResultData {
     GatewayLogDatesData,
     GatewayLogEntryData,
     GatewayLogEntriesData,
+    GatewayLogIpGroupData,
+    GatewayLogIpGroupsData,
     GatewayLogDeleteBodyData,
     GatewayLogDeleteData,
     GatewayLogAnalyticsRangeData,
@@ -5492,6 +5494,10 @@ fn query_parameters(contract: &DomainOperation) -> Vec<Value> {
             }),
         ],
         ("get", "/api/admin/gateway-logs/entries") => vec![
+            query_parameter(
+                "client_ip",
+                json!({ "type": "string", "description": "Exact client IP, or unknown for missing client IP" }),
+            ),
             query_parameter("date", json!({ "type": "string", "format": "date" })),
             query_parameter(
                 "pagination",

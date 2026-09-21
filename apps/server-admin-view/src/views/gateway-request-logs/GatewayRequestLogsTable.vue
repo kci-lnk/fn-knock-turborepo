@@ -17,6 +17,7 @@ import type { SelectableGatewayLogEntry } from "./useGatewayLogIpSelection";
 import { useSyncedHorizontalScroll } from "./useSyncedHorizontalScroll";
 
 const props = defineProps<{
+  absoluteTime?: boolean;
   blockIpsFromLogs: (ips: string[]) => Promise<void> | void;
   entries: SelectableGatewayLogEntry[];
   entriesCount: number;
@@ -137,6 +138,7 @@ onUnmounted(disposeResizeObserver);
             v-for="entry in entries"
             :key="entry.selectionKey"
             :entry="entry"
+            :absolute-time="absoluteTime"
             :is-selected="selectedLogEntryKeys.has(entry.selectionKey)"
             :block-ips-from-logs="blockIpsFromLogs"
             :get-connection-source-text="getConnectionSourceText"
@@ -219,6 +221,7 @@ onUnmounted(disposeResizeObserver);
             v-else
             :key="entry.selectionKey"
             :entry="entry"
+            :absolute-time="absoluteTime"
             :is-selected="selectedLogEntryKeys.has(entry.selectionKey)"
             :block-ips-from-logs="blockIpsFromLogs"
             :get-connection-source-text="getConnectionSourceText"

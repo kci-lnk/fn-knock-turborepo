@@ -11,7 +11,7 @@ import {
   Unlock,
 } from "lucide-vue-next";
 import ConfirmDangerTooltip from "@/components/ConfirmDangerTooltip.vue";
-import HumanFriendlyTime from "@admin-shared/components/common/HumanFriendlyTime.vue";
+import GatewayLogTime from "./GatewayLogTime.vue";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { TableCell, TableRow } from "@/components/ui/table";
@@ -71,7 +71,7 @@ const authCredentialLabel = (entry: GatewayRequestLogRowProps["entry"]) =>
           <div
             class="inline-flex h-5 shrink-0 items-center rounded-full bg-muted px-2 text-[11px] font-medium leading-none text-muted-foreground"
           >
-            <HumanFriendlyTime :value="entry.time" :locale="locale" />
+            <GatewayLogTime :value="entry.time" :locale="locale" :absolute="absoluteTime" />
           </div>
           <div class="min-w-0 flex-1">
             <div class="flex items-center gap-2 text-sm text-foreground">

@@ -234,3 +234,26 @@ pub(super) struct GatewayLogAnalyticsData {
 pub(super) struct GatewayLogAnalyticsRefreshData {
     refreshing: bool,
 }
+
+#[derive(Serialize, ToSchema)]
+pub(super) struct GatewayLogIpGroupData {
+    client_ip: String,
+    requests: u64,
+    hosts: Vec<String>,
+    client_errors: u64,
+    server_errors: u64,
+    waf_hits: u64,
+    first_seen: String,
+    last_seen: String,
+}
+
+#[derive(Serialize, ToSchema)]
+pub(super) struct GatewayLogIpGroupsData {
+    date: String,
+    page: usize,
+    limit: usize,
+    total: usize,
+    total_ips: usize,
+    total_requests: u64,
+    items: Vec<GatewayLogIpGroupData>,
+}

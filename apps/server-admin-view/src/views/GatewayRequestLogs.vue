@@ -1,30 +1,43 @@
 <script setup lang="ts">
 import { computed, ref } from "vue";
+import GatewayLogDetails from "./gateway-request-logs/GatewayLogDetails.vue";
+import GatewayLogViewHeader from "./gateway-request-logs/GatewayLogViewHeader.vue";
+import { useGatewayLogIpPresentation } from "./gateway-request-logs/useGatewayLogIpPresentation";
+import { Button } from "@/components/ui/button";
+import GatewayLogIpGroups from "./gateway-request-logs/GatewayLogIpGroups.vue";
 import { useI18n } from "vue-i18n";
 import { useRouter } from "vue-router";
-import DetailDialog from "@admin-shared/components/common/DetailDialog.vue";
-import DetailFieldsGrid from "@admin-shared/components/common/DetailFieldsGrid.vue";
 import type { GatewayLogEntry } from "../types";
 import GatewayRequestLogsActions from "./gateway-request-logs/GatewayRequestLogsActions.vue";
 import GatewayRequestLogsFilters from "./gateway-request-logs/GatewayRequestLogsFilters.vue";
 import GatewayRequestLogsPagination from "./gateway-request-logs/GatewayRequestLogsPagination.vue";
 import GatewayRequestLogsTable from "./gateway-request-logs/GatewayRequestLogsTable.vue";
 import {
-  buildGatewayLogDetailCopyText,
-  buildGatewayLogDetailItems,
   buildGatewayLogSelectionKey,
   getEntryActionIp,
   getEntryClientIp,
 } from "./gateway-request-logs/model";
 import { useGatewayLogIpSelection } from "./gateway-request-logs/useGatewayLogIpSelection";
 import { useGatewayRequestLogsResource } from "./gateway-request-logs/useGatewayRequestLogsResource";
-import TraceIdLink from "@/components/TraceIdLink.vue";
-
 const router = useRouter();
-const { t, locale } = useI18n();
+const { t } = useI18n();
 const isDetailsOpen = ref(false);
 const activeEntry = ref<GatewayLogEntry | null>(null);
+const resource = useGatewayRequestLogsResource();
 const {
+  viewMode,
+  clientIp,
+  isIpOverview,
+  ipGroups,
+  ipSort,
+  detailRequests,
+  loadError,
+  hasFilters,
+  backToIps,
+  showAllIpRequests,
+  setViewMode,
+  handleIpSortChange,
+  retry,
   activeCredentialLabel,
   activeLoggedInLabel,
   activeStatusLabel,
@@ -62,8 +75,9 @@ const {
   selectedWAFStatus,
   shouldFloatPagination,
   showTableSkeleton,
-} = useGatewayRequestLogsResource();
-
+} = resource;
+const { setRootRef, handleOpenIp, ipLocation, ipSummary } =
+  useGatewayLogIpPresentation(resource);
 const viewDetails = (entry: GatewayLogEntry) => {
   activeEntry.value = entry;
   isDetailsOpen.value = true;
@@ -133,20 +147,22 @@ const activeEntryWithIpLocation = computed(() =>
       }
     : null,
 );
-const detailItems = computed(() =>
-  buildGatewayLogDetailItems(
-    activeEntryWithIpLocation.value,
-    t,
-    String(locale.value),
-  ),
-);
-const detailCopyText = computed(() =>
-  buildGatewayLogDetailCopyText(detailItems.value),
-);
 </script>
 
 <template>
-  <div class="flex h-full flex-col gap-3">
+  <div :ref="setRootRef" class="flex h-full flex-col gap-3">
+    <GatewayLogViewHeader
+      :client-ip="clientIp"
+      :view-mode="viewMode"
+      :selected-date="selectedDate"
+      :detail-requests="detailRequests"
+      :loading="loading"
+      :has-filters="hasFilters"
+      :ip-location="ipLocation"
+      :set-view-mode="setViewMode"
+      :back-to-ips="backToIps"
+      :show-all-ip-requests="showAllIpRequests"
+    />
     <Teleport defer to="#request-analysis-logs-actions">
       <GatewayRequestLogsActions
         :block-ips="blockIpsFromLogs"
@@ -158,9 +174,9 @@ const detailCopyText = computed(() =>
         :loading="loading"
         :refresh="refreshAll"
         :release-ips="releaseIpsFromLogs"
-        :selected-blocked-ips="selectedBlockedLogIps"
+        :selected-blocked-ips="isIpOverview ? [] : selectedBlockedLogIps"
         :selected-date="selectedDate"
-        :selected-unblocked-ips="selectedUnblockedLogIps"
+        :selected-unblocked-ips="isIpOverview ? [] : selectedUnblockedLogIps"
       />
     </Teleport>
 
@@ -169,6 +185,7 @@ const detailCopyText = computed(() =>
     >
       <GatewayRequestLogsFilters
         v-model:search-query="searchQuery"
+        :summary="ipSummary"
         :active-credential-label="activeCredentialLabel"
         :active-logged-in-label="activeLoggedInLabel"
         :active-status-label="activeStatusLabel"
@@ -191,7 +208,28 @@ const detailCopyText = computed(() =>
         :selected-waf-status="selectedWAFStatus"
       />
 
+      <div
+        v-if="loadError"
+        role="alert"
+        class="flex min-h-48 flex-col items-center justify-center gap-3 p-4 text-sm text-muted-foreground"
+      >
+        <p>{{ t("admin.gatewayRequestLogs.loadFailed") }}</p>
+        <Button variant="outline" @click="retry">{{
+          t("admin.gatewayRequestLogs.ipView.retry")
+        }}</Button>
+      </div>
+      <GatewayLogIpGroups
+        v-else-if="isIpOverview"
+        :data="ipGroups"
+        :loading="loading"
+        :sort="ipSort"
+        :location="ipLocation"
+        @open="handleOpenIp"
+        @sort="handleIpSortChange"
+      />
       <GatewayRequestLogsTable
+        v-else
+        :absolute-time="Boolean(clientIp)"
         v-model:is-all-displayed-rows-selected="isAllDisplayedRowsSelected"
         :block-ips-from-logs="blockIpsFromLogs"
         :entries="displayedEntries"
@@ -224,20 +262,9 @@ const detailCopyText = computed(() =>
       />
     </div>
 
-    <DetailDialog
+    <GatewayLogDetails
       v-model:open="isDetailsOpen"
-      :title="t('admin.gatewayRequestLogs.detailTitle')"
-      :description="t('admin.gatewayRequestLogs.detailDescription')"
-      max-width-class="sm:max-w-[640px]"
-      close-variant="default"
-      :copy-text="detailCopyText"
-    >
-      <div v-if="activeEntry" class="space-y-4">
-        <TraceIdLink
-          :trace-id="activeEntry.trace_id || activeEntry.waf_trace_id"
-        />
-        <DetailFieldsGrid :items="detailItems" />
-      </div>
-    </DetailDialog>
+      :entry="activeEntryWithIpLocation"
+    />
   </div>
 </template>

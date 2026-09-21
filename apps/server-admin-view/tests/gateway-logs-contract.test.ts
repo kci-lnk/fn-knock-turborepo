@@ -24,11 +24,21 @@ describe("gateway logs API contract", () => {
       ["get", "/api/admin/gateway-logs/dates"],
       ["get", "/api/admin/gateway-logs/entries"],
       ["delete", "/api/admin/gateway-logs/entries"],
+      ["get", "/api/admin/gateway-logs/ip-groups"],
       ["get", "/api/admin/gateway-logs/analytics"],
       ["post", "/api/admin/gateway-logs/analytics"],
     ] as const) {
       assert.equal(contract.paths[path]?.[method]?.["x-fn-knock-contract-source"], "utoipa");
     }
+  });
+
+  it("declares exact IP filters and complete group pagination", () => {
+    const groups = contract.paths["/api/admin/gateway-logs/ip-groups"].get;
+    assert.deepEqual(groups.parameters?.find((parameter) => parameter.name === "sort")?.schema?.enum, ["requests", "last_seen", "client_errors", "server_errors", "waf_hits"]);
+    for (const name of ["client_ip", "date", "page", "limit", "search", "status", "logged_in", "credential", "waf_status"]) {
+      assert.ok(groups.parameters?.some((parameter) => parameter.name === name), name);
+    }
+    assert.ok(contract.paths["/api/admin/gateway-logs/entries"].get.parameters?.some((parameter) => parameter.name === "client_ip"));
   });
 
   it("retains filtering and deletion compatibility", () => {

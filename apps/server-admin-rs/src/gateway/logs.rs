@@ -21,6 +21,7 @@ use crate::{
 };
 
 mod analytics;
+mod ip_groups;
 
 const GATEWAY_LOG_ANALYTICS_TIMEOUT: Duration = Duration::from_secs(120);
 
@@ -33,7 +34,7 @@ fn gateway_logs_text(translator: &Translator, key: &str) -> String {
     translator.t(&format!("server.gatewayLogs.{key}"))
 }
 
-#[derive(Deserialize)]
+#[derive(Clone, Default, Deserialize)]
 struct GatewayLogQuery {
     date: Option<String>,
     pagination: Option<String>,
@@ -46,6 +47,8 @@ struct GatewayLogQuery {
     credential: Option<String>,
     waf_status: Option<String>,
     trace_id: Option<String>,
+    client_ip: Option<String>,
+    sort: Option<String>,
 }
 
 #[derive(Deserialize)]
@@ -79,6 +82,7 @@ pub(crate) fn gateway_logs_openapi_routes() -> OpenApiRouter<AppState> {
         .routes(routes!(directory))
         .routes(routes!(dates))
         .routes(routes!(entries))
+        .routes(routes!(ip_groups::ip_groups))
         .routes(routes!(delete_entries))
         .routes(routes!(analytics))
         .routes(routes!(refresh_analytics_geo))
@@ -289,11 +293,19 @@ async fn entries(State(state): State<AppState>, Query(query): Query<GatewayLogQu
     if trace_id.is_some_and(|value| !crate::trace_id::is_valid_trace_id(value)) {
         return response::error(StatusCode::BAD_REQUEST, "invalid trace_id");
     }
+    if ip_groups::validate_client_ip(query.client_ip.as_deref()).is_err() {
+        return response::error(StatusCode::BAD_REQUEST, "invalid client_ip");
+    }
     let waf_status = normalize_waf_status_filter(query.waf_status.as_deref());
     let result = if let Some(trace_id) = trace_id {
         find_gateway_log_entry(&state, trace_id).await
-    } else if let Some(waf_status) = waf_status {
-        get_entries_with_waf_filter(&state, query, waf_status).await
+    } else if waf_status.is_some() || query.client_ip.is_some() {
+        tokio::time::timeout(
+            GATEWAY_LOG_ANALYTICS_TIMEOUT,
+            get_entries_with_filters(&state, query, waf_status),
+        )
+        .await
+        .unwrap_or_else(|error| Err(error.into()))
     } else {
         go_log_entries(&state, &query, true).await
     };
@@ -469,11 +481,26 @@ async fn delete_entries(State(state): State<AppState>, body: Bytes) -> Response 
     )
 }
 
-async fn get_entries_with_waf_filter(
+async fn get_entries_with_filters(
     state: &AppState,
-    mut query: GatewayLogQuery,
-    waf_status: &'static str,
+    query: GatewayLogQuery,
+    waf_status: Option<&'static str>,
 ) -> anyhow::Result<Value> {
+    filtered_entries_with(query, waf_status, |scan| async move {
+        go_log_entries(state, &scan, false).await
+    })
+    .await
+}
+
+async fn filtered_entries_with<F, Fut>(
+    mut query: GatewayLogQuery,
+    waf_status: Option<&'static str>,
+    mut fetch: F,
+) -> anyhow::Result<Value>
+where
+    F: FnMut(GatewayLogQuery) -> Fut,
+    Fut: std::future::Future<Output = anyhow::Result<Value>>,
+{
     let limit = normalize_positive_integer(query.limit.as_deref(), 20, 200);
     let initial_cursor = normalize_optional_cursor(query.cursor.as_deref());
     let mut items = Vec::<Value>::new();
@@ -484,12 +511,15 @@ async fn get_entries_with_waf_filter(
     query.pagination = Some("cursor".to_string());
     query.waf_status = None;
 
-    for scans in 0..200 {
+    loop {
         let remaining = (limit - items.len() as i64).max(1);
         query.limit = Some(remaining.to_string());
         query.cursor = raw_cursor.clone();
-        let data = go_log_entries(state, &query, false).await?;
+        let data = fetch(query.clone()).await?;
         if base_data.is_none() {
+            if let Some(date) = data.get("date").and_then(Value::as_str) {
+                query.date = Some(date.to_string());
+            }
             base_data = Some(data.clone());
         }
 
@@ -499,7 +529,7 @@ async fn get_entries_with_waf_filter(
             .cloned()
             .unwrap_or_default()
         {
-            if gateway_log_matches_waf_status(&entry, waf_status) {
+            if ip_groups::matches_entry(&entry, query.client_ip.as_deref(), waf_status) {
                 items.push(entry);
             }
         }
@@ -514,24 +544,27 @@ async fn get_entries_with_waf_filter(
                 .get("has_more")
                 .and_then(Value::as_bool)
                 .unwrap_or(false)
-                || candidate_next_cursor.is_empty()
             {
                 break;
             }
+            anyhow::ensure!(
+                !candidate_next_cursor.is_empty(),
+                "log cursor did not advance"
+            );
 
             next_cursor = candidate_next_cursor.clone();
             let mut lookahead_cursor = Some(candidate_next_cursor);
-            for _lookups in (scans + 1)..200 {
+            loop {
                 query.cursor = lookahead_cursor.clone();
-                query.limit = Some(limit.to_string());
-                let lookahead_data = go_log_entries(state, &query, false).await?;
+                query.limit = Some("200".to_string());
+                let lookahead_data = fetch(query.clone()).await?;
                 if lookahead_data
                     .get("items")
                     .and_then(Value::as_array)
                     .is_some_and(|entries| {
-                        entries
-                            .iter()
-                            .any(|entry| gateway_log_matches_waf_status(entry, waf_status))
+                        entries.iter().any(|entry| {
+                            ip_groups::matches_entry(entry, query.client_ip.as_deref(), waf_status)
+                        })
                     })
                 {
                     has_more = true;
@@ -548,9 +581,10 @@ async fn get_entries_with_waf_filter(
                     .get("next_cursor")
                     .and_then(Value::as_str)
                     .unwrap_or("");
-                if cursor.is_empty() {
-                    break;
-                }
+                anyhow::ensure!(
+                    !cursor.is_empty() && lookahead_cursor.as_deref() != Some(cursor),
+                    "log cursor did not advance"
+                );
                 lookahead_cursor = Some(cursor.to_string());
             }
             break;
@@ -567,9 +601,10 @@ async fn get_entries_with_waf_filter(
             .get("next_cursor")
             .and_then(Value::as_str)
             .unwrap_or("");
-        if cursor.is_empty() {
-            break;
-        }
+        anyhow::ensure!(
+            !cursor.is_empty() && raw_cursor.as_deref() != Some(cursor),
+            "log cursor did not advance"
+        );
         raw_cursor = Some(cursor.to_string());
     }
 
@@ -611,7 +646,10 @@ async fn get_entries_with_waf_filter(
         json!(items.len() as i64 + if has_more { 1 } else { 0 }),
     );
     object.insert("cursor".to_string(), Value::String(response_cursor));
-    object.insert("next_cursor".to_string(), Value::String(next_cursor));
+    object.insert(
+        "next_cursor".to_string(),
+        Value::String(if has_more { next_cursor } else { String::new() }),
+    );
     object.insert("has_more".to_string(), Value::Bool(has_more));
     object.insert("items".to_string(), Value::Array(items));
     Ok(base_data)
@@ -1289,6 +1327,76 @@ mod tests {
         );
     }
 
+    #[tokio::test]
+    async fn exact_ip_paging_finds_sparse_matches_without_skipping_later_entries() {
+        let query = GatewayLogQuery {
+            client_ip: Some("8.8.8.8".into()),
+            limit: Some("1".into()),
+            ..Default::default()
+        };
+        let fetch = |scan: GatewayLogQuery| {
+            let start = scan
+                .cursor
+                .as_deref()
+                .unwrap_or("0")
+                .parse::<usize>()
+                .unwrap();
+            let limit = scan.limit.as_deref().unwrap().parse::<usize>().unwrap();
+            let end = (start + limit).min(610);
+            let items: Vec<_> = (start..end).map(|i| json!({"client_ip":if [201, 403, 607].contains(&i) { "8.8.8.8" } else { "1.1.1.1" }, "path":"/8.8.8.8", "status":200})).collect();
+            std::future::ready(Ok(
+                json!({"cursor":start.to_string(),"next_cursor":if end < 610 {end.to_string()} else {String::new()},"has_more":end < 610,"items":items}),
+            ))
+        };
+        let first = filtered_entries_with(query.clone(), None, fetch)
+            .await
+            .unwrap();
+        assert_eq!(first["items"].as_array().unwrap().len(), 1);
+        assert_eq!(first["items"][0]["client_ip"], "8.8.8.8");
+        assert_eq!(first["next_cursor"], "202");
+        assert_eq!(first["has_more"], true);
+        let second = filtered_entries_with(
+            GatewayLogQuery {
+                cursor: Some("202".into()),
+                ..query.clone()
+            },
+            None,
+            fetch,
+        )
+        .await
+        .unwrap();
+        assert_eq!(second["next_cursor"], "404");
+        let third = filtered_entries_with(
+            GatewayLogQuery {
+                cursor: Some("404".into()),
+                ..query
+            },
+            None,
+            fetch,
+        )
+        .await
+        .unwrap();
+        assert_eq!(third["items"].as_array().unwrap().len(), 1);
+        assert_eq!(third["has_more"], false);
+        assert_eq!(third["next_cursor"], "");
+    }
+
+    #[tokio::test]
+    async fn filtered_scan_rejects_missing_continuations_and_pins_date() {
+        let mut calls = 0;
+        let query = GatewayLogQuery {
+            client_ip: Some("8.8.8.8".into()),
+            ..Default::default()
+        };
+        let result = filtered_entries_with(query, None, |scan| {
+            calls += 1;
+            if calls == 2 { assert_eq!(scan.date.as_deref(), Some("2026-09-21")); }
+            std::future::ready(Ok(json!({"date":"2026-09-21", "has_more":true, "next_cursor":if calls == 1 { "next" } else { "" }, "items":[]})))
+        }).await;
+        assert!(result.is_err());
+        assert_eq!(calls, 2);
+    }
+
     #[test]
     fn builds_gateway_log_query_string() {
         let query = GatewayLogQuery {
@@ -1302,6 +1410,8 @@ mod tests {
             logged_in: Some("true".to_string()),
             credential: None,
             waf_status: Some("has_waf".to_string()),
+            client_ip: None,
+            sort: None,
             trace_id: Some("trc_3f93d40a-89ea-4dbe-a04f-67692778d973".to_string()),
         };
         let output = gateway_log_query_string(&query, true).unwrap();
@@ -1329,6 +1439,8 @@ mod tests {
             credential: None,
             waf_status: None,
             trace_id: None,
+            client_ip: None,
+            sort: None,
         };
         let output = gateway_log_query_string(&query, true).unwrap();
         assert!(output.contains("page="));

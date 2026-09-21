@@ -1,4 +1,8 @@
 import axios from "axios";
+import { useGatewayLogDates } from "./useGatewayLogDates";
+import { useGatewayLogFilterLabels } from "./useGatewayLogFilterLabels";
+import { useRoute } from "vue-router";
+import { useGatewayLogIpView } from "./useGatewayLogIpView";
 import { computed, onBeforeUnmount, onMounted, ref } from "vue";
 import { useI18n } from "vue-i18n";
 import {
@@ -14,19 +18,14 @@ import { GatewayLogsAPI } from "@/lib/api/gateway";
 import { useConfigStore } from "@/store/config";
 import type { GatewayLogEntry, TOTPCredential } from "@/types";
 import {
-  LOGIN_FILTER_OPTIONS,
-  STATUS_FILTER_OPTIONS,
-  UNRECORDED_CREDENTIAL_FILTER,
-  WAF_FILTER_OPTIONS,
   getEntryClientIp,
-  getGatewayLogOptionLabel,
   getTodayString,
   type GatewayLoginFilterValue,
   type GatewayStatusFilterValue,
   type GatewayWAFFilterValue,
 } from "./model";
-
 export const useGatewayRequestLogsResource = () => {
+  const route = useRoute();
   const configStore = useConfigStore();
   const { t } = useI18n();
   let isDisposed = false;
@@ -34,7 +33,11 @@ export const useGatewayRequestLogsResource = () => {
   const entries = ref<GatewayLogEntry[]>([]);
   const logsDir = ref("");
   const availableDates = ref<string[]>([]);
-  const selectedDate = ref(getTodayString());
+  const selectedDate = ref(
+    typeof route.query.log_date === "string"
+      ? route.query.log_date
+      : getTodayString(),
+  );
   const selectedStatus = ref<GatewayStatusFilterValue>("all");
   const selectedLoggedIn = ref<GatewayLoginFilterValue>("all");
   const selectedCredential = ref("all");
@@ -45,8 +48,8 @@ export const useGatewayRequestLogsResource = () => {
   const credentialOptions = ref<TOTPCredential[]>([]);
   const selectedLogEntryKeys = ref<Set<string>>(new Set());
   const {
-    canLoadNewer,
-    canLoadOlder,
+    canLoadNewer: canLoadNewerEntries,
+    canLoadOlder: canLoadOlderEntries,
     currentCursor,
     cursorHistory,
     loadFirst: loadCursorFirst,
@@ -56,6 +59,34 @@ export const useGatewayRequestLogsResource = () => {
     reset: resetCursorPagination,
   } = useCursorPagination({ loading });
   const { trackIps, getSnapshot } = useIpLocationBatch();
+  const ipView = useGatewayLogIpView({
+    loading,
+    selectedDate,
+    searchQuery,
+    selectedStatus,
+    selectedLoggedIn,
+    selectedCredential,
+    selectedWAFStatus,
+    limit,
+    selectedLogEntryKeys,
+    resetCursorPagination,
+    trackIps,
+    invalidateRequest: () => {
+      entriesRequestId += 1;
+      loading.value = false;
+    },
+    fetchEntries: () => fetchEntries(),
+    applyFilter: (update) => applyFilter(update),
+  });
+  const {
+    clientIp,
+    isIpOverview,
+    ipGroups,
+    ipPage,
+    ipSort,
+    detailRequests,
+    loadError,
+  } = ipView;
 
   const showTableSkeleton = useDelayedLoading(
     () => loading.value && entries.value.length === 0,
@@ -63,81 +94,46 @@ export const useGatewayRequestLogsResource = () => {
   const isLoggingEnabled = computed(
     () => configStore.config?.gateway_logging?.enabled ?? false,
   );
-  const normalizedStatusQuery = computed(() =>
-    selectedStatus.value === "all" ? "" : selectedStatus.value,
-  );
-  const normalizedLoggedInQuery = computed(() =>
-    selectedLoggedIn.value === "all" ? "" : selectedLoggedIn.value,
-  );
-  const normalizedCredentialQuery = computed(() =>
-    selectedCredential.value === "all" ? "" : selectedCredential.value,
-  );
-  const normalizedWAFStatusQuery = computed(() =>
-    selectedWAFStatus.value === "all" ? "" : selectedWAFStatus.value,
-  );
-  const activeStatusLabel = computed(() =>
-    getGatewayLogOptionLabel(
-      STATUS_FILTER_OPTIONS,
-      selectedStatus.value,
-      "admin.gatewayRequestLogs.statusFilters.all",
-      t,
-    ),
-  );
-  const activeLoggedInLabel = computed(() =>
-    getGatewayLogOptionLabel(
-      LOGIN_FILTER_OPTIONS,
-      selectedLoggedIn.value,
-      "admin.gatewayRequestLogs.loginFilters.all",
-      t,
-    ),
-  );
-  const credentialFilterOptions = computed(() => {
-    const options = [
-      {
-        value: "all",
-        label: t("admin.gatewayRequestLogs.credentialFilters.all"),
-      },
-      {
-        value: UNRECORDED_CREDENTIAL_FILTER,
-        label: t("admin.gatewayRequestLogs.credentialFilters.unrecorded"),
-      },
-      ...credentialOptions.value.map((credential) => ({
-        value: credential.id,
-        label: credential.comment?.trim() || credential.id,
-      })),
-    ];
-    if (
-      selectedCredential.value !== "all" &&
-      !options.some((option) => option.value === selectedCredential.value)
-    ) {
-      options.push({
-        value: selectedCredential.value,
-        label: selectedCredential.value,
-      });
-    }
-    return options;
+  const {
+    activeStatusLabel,
+    activeLoggedInLabel,
+    credentialFilterOptions,
+    activeCredentialLabel,
+    activeWAFStatusLabel,
+  } = useGatewayLogFilterLabels({
+    selectedStatus,
+    selectedLoggedIn,
+    selectedCredential,
+    selectedWAFStatus,
+    credentialOptions,
   });
-  const activeCredentialLabel = computed(
-    () =>
-      credentialFilterOptions.value.find(
-        (option) => option.value === selectedCredential.value,
-      )?.label || selectedCredential.value,
+  const canLoadNewer = computed(() =>
+    isIpOverview.value ? ipPage.value > 1 : canLoadNewerEntries.value,
   );
-  const activeWAFStatusLabel = computed(() =>
-    getGatewayLogOptionLabel(
-      WAF_FILTER_OPTIONS,
-      selectedWAFStatus.value,
-      "admin.gatewayRequestLogs.wafFilters.all",
-      t,
-    ),
+  const canLoadOlder = computed(() =>
+    isIpOverview.value
+      ? ipPage.value * Number(limit.value) < (ipGroups.value?.total ?? 0)
+      : canLoadOlderEntries.value,
   );
   const cursorPageLabel = computed(() =>
-    t("admin.gatewayRequestLogs.cursorPage", {
-      page: cursorHistory.value.length + 1,
-    }),
+    t(
+      isIpOverview.value
+        ? "admin.gatewayRequestLogs.ipView.page"
+        : "admin.gatewayRequestLogs.cursorPage",
+      {
+        page: isIpOverview.value
+          ? ipPage.value
+          : cursorHistory.value.length + 1,
+      },
+    ),
   );
   const shouldFloatPagination = computed(
-    () => entries.value.length > 0 || canLoadNewer.value || canLoadOlder.value,
+    () =>
+      (isIpOverview.value
+        ? (ipGroups.value?.items.length ?? 0) > 0
+        : entries.value.length > 0) ||
+      canLoadNewer.value ||
+      canLoadOlder.value,
   );
   const { isPending: isDeleting, run: runDelete } = useAsyncAction({
     onError: (error) => {
@@ -150,25 +146,15 @@ export const useGatewayRequestLogsResource = () => {
     },
   });
 
-  const applyDates = (dates: string[], preferred?: string) => {
-    const fallbackToday = getTodayString();
-    const nextDates = dates.length > 0 ? dates : [fallbackToday];
-    availableDates.value = nextDates;
-    if (preferred && nextDates.includes(preferred)) {
-      selectedDate.value = preferred;
-    } else if (!nextDates.includes(selectedDate.value)) {
-      selectedDate.value = nextDates.includes(fallbackToday)
-        ? fallbackToday
-        : nextDates[0] || fallbackToday;
-    }
-  };
-
-  const fetchDates = async (preferred?: string) => {
-    const data = await GatewayLogsAPI.getDates();
-    if (isDisposed) return;
-    logsDir.value = data.logs_dir || "";
-    applyDates(data.dates || [], preferred || data.today || selectedDate.value);
-  };
+  const { applyDates, fetchDates } = useGatewayLogDates({
+    selectedDate,
+    availableDates,
+    logsDir,
+    currentRequest: () => {
+      const id = entriesRequestId;
+      return () => !isDisposed && id === entriesRequestId;
+    },
+  });
 
   const fetchCredentialOptions = async () => {
     try {
@@ -189,15 +175,40 @@ export const useGatewayRequestLogsResource = () => {
       limit: limit.value,
       cursor: currentCursor.value || undefined,
       search: searchQuery.value || undefined,
-      status: normalizedStatusQuery.value || undefined,
-      logged_in: normalizedLoggedInQuery.value || undefined,
-      credential: normalizedCredentialQuery.value || undefined,
-      waf_status: normalizedWAFStatusQuery.value || undefined,
+      status: selectedStatus.value === "all" ? undefined : selectedStatus.value,
+      logged_in:
+        selectedLoggedIn.value === "all" ? undefined : selectedLoggedIn.value,
+      credential:
+        selectedCredential.value === "all"
+          ? undefined
+          : selectedCredential.value,
+      waf_status:
+        selectedWAFStatus.value === "all" ? undefined : selectedWAFStatus.value,
+      client_ip: clientIp.value || undefined,
     };
     loading.value = true;
+    loadError.value = false;
     try {
-      const data = await GatewayLogsAPI.getEntries(params);
+      if (isIpOverview.value) {
+        const data = await GatewayLogsAPI.getIpGroups({
+          ...params,
+          page: ipPage.value,
+          sort: ipSort.value,
+        });
+        if (isDisposed || currentRequestId !== entriesRequestId) return;
+        ipGroups.value = data;
+        ipPage.value = data.page;
+        trackIps(data.items.map((item) => item.client_ip));
+        return;
+      }
+      const [data, summary] = await Promise.all([
+        GatewayLogsAPI.getEntries(params),
+        clientIp.value && !currentCursor.value && detailRequests.value === null
+          ? GatewayLogsAPI.getIpGroups({ ...params, page: 1, limit: "1" })
+          : Promise.resolve(null),
+      ]);
       if (isDisposed || currentRequestId !== entriesRequestId) return;
+      if (summary) detailRequests.value = summary.total_requests;
       logsDir.value = data.logs_dir || "";
       entries.value = data.items || [];
       selectedLogEntryKeys.value = new Set();
@@ -206,6 +217,9 @@ export const useGatewayRequestLogsResource = () => {
       applyDates(data.available_dates || [], data.date || params.date);
     } catch (error) {
       if (isDisposed || currentRequestId !== entriesRequestId) return;
+      loadError.value = true;
+      ipGroups.value = null;
+      detailRequests.value = null;
       entries.value = [];
       trackIps([]);
       nextCursor.value = "";
@@ -226,26 +240,34 @@ export const useGatewayRequestLogsResource = () => {
   };
 
   const refreshAll = async () => {
+    const requestId = ++entriesRequestId;
+    loading.value = true;
     await Promise.all([
       fetchDates(selectedDate.value),
       fetchCredentialOptions(),
     ]);
+    if (isDisposed || requestId !== entriesRequestId) return;
     resetCursorPagination();
+    ipPage.value = 1;
+    detailRequests.value = null;
     await fetchEntries();
   };
 
   const applyFilter = async (update: () => void) => {
     update();
     resetCursorPagination();
+    ipPage.value = 1;
+    detailRequests.value = null;
     await fetchEntries();
   };
 
-  const handleDateChange = (value: unknown) =>
-    value
-      ? applyFilter(() => {
-          selectedDate.value = String(value);
-        })
-      : Promise.resolve();
+  const handleDateChange = async (value: unknown) => {
+    if (!value) return;
+    await applyFilter(() => {
+      selectedDate.value = String(value);
+    });
+    await ipView.syncDateQuery();
+  };
   const handleSearch = () => applyFilter(() => undefined);
   const handleStatusChange = (value: unknown) =>
     value
@@ -278,19 +300,14 @@ export const useGatewayRequestLogsResource = () => {
         })
       : Promise.resolve();
 
-  const handleLoadOlder = async () => {
-    if (loadCursorOlder()) await fetchEntries();
-  };
-  const handleLoadNewer = async () => {
-    if (loadCursorNewer()) await fetchEntries();
-  };
-  const handleLoadFirst = async () => {
-    if (loadCursorFirst()) await fetchEntries();
-  };
+  const handleLoadOlder = () => ipView.loadPage("older", loadCursorOlder);
+  const handleLoadNewer = () => ipView.loadPage("newer", loadCursorNewer);
+  const handleLoadFirst = () => ipView.loadPage("first", loadCursorFirst);
 
   const deleteSelectedDate = async () => {
     await runDelete(() => GatewayLogsAPI.deleteDate(selectedDate.value), {
       onSuccess: async (data) => {
+        ipView.invalidateOverview();
         toast.success(
           data.deleted
             ? t("admin.gatewayRequestLogs.deletedForDate", {
@@ -310,26 +327,34 @@ export const useGatewayRequestLogsResource = () => {
           data.available_dates.find((item) => item !== selectedDate.value) ||
           getTodayString();
         await fetchDates(nextPreferred);
+        await ipView.syncDateQuery();
         await fetchEntries();
       },
     });
   };
 
   onMounted(async () => {
+    const requestId = entriesRequestId;
+    loading.value = true;
     await Promise.all([
-      fetchDates(selectedDate.value),
+      fetchDates(
+        typeof route.query.log_date === "string"
+          ? route.query.log_date
+          : undefined,
+      ),
       fetchCredentialOptions(),
     ]);
-    if (isDisposed) return;
+    if (isDisposed || requestId !== entriesRequestId) return;
     await fetchEntries();
   });
-
   onBeforeUnmount(() => {
     isDisposed = true;
     entriesRequestId += 1;
   });
 
   return {
+    ...ipView,
+    retry: fetchEntries,
     activeCredentialLabel,
     activeLoggedInLabel,
     activeStatusLabel,

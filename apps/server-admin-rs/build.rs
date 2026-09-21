@@ -58,6 +58,7 @@ fn find_protoc_on_path() -> Option<PathBuf> {
 
 fn main() {
     let manifest_dir = PathBuf::from(env::var("CARGO_MANIFEST_DIR").expect("CARGO_MANIFEST_DIR"));
+    write_source_fingerprint(&manifest_dir);
     let version_file = manifest_dir.join("../../version.json");
     let proto_file =
         manifest_dir.join("../../packages/grpc-contracts/proto/fnknock/v1/gateway.proto");
@@ -191,4 +192,48 @@ fn app_version_source(metadata: &AppMetadata) -> String {
         backup_schema_version = metadata.backup_schema_version,
         backup_import_min_version = metadata.backup_import_min_version,
     )
+}
+
+// Source identity including uncommitted changes; not a binary integrity hash.
+fn write_source_fingerprint(manifest_dir: &Path) {
+    fn collect(root: &Path, files: &mut Vec<PathBuf>) {
+        for entry in fs::read_dir(root).expect("read Rust source directory") {
+            let entry = entry.expect("read Rust source entry");
+            let kind = entry.file_type().expect("read Rust source file type");
+            if kind.is_dir() {
+                collect(&entry.path(), files);
+            } else if kind.is_file() && entry.path().extension().is_some_and(|ext| ext == "rs") {
+                files.push(entry.path());
+            }
+        }
+    }
+    let source = manifest_dir.join("src");
+    println!("cargo:rerun-if-changed={}", source.display());
+    let mut files = Vec::new();
+    collect(&source, &mut files);
+    for name in ["build.rs", "Cargo.toml", "Cargo.lock"] {
+        let file = manifest_dir.join(name);
+        println!("cargo:rerun-if-changed={}", file.display());
+        if file.is_file() {
+            files.push(file);
+        }
+    }
+    files.sort();
+    let mut hash = 0xcbf29ce484222325_u64;
+    for file in files {
+        let relative = file
+            .strip_prefix(manifest_dir)
+            .expect("relative Rust source path")
+            .to_string_lossy()
+            .replace('\\', "/");
+        for byte in relative
+            .bytes()
+            .chain(std::iter::once(0))
+            .chain(fs::read(file).expect("read Rust source"))
+            .chain(std::iter::once(0))
+        {
+            hash = (hash ^ u64::from(byte)).wrapping_mul(0x100000001b3);
+        }
+    }
+    println!("cargo:rustc-env=FN_KNOCK_RUST_SOURCE_FINGERPRINT=fnv1a64-{hash:016x}");
 }

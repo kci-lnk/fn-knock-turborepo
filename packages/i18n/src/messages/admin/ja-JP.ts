@@ -6851,6 +6851,14 @@ export const jaJPAdmin = {
       recentEvents: "直近 20 件の稼働イベント",
       noEvents: "稼働イベントはありません",
       debug: {
+        configDetails: "設定読み取りの詳細",
+        sourceFingerprint: "ソースフィンガープリント",
+        averageWall: "平均時間 ms",
+        maxWallAt: "最長呼び出しの完了時刻 s",
+        maxBytes: "最大 JSON サイズ",
+        cacheLimit: "キャッシュ JSON サイズ上限",
+        phaseHint:
+          "詳細は親操作の子フェーズです。親操作の時間と合算しないでください。hit / miss / bypass_oversize はキャッシュヒット、ミス、サイズ超過によるスキップを示します。バイト数は元の JSON サイズです。時刻は収集開始からの経過時間で、待機にはキューとスケジューリングが含まれます。",
         open: "実行診断",
         view: "診断を表示",
         title: "Rust 実行診断",

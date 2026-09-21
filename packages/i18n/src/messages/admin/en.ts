@@ -6860,6 +6860,14 @@ export const enAdmin = {
       recentEvents: "Latest 20 runtime events",
       noEvents: "No runtime events",
       debug: {
+        configDetails: "Configuration read details",
+        sourceFingerprint: "Source fingerprint",
+        averageWall: "Mean wall ms",
+        maxWallAt: "Longest call completed at s",
+        maxBytes: "Maximum JSON size",
+        cacheLimit: "Cached JSON size limit",
+        phaseHint:
+          "Details are nested phases; do not add their timings to parent operations. hit / miss / bypass_oversize mean cache hit, miss, and size-limit bypass. Bytes measure raw JSON. Times are relative to capture start; admission includes queueing and scheduling.",
         open: "Runtime diagnostics",
         view: "View diagnostics",
         title: "Rust runtime diagnostics",

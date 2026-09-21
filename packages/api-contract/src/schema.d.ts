@@ -9468,10 +9468,17 @@ export interface components {
         };
         DebugProcess: {
             arch: string;
+            /**
+             * Format: int64
+             * @description Raw JSON threshold; parsed allocations have additional overhead.
+             */
+            config_cache_limit_bytes?: number | null;
             logical_cpus: number;
             os: string;
             /** Format: int32 */
             pid: number;
+            /** @description This crate's Rust source/build inputs, not a binary hash. */
+            source_fingerprint?: string | null;
             /** Format: int64 */
             uptime_ms: number;
             version: string;
@@ -11707,8 +11714,15 @@ export interface components {
             in_flight: number;
             kind: string;
             label: string;
+            /** Format: int64 */
+            max_bytes?: number | null;
             /** Format: double */
             max_cpu_ms: number | null;
+            /**
+             * Format: int64
+             * @description Completion offset from capture start for the longest completed call.
+             */
+            max_wall_at_ms?: number | null;
             /** Format: double */
             max_wall_ms: number;
             /**
@@ -11716,6 +11730,11 @@ export interface components {
              * @description Sum of item counts explicitly supplied by the instrumented operation.
              */
             rows: number | null;
+            /**
+             * Format: int64
+             * @description Numeric payload sizes only; never includes document contents.
+             */
+            total_bytes?: number | null;
             /**
              * Format: double
              * @description Available only for scopes measured on one SQLite execution thread.

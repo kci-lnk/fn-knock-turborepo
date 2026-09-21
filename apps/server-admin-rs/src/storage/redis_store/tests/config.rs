@@ -1,6 +1,158 @@
 use super::*;
 
 #[tokio::test]
+async fn fingerprint_reuse_preserves_legacy_serialization_for_equal_json_values() {
+    let (_dir, store) = open_test_store().await;
+    let legacy = r#"{"host_mappings":[{"weight":-0.0}]}"#;
+    let typed = r#"{"host_mappings":[{"weight":0.0}]}"#;
+    assert_eq!(
+        serde_json::from_str::<Value>(legacy).unwrap(),
+        serde_json::from_str::<Value>(typed).unwrap()
+    );
+    store.set_string_value(CONFIG_KEY, legacy).await.unwrap();
+    let expected = store.get_config().await.unwrap();
+    store
+        .manager
+        .call(move |conn| {
+            conn.execute("UPDATE config_documents SET document_json = ?1", [typed])?;
+            Ok(())
+        })
+        .await
+        .unwrap();
+    let recorder = store.diagnostics();
+    let generation = recorder.start();
+    let actual = store.get_config().await.unwrap();
+    assert_eq!(
+        actual[CONFIG_GENERATION_MARKER],
+        expected[CONFIG_GENERATION_MARKER]
+    );
+    let stats = recorder.snapshot();
+    assert_eq!(
+        stats
+            .operations
+            .iter()
+            .find(|row| row.label == "config.fingerprint.fallback")
+            .unwrap()
+            .calls,
+        1
+    );
+    assert!(
+        !stats
+            .operations
+            .iter()
+            .any(|row| row.label == "config.fingerprint.reuse")
+    );
+    recorder.stop(generation);
+}
+
+#[tokio::test]
+async fn config_diagnostics_measure_cache_outcomes_and_phases_without_contents() {
+    let (_dir, store) = open_test_store().await;
+    store
+        .set_config_top_level_value(
+            "diagnostic_canary",
+            json!({"secret": "private-config-value", "padding": "x".repeat(514_736)}),
+        )
+        .await
+        .unwrap();
+    store.get_config().await.unwrap();
+    let recorder = store.diagnostics();
+    let generation = recorder.start();
+    for _ in 0..2 {
+        store.get_config().await.unwrap();
+    }
+    let report = recorder.snapshot();
+    let hit = report
+        .operations
+        .iter()
+        .find(|row| row.label == "config.cache.hit")
+        .unwrap();
+    assert_eq!(hit.calls, 2);
+    assert!(hit.max_bytes.unwrap() > 514_736);
+    assert!(
+        hit.max_bytes.unwrap() <= crate::storage::typed_config::MAX_CACHED_CONFIG_JSON_BYTES as u64
+    );
+    for label in [
+        "config.read",
+        "config.load_shadow",
+        "config.primary_admission",
+        "config.transaction_begin",
+        "config.legacy_read",
+        "config.typed_query",
+        "config.transaction_commit",
+        "config.legacy_json_parse",
+        "config.compare",
+        "config.async_resume",
+        "config.generation_marker",
+        "config.fingerprint.reuse",
+        "config.snapshot_compare",
+    ] {
+        let phase = report
+            .operations
+            .iter()
+            .find(|row| row.label == label)
+            .unwrap();
+        assert_eq!(phase.calls, 2, "{label}");
+        assert_eq!(phase.failures, 0, "{label}");
+    }
+    assert!(
+        !report.operations.iter().any(
+            |row| row.label == "config.json_parse" || row.label == "config.fingerprint.compute"
+        )
+    );
+    let json = serde_json::to_string(&report).unwrap();
+    assert!(!json.contains("private-config-value"));
+    assert!(!json.contains("diagnostic_canary"));
+    recorder.stop(generation);
+
+    let generation = recorder.start();
+    for value in [
+        json!({"fresh": true}),
+        json!({"large": "x".repeat(crate::storage::typed_config::MAX_CACHED_CONFIG_JSON_BYTES)}),
+    ] {
+        store
+            .manager
+            .call(move |conn| {
+                conn.execute(
+                    "UPDATE config_documents SET document_json = ?1",
+                    [value.to_string()],
+                )?;
+                Ok(())
+            })
+            .await
+            .unwrap();
+        store
+            .typed
+            .typed_config
+            .load_shadow(CONFIG_KEY, HOST_MAPPINGS_GENERATION_KEY)
+            .await
+            .unwrap()
+            .typed
+            .unwrap();
+    }
+    let report = recorder.snapshot();
+    for label in ["config.cache.miss", "config.cache.bypass_oversize"] {
+        let counter = report
+            .operations
+            .iter()
+            .find(|row| row.label == label)
+            .unwrap();
+        assert_eq!(counter.calls, 1);
+        assert!(counter.max_bytes.unwrap() > 0);
+    }
+    assert_eq!(
+        report
+            .operations
+            .iter()
+            .find(|row| row.label == "config.json_parse")
+            .unwrap()
+            .calls,
+        2
+    );
+    recorder.stop(generation);
+}
+
+#[tokio::test]
 async fn presentation_config_reads_use_snapshot_while_primary_is_busy() {
     let (_dir, store) = open_test_store().await;
     let mut config = (*store.config_snapshot()).clone();

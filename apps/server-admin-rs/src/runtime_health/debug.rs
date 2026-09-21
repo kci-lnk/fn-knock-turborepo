@@ -73,6 +73,10 @@ pub(crate) struct DebugProcess {
     pub arch: String,
     pub logical_cpus: usize,
     pub uptime_ms: u64,
+    /// This crate's Rust source/build inputs, not a binary hash.
+    pub source_fingerprint: Option<String>,
+    /// Raw JSON threshold; parsed allocations have additional overhead.
+    pub config_cache_limit_bytes: Option<u64>,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, ToSchema)]
@@ -169,6 +173,10 @@ impl DebugController {
             schema_version: 1,
             generated_at: time_utils::now_iso(),
             process: DebugProcess {
+                source_fingerprint: Some(env!("FN_KNOCK_RUST_SOURCE_FINGERPRINT").to_string()),
+                config_cache_limit_bytes: Some(
+                    crate::storage::typed_config::MAX_CACHED_CONFIG_JSON_BYTES as u64,
+                ),
                 pid: std::process::id(),
                 version: APP_LOCAL_VERSION.to_string(),
                 os: std::env::consts::OS.to_string(),

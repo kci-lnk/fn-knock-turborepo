@@ -15,20 +15,34 @@ impl Store {
     pub(super) async fn load_typed_config_primary(
         &self,
     ) -> crate::storage::StorageResult<(Value, u64)> {
+        let operation = self.diagnostics().scope("task", "config.read");
+        let result = self.load_typed_config_primary_measured(&operation).await;
+        operation.finish(result.is_ok(), None);
+        result
+    }
+
+    async fn load_typed_config_primary_measured(
+        &self,
+        operation: &crate::runtime_health::operations::OperationGuard,
+    ) -> crate::storage::StorageResult<(Value, u64)> {
         let shadow = self
             .typed
             .typed_config
             .load_shadow(CONFIG_KEY, HOST_MAPPINGS_GENERATION_KEY)
             .await?;
+        let parse = operation.child("task_phase", "config.legacy_json_parse", false);
         let legacy_snapshot =
-            config_fence_snapshot_from_raw(shadow.legacy.config_raw, shadow.legacy.generation_raw)?;
+            config_fence_snapshot_from_raw(shadow.legacy.config_raw, shadow.legacy.generation_raw);
+        parse.finish(legacy_snapshot.is_ok(), None);
+        let legacy_snapshot = legacy_snapshot?;
+        let compare = operation.child("task_phase", "config.compare", false);
         let published_revision = *self
             .config_snapshot_revision
             .lock()
             .unwrap_or_else(|poisoned| poisoned.into_inner());
         let healthy_candidate = match shadow.typed {
             Ok(Some(typed))
-                if typed.document == legacy_snapshot.config
+                if **typed.document == legacy_snapshot.config
                     && typed.host_mappings_generation == legacy_snapshot.generation
                     && typed.revision >= published_revision =>
             {
@@ -47,13 +61,42 @@ impl Store {
                 None
             }
         };
+        compare.finish(true, None);
         if let Some(typed) = healthy_candidate {
-            let mut config = typed.document;
-            inject_config_generation_marker(&mut config, typed.host_mappings_generation)?;
+            // The healthy-candidate check proved these documents equal. Reuse
+            // the owned legacy value rather than deep-cloning the cached tree.
+            let mut config = legacy_snapshot.config;
+            let marker = operation.child("task_phase", "config.generation_marker", false);
+            let marked = if typed.matches_legacy_json {
+                typed
+                    .document
+                    .host_fingerprint(operation)
+                    .map(|fingerprint| {
+                        inject_config_generation_marker_with_fingerprint(
+                            &mut config,
+                            typed.host_mappings_generation,
+                            fingerprint,
+                        );
+                    })
+            } else {
+                // Equal JSON values may serialize differently (signed zero).
+                // Preserve the marker for the legacy value returned to callers.
+                let fallback = operation.child("task_phase", "config.fingerprint.fallback", false);
+                let result =
+                    inject_config_generation_marker(&mut config, typed.host_mappings_generation);
+                fallback.finish(result.is_ok(), None);
+                result
+            };
+            marker.finish(marked.is_ok(), None);
+            marked?;
             // Repair can recreate a deleted typed row from another Store's
             // older revision floor. Equal revisions are trustworthy only if
             // they also describe the snapshot we already published.
-            if typed.revision > published_revision || config == **self.config_snapshot.load() {
+            let compare = operation.child("task_phase", "config.snapshot_compare", false);
+            let snapshot_matches =
+                typed.revision > published_revision || config == **self.config_snapshot.load();
+            compare.finish(true, None);
+            if snapshot_matches {
                 if self.typed_config_shadow.mark_healthy() {
                     tracing::info!(
                         typed_revision = typed.revision,
@@ -65,7 +108,9 @@ impl Store {
                     .store(true, AtomicOrdering::Release);
                 if typed.revision > published_revision {
                     // Unchanged reads retain the existing snapshot allocation.
+                    let publish = operation.child("task_phase", "config.snapshot_publish", false);
                     self.publish_config_snapshot(config.clone(), typed.revision);
+                    publish.finish(true, None);
                 }
                 return Ok((config, typed.revision));
             }
@@ -102,8 +147,13 @@ impl Store {
             "repaired typed config from legacy fallback"
         );
         let mut config = repaired_snapshot.config;
-        inject_config_generation_marker(&mut config, repaired_snapshot.generation)?;
+        let marker = operation.child("task_phase", "config.generation_marker", false);
+        let marked = inject_config_generation_marker(&mut config, repaired_snapshot.generation);
+        marker.finish(marked.is_ok(), None);
+        marked?;
+        let publish = operation.child("task_phase", "config.snapshot_publish", false);
         self.publish_config_snapshot(config.clone(), reconciled.typed_revision);
+        publish.finish(true, None);
         Ok((config, reconciled.typed_revision))
     }
 

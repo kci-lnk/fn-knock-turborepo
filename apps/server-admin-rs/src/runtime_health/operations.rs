@@ -47,6 +47,11 @@ pub(crate) struct OperationStats {
     /// Sum of item counts explicitly supplied by the instrumented operation.
     #[schema(required = true)]
     pub(crate) rows: Option<u64>,
+    /// Numeric payload sizes only; never includes document contents.
+    pub(crate) total_bytes: Option<u64>,
+    pub(crate) max_bytes: Option<u64>,
+    /// Completion offset from capture start for the longest completed call.
+    pub(crate) max_wall_at_ms: Option<u64>,
 }
 
 #[derive(Clone, Copy, Eq, Hash, PartialEq)]
@@ -122,7 +127,7 @@ impl OperationRecorder {
         kind: &'static str,
         label: &'static str,
     ) -> OperationGuard {
-        self.begin_scope(kind, label, false)
+        self.begin_scope(kind, label, false, None)
     }
 
     /// Call and finish this scope inside the actual SQLite closure, never
@@ -132,7 +137,7 @@ impl OperationRecorder {
         kind: &'static str,
         label: &'static str,
     ) -> OperationGuard {
-        self.begin_scope(kind, label, true)
+        self.begin_scope(kind, label, true, None)
     }
 
     fn begin_scope(
@@ -140,9 +145,10 @@ impl OperationRecorder {
         kind: &'static str,
         label: &'static str,
         measure_cpu: bool,
+        expected_generation: Option<u64>,
     ) -> OperationGuard {
         let generation = self.active_generation.load(Ordering::Acquire);
-        if generation == 0 {
+        if generation == 0 || expected_generation.is_some_and(|expected| expected != generation) {
             return OperationGuard::default();
         }
         let key = OperationKey { kind, label };
@@ -181,11 +187,18 @@ impl OperationRecorder {
         }
     }
 
-    fn complete(&self, active: &ActiveOperation, outcome: Option<(bool, Option<u64>)>) {
+    fn complete(
+        &self,
+        active: &ActiveOperation,
+        outcome: Option<(bool, Option<u64>, Option<u64>)>,
+    ) {
         if self.active_generation.load(Ordering::Acquire) != active.generation {
             return;
         }
-        let wall_ms = active.started.elapsed().as_secs_f64() * 1000.0;
+        // Use the same endpoint for duration and capture offset. Waiting for
+        // the recorder lock below must not move the operation's completion.
+        let completed_at = Instant::now();
+        let wall_ms = completed_at.duration_since(active.started).as_secs_f64() * 1000.0;
         let cpu_ms = active.cpu.and_then(|(thread, started)| {
             (thread == std::thread::current().id())
                 .then(thread_cpu_ns)
@@ -197,6 +210,12 @@ impl OperationRecorder {
         if state.generation != active.generation || state.stopped.is_some() {
             return;
         }
+        let completed_at_ms = state.started.map(|started| {
+            completed_at
+                .saturating_duration_since(started)
+                .as_millis()
+                .min(u128::from(u64::MAX)) as u64
+        });
         let Some(stats) = state.operations.get_mut(&active.key) else {
             return;
         };
@@ -204,9 +223,13 @@ impl OperationRecorder {
         stats.calls = stats.calls.saturating_add(1);
         match outcome {
             None => stats.cancelled = stats.cancelled.saturating_add(1),
-            Some((success, rows)) => {
+            Some((success, rows, bytes)) => {
                 if !success {
                     stats.failures = stats.failures.saturating_add(1);
+                }
+                if let Some(bytes) = bytes {
+                    stats.total_bytes = Some(stats.total_bytes.unwrap_or(0).saturating_add(bytes));
+                    stats.max_bytes = Some(stats.max_bytes.unwrap_or(0).max(bytes));
                 }
                 if let Some(rows) = rows {
                     stats.rows = Some(stats.rows.unwrap_or(0).saturating_add(rows));
@@ -214,7 +237,10 @@ impl OperationRecorder {
             }
         }
         stats.total_wall_ms += wall_ms;
-        stats.max_wall_ms = stats.max_wall_ms.max(wall_ms);
+        if stats.max_wall_at_ms.is_none() || wall_ms > stats.max_wall_ms {
+            stats.max_wall_ms = wall_ms;
+            stats.max_wall_at_ms = completed_at_ms;
+        }
         if let Some(cpu_ms) = cpu_ms {
             stats.total_cpu_ms = Some(stats.total_cpu_ms.unwrap_or(0.0) + cpu_ms);
             stats.max_cpu_ms = Some(stats.max_cpu_ms.unwrap_or(0.0).max(cpu_ms));
@@ -233,12 +259,38 @@ struct ActiveOperation {
 #[derive(Default)]
 pub(crate) struct OperationGuard {
     active: Option<ActiveOperation>,
-    outcome: Option<(bool, Option<u64>)>,
+    outcome: Option<(bool, Option<u64>, Option<u64>)>,
 }
 
 impl OperationGuard {
+    /// Child phases stay attached to this capture, even if it stops/restarts
+    /// while their parent is awaiting admission. Disabled parents stay disabled.
+    pub(crate) fn child(&self, kind: &'static str, label: &'static str, cpu: bool) -> Self {
+        self.active.as_ref().map_or_else(Self::default, |active| {
+            active
+                .recorder
+                .begin_scope(kind, label, cpu, Some(active.generation))
+        })
+    }
+
+    pub(crate) fn sqlite_phase<T, E>(
+        &self,
+        label: &'static str,
+        work: impl FnOnce() -> Result<T, E>,
+    ) -> Result<T, E> {
+        let phase = self.child("sqlite_phase", label, true);
+        let result = work();
+        phase.finish(result.is_ok(), None);
+        result
+    }
+
+    pub(crate) fn record_bytes(&self, label: &'static str, bytes: usize) {
+        let mut counter = self.child("config_cache", label, false);
+        counter.outcome = Some((true, None, Some(bytes as u64)));
+    }
+
     pub(crate) fn finish(mut self, success: bool, rows: Option<u64>) {
-        self.outcome = Some((success, rows));
+        self.outcome = Some((success, rows, None));
     }
 }
 
@@ -338,6 +390,44 @@ mod tests {
             serde_json::to_value(recorder.snapshot()).unwrap(),
             serde_json::to_value(stopped).unwrap()
         );
+    }
+
+    #[test]
+    fn child_phases_and_bytes_are_capture_scoped() {
+        let recorder = Arc::new(OperationRecorder::default());
+        let disabled = recorder.scope("task", "disabled");
+        recorder.start();
+        disabled.record_bytes("disabled-child", 100);
+        let parent = recorder.scope("task", "parent");
+        parent.record_bytes("config.cache.hit", 100);
+        parent.record_bytes("config.cache.hit", 200);
+        let result: Result<(), ()> = parent.sqlite_phase("query", || Err(()));
+        assert!(result.is_err());
+        let snapshot = recorder.snapshot();
+        assert!(
+            !snapshot
+                .operations
+                .iter()
+                .any(|row| row.label == "disabled-child")
+        );
+        let bytes = snapshot
+            .operations
+            .iter()
+            .find(|row| row.label == "config.cache.hit")
+            .unwrap();
+        assert_eq!(bytes.calls, 2);
+        assert_eq!(bytes.total_bytes, Some(300));
+        assert_eq!(bytes.max_bytes, Some(200));
+        assert!(bytes.max_wall_at_ms.unwrap() <= snapshot.elapsed_ms);
+        let query = snapshot
+            .operations
+            .iter()
+            .find(|row| row.label == "query")
+            .unwrap();
+        assert_eq!(query.failures, 1);
+        recorder.start();
+        parent.record_bytes("old-child", 300);
+        assert!(recorder.snapshot().operations.is_empty());
     }
 
     #[test]

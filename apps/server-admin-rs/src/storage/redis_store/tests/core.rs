@@ -223,7 +223,7 @@ async fn clear_all_keys_removes_the_complete_keyspace_and_preserves_storage_meta
         .await
         .expect("load typed config after clearing")
         .expect("typed config exists after clearing");
-    assert_eq!(typed.document, default_config());
+    assert_eq!(**typed.document, default_config());
     assert_eq!(typed.host_mappings_generation, 0);
 }
 
@@ -245,7 +245,7 @@ async fn typed_config_bootstraps_idempotently_without_advancing_the_legacy_schem
         .await
         .expect("load initial legacy config");
     strip_internal_config_metadata(&mut initial_legacy);
-    assert_eq!(initial.document, initial_legacy);
+    assert_eq!(**initial.document, initial_legacy);
     assert_eq!(initial.host_mappings_generation, 0);
 
     let mut updated = store
@@ -260,7 +260,7 @@ async fn typed_config_bootstraps_idempotently_without_advancing_the_legacy_schem
         .await
         .expect("load typed config after write")
         .expect("typed config exists after write");
-    assert_eq!(after_write.document, updated);
+    assert_eq!(**after_write.document, updated);
     assert_eq!(after_write.host_mappings_generation, 0);
     assert!(after_write.revision > initial.revision);
     let revision_after_write = after_write.revision;
@@ -292,7 +292,7 @@ async fn typed_config_bootstraps_idempotently_without_advancing_the_legacy_schem
         .await
         .expect("load typed config after reopen")
         .expect("typed config exists after reopen");
-    assert_eq!(after_reopen.document, updated);
+    assert_eq!(**after_reopen.document, updated);
     assert_eq!(after_reopen.revision, revision_after_write);
 }
 
@@ -440,7 +440,7 @@ async fn typed_config_mismatch_falls_back_to_legacy_and_repairs_the_typed_primar
         .await
         .expect("load repaired typed config")
         .expect("repaired typed config exists");
-    assert_eq!(repaired.document, expected);
+    assert_eq!(**repaired.document, expected);
     let _ = store.get_config().await.expect("verify repaired shadow");
     assert_eq!(store.typed_config_shadow_mismatch_count(), 1);
     assert!(store.typed_config_shadow_status().healthy);
@@ -482,7 +482,7 @@ async fn corrupt_typed_config_falls_back_to_legacy_and_recovers_the_typed_primar
         .await
         .expect("load repaired typed config")
         .expect("typed config is repaired from legacy fallback");
-    assert_eq!(repaired.document, expected);
+    assert_eq!(**repaired.document, expected);
 }
 
 #[tokio::test]
@@ -536,7 +536,7 @@ async fn missing_typed_document_after_bootstrap_is_observable_and_repaired() {
         .await
         .expect("load repaired typed document")
         .expect("typed document is restored");
-    assert_eq!(repaired.document, expected);
+    assert_eq!(**repaired.document, expected);
     assert!(repaired.revision > previous_revision);
     assert_eq!(store.locale().await.unwrap(), expected["locale"]);
     store
@@ -590,7 +590,7 @@ async fn config_repair_by_an_older_store_preserves_newer_snapshot_progress() {
         .unwrap()
         .unwrap();
     assert!(first_repair.revision < previous_revision);
-    assert_eq!(first_repair.document, expected);
+    assert_eq!(**first_repair.document, expected);
 
     let mut loaded = newer_store.get_config().await.unwrap();
     strip_internal_config_metadata(&mut loaded);
@@ -669,7 +669,7 @@ async fn typed_config_failure_rolls_back_the_legacy_config_transaction() {
         .await
         .expect("load typed config after failure")
         .expect("typed config exists after failure");
-    assert_eq!(typed_after_failure.document, typed_before.document);
+    assert_eq!(**typed_after_failure.document, **typed_before.document);
     assert_eq!(typed_after_failure.revision, typed_before.revision);
 
     store
@@ -746,7 +746,7 @@ async fn concurrent_config_writes_keep_typed_and_legacy_documents_in_sync() {
         .await
         .expect("load final typed config")
         .expect("final typed config exists");
-    assert_eq!(typed.document, legacy);
+    assert_eq!(**typed.document, legacy);
     assert_eq!(typed.host_mappings_generation, 0);
     assert!(typed.revision >= initial_revision + WRITERS as u64);
     assert_eq!(store.typed_config_shadow_mismatch_count(), 0);
@@ -787,7 +787,7 @@ async fn startup_reconciles_writes_made_by_a_legacy_binary() {
         .await
         .expect("load reconciled typed config")
         .expect("reconciled typed config exists");
-    assert_eq!(typed.document, legacy);
+    assert_eq!(**typed.document, legacy);
     assert!(typed.revision > typed_revision);
     let mut loaded = reopened.get_config().await.expect("load upgraded config");
     strip_internal_config_metadata(&mut loaded);
@@ -888,6 +888,6 @@ async fn backup_prefix_replace_ignores_imported_host_generation_and_sets_trusted
         .await
         .expect("load typed config after backup restore")
         .expect("typed config exists after backup restore");
-    assert_eq!(typed.document, restored_config);
+    assert_eq!(**typed.document, restored_config);
     assert_eq!(typed.host_mappings_generation, 2);
 }

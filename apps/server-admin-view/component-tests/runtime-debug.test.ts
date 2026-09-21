@@ -103,6 +103,27 @@ describe("runtime debug capture lifecycle", () => {
 
   it("renders capture controls, partial memory support and diagnostic export without starting work on open", async () => {
     const data = makeReport();
+    data.process.source_fingerprint = "fnv1a64-0123456789abcdef";
+    data.process.config_cache_limit_bytes = 1024 * 1024;
+    data.capture.operations.operations = Array.from(
+      { length: 12 },
+      (_, index) => ({
+        kind: "config_cache",
+        label: `config.cache.detail-${index}`,
+        calls: 2,
+        failures: 0,
+        cancelled: 0,
+        in_flight: 0,
+        total_wall_ms: 1,
+        max_wall_ms: 0.75,
+        total_cpu_ms: null,
+        max_cpu_ms: null,
+        rows: null,
+        total_bytes: 8192,
+        max_bytes: 4096,
+        max_wall_at_ms: 12345,
+      }),
+    );
     data.memory = {
       status: "unsupported",
       collected_at: data.generated_at,
@@ -141,6 +162,11 @@ describe("runtime debug capture lifecycle", () => {
       "admin.eventCenter.runtime.debug.memoryStatus.unsupported",
     );
     expect(wrapper.text()).toContain("40.00 MiB");
+    expect(wrapper.text()).toContain("fnv1a64-0123456789abcdef");
+    expect(wrapper.text()).toContain("config.cache.detail-11");
+    expect(wrapper.text()).toContain("12.345");
+    expect(wrapper.text()).toContain("4.0 KiB");
+    expect(wrapper.text()).toContain("1.00 MiB");
     expect(api.startDebugCapture).not.toHaveBeenCalled();
     expect(api.refreshDebugMemory).not.toHaveBeenCalled();
     const button = (key: string) =>

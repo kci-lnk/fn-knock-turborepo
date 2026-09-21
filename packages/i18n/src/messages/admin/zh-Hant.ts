@@ -6289,6 +6289,14 @@ export const zhHantAdmin = {
       recentEvents: "最近 20 筆執行事件",
       noEvents: "暫無執行事件",
       debug: {
+        configDetails: "設定讀取明細",
+        sourceFingerprint: "原始碼指紋",
+        averageWall: "平均耗時 ms",
+        maxWallAt: "最長呼叫完成時刻 s",
+        maxBytes: "最大 JSON 大小",
+        cacheLimit: "快取 JSON 大小門檻",
+        phaseHint:
+          "明細是父操作的子階段，耗時不可與父操作相加。hit / miss / bypass_oversize 分別表示命中、未命中、超限略過；位元組數為原始 JSON 大小。時刻相對於本次採樣開始，等待階段包含排隊及排程時間。",
         open: "執行診斷",
         view: "查看診斷",
         title: "Rust 執行診斷",

@@ -8178,6 +8178,15 @@
           "arch": {
             "type": "string"
           },
+          "config_cache_limit_bytes": {
+            "description": "Raw JSON threshold; parsed allocations have additional overhead.",
+            "format": "int64",
+            "minimum": 0,
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
           "logical_cpus": {
             "minimum": 0,
             "type": "integer"
@@ -8189,6 +8198,13 @@
             "format": "int32",
             "minimum": 0,
             "type": "integer"
+          },
+          "source_fingerprint": {
+            "description": "This crate's Rust source/build inputs, not a binary hash.",
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "uptime_ms": {
             "format": "int64",
@@ -17405,10 +17421,27 @@
           "label": {
             "type": "string"
           },
+          "max_bytes": {
+            "format": "int64",
+            "minimum": 0,
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
           "max_cpu_ms": {
             "format": "double",
             "type": [
               "number",
+              "null"
+            ]
+          },
+          "max_wall_at_ms": {
+            "description": "Completion offset from capture start for the longest completed call.",
+            "format": "int64",
+            "minimum": 0,
+            "type": [
+              "integer",
               "null"
             ]
           },
@@ -17418,6 +17451,15 @@
           },
           "rows": {
             "description": "Sum of item counts explicitly supplied by the instrumented operation.",
+            "format": "int64",
+            "minimum": 0,
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "total_bytes": {
+            "description": "Numeric payload sizes only; never includes document contents.",
             "format": "int64",
             "minimum": 0,
             "type": [

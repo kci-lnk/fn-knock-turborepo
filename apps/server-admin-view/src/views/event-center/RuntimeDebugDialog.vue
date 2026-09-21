@@ -69,6 +69,12 @@ const operations = computed(() =>
 );
 const operationGroups = computed(() => [
   {
+    name: "configDetails",
+    items: operations.value.filter((item) =>
+      ["sqlite_phase", "task_phase", "config_cache"].includes(item.kind),
+    ),
+  },
+  {
     name: "tasks",
     items: operations.value.filter((item) => item.kind === "task").slice(0, 10),
   },
@@ -79,7 +85,14 @@ const operationGroups = computed(() => [
   {
     name: "sqlite",
     items: operations.value
-      .filter((item) => item.kind !== "task" && item.kind !== "wait")
+      .filter((item) =>
+        [
+          "sqlite_primary",
+          "sqlite_auth_read",
+          "sqlite_health",
+          "sqlite_analytics",
+        ].includes(item.kind),
+      )
       .slice(0, 10),
   },
 ]);
@@ -192,6 +205,10 @@ const download = () => {
               {{ report.process.pid }}</span
             >
             <span>{{ report.process.os }} / {{ report.process.arch }}</span>
+            <span v-if="report.process.source_fingerprint"
+              >{{ t(key("sourceFingerprint")) }}:
+              {{ report.process.source_fingerprint }}</span
+            >
             <span>{{
               t(key("cpus"), { count: report.process.logical_cpus })
             }}</span>
@@ -522,6 +539,16 @@ const download = () => {
             <p class="text-xs leading-5 text-muted-foreground">
               {{ t(key("rowsHint")) }}
             </p>
+            <p class="text-xs leading-5 text-muted-foreground">
+              {{ t(key("phaseHint")) }}
+            </p>
+            <p
+              v-if="report.process.config_cache_limit_bytes != null"
+              class="text-xs text-muted-foreground"
+            >
+              {{ t(key("cacheLimit")) }}:
+              {{ bytes(report.process.config_cache_limit_bytes) }}
+            </p>
             <div v-for="group in operationGroups" :key="group.name">
               <h4 class="mb-2 text-xs font-semibold">
                 {{ t(key(group.name)) }}
@@ -535,7 +562,10 @@ const download = () => {
                       <th class="p-2">{{ t(key("operation")) }}</th>
                       <th class="p-2">{{ t(key("calls")) }}</th>
                       <th class="p-2">{{ t(key("wall")) }}</th>
+                      <th class="p-2">{{ t(key("averageWall")) }}</th>
                       <th class="p-2">{{ t(key("maxWall")) }}</th>
+                      <th class="p-2">{{ t(key("maxWallAt")) }}</th>
+                      <th class="p-2">{{ t(key("maxBytes")) }}</th>
                       <th class="p-2">CPU ms</th>
                       <th class="p-2">{{ t(key("failures")) }}</th>
                       <th class="p-2">{{ t(key("inFlight")) }}</th>
@@ -554,7 +584,24 @@ const download = () => {
                       </td>
                       <td class="p-2">{{ item.calls }}</td>
                       <td class="p-2">{{ item.total_wall_ms.toFixed(1) }}</td>
+                      <td class="p-2">
+                        {{
+                          item.calls
+                            ? (item.total_wall_ms / item.calls).toFixed(3)
+                            : "—"
+                        }}
+                      </td>
                       <td class="p-2">{{ item.max_wall_ms.toFixed(1) }}</td>
+                      <td class="p-2">
+                        {{
+                          item.max_wall_at_ms == null
+                            ? "—"
+                            : (item.max_wall_at_ms / 1000).toFixed(3)
+                        }}
+                      </td>
+                      <td class="whitespace-nowrap p-2">
+                        {{ bytes(item.max_bytes ?? null) }}
+                      </td>
                       <td class="p-2">
                         {{ item.total_cpu_ms?.toFixed(1) ?? "—" }}
                       </td>

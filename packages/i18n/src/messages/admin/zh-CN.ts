@@ -6376,6 +6376,14 @@ export const zhCNAdmin = {
       recentEvents: "最近 20 条运行事件",
       noEvents: "暂无运行事件",
       debug: {
+        configDetails: "配置读取明细",
+        sourceFingerprint: "源码指纹",
+        averageWall: "平均耗时 ms",
+        maxWallAt: "最长调用完成时刻 s",
+        maxBytes: "最大 JSON 大小",
+        cacheLimit: "缓存 JSON 大小门槛",
+        phaseHint:
+          "明细是父操作的子阶段，耗时不可与父操作相加。hit / miss / bypass_oversize 分别表示命中、未命中、超限跳过；字节数为原始 JSON 大小。时刻相对于本次采样开始，等待阶段包含排队及调度时间。",
         open: "运行诊断",
         view: "查看诊断",
         title: "Rust 运行诊断",

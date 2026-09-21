@@ -155,10 +155,7 @@ pub(super) fn config_host_mappings(config: &Value) -> Value {
 pub(super) fn config_host_mappings_fingerprint(
     config: &Value,
 ) -> crate::storage::StorageResult<String> {
-    let empty_mappings = Value::Array(Vec::new());
-    Ok(crate::crypto_utils::sha256_hex_bytes(serde_json::to_vec(
-        config.get("host_mappings").unwrap_or(&empty_mappings),
-    )?))
+    crate::storage::typed_config::config_host_mappings_fingerprint(config)
 }
 
 pub(super) fn replace_visibility_policies_for_host_mappings(
@@ -234,6 +231,15 @@ pub(super) fn inject_config_generation_marker(
     generation: u64,
 ) -> crate::storage::StorageResult<()> {
     let host_fingerprint = config_host_mappings_fingerprint(config)?;
+    inject_config_generation_marker_with_fingerprint(config, generation, &host_fingerprint);
+    Ok(())
+}
+
+pub(super) fn inject_config_generation_marker_with_fingerprint(
+    config: &mut Value,
+    generation: u64,
+    host_fingerprint: &str,
+) {
     if let Some(object) = config.as_object_mut() {
         object.insert(
             CONFIG_GENERATION_MARKER.to_string(),
@@ -243,5 +249,4 @@ pub(super) fn inject_config_generation_marker(
             }),
         );
     }
-    Ok(())
 }

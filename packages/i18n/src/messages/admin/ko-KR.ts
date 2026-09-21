@@ -6806,6 +6806,14 @@ export const koKRAdmin = {
       recentEvents: "최근 실행 이벤트 20개",
       noEvents: "실행 이벤트가 없습니다",
       debug: {
+        configDetails: "설정 읽기 상세",
+        sourceFingerprint: "소스 지문",
+        averageWall: "평균 소요 시간 ms",
+        maxWallAt: "최장 호출 완료 시점 s",
+        maxBytes: "최대 JSON 크기",
+        cacheLimit: "캐시 JSON 크기 제한",
+        phaseHint:
+          "상세 항목은 상위 작업의 하위 단계이므로 시간을 상위 작업과 합산하지 마세요. hit / miss / bypass_oversize는 캐시 적중, 미적중, 크기 제한 초과를 뜻합니다. 바이트는 원본 JSON 크기입니다. 시점은 수집 시작 기준이며 대기에는 큐와 스케줄링 시간이 포함됩니다.",
         open: "런타임 진단",
         view: "진단 보기",
         title: "Rust 런타임 진단",

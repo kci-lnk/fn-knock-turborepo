@@ -271,6 +271,27 @@ test("improvement gate accepts either target only with a directional paired inte
   assert.match(check({ p99: [1.11] }).join("\n"), /regression budget exceeded/);
 });
 
+test("duplicate pair/role evidence cannot silently replace an earlier trial", () => {
+  const runs = gateRuns();
+  const duplicate = {
+    ...runs[0],
+    measurement: { ...runs[0].measurement, p99_ms: 1 },
+  };
+  const [original] = compareRuns(runs);
+  const [comparison] = compareRuns([...runs, duplicate]);
+  assert.equal(comparison.duplicate_runs, 1);
+  assert.equal(comparison.six_valid_pairs, false);
+  assert.deepEqual(comparison.paired_p99_changes, original.paired_p99_changes);
+  assert.match(
+    comparisonFailures([comparison]).join("\n"),
+    /duplicate pair\/role/,
+  );
+  assert.match(
+    comparisonFailures([comparison], { requireSixPairs: true }).join("\n"),
+    /duplicate pair\/role/,
+  );
+});
+
 test("comparison groups cannot combine different session, account, grant or renewal scales", () => {
   const seedFields = [
     "sessions",

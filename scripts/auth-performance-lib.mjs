@@ -202,9 +202,12 @@ export function compareRuns(runs) {
   }
   return [...groups].map(([key, values]) => {
     const pairs = new Map();
+    let duplicateRuns = 0;
     for (const value of values) {
       if (!pairs.has(value.pair)) pairs.set(value.pair, {});
-      pairs.get(value.pair)[value.role] = value;
+      const pair = pairs.get(value.pair);
+      if (pair[value.role]) duplicateRuns++;
+      else pair[value.role] = value;
     }
     const complete = [...pairs.values()].filter(
       (pair) => pair.baseline?.measurement && pair.candidate?.measurement,
@@ -242,8 +245,12 @@ export function compareRuns(runs) {
       complete_pairs: complete.length,
       incomplete_pairs: pairs.size - complete.length,
       invalid_runs: invalid,
+      duplicate_runs: duplicateRuns,
       six_valid_pairs:
-        invalid === 0 && complete.length >= 6 && complete.length === pairs.size,
+        invalid === 0 &&
+        duplicateRuns === 0 &&
+        complete.length >= 6 &&
+        complete.length === pairs.size,
       throughput_change_median: completeMedian(throughput),
       p99_change_median: completeMedian(p99),
       throughput_change_bootstrap_95: pairedInterval(throughput),
@@ -274,6 +281,7 @@ export function comparisonFailures(comparison, options = {}) {
   for (const group of comparison) {
     const fail = (reason) => failures.push(`${group.key}: ${reason}`);
     if (group.invalid_runs !== 0) fail("invalid trials");
+    if (group.duplicate_runs > 0) fail("duplicate pair/role trials");
     if (group.incomplete_pairs !== 0) fail("incomplete pairs");
     if (!strict) continue;
     if (group.recovery_probe)

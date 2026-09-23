@@ -200,6 +200,8 @@ suite的`--concurrency`、`--readers`、`--credential-kind`、`--routes`、`--ca
 
 collector只收集`results.json`、`manifest.json`、每trial的`result.json`及suite outcome，保留完整process/health/phase/recovery/profile JSON时间序列；不复制数据库、key文件、配置文件、日志、静态资源或二进制。已知secret/token/password/cookie环境字段进行脱敏，`collection.json`记录原始与收集字节的SHA256。原始运行目录仍保留日志和数据库供本机调查，收集包中的路径引用仍指向原运行位置。
 
+30分钟运行结束后，可对**单个trial的原始结果**执行 `node scripts/auth-performance-soak.mjs /absolute/path/to/trial/result.json > soak-summary.json`。分析器输出首尾5分钟中位数及每5分钟的RSS、FD、原生线程数；同时使用现有health快照中的`gateway_process.goroutines`观察Go任务数，不增加网络采样请求。health本身有缓存，重复观察不是独立样本；旧结果未保存goroutines时显示null。Rust异步任务数目前没有可用指标，明确记录为null，不能用原生线程数代替。完成标志只检查实际时长、请求正确性及既有采样质量，不自动把资源增长或未见增长解释为无泄漏证明。
+
 - `manifest.json`：二进制SHA、路径、variant metadata、环境参数、内核与Node版本。
 - `results.json`及每trial `result.json`：真实elapsed、成功/失败请求、状态码、P50/P95/P99、稀疏1ms延迟直方图、Go/Rust/client/fixture CPU秒及每1000次成功请求CPU成本、RSS/FD/thread采样和峰值。
 - 每200ms读`/proc`，每秒采样runtime-health中的storage primary队列、bridge数据；值不存在明确为null，不能用0代替。队列计数是进程累计值，不是每路由的独立事件分布，也不反映auth reader池。
@@ -207,7 +209,7 @@ collector只收集`results.json`、`manifest.json`、每trial的`result.json`及
 - Worker延迟直方图先求和后计算分位数，不平均各worker的P99。计量包含客户端错误，且任何错误响应/语义不符会使样本无效。P99只精确到1ms，60秒以上归入溢出桶并报告。
 - 客户端启动延迟>100ms、事件循环最大延迟>100ms、OS采样间隔>1s、时长过冲>5%（最低容忍500ms）均使trial无效并保留证据；不静默重试。失败会停止当前批，避免把错误路由测成高吞吐。
 - trial失败时在停止Go/Rust前尝试最后一次有界管理health快照，保存在`failure_health`；管理接口不可用时保留其错误，不覆盖原始业务/预热错误。默认warm阶段仍不做周期health采样；最后快照只能提供失败后的状态和累计计数，不能重建失败瞬间的峰值pressure。客户端phase超时保留已完成worker计数和可取得的部分样本，明确标为partial，不能当作完整性能measurement。
-- 比较器按route、并发、candidate、cache TTL、profiling、recovery、credential kind及实际种子规模分组。规模包含sessions、accounts、ordinary grants、total grants及每阶段renewal tokens；不同凭证种类/规模不能凑成六对。缺失的旧版种类/规模字段显示unknown，不应当作已知种类/规模证据。
+- 比较器按route、并发、candidate、cache TTL、profiling、recovery、credential kind及实际种子规模分组。规模包含sessions、accounts、ordinary grants、total grants及每阶段renewal tokens；不同凭证种类/规模不能凑成六对。同组出现重复pair/role时验收失败，不静默用后一个结果覆盖前一个；合并独立批次前必须保留真实实验身份。缺失的旧版种类/规模字段显示unknown，不应当作已知种类/规模证据。
 - 不加门槛参数时只检查有效、完整的smoke pair。`--require-six-pairs`要求每组至少六个有效完整pair，吞吐变化中位数≥−5%、P99变化中位数≤+10%，并要求Go+Rust峰值RSS合计的配对变化中位数≤+5%。任一pair缺失/无效RSS会使此门槛失败，不以零补齐或忽略样本。合计RSS先对每trial的Go、Rust各自峰值求和，再计算每对的candidate/baseline变化，最后取中位数；这是两个进程峰值之和，不表示它们一定同时达到峰值。JSON和Markdown同时列出Go、Rust各自及合计的RSS变化。
 - `--require-improvement`隐含上述六对、回归和RSS门槛，且每组必须满足至少一项目标：吞吐变化中位数≥+10%且paired bootstrap 95%区间下界>0，或P99变化中位数≤−15%且区间上界<0。建议只对实验前选定的目标route/规模运行这一更严格的检查；其他保护路由用六对回归门槛。不能先挑出最好的分组再把区间解释成预先指定目标的证据。
 - 变化按每对candidate/baseline计算，输出配对变化、中位数、六对以上的确定性paired bootstrap 95%区间。六对时区间仍较粗，P99还受1ms分桶精度限制；置信区间不能消除同机负载、热漂移或设计混杂。

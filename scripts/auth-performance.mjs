@@ -26,6 +26,7 @@ import {
   benchmarkEnvironment,
 } from "./auth-performance-lib.mjs";
 import { summarizeOperationProfile } from "./auth-performance-profile.mjs";
+import { gatewayRuntimeSample } from "./auth-performance-soak.mjs";
 import {
   captureFailureSnapshot,
   runRecoveryProbe,
@@ -220,6 +221,7 @@ async function healthSnapshot(headers, timeoutMs = 3000) {
       status: response.status,
       storage: payload.data?.components?.storage ?? null,
       auth_bridge: payload.data?.components?.auth_bridge ?? null,
+      gateway_runtime: gatewayRuntimeSample(payload.data),
       snapshot: payload.data,
     };
   } catch (error) {

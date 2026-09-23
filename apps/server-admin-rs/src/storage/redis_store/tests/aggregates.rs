@@ -136,6 +136,91 @@ async fn subdomain_grant_renewal_does_not_restore_a_revoked_or_replaced_value() 
     assert!(store.get_string_value_auth(&grant).await.unwrap().is_none());
 }
 
+#[tokio::test]
+async fn subdomain_grant_renewal_rechecks_authority_after_writer_admission() {
+    for mutation in ["revoke", "replace", "expire"] {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("queued-renewal.sqlite3");
+        let store = Store::connect(&path).await.unwrap();
+        let host = "queued-renewal.example.com";
+        let (grant, active) = subdomain_grant_keys("queued-renewal", host);
+        let original = subdomain_grant_document(host, 1_700_000_020);
+        let replacement = subdomain_grant_document(host, 1_700_000_030);
+        store
+            .set_expiring_string_with_zset_limit(
+                &grant,
+                &original,
+                60,
+                &active,
+                1_700_000_020,
+                1_700_000_080,
+                10,
+            )
+            .await
+            .unwrap();
+        let external = open_fixture_connection(&path);
+        let (started_tx, started_rx) = tokio::sync::oneshot::channel();
+        let (release_tx, release_rx) = std::sync::mpsc::channel();
+        let manager = store.manager.clone();
+        let blocker = manager.call(move |_| {
+            let _ = started_tx.send(());
+            release_rx
+                .recv_timeout(std::time::Duration::from_secs(5))
+                .unwrap();
+            Ok(())
+        });
+        let exercise = async {
+            started_rx.await.unwrap();
+            let renewal = store.renew_expiring_string_with_zset_limit(
+                &grant,
+                &original,
+                &replacement,
+                60,
+                &active,
+                1_700_000_030,
+                1_700_000_090,
+                10,
+            );
+            tokio::pin!(renewal);
+            tokio::select! {
+                result = &mut renewal => panic!("renewal bypassed blocked writer: {result:?}"),
+                () = async {
+                    tokio::time::timeout(std::time::Duration::from_secs(2), async {
+                        while store.manager.primary_queue_status().queue_depth == 0 {
+                            tokio::task::yield_now().await;
+                        }
+                    }).await.unwrap();
+                } => {}
+            }
+            match mutation {
+                "revoke" => external.execute("DELETE FROM kv_keys WHERE key = ?1", [&grant]),
+                "replace" => external.execute(
+                    "UPDATE kv_strings SET value = ?2 WHERE key = ?1",
+                    [&grant, &replacement],
+                ),
+                "expire" => external.execute(
+                    "UPDATE kv_keys SET expires_at_ms = 1 WHERE key = ?1",
+                    [&grant],
+                ),
+                _ => unreachable!(),
+            }
+            .unwrap();
+            release_tx.send(()).unwrap();
+            assert!(!renewal.await.unwrap(), "stale renewal survived {mutation}");
+        };
+        let (result, ()) = tokio::join!(blocker, exercise);
+        result.unwrap();
+        assert_eq!(
+            store
+                .get_string_value_auth(&grant)
+                .await
+                .unwrap()
+                .as_deref(),
+            (mutation == "replace").then_some(replacement.as_str()),
+        );
+    }
+}
+
 fn fnos_validation_document() -> Value {
     json!({
         "version": 2,

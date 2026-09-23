@@ -1,6 +1,6 @@
 # 鉴权优化实现与验收结果
 
-**状态：优化v5实现及273次远端试验已完成，主矩阵、缓存/续期及额外c64 session六对均通过冻结门槛；用户追加审计发现Go基线已有的缓存撤销竞态，正在独立修复和复测。** 本页只采用匹配构建参数后的 v5 制品；此前检查点及中止批次见 [排除记录](REJECTED_CANDIDATES.md)。
+**状态：优化 v5 的 273 次远端试验已完成并通过冻结门槛；追加审计发现的 Go 缓存失效竞态已在 `66998225` 修复，完整测试与本机两组六对 A/B 通过，独立 45 次 Linux 复测正在执行。** 本页区分原始→v5 的优化收益与 v5→audit6 的修复代价，不混合样本或相乘百分比；此前检查点及中止批次见 [排除记录](REJECTED_CANDIDATES.md)。
 
 ## 实现与边界
 
@@ -17,7 +17,7 @@
 ## 固定来源与测量口径
 
 - 原始源码：Rust `d4f8805f39d9f4480bf83f4382ba59e5f49e7dc4`，Go `92d4c0cb5495d57801d52893a8f0e8496a1c9182`。
-- 候选源码：Rust `5fddf896eaf9b1cf3eb300c08315320498c943b8`，Go `4d15fa32764e26df58b16930d0e2503a90880002`。之后的工具、测试 overlay 和文档提交不改变产品身份。
+- v5 优化候选源码：Rust `5fddf896eaf9b1cf3eb300c08315320498c943b8`，Go `4d15fa32764e26df58b16930d0e2503a90880002`。之后的工具、测试 overlay 和文档提交不改变产品身份。
 - Linux 主矩阵：同 Rust 1.96.0、Go 1.26.7、LTO=fat、CGU=1、opt-level=z；Go 两边均 `-trimpath -s -w` 并注入对应 Version/Commit。完整命令与 SHA 见 [构建记录](results/builds/final)、[冻结计划](EXPERIMENT_PLAN.json)。
 - 远端为 4 CPU Linux 主机上的隔离网络命名空间、合成数据库和独立进程；主矩阵 c16、2 个客户端 worker、1000 账户/1000 session/100 grant、TOTP、mobility 关闭、正负缓存 TTL=0。每 trial 预热20秒、测量60秒，六对交替 AB/BA。
 - 正常 bridge 容量不覆盖：Go 1024，当前 Linux/Rust 64；Tokio 固定2。capacity32 仅用于独立恢复试验。未替换或重启生产服务。
@@ -28,14 +28,14 @@
 
 ## Go 独立六对基准（已完成）
 
-同一 lean handler fixture、Apple M5、Go 1.26.7、cpu=2，原始 `92d4c0c` 直接对比最终 `4d15fa3`。六对交替执行，测量时没有并行编译。
+同一 lean handler fixture、Apple M5、Go 1.26.7、cpu=2，原始 `92d4c0c` 直接对比包含审计修复的 **`66998225`**。六对交替执行，测量时没有并行编译。这是新一轮直接测量，不从旧 v5 结果推算。
 
 | 场景 | ns/op 中位数：基线→候选 | 配对时间变化（95%区间） | B/op 中位数：基线→候选 | allocs/op |
 | --- | ---: | ---: | ---: | ---: |
-| 关闭鉴权 | 4708→4367 | −7.19%（−7.54%～−6.56%） | 6517→5350 | 66→55 |
-| 完整鉴权缓存命中 | 6999→5946.5 | −15.20%（−15.53%～−14.24%） | 8336→6096 | 90→66 |
+| 关闭鉴权 | 4677.5→4379 | −6.40%（−7.24%～−5.38%） | 6519.5→5352.5 | 66→55 |
+| 完整鉴权缓存命中 | 6952.5→5926 | −14.95%（−17.88%～−14.22%） | 8335.5→6111 | 90→66 |
 
-缓存命中配对 B/op 下降26.896%，通过10%的分配门槛，延迟没有退化。该 fixture 把 HTTP 解析移出计时循环，并使用模拟上游；不能称为生产 HTTP 延迟。历史高基数缓存写入局部基准为352→368 B/op（+4.55%），分配次数不变，时间改善。各项原始数据和复跑命令见 [最终 Go 报告](/Users/edgeware/Local/Go-Reauth-Proxy/docs/experiments/auth-final-20260923/README.md) 及 [阶段报告](/Users/edgeware/Local/Go-Reauth-Proxy/docs/experiments/auth-hot-path-20260923/README.md)。
+缓存命中配对 B/op 下降26.665%，通过10%的分配门槛，延迟没有退化。该 fixture 把 HTTP 解析移出计时循环，并使用模拟上游；不能称为生产 HTTP 延迟。历史高基数缓存写入局部基准为352→368 B/op（+4.55%），分配次数不变，时间改善。各项原始数据和复跑命令见 [修复后直接测量](/Users/edgeware/Local/Go-Reauth-Proxy/docs/experiments/auth-cache-invalidation-20260923/README.md)、[v5 历史测量](/Users/edgeware/Local/Go-Reauth-Proxy/docs/experiments/auth-final-20260923/README.md) 及 [阶段报告](/Users/edgeware/Local/Go-Reauth-Proxy/docs/experiments/auth-hot-path-20260923/README.md)。
 
 ## 查询减量的直接证据（已完成）
 
@@ -51,7 +51,7 @@
 
 [存储方法诊断](SQL-STATEMENTS.md) 另外测得：N1000 健康 grant getter 1008→6，普通 session normal-access 40→13，**开启 mobility** 的 owner 查询8019→9。这些方法边界和配置不同，不能拼接成完整 HTTP 的查询次数；SQL 数量降为常数也不代表数据扫描量为常数。
 
-## Linux 最终端到端 A/B
+## Linux v5 优化端到端 A/B
 
 正式测试前的44次预备 smoke 全部有效，151,406次测量响应符合预期。它们分别覆盖 N1/N100/N1000 和已有 PASSWORD session 的账户权限路径；不包含密码登录/hash 性能，也不能跨不同规模比较并发扩展性。见 [预备验证报告](results/final-v5/preliminary-review.md) 与已离线重放核对的 [分析包](results/final-v5/preliminary-replay.tar.gz)。
 
@@ -128,7 +128,7 @@ Rust 参数制品已全部构建：z=38,536,480 B，s=42,253,936 B，2=55,183,42
 
 ## 持续负载与恢复
 
-最终候选独立完成 auto-IP 持续负载1800.071秒，290,000次测量请求全部符合预期，四项质量检查均通过，最大采样间隔212.42ms。共保存8883个进程资源样本和1792个可用Go runtime观察。
+v5 候选独立完成 auto-IP 持续负载1800.071秒，290,000次测量请求全部符合预期，四项质量检查均通过，最大采样间隔212.42ms。共保存8883个进程资源样本和1792个可用Go runtime观察。
 
 | 指标，首尾5分钟中位数 | Go | Rust |
 | --- | ---: | ---: |
@@ -141,6 +141,14 @@ Go goroutine中位数76→75、峰值83；其health数据有缓存，重复观�
 独立capacity32恢复试验确实触发拒绝压力：基线/候选的c64 burst分别出现18,182/20,974次503。降为c1后，两端第一个连续两秒窗口均全部成功（179/256次），后续正常c16预热和三秒测量也零错误。报告的恢复时间约2061/2051ms包含完整成功窗口，且从burst清理后开始计时；不能用约10ms差异宣称候选恢复更快，也不能由503确定首先触发容量限制的是Go还是Rust。
 
 health端点均可读，但缓存的overall/auth_bridge状态仍为degraded，不能称所有组件已健康。该试验仅证明一次指定容量和路径下的请求恢复，不外推持续过载或多轮恢复。完整资源分段、CPU、压力计数及时间边界见 [稳定性与恢复报告](results/final-v5/post5-stability-review.md) 和 [可离线重放包](results/final-v5/post5-stability-replay.tar.gz)。完整raw已用冻结工具重算，8883个资源样本和1792个health观察得到的summary与远端完全一致，见 [重算核对](results/final-v5/soak-recompute-check.json)。
+
+## 追加审计修复：audit6 独立验证
+
+Go `66998225` 修复原基线已有的失效竞态：注销/配置清空后，旧 RPC 可回填过时允许结果，新的请求也可复用旧 singleflight。请求在取得配置快照前捕获 generation，flight 键隔离代际，缓存锁内禁止旧代际发布。80 个确定性 barrier 子例在未修改的 `4d15fa3` 上全部失败、在修复后全部通过；另有旧配置快照、保留无关缓存、旧拒绝及过期边界验证，完整 Go 测试/race/vet 均通过。保护针对后续复用，不追溯取消原在途请求；[正确性边界](CORRECTNESS.md) 与 [独立 Go 证据](/Users/edgeware/Local/Go-Reauth-Proxy/docs/experiments/auth-cache-invalidation-20260923/README.md) 给出实现和复现命令。
+
+本机单独比较 `4d15fa3→66998225` 的六对结果：AuthOff 配对耗时 −0.147%（95%区间 −3.320%～+1.404%）；CacheHit +0.870%（−0.024%～+1.343%），B/op 6094.5→6109.5、配对 +0.262%，66 次分配不变。命中时间区间跨零，不能称确定退化，也不能称零开销。上面的原始→修复后表来自另一组直接六对；两组百分比不相乘。
+
+Linux 独立复测固定相同 Rust `5fddf896` 源码、reader1/z、两客户端/c16、N1000账户/session与100 grant、mobility=false；baseline 使用 v5 原制品，candidate 使用新 Go 和嵌入对应 gateway commit 后重新构建的 Rust。两端 Rust 二进制不同，源码相同。[构建记录](results/builds/audit-v6) 和 [冻结 45-trial 协议](audit6-plan/README.md) 包括精确 SHA、配置与退出规则。18 项 smoke、TTL0/TTL1 各六对、TTL1 30分钟 soak、一次独立饱和恢复串行执行；稳定 session 负载不主动注销，不能替代并发回归。六对只检验原吞吐/P99/RSS非回退门槛，不要求正确性修复另产生性能收益。**本轮远端结果尚未完成，暂不宣告通过。**
 
 ## 功能验证与交付索引
 

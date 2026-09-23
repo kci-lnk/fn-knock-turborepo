@@ -65,7 +65,13 @@
 
 ## 相邻 Go 仓库的相关测试入口
 
-最终 Go 产品源码为 `4d15fa32764e26df58b16930d0e2503a90880002`，已通过完整测试、proxy race 和 vet；17-case Cookie 兼容回归及原始 `92d4c0c` 到最终源码的六对本机 benchmark 也已完成。命令、原始日志与测量边界见 [最终 Go 报告](/Users/edgeware/Local/Go-Reauth-Proxy/docs/experiments/auth-final-20260923/README.md)。仓库实际目录为 `Go-Reauth-Proxy`；此前 `748c97e0` 的验证与测量仅保留为历史阶段，不代替最终源码证据。
+优化阶段 Go 产品源码 `4d15fa32764e26df58b16930d0e2503a90880002` 已通过完整测试、proxy race 和 vet；17-case Cookie 兼容回归及其六对本机 benchmark 见 [v5 Go 报告](/Users/edgeware/Local/Go-Reauth-Proxy/docs/experiments/auth-final-20260923/README.md)。追加审计后的产品源码为 **`66998225a2d0d78e40390c179681b6a48b5e5635`**，再次通过完整测试、proxy race 和 vet；新日志及两组独立六对基准见 [缓存失效修复报告](/Users/edgeware/Local/Go-Reauth-Proxy/docs/experiments/auth-cache-invalidation-20260923/README.md)。仓库实际目录为 `Go-Reauth-Proxy`；旧检查点不能代替新源码验证。
+
+追加审计发现原基线已有的失效竞态：注销或配置清空缓存后，先前 RPC 仍可能回填旧允许结果；失效之后开始的新请求还可能加入旧 singleflight。修复用一个全局 generation 隔离 pending RPC，在缓存锁内检查发布代际，并把代际加入 singleflight 键。请求取得配置快照前捕获 generation，贯穿 preflight、verify、combined fallback 和 toolbar 路径，避免旧配置在稍后进入鉴权时借用新代际。身份失效与全清空按 auth→preflight 顺序持有两把锁，推进代际后删除引用；没有引入按身份持续增长的墓碑表。
+
+[auth_cache_invalidation_test.go](/Users/edgeware/Local/Go-Reauth-Proxy/pkg/proxy/auth_cache_invalidation_test.go) 的 `TestAuthCacheInvalidationSeparatesPendingAuthorization` 用 channel barrier 固定交错，在未修改的 `4d15fa3` 产品代码上 **80/80 子例失败**，修复后全部通过。覆盖 legacy/combined 的 verify、preflight、完整 combined，身份删除、全清空、注销 Cookie、TTL 配置 off/on，以及旧允许/旧拒绝晚到、失效后新请求不能加入旧 flight。`TestAuthCacheOldConfigurationSnapshotCannotPublishInNewGeneration` 另覆盖三种旧快照进入窗口；`TestAuthCacheInvalidationPreservesUnrelatedHitsAndInflightDenials` 检查无关身份存量命中保留、旧 pending 发布被丢弃、在途拒绝不被改写及普通过期不推进代际。修复后 `go test ./...`、`go test -race ./pkg/proxy`（13.267秒）、`go vet ./...` 均退出0，原始失败 overlay 和日志随报告保存。
+
+该保护阻止失效后复用旧结果，**不追溯取消已经在途的原请求**。全局代际也会保守地丢弃其他身份的旧 pending 填充，但保留其已有缓存条目；不增加新授权决策缓存。稳定 session 性能负载不主动触发注销，不能替代上述竞态回归；其代价由独立本机和 Linux 实验测量。
 
 Cookie 快路径的必需兼容依赖是 `0978d6b03767c3e5f3ebf72fa13074c2b72afe7d` 和 `4d15fa32764e26df58b16930d0e2503a90880002`：前者恢复空片段归一化，避免大量分号触发 Go 上游 Cookie 原始片段数量限制；后者恢复 `strings.TrimSpace` 的 Unicode/非 HTTP 边界空白语义。相同的 17-case 生产 helper 测试作为 test-only overlay 验证原始 `92d4c0c` 通过、中间 `748c97e` 失败、最终 `4d15fa3` 通过。保留快路径时两项修复均须保留，回滚分组见 [ROLLBACK 的 G5](ROLLBACK.md#go-功能回滚组)。
 

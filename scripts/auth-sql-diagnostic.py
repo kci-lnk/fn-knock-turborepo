@@ -77,7 +77,7 @@ def extract_archive(archive, destination):
         tar.extractall(destination)
 
 
-def apply_overlay(source):
+def apply_overlay(source, boundary="method"):
     src = source / "apps/server-admin-rs/src"
     module = '\n#[cfg(test)]\npub(crate) mod sql_statement_diagnostic;\n'
     compat = src / "storage/redis_compat.rs"
@@ -92,11 +92,39 @@ def apply_overlay(source):
     trace = src / "storage/redis_compat/sql_statement_diagnostic.rs"
     shutil.copyfile(OVERLAYS / "trace_overlay.rs", trace)
     operations = src / "auth/routes/sql_statement_diagnostic.rs"
-    shutil.copyfile(OVERLAYS / "operations_overlay.rs", operations)
+    operation_source = "rpc_overlay.rs" if boundary == "rpc" else "operations_overlay.rs"
+    shutil.copyfile(OVERLAYS / operation_source, operations)
     has_context = (src / "auth/request_context.rs").exists()
     if has_context:
         replace_once(operations, "    let _ = state;\n    future.await", "    crate::auth::request_context::scope(state, future).await")
     modified = [compat, connection, routes, mobility, trace, operations]
+    if boundary == "rpc":
+        bridge = src / "auth/routes/bridge.rs"
+        bridge.write_text(bridge.read_text() + '''
+#[cfg(test)]
+pub(super) async fn sql_diagnostic_handle_bridge_message(
+    state: AppState,
+    message: AuthBridgeEnvelope,
+) -> Option<AuthBridgeEnvelope> {
+    handle_bridge_message(state, message).await
+}
+''')
+        modified.append(bridge)
+        replace_once(bridge, "fn verify_auth_response_from_access(access: AuthAccess) -> VerifyAuthResponse {",
+                     "fn verify_auth_response_from_access(access: AuthAccess) -> VerifyAuthResponse {\n    #[cfg(test)]\n    super::sql_statement_diagnostic::record_grant_type(access.grant_type.as_deref());")
+        background = src / "infra/background_tasks.rs"
+        background.write_text(background.read_text() + '''
+#[cfg(test)]
+impl BackgroundTaskRegistry {
+    pub(crate) fn sql_diagnostic_snapshot(&self) -> (u64, Vec<&'static str>) {
+        let state = self.inner.state.lock().unwrap();
+        let mut names = state.tasks.values().map(|task| task.name).collect::<Vec<_>>();
+        names.sort_unstable();
+        (self.inner.next_id.load(Ordering::SeqCst), names)
+    }
+}
+''')
+        modified.append(background)
     return {
         "request_context_scope": has_context,
         "modified_files": {str(path.relative_to(source)): sha256(path) for path in modified},
@@ -112,7 +140,12 @@ def prepare(args):
         "status": "preparing",
         "driver_sha256": sha256(Path(__file__).resolve()),
         "overlay_sha256": {p.name: sha256(p) for p in sorted(OVERLAYS.glob("*.rs"))},
-        "scope": "method-level SQL statement executions after warmup; not HTTP/RPC SQL per request",
+        "boundary": args.boundary,
+        "scope": (
+            "one in-process AuthorizeHttp complete Rust handler after warmup; excludes Go, transport, queues and separate Inspect RPC"
+            if args.boundary == "rpc" else
+            "method-level SQL statement executions after warmup; not HTTP/RPC SQL per request"
+        ),
         "auth_readers": 1,
         "test": TEST_NAME,
         "variants": [],
@@ -131,7 +164,7 @@ def prepare(args):
         extract_archive(archive, source)
         variant = {"label": label, "source_commit": commit, "source": str(source),
                    "archive_sha256": sha256(archive), "archive_bytes": archive.stat().st_size}
-        variant.update(apply_overlay(source))
+        variant.update(apply_overlay(source, args.boundary))
         variant["overlaid_tree_sha256"] = tree_sha256(source)
         variant["cargo_lock_sha256"] = sha256(source / "apps/server-admin-rs/Cargo.lock")
         manifest["variants"].append(variant)
@@ -153,7 +186,7 @@ def run(args):
         raise RuntimeError(f"remove build-profile overrides first: {overrides}")
     args.target.mkdir(parents=True, exist_ok=True)
     environment = os.environ.copy()
-    environment.update(CARGO_TARGET_DIR=str(args.target), CARGO_BUILD_JOBS=str(args.jobs), FN_KNOCK_SQLITE_AUTH_READERS="1")
+    environment.update(CARGO_TARGET_DIR=str(args.target), CARGO_BUILD_JOBS=str(args.jobs), CARGO_INCREMENTAL="0", FN_KNOCK_SQLITE_AUTH_READERS="1")
     manifest["toolchain"] = {tool: subprocess.check_output(command, text=True).strip()
         for tool, command in {"cargo": ["cargo", "--version"], "rustc": ["rustc", "--version", "--verbose"]}.items()}
     manifest["target"] = str(args.target)
@@ -175,7 +208,7 @@ def run(args):
             directory.mkdir()
             command = ["cargo", "test", "--locked", "--manifest-path", str(source / "apps/server-admin-rs/Cargo.toml"), "--lib", "--no-run", "--message-format=json"]
             variant["build_command"] = command
-            variant["build_environment"] = {key: environment[key] for key in ("CARGO_TARGET_DIR", "CARGO_BUILD_JOBS", "FN_KNOCK_SQLITE_AUTH_READERS")}
+            variant["build_environment"] = {key: environment[key] for key in ("CARGO_TARGET_DIR", "CARGO_BUILD_JOBS", "CARGO_INCREMENTAL", "FN_KNOCK_SQLITE_AUTH_READERS")}
             started = time.monotonic()
             with (directory / "build.jsonl").open("w") as stdout, (directory / "build.log").open("w") as stderr:
                 subprocess.run(command, cwd=source, env=environment, stdout=stdout, stderr=stderr, check=True)
@@ -227,6 +260,8 @@ def main():
     preparation.add_argument("--output", required=True, type=Path, help="new output directory")
     preparation.add_argument("--baseline-commit", type=commit_sha, default=BASELINE)
     preparation.add_argument("--candidate-commit", type=commit_sha, required=True)
+    preparation.add_argument("--boundary", choices=("method", "rpc"), default="method",
+                             help="method calls (original diagnostic) or one complete in-process AuthorizeHttp handler")
     execution = commands.add_parser("run", help="sequential native compilation and isolated diagnostic tests")
     execution.add_argument("--output", required=True, type=Path)
     execution.add_argument("--target", required=True, type=Path, help="exclusive native Cargo target directory")

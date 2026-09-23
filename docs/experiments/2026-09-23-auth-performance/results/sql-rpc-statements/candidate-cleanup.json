@@ -1,0 +1,155 @@
+{
+  "role": "candidate",
+  "free_bytes_before": 7508201472,
+  "retained_binary": "/private/tmp/fn-knock-auth-sql-rpc-v2-20260923/candidate/server-admin-rs-sql-diagnostic.test",
+  "retained_binary_sha256": "91bdbba1df424a606c89afa1e7e1bcce7dabb555104727b2434ae432445c30c7",
+  "files": [
+    {
+      "path": "/Users/edgeware/Local/fn-knock-turborepo/apps/server-admin-rs/target/debug/deps/server_admin_rs-f1a44e409a2e9d4d",
+      "bytes": 239289152,
+      "sha256": "91bdbba1df424a606c89afa1e7e1bcce7dabb555104727b2434ae432445c30c7",
+      "source_archive_path_offset": 113215449,
+      "absent_in_before_inventory": true,
+      "cargo_package_id": "path+file:///private/tmp/fn-knock-auth-sql-rpc-v2-20260923/sources/candidate/apps/server-admin-rs#2.4.15"
+    },
+    {
+      "path": "/Users/edgeware/Local/fn-knock-turborepo/apps/server-admin-rs/target/debug/deps/server_admin_rs-f1a44e409a2e9d4d.server_admin_rs.a027c42bba2bb29f-cgu.14.rcgu.o",
+      "bytes": 38937432,
+      "sha256": "becb4ab775b0a02818d137b92cadac5556b5a40cf6275624f17c5b8121f714d1",
+      "source_archive_path_offset": 14210505,
+      "absent_in_before_inventory": true,
+      "cargo_package_id": "path+file:///private/tmp/fn-knock-auth-sql-rpc-v2-20260923/sources/candidate/apps/server-admin-rs#2.4.15"
+    },
+    {
+      "path": "/Users/edgeware/Local/fn-knock-turborepo/apps/server-admin-rs/target/debug/deps/server_admin_rs-f1a44e409a2e9d4d.server_admin_rs.a027c42bba2bb29f-cgu.06.rcgu.o",
+      "bytes": 41800296,
+      "sha256": "7911298c984df26f008acf4a61e94891cf3c9f9891c0102418e3f0f97d76a6e3",
+      "source_archive_path_offset": 12213534,
+      "absent_in_before_inventory": true,
+      "cargo_package_id": "path+file:///private/tmp/fn-knock-auth-sql-rpc-v2-20260923/sources/candidate/apps/server-admin-rs#2.4.15"
+    },
+    {
+      "path": "/Users/edgeware/Local/fn-knock-turborepo/apps/server-admin-rs/target/debug/deps/server_admin_rs-f1a44e409a2e9d4d.server_admin_rs.a027c42bba2bb29f-cgu.04.rcgu.o",
+      "bytes": 40345392,
+      "sha256": "0447b121367002055d3e356e3966e8442d66ebe91271354486b84243b0d9bb65",
+      "source_archive_path_offset": 13595706,
+      "absent_in_before_inventory": true,
+      "cargo_package_id": "path+file:///private/tmp/fn-knock-auth-sql-rpc-v2-20260923/sources/candidate/apps/server-admin-rs#2.4.15"
+    },
+    {
+      "path": "/Users/edgeware/Local/fn-knock-turborepo/apps/server-admin-rs/target/debug/deps/server_admin_rs-f1a44e409a2e9d4d.server_admin_rs.a027c42bba2bb29f-cgu.08.rcgu.o",
+      "bytes": 37040856,
+      "sha256": "330cae853b96863578998e9f5f8e994b093a13bcb7caf984731206b9df4f6486",
+      "source_archive_path_offset": 11901905,
+      "absent_in_before_inventory": true,
+      "cargo_package_id": "path+file:///private/tmp/fn-knock-auth-sql-rpc-v2-20260923/sources/candidate/apps/server-admin-rs#2.4.15"
+    },
+    {
+      "path": "/Users/edgeware/Local/fn-knock-turborepo/apps/server-admin-rs/target/debug/deps/server_admin_rs-f1a44e409a2e9d4d.server_admin_rs.a027c42bba2bb29f-cgu.12.rcgu.o",
+      "bytes": 57362304,
+      "sha256": "51c955491c3ef3c404be0fb9e862d6b03718ea420725689b0e5c48f862fe0212",
+      "source_archive_path_offset": 16668517,
+      "absent_in_before_inventory": true,
+      "cargo_package_id": "path+file:///private/tmp/fn-knock-auth-sql-rpc-v2-20260923/sources/candidate/apps/server-admin-rs#2.4.15"
+    },
+    {
+      "path": "/Users/edgeware/Local/fn-knock-turborepo/apps/server-admin-rs/target/debug/deps/server_admin_rs-f1a44e409a2e9d4d.server_admin_rs.a027c42bba2bb29f-cgu.00.rcgu.o",
+      "bytes": 87803096,
+      "sha256": "d6585ec4b8e1a6cb25b8f528bc4c5414d9dc998f06ad34c5b58f35c6c1c1f4f1",
+      "source_archive_path_offset": 16514272,
+      "absent_in_before_inventory": true,
+      "cargo_package_id": "path+file:///private/tmp/fn-knock-auth-sql-rpc-v2-20260923/sources/candidate/apps/server-admin-rs#2.4.15"
+    },
+    {
+      "path": "/Users/edgeware/Local/fn-knock-turborepo/apps/server-admin-rs/target/debug/deps/server_admin_rs-f1a44e409a2e9d4d.server_admin_rs.a027c42bba2bb29f-cgu.02.rcgu.o",
+      "bytes": 35269480,
+      "sha256": "8c76f5f236cc971646b5eb91614fc778d3fe89104833013f12622afea178bb8a",
+      "source_archive_path_offset": 13908808,
+      "absent_in_before_inventory": true,
+      "cargo_package_id": "path+file:///private/tmp/fn-knock-auth-sql-rpc-v2-20260923/sources/candidate/apps/server-admin-rs#2.4.15"
+    },
+    {
+      "path": "/Users/edgeware/Local/fn-knock-turborepo/apps/server-admin-rs/target/debug/deps/server_admin_rs-f1a44e409a2e9d4d.server_admin_rs.a027c42bba2bb29f-cgu.10.rcgu.o",
+      "bytes": 46264856,
+      "sha256": "3e970fb96962dc014512341cac76f4dc3dac6c27e03d74da433130a9464962ed",
+      "source_archive_path_offset": 11120639,
+      "absent_in_before_inventory": true,
+      "cargo_package_id": "path+file:///private/tmp/fn-knock-auth-sql-rpc-v2-20260923/sources/candidate/apps/server-admin-rs#2.4.15"
+    },
+    {
+      "path": "/Users/edgeware/Local/fn-knock-turborepo/apps/server-admin-rs/target/debug/deps/server_admin_rs-f1a44e409a2e9d4d.server_admin_rs.a027c42bba2bb29f-cgu.15.rcgu.o",
+      "bytes": 53576136,
+      "sha256": "a627cd7f4fa40c0d4d2b979de82a5d1cf59483a0b0981b9ec3d140af9d7362f0",
+      "source_archive_path_offset": 17560213,
+      "absent_in_before_inventory": true,
+      "cargo_package_id": "path+file:///private/tmp/fn-knock-auth-sql-rpc-v2-20260923/sources/candidate/apps/server-admin-rs#2.4.15"
+    },
+    {
+      "path": "/Users/edgeware/Local/fn-knock-turborepo/apps/server-admin-rs/target/debug/deps/server_admin_rs-f1a44e409a2e9d4d.server_admin_rs.a027c42bba2bb29f-cgu.07.rcgu.o",
+      "bytes": 48289376,
+      "sha256": "7ee37ef6fcf429e16df5d959b14c6e3626b820e17c98a4764260a58e32e27f9d",
+      "source_archive_path_offset": 12646369,
+      "absent_in_before_inventory": true,
+      "cargo_package_id": "path+file:///private/tmp/fn-knock-auth-sql-rpc-v2-20260923/sources/candidate/apps/server-admin-rs#2.4.15"
+    },
+    {
+      "path": "/Users/edgeware/Local/fn-knock-turborepo/apps/server-admin-rs/target/debug/deps/server_admin_rs-f1a44e409a2e9d4d.server_admin_rs.a027c42bba2bb29f-cgu.05.rcgu.o",
+      "bytes": 69322448,
+      "sha256": "feaeabb1faf4fa7bbde2b6d091530eab42dcaf4c957e2db9d820bbcc5fe41e88",
+      "source_archive_path_offset": 5621365,
+      "absent_in_before_inventory": true,
+      "cargo_package_id": "path+file:///private/tmp/fn-knock-auth-sql-rpc-v2-20260923/sources/candidate/apps/server-admin-rs#2.4.15"
+    },
+    {
+      "path": "/Users/edgeware/Local/fn-knock-turborepo/apps/server-admin-rs/target/debug/deps/server_admin_rs-f1a44e409a2e9d4d.server_admin_rs.a027c42bba2bb29f-cgu.09.rcgu.o",
+      "bytes": 47332960,
+      "sha256": "97d06acc7f3f727891303c8f22c695183ea3d955c1b8e2ad4bd3d3dc55490619",
+      "source_archive_path_offset": 15135199,
+      "absent_in_before_inventory": true,
+      "cargo_package_id": "path+file:///private/tmp/fn-knock-auth-sql-rpc-v2-20260923/sources/candidate/apps/server-admin-rs#2.4.15"
+    },
+    {
+      "path": "/Users/edgeware/Local/fn-knock-turborepo/apps/server-admin-rs/target/debug/deps/server_admin_rs-f1a44e409a2e9d4d.server_admin_rs.a027c42bba2bb29f-cgu.13.rcgu.o",
+      "bytes": 52940456,
+      "sha256": "8e78da7a775c86e8ccac5cfb37336b06092358a24b91b723b8ae2165ecfc3cff",
+      "source_archive_path_offset": 13851342,
+      "absent_in_before_inventory": true,
+      "cargo_package_id": "path+file:///private/tmp/fn-knock-auth-sql-rpc-v2-20260923/sources/candidate/apps/server-admin-rs#2.4.15"
+    },
+    {
+      "path": "/Users/edgeware/Local/fn-knock-turborepo/apps/server-admin-rs/target/debug/deps/server_admin_rs-f1a44e409a2e9d4d.server_admin_rs.a027c42bba2bb29f-cgu.01.rcgu.o",
+      "bytes": 53690072,
+      "sha256": "8bf6ce0bd1b95bef7b336d50c384bb231f55dd1346bf336be08326c1bb8fc38c",
+      "source_archive_path_offset": 15453976,
+      "absent_in_before_inventory": true,
+      "cargo_package_id": "path+file:///private/tmp/fn-knock-auth-sql-rpc-v2-20260923/sources/candidate/apps/server-admin-rs#2.4.15"
+    },
+    {
+      "path": "/Users/edgeware/Local/fn-knock-turborepo/apps/server-admin-rs/target/debug/deps/server_admin_rs-f1a44e409a2e9d4d.server_admin_rs.a027c42bba2bb29f-cgu.03.rcgu.o",
+      "bytes": 39722464,
+      "sha256": "c709301dfd0c6ebde80a2e29d6bb83f0f459a4c74c5f7e33c040d8e1da11cd88",
+      "source_archive_path_offset": 19277398,
+      "absent_in_before_inventory": true,
+      "cargo_package_id": "path+file:///private/tmp/fn-knock-auth-sql-rpc-v2-20260923/sources/candidate/apps/server-admin-rs#2.4.15"
+    },
+    {
+      "path": "/Users/edgeware/Local/fn-knock-turborepo/apps/server-admin-rs/target/debug/deps/server_admin_rs-f1a44e409a2e9d4d.server_admin_rs.a027c42bba2bb29f-cgu.11.rcgu.o",
+      "bytes": 42470152,
+      "sha256": "3a600bf21069b2cfa44041a0d8b91ca6c82253822a3b002a7f5d0eac1039d1cb",
+      "source_archive_path_offset": 13714582,
+      "absent_in_before_inventory": true,
+      "cargo_package_id": "path+file:///private/tmp/fn-knock-auth-sql-rpc-v2-20260923/sources/candidate/apps/server-admin-rs#2.4.15"
+    },
+    {
+      "path": "/Users/edgeware/Local/fn-knock-turborepo/apps/server-admin-rs/target/debug/deps/server_admin_rs-f1a44e409a2e9d4d.d",
+      "bytes": 67481,
+      "sha256": "db4a412af30cc21626478b7f6cd4369f312d92f544ed5f98c079fa3fee7bf78d",
+      "source_archive_path_offset": 67086,
+      "absent_in_before_inventory": true,
+      "cargo_package_id": "path+file:///private/tmp/fn-knock-auth-sql-rpc-v2-20260923/sources/candidate/apps/server-admin-rs#2.4.15"
+    }
+  ],
+  "bytes_removed": 1031524409,
+  "free_bytes_after": 8539799552,
+  "all_removed": true
+}

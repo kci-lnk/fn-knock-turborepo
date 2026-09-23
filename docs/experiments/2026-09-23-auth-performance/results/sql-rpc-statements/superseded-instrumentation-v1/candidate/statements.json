@@ -1,0 +1,1999 @@
+{
+  "auth_readers": 1,
+  "background_semantics": "warmed request within 30s recent-IP coalescing interval; prior background tasks completed, no task spawned during measured handler; cold/periodic background SQL not included",
+  "boundary": "one in-process AuthorizeHttp complete Rust handler in PreflightAndVerify mode; excludes Go, transport, admission/send queues, and separate Inspect RPC",
+  "calibrations": [
+    {
+      "counts": {
+        "by_category": {
+          "read": 8,
+          "transaction": 8
+        },
+        "by_connection": {
+          "analytics": 4,
+          "auth_read": 4,
+          "health": 4,
+          "primary": 4
+        },
+        "statement_executions": 16,
+        "templates": [
+          {
+            "category": "read",
+            "connection": "analytics",
+            "executions": 2,
+            "sql_template": "SELECT ?1",
+            "sqlite_readonly": true
+          },
+          {
+            "category": "transaction",
+            "connection": "analytics",
+            "executions": 1,
+            "sql_template": "BEGIN DEFERRED",
+            "sqlite_readonly": true
+          },
+          {
+            "category": "transaction",
+            "connection": "analytics",
+            "executions": 1,
+            "sql_template": "COMMIT",
+            "sqlite_readonly": true
+          },
+          {
+            "category": "read",
+            "connection": "auth_read",
+            "executions": 2,
+            "sql_template": "SELECT ?1",
+            "sqlite_readonly": true
+          },
+          {
+            "category": "transaction",
+            "connection": "auth_read",
+            "executions": 1,
+            "sql_template": "BEGIN DEFERRED",
+            "sqlite_readonly": true
+          },
+          {
+            "category": "transaction",
+            "connection": "auth_read",
+            "executions": 1,
+            "sql_template": "COMMIT",
+            "sqlite_readonly": true
+          },
+          {
+            "category": "read",
+            "connection": "health",
+            "executions": 2,
+            "sql_template": "SELECT ?1",
+            "sqlite_readonly": true
+          },
+          {
+            "category": "transaction",
+            "connection": "health",
+            "executions": 1,
+            "sql_template": "BEGIN DEFERRED",
+            "sqlite_readonly": true
+          },
+          {
+            "category": "transaction",
+            "connection": "health",
+            "executions": 1,
+            "sql_template": "COMMIT",
+            "sqlite_readonly": true
+          },
+          {
+            "category": "read",
+            "connection": "primary",
+            "executions": 2,
+            "sql_template": "SELECT ?1",
+            "sqlite_readonly": true
+          },
+          {
+            "category": "transaction",
+            "connection": "primary",
+            "executions": 1,
+            "sql_template": "BEGIN DEFERRED",
+            "sqlite_readonly": true
+          },
+          {
+            "category": "transaction",
+            "connection": "primary",
+            "executions": 1,
+            "sql_template": "COMMIT",
+            "sqlite_readonly": true
+          }
+        ],
+        "trace_callbacks": 16
+      },
+      "population": 1,
+      "scenario": "session_hit"
+    },
+    {
+      "counts": {
+        "by_category": {
+          "read": 8,
+          "transaction": 8
+        },
+        "by_connection": {
+          "analytics": 4,
+          "auth_read": 4,
+          "health": 4,
+          "primary": 4
+        },
+        "statement_executions": 16,
+        "templates": [
+          {
+            "category": "read",
+            "connection": "analytics",
+            "executions": 2,
+            "sql_template": "SELECT ?1",
+            "sqlite_readonly": true
+          },
+          {
+            "category": "transaction",
+            "connection": "analytics",
+            "executions": 1,
+            "sql_template": "BEGIN DEFERRED",
+            "sqlite_readonly": true
+          },
+          {
+            "category": "transaction",
+            "connection": "analytics",
+            "executions": 1,
+            "sql_template": "COMMIT",
+            "sqlite_readonly": true
+          },
+          {
+            "category": "read",
+            "connection": "auth_read",
+            "executions": 2,
+            "sql_template": "SELECT ?1",
+            "sqlite_readonly": true
+          },
+          {
+            "category": "transaction",
+            "connection": "auth_read",
+            "executions": 1,
+            "sql_template": "BEGIN DEFERRED",
+            "sqlite_readonly": true
+          },
+          {
+            "category": "transaction",
+            "connection": "auth_read",
+            "executions": 1,
+            "sql_template": "COMMIT",
+            "sqlite_readonly": true
+          },
+          {
+            "category": "read",
+            "connection": "health",
+            "executions": 2,
+            "sql_template": "SELECT ?1",
+            "sqlite_readonly": true
+          },
+          {
+            "category": "transaction",
+            "connection": "health",
+            "executions": 1,
+            "sql_template": "BEGIN DEFERRED",
+            "sqlite_readonly": true
+          },
+          {
+            "category": "transaction",
+            "connection": "health",
+            "executions": 1,
+            "sql_template": "COMMIT",
+            "sqlite_readonly": true
+          },
+          {
+            "category": "read",
+            "connection": "primary",
+            "executions": 2,
+            "sql_template": "SELECT ?1",
+            "sqlite_readonly": true
+          },
+          {
+            "category": "transaction",
+            "connection": "primary",
+            "executions": 1,
+            "sql_template": "BEGIN DEFERRED",
+            "sqlite_readonly": true
+          },
+          {
+            "category": "transaction",
+            "connection": "primary",
+            "executions": 1,
+            "sql_template": "COMMIT",
+            "sqlite_readonly": true
+          }
+        ],
+        "trace_callbacks": 16
+      },
+      "population": 1,
+      "scenario": "grant_hit"
+    },
+    {
+      "counts": {
+        "by_category": {
+          "read": 8,
+          "transaction": 8
+        },
+        "by_connection": {
+          "analytics": 4,
+          "auth_read": 4,
+          "health": 4,
+          "primary": 4
+        },
+        "statement_executions": 16,
+        "templates": [
+          {
+            "category": "read",
+            "connection": "analytics",
+            "executions": 2,
+            "sql_template": "SELECT ?1",
+            "sqlite_readonly": true
+          },
+          {
+            "category": "transaction",
+            "connection": "analytics",
+            "executions": 1,
+            "sql_template": "BEGIN DEFERRED",
+            "sqlite_readonly": true
+          },
+          {
+            "category": "transaction",
+            "connection": "analytics",
+            "executions": 1,
+            "sql_template": "COMMIT",
+            "sqlite_readonly": true
+          },
+          {
+            "category": "read",
+            "connection": "auth_read",
+            "executions": 2,
+            "sql_template": "SELECT ?1",
+            "sqlite_readonly": true
+          },
+          {
+            "category": "transaction",
+            "connection": "auth_read",
+            "executions": 1,
+            "sql_template": "BEGIN DEFERRED",
+            "sqlite_readonly": true
+          },
+          {
+            "category": "transaction",
+            "connection": "auth_read",
+            "executions": 1,
+            "sql_template": "COMMIT",
+            "sqlite_readonly": true
+          },
+          {
+            "category": "read",
+            "connection": "health",
+            "executions": 2,
+            "sql_template": "SELECT ?1",
+            "sqlite_readonly": true
+          },
+          {
+            "category": "transaction",
+            "connection": "health",
+            "executions": 1,
+            "sql_template": "BEGIN DEFERRED",
+            "sqlite_readonly": true
+          },
+          {
+            "category": "transaction",
+            "connection": "health",
+            "executions": 1,
+            "sql_template": "COMMIT",
+            "sqlite_readonly": true
+          },
+          {
+            "category": "read",
+            "connection": "primary",
+            "executions": 2,
+            "sql_template": "SELECT ?1",
+            "sqlite_readonly": true
+          },
+          {
+            "category": "transaction",
+            "connection": "primary",
+            "executions": 1,
+            "sql_template": "BEGIN DEFERRED",
+            "sqlite_readonly": true
+          },
+          {
+            "category": "transaction",
+            "connection": "primary",
+            "executions": 1,
+            "sql_template": "COMMIT",
+            "sqlite_readonly": true
+          }
+        ],
+        "trace_callbacks": 16
+      },
+      "population": 1,
+      "scenario": "auto_ip_hit"
+    },
+    {
+      "counts": {
+        "by_category": {
+          "read": 8,
+          "transaction": 8
+        },
+        "by_connection": {
+          "analytics": 4,
+          "auth_read": 4,
+          "health": 4,
+          "primary": 4
+        },
+        "statement_executions": 16,
+        "templates": [
+          {
+            "category": "read",
+            "connection": "analytics",
+            "executions": 2,
+            "sql_template": "SELECT ?1",
+            "sqlite_readonly": true
+          },
+          {
+            "category": "transaction",
+            "connection": "analytics",
+            "executions": 1,
+            "sql_template": "BEGIN DEFERRED",
+            "sqlite_readonly": true
+          },
+          {
+            "category": "transaction",
+            "connection": "analytics",
+            "executions": 1,
+            "sql_template": "COMMIT",
+            "sqlite_readonly": true
+          },
+          {
+            "category": "read",
+            "connection": "auth_read",
+            "executions": 2,
+            "sql_template": "SELECT ?1",
+            "sqlite_readonly": true
+          },
+          {
+            "category": "transaction",
+            "connection": "auth_read",
+            "executions": 1,
+            "sql_template": "BEGIN DEFERRED",
+            "sqlite_readonly": true
+          },
+          {
+            "category": "transaction",
+            "connection": "auth_read",
+            "executions": 1,
+            "sql_template": "COMMIT",
+            "sqlite_readonly": true
+          },
+          {
+            "category": "read",
+            "connection": "health",
+            "executions": 2,
+            "sql_template": "SELECT ?1",
+            "sqlite_readonly": true
+          },
+          {
+            "category": "transaction",
+            "connection": "health",
+            "executions": 1,
+            "sql_template": "BEGIN DEFERRED",
+            "sqlite_readonly": true
+          },
+          {
+            "category": "transaction",
+            "connection": "health",
+            "executions": 1,
+            "sql_template": "COMMIT",
+            "sqlite_readonly": true
+          },
+          {
+            "category": "read",
+            "connection": "primary",
+            "executions": 2,
+            "sql_template": "SELECT ?1",
+            "sqlite_readonly": true
+          },
+          {
+            "category": "transaction",
+            "connection": "primary",
+            "executions": 1,
+            "sql_template": "BEGIN DEFERRED",
+            "sqlite_readonly": true
+          },
+          {
+            "category": "transaction",
+            "connection": "primary",
+            "executions": 1,
+            "sql_template": "COMMIT",
+            "sqlite_readonly": true
+          }
+        ],
+        "trace_callbacks": 16
+      },
+      "population": 100,
+      "scenario": "session_hit"
+    },
+    {
+      "counts": {
+        "by_category": {
+          "read": 8,
+          "transaction": 8
+        },
+        "by_connection": {
+          "analytics": 4,
+          "auth_read": 4,
+          "health": 4,
+          "primary": 4
+        },
+        "statement_executions": 16,
+        "templates": [
+          {
+            "category": "read",
+            "connection": "analytics",
+            "executions": 2,
+            "sql_template": "SELECT ?1",
+            "sqlite_readonly": true
+          },
+          {
+            "category": "transaction",
+            "connection": "analytics",
+            "executions": 1,
+            "sql_template": "BEGIN DEFERRED",
+            "sqlite_readonly": true
+          },
+          {
+            "category": "transaction",
+            "connection": "analytics",
+            "executions": 1,
+            "sql_template": "COMMIT",
+            "sqlite_readonly": true
+          },
+          {
+            "category": "read",
+            "connection": "auth_read",
+            "executions": 2,
+            "sql_template": "SELECT ?1",
+            "sqlite_readonly": true
+          },
+          {
+            "category": "transaction",
+            "connection": "auth_read",
+            "executions": 1,
+            "sql_template": "BEGIN DEFERRED",
+            "sqlite_readonly": true
+          },
+          {
+            "category": "transaction",
+            "connection": "auth_read",
+            "executions": 1,
+            "sql_template": "COMMIT",
+            "sqlite_readonly": true
+          },
+          {
+            "category": "read",
+            "connection": "health",
+            "executions": 2,
+            "sql_template": "SELECT ?1",
+            "sqlite_readonly": true
+          },
+          {
+            "category": "transaction",
+            "connection": "health",
+            "executions": 1,
+            "sql_template": "BEGIN DEFERRED",
+            "sqlite_readonly": true
+          },
+          {
+            "category": "transaction",
+            "connection": "health",
+            "executions": 1,
+            "sql_template": "COMMIT",
+            "sqlite_readonly": true
+          },
+          {
+            "category": "read",
+            "connection": "primary",
+            "executions": 2,
+            "sql_template": "SELECT ?1",
+            "sqlite_readonly": true
+          },
+          {
+            "category": "transaction",
+            "connection": "primary",
+            "executions": 1,
+            "sql_template": "BEGIN DEFERRED",
+            "sqlite_readonly": true
+          },
+          {
+            "category": "transaction",
+            "connection": "primary",
+            "executions": 1,
+            "sql_template": "COMMIT",
+            "sqlite_readonly": true
+          }
+        ],
+        "trace_callbacks": 16
+      },
+      "population": 100,
+      "scenario": "grant_hit"
+    },
+    {
+      "counts": {
+        "by_category": {
+          "read": 8,
+          "transaction": 8
+        },
+        "by_connection": {
+          "analytics": 4,
+          "auth_read": 4,
+          "health": 4,
+          "primary": 4
+        },
+        "statement_executions": 16,
+        "templates": [
+          {
+            "category": "read",
+            "connection": "analytics",
+            "executions": 2,
+            "sql_template": "SELECT ?1",
+            "sqlite_readonly": true
+          },
+          {
+            "category": "transaction",
+            "connection": "analytics",
+            "executions": 1,
+            "sql_template": "BEGIN DEFERRED",
+            "sqlite_readonly": true
+          },
+          {
+            "category": "transaction",
+            "connection": "analytics",
+            "executions": 1,
+            "sql_template": "COMMIT",
+            "sqlite_readonly": true
+          },
+          {
+            "category": "read",
+            "connection": "auth_read",
+            "executions": 2,
+            "sql_template": "SELECT ?1",
+            "sqlite_readonly": true
+          },
+          {
+            "category": "transaction",
+            "connection": "auth_read",
+            "executions": 1,
+            "sql_template": "BEGIN DEFERRED",
+            "sqlite_readonly": true
+          },
+          {
+            "category": "transaction",
+            "connection": "auth_read",
+            "executions": 1,
+            "sql_template": "COMMIT",
+            "sqlite_readonly": true
+          },
+          {
+            "category": "read",
+            "connection": "health",
+            "executions": 2,
+            "sql_template": "SELECT ?1",
+            "sqlite_readonly": true
+          },
+          {
+            "category": "transaction",
+            "connection": "health",
+            "executions": 1,
+            "sql_template": "BEGIN DEFERRED",
+            "sqlite_readonly": true
+          },
+          {
+            "category": "transaction",
+            "connection": "health",
+            "executions": 1,
+            "sql_template": "COMMIT",
+            "sqlite_readonly": true
+          },
+          {
+            "category": "read",
+            "connection": "primary",
+            "executions": 2,
+            "sql_template": "SELECT ?1",
+            "sqlite_readonly": true
+          },
+          {
+            "category": "transaction",
+            "connection": "primary",
+            "executions": 1,
+            "sql_template": "BEGIN DEFERRED",
+            "sqlite_readonly": true
+          },
+          {
+            "category": "transaction",
+            "connection": "primary",
+            "executions": 1,
+            "sql_template": "COMMIT",
+            "sqlite_readonly": true
+          }
+        ],
+        "trace_callbacks": 16
+      },
+      "population": 100,
+      "scenario": "auto_ip_hit"
+    },
+    {
+      "counts": {
+        "by_category": {
+          "read": 8,
+          "transaction": 8
+        },
+        "by_connection": {
+          "analytics": 4,
+          "auth_read": 4,
+          "health": 4,
+          "primary": 4
+        },
+        "statement_executions": 16,
+        "templates": [
+          {
+            "category": "read",
+            "connection": "analytics",
+            "executions": 2,
+            "sql_template": "SELECT ?1",
+            "sqlite_readonly": true
+          },
+          {
+            "category": "transaction",
+            "connection": "analytics",
+            "executions": 1,
+            "sql_template": "BEGIN DEFERRED",
+            "sqlite_readonly": true
+          },
+          {
+            "category": "transaction",
+            "connection": "analytics",
+            "executions": 1,
+            "sql_template": "COMMIT",
+            "sqlite_readonly": true
+          },
+          {
+            "category": "read",
+            "connection": "auth_read",
+            "executions": 2,
+            "sql_template": "SELECT ?1",
+            "sqlite_readonly": true
+          },
+          {
+            "category": "transaction",
+            "connection": "auth_read",
+            "executions": 1,
+            "sql_template": "BEGIN DEFERRED",
+            "sqlite_readonly": true
+          },
+          {
+            "category": "transaction",
+            "connection": "auth_read",
+            "executions": 1,
+            "sql_template": "COMMIT",
+            "sqlite_readonly": true
+          },
+          {
+            "category": "read",
+            "connection": "health",
+            "executions": 2,
+            "sql_template": "SELECT ?1",
+            "sqlite_readonly": true
+          },
+          {
+            "category": "transaction",
+            "connection": "health",
+            "executions": 1,
+            "sql_template": "BEGIN DEFERRED",
+            "sqlite_readonly": true
+          },
+          {
+            "category": "transaction",
+            "connection": "health",
+            "executions": 1,
+            "sql_template": "COMMIT",
+            "sqlite_readonly": true
+          },
+          {
+            "category": "read",
+            "connection": "primary",
+            "executions": 2,
+            "sql_template": "SELECT ?1",
+            "sqlite_readonly": true
+          },
+          {
+            "category": "transaction",
+            "connection": "primary",
+            "executions": 1,
+            "sql_template": "BEGIN DEFERRED",
+            "sqlite_readonly": true
+          },
+          {
+            "category": "transaction",
+            "connection": "primary",
+            "executions": 1,
+            "sql_template": "COMMIT",
+            "sqlite_readonly": true
+          }
+        ],
+        "trace_callbacks": 16
+      },
+      "population": 1000,
+      "scenario": "session_hit"
+    },
+    {
+      "counts": {
+        "by_category": {
+          "read": 8,
+          "transaction": 8
+        },
+        "by_connection": {
+          "analytics": 4,
+          "auth_read": 4,
+          "health": 4,
+          "primary": 4
+        },
+        "statement_executions": 16,
+        "templates": [
+          {
+            "category": "read",
+            "connection": "analytics",
+            "executions": 2,
+            "sql_template": "SELECT ?1",
+            "sqlite_readonly": true
+          },
+          {
+            "category": "transaction",
+            "connection": "analytics",
+            "executions": 1,
+            "sql_template": "BEGIN DEFERRED",
+            "sqlite_readonly": true
+          },
+          {
+            "category": "transaction",
+            "connection": "analytics",
+            "executions": 1,
+            "sql_template": "COMMIT",
+            "sqlite_readonly": true
+          },
+          {
+            "category": "read",
+            "connection": "auth_read",
+            "executions": 2,
+            "sql_template": "SELECT ?1",
+            "sqlite_readonly": true
+          },
+          {
+            "category": "transaction",
+            "connection": "auth_read",
+            "executions": 1,
+            "sql_template": "BEGIN DEFERRED",
+            "sqlite_readonly": true
+          },
+          {
+            "category": "transaction",
+            "connection": "auth_read",
+            "executions": 1,
+            "sql_template": "COMMIT",
+            "sqlite_readonly": true
+          },
+          {
+            "category": "read",
+            "connection": "health",
+            "executions": 2,
+            "sql_template": "SELECT ?1",
+            "sqlite_readonly": true
+          },
+          {
+            "category": "transaction",
+            "connection": "health",
+            "executions": 1,
+            "sql_template": "BEGIN DEFERRED",
+            "sqlite_readonly": true
+          },
+          {
+            "category": "transaction",
+            "connection": "health",
+            "executions": 1,
+            "sql_template": "COMMIT",
+            "sqlite_readonly": true
+          },
+          {
+            "category": "read",
+            "connection": "primary",
+            "executions": 2,
+            "sql_template": "SELECT ?1",
+            "sqlite_readonly": true
+          },
+          {
+            "category": "transaction",
+            "connection": "primary",
+            "executions": 1,
+            "sql_template": "BEGIN DEFERRED",
+            "sqlite_readonly": true
+          },
+          {
+            "category": "transaction",
+            "connection": "primary",
+            "executions": 1,
+            "sql_template": "COMMIT",
+            "sqlite_readonly": true
+          }
+        ],
+        "trace_callbacks": 16
+      },
+      "population": 1000,
+      "scenario": "grant_hit"
+    },
+    {
+      "counts": {
+        "by_category": {
+          "read": 8,
+          "transaction": 8
+        },
+        "by_connection": {
+          "analytics": 4,
+          "auth_read": 4,
+          "health": 4,
+          "primary": 4
+        },
+        "statement_executions": 16,
+        "templates": [
+          {
+            "category": "read",
+            "connection": "analytics",
+            "executions": 2,
+            "sql_template": "SELECT ?1",
+            "sqlite_readonly": true
+          },
+          {
+            "category": "transaction",
+            "connection": "analytics",
+            "executions": 1,
+            "sql_template": "BEGIN DEFERRED",
+            "sqlite_readonly": true
+          },
+          {
+            "category": "transaction",
+            "connection": "analytics",
+            "executions": 1,
+            "sql_template": "COMMIT",
+            "sqlite_readonly": true
+          },
+          {
+            "category": "read",
+            "connection": "auth_read",
+            "executions": 2,
+            "sql_template": "SELECT ?1",
+            "sqlite_readonly": true
+          },
+          {
+            "category": "transaction",
+            "connection": "auth_read",
+            "executions": 1,
+            "sql_template": "BEGIN DEFERRED",
+            "sqlite_readonly": true
+          },
+          {
+            "category": "transaction",
+            "connection": "auth_read",
+            "executions": 1,
+            "sql_template": "COMMIT",
+            "sqlite_readonly": true
+          },
+          {
+            "category": "read",
+            "connection": "health",
+            "executions": 2,
+            "sql_template": "SELECT ?1",
+            "sqlite_readonly": true
+          },
+          {
+            "category": "transaction",
+            "connection": "health",
+            "executions": 1,
+            "sql_template": "BEGIN DEFERRED",
+            "sqlite_readonly": true
+          },
+          {
+            "category": "transaction",
+            "connection": "health",
+            "executions": 1,
+            "sql_template": "COMMIT",
+            "sqlite_readonly": true
+          },
+          {
+            "category": "read",
+            "connection": "primary",
+            "executions": 2,
+            "sql_template": "SELECT ?1",
+            "sqlite_readonly": true
+          },
+          {
+            "category": "transaction",
+            "connection": "primary",
+            "executions": 1,
+            "sql_template": "BEGIN DEFERRED",
+            "sqlite_readonly": true
+          },
+          {
+            "category": "transaction",
+            "connection": "primary",
+            "executions": 1,
+            "sql_template": "COMMIT",
+            "sqlite_readonly": true
+          }
+        ],
+        "trace_callbacks": 16
+      },
+      "population": 1000,
+      "scenario": "auto_ip_hit"
+    }
+  ],
+  "measurements": [
+    {
+      "background_generation_after": 2,
+      "background_generation_before": 2,
+      "counts": {
+        "by_category": {
+          "read": 15,
+          "transaction": 14,
+          "write": 2
+        },
+        "by_connection": {
+          "auth_read": 22,
+          "primary": 9
+        },
+        "statement_executions": 31,
+        "templates": [
+          {
+            "category": "read",
+            "connection": "auth_read",
+            "executions": 3,
+            "sql_template": "SELECT aggregate_json FROM mobility_session_aggregates WHERE session_id = ?1",
+            "sqlite_readonly": true
+          },
+          {
+            "category": "read",
+            "connection": "auth_read",
+            "executions": 4,
+            "sql_template": "SELECT strings.value FROM kv_strings AS strings JOIN kv_keys AS keys ON keys.key = strings.key WHERE strings.key = ?1 AND keys.kind = 'string' AND (keys.expires_at_ms IS NULL OR keys.expires_at_ms > ?2)",
+            "sqlite_readonly": true
+          },
+          {
+            "category": "read",
+            "connection": "auth_read",
+            "executions": 3,
+            "sql_template": "SELECT strings.value, keys.expires_at_ms FROM kv_strings AS strings JOIN kv_keys AS keys ON keys.key = strings.key WHERE strings.key = ?1 AND (keys.expires_at_ms IS NULL OR keys.expires_at_ms > ?2)",
+            "sqlite_readonly": true
+          },
+          {
+            "category": "transaction",
+            "connection": "auth_read",
+            "executions": 6,
+            "sql_template": "BEGIN DEFERRED",
+            "sqlite_readonly": true
+          },
+          {
+            "category": "transaction",
+            "connection": "auth_read",
+            "executions": 6,
+            "sql_template": "COMMIT",
+            "sqlite_readonly": true
+          },
+          {
+            "category": "read",
+            "connection": "primary",
+            "executions": 1,
+            "sql_template": "SELECT document_json, host_mappings_generation, revision FROM config_documents WHERE singleton = 1",
+            "sqlite_readonly": true
+          },
+          {
+            "category": "read",
+            "connection": "primary",
+            "executions": 2,
+            "sql_template": "SELECT kind FROM kv_keys WHERE key = ?1",
+            "sqlite_readonly": true
+          },
+          {
+            "category": "read",
+            "connection": "primary",
+            "executions": 2,
+            "sql_template": "SELECT value FROM kv_strings WHERE key = ?1",
+            "sqlite_readonly": true
+          },
+          {
+            "category": "transaction",
+            "connection": "primary",
+            "executions": 1,
+            "sql_template": "BEGIN IMMEDIATE",
+            "sqlite_readonly": false
+          },
+          {
+            "category": "transaction",
+            "connection": "primary",
+            "executions": 1,
+            "sql_template": "COMMIT",
+            "sqlite_readonly": true
+          },
+          {
+            "category": "write",
+            "connection": "primary",
+            "executions": 2,
+            "sql_template": "DELETE FROM kv_keys WHERE key = ?1 AND expires_at_ms IS NOT NULL AND expires_at_ms <= ?2",
+            "sqlite_readonly": false
+          }
+        ],
+        "trace_callbacks": 31
+      },
+      "idle_after": {
+        "by_category": {},
+        "by_connection": {},
+        "statement_executions": 0,
+        "templates": [],
+        "trace_callbacks": 0
+      },
+      "idle_control": {
+        "by_category": {},
+        "by_connection": {},
+        "statement_executions": 0,
+        "templates": [],
+        "trace_callbacks": 0
+      },
+      "mode": "PreflightAndVerify",
+      "operation": "session_hit",
+      "outcome": {
+        "decision": "passed",
+        "grant_kind": 1,
+        "grant_type": "browser_session",
+        "preflight_denied": false,
+        "request_id": "sql-diagnostic-request",
+        "rule_group_id": "",
+        "set_cookie_count": 0,
+        "status": 200,
+        "verify_success": true
+      },
+      "population": 1,
+      "warm_age_ms": 5080,
+      "warm_background": {
+        "active": [],
+        "spawn_generation": 2,
+        "waited_ms": 5019
+      },
+      "warm_outcome": {
+        "decision": "passed",
+        "grant_kind": 1,
+        "grant_type": "browser_session",
+        "preflight_denied": false,
+        "request_id": "sql-diagnostic-request",
+        "rule_group_id": "",
+        "set_cookie_count": 0,
+        "status": 200,
+        "verify_success": true
+      }
+    },
+    {
+      "background_generation_after": 0,
+      "background_generation_before": 0,
+      "counts": {
+        "by_category": {
+          "read": 8,
+          "transaction": 4
+        },
+        "by_connection": {
+          "auth_read": 12
+        },
+        "statement_executions": 12,
+        "templates": [
+          {
+            "category": "read",
+            "connection": "auth_read",
+            "executions": 2,
+            "sql_template": "SELECT active.member, active.score, strings.value, grant_keys.expires_at_ms FROM kv_zset AS active LEFT JOIN kv_keys AS grant_keys ON grant_keys.key = active.member AND grant_keys.kind = 'string' LEFT JOIN kv_strings AS strings ON strings.key = grant_keys.key WHERE active.key = ?1 ORDER BY active.member",
+            "sqlite_readonly": true
+          },
+          {
+            "category": "read",
+            "connection": "auth_read",
+            "executions": 2,
+            "sql_template": "SELECT grant_digest, expires_at_score FROM subdomain_rule_grant_active_entries WHERE host_digest = ?1 ORDER BY grant_digest",
+            "sqlite_readonly": true
+          },
+          {
+            "category": "read",
+            "connection": "auth_read",
+            "executions": 2,
+            "sql_template": "SELECT host, policy_version, group_id, issued_at, last_access_at, hard_expires_at, expires_at_ms FROM subdomain_rule_grants WHERE grant_digest = ?1",
+            "sqlite_readonly": true
+          },
+          {
+            "category": "read",
+            "connection": "auth_read",
+            "executions": 2,
+            "sql_template": "SELECT strings.value, keys.kind, keys.expires_at_ms FROM kv_strings AS strings JOIN kv_keys AS keys ON keys.key = strings.key WHERE strings.key = ?1 AND (keys.expires_at_ms IS NULL OR keys.expires_at_ms > ?2)",
+            "sqlite_readonly": true
+          },
+          {
+            "category": "transaction",
+            "connection": "auth_read",
+            "executions": 2,
+            "sql_template": "BEGIN DEFERRED",
+            "sqlite_readonly": true
+          },
+          {
+            "category": "transaction",
+            "connection": "auth_read",
+            "executions": 2,
+            "sql_template": "COMMIT",
+            "sqlite_readonly": true
+          }
+        ],
+        "trace_callbacks": 12
+      },
+      "idle_after": {
+        "by_category": {},
+        "by_connection": {},
+        "statement_executions": 0,
+        "templates": [],
+        "trace_callbacks": 0
+      },
+      "idle_control": {
+        "by_category": {},
+        "by_connection": {},
+        "statement_executions": 0,
+        "templates": [],
+        "trace_callbacks": 0
+      },
+      "mode": "PreflightAndVerify",
+      "operation": "grant_hit",
+      "outcome": {
+        "decision": "subdomain_rule_allowed",
+        "grant_kind": 3,
+        "grant_type": "subdomain_rule",
+        "preflight_denied": false,
+        "request_id": "sql-diagnostic-request",
+        "rule_group_id": "diagnostic-group",
+        "set_cookie_count": 0,
+        "status": 200,
+        "verify_success": true
+      },
+      "population": 1,
+      "warm_age_ms": 48,
+      "warm_background": {
+        "active": [],
+        "spawn_generation": 0,
+        "waited_ms": 0
+      },
+      "warm_outcome": {
+        "decision": "subdomain_rule_allowed",
+        "grant_kind": 3,
+        "grant_type": "subdomain_rule",
+        "preflight_denied": false,
+        "request_id": "sql-diagnostic-request",
+        "rule_group_id": "diagnostic-group",
+        "set_cookie_count": 0,
+        "status": 200,
+        "verify_success": true
+      }
+    },
+    {
+      "background_generation_after": 2,
+      "background_generation_before": 2,
+      "counts": {
+        "by_category": {
+          "read": 5,
+          "transaction": 6
+        },
+        "by_connection": {
+          "auth_read": 11
+        },
+        "statement_executions": 11,
+        "templates": [
+          {
+            "category": "read",
+            "connection": "auth_read",
+            "executions": 1,
+            "sql_template": "SELECT aggregate_json FROM mobility_session_aggregates WHERE session_id = ?1",
+            "sqlite_readonly": true
+          },
+          {
+            "category": "read",
+            "connection": "auth_read",
+            "executions": 2,
+            "sql_template": "SELECT strings.value FROM kv_strings AS strings JOIN kv_keys AS keys ON keys.key = strings.key WHERE strings.key = ?1 AND keys.kind = 'string' AND (keys.expires_at_ms IS NULL OR keys.expires_at_ms > ?2)",
+            "sqlite_readonly": true
+          },
+          {
+            "category": "read",
+            "connection": "auth_read",
+            "executions": 1,
+            "sql_template": "SELECT strings.value, keys.expires_at_ms FROM kv_strings AS strings JOIN kv_keys AS keys ON keys.key = strings.key WHERE strings.key = ?1 AND (keys.expires_at_ms IS NULL OR keys.expires_at_ms > ?2)",
+            "sqlite_readonly": true
+          },
+          {
+            "category": "read",
+            "connection": "auth_read",
+            "executions": 1,
+            "sql_template": "SELECT substr(strings.key, length('fn_knock:session:') + 1), strings.value FROM kv_strings AS strings JOIN kv_keys AS keys ON keys.key = strings.key WHERE strings.key GLOB 'fn_knock:session:*' AND keys.kind = 'string' AND (keys.expires_at_ms IS NULL OR keys.expires_at_ms > ?1) ORDER BY strings.key",
+            "sqlite_readonly": true
+          },
+          {
+            "category": "transaction",
+            "connection": "auth_read",
+            "executions": 3,
+            "sql_template": "BEGIN DEFERRED",
+            "sqlite_readonly": true
+          },
+          {
+            "category": "transaction",
+            "connection": "auth_read",
+            "executions": 3,
+            "sql_template": "COMMIT",
+            "sqlite_readonly": true
+          }
+        ],
+        "trace_callbacks": 11
+      },
+      "idle_after": {
+        "by_category": {},
+        "by_connection": {},
+        "statement_executions": 0,
+        "templates": [],
+        "trace_callbacks": 0
+      },
+      "idle_control": {
+        "by_category": {},
+        "by_connection": {},
+        "statement_executions": 0,
+        "templates": [],
+        "trace_callbacks": 0
+      },
+      "mode": "PreflightAndVerify",
+      "operation": "auto_ip_hit",
+      "outcome": {
+        "decision": "passed",
+        "grant_kind": 1,
+        "grant_type": "login_ip_grant",
+        "preflight_denied": false,
+        "request_id": "sql-diagnostic-request",
+        "rule_group_id": "",
+        "set_cookie_count": 0,
+        "status": 200,
+        "verify_success": true
+      },
+      "population": 1,
+      "warm_age_ms": 5075,
+      "warm_background": {
+        "active": [],
+        "spawn_generation": 2,
+        "waited_ms": 5024
+      },
+      "warm_outcome": {
+        "decision": "passed",
+        "grant_kind": 1,
+        "grant_type": "login_ip_grant",
+        "preflight_denied": false,
+        "request_id": "sql-diagnostic-request",
+        "rule_group_id": "",
+        "set_cookie_count": 0,
+        "status": 200,
+        "verify_success": true
+      }
+    },
+    {
+      "background_generation_after": 2,
+      "background_generation_before": 2,
+      "counts": {
+        "by_category": {
+          "read": 15,
+          "transaction": 14,
+          "write": 2
+        },
+        "by_connection": {
+          "auth_read": 22,
+          "primary": 9
+        },
+        "statement_executions": 31,
+        "templates": [
+          {
+            "category": "read",
+            "connection": "auth_read",
+            "executions": 3,
+            "sql_template": "SELECT aggregate_json FROM mobility_session_aggregates WHERE session_id = ?1",
+            "sqlite_readonly": true
+          },
+          {
+            "category": "read",
+            "connection": "auth_read",
+            "executions": 4,
+            "sql_template": "SELECT strings.value FROM kv_strings AS strings JOIN kv_keys AS keys ON keys.key = strings.key WHERE strings.key = ?1 AND keys.kind = 'string' AND (keys.expires_at_ms IS NULL OR keys.expires_at_ms > ?2)",
+            "sqlite_readonly": true
+          },
+          {
+            "category": "read",
+            "connection": "auth_read",
+            "executions": 3,
+            "sql_template": "SELECT strings.value, keys.expires_at_ms FROM kv_strings AS strings JOIN kv_keys AS keys ON keys.key = strings.key WHERE strings.key = ?1 AND (keys.expires_at_ms IS NULL OR keys.expires_at_ms > ?2)",
+            "sqlite_readonly": true
+          },
+          {
+            "category": "transaction",
+            "connection": "auth_read",
+            "executions": 6,
+            "sql_template": "BEGIN DEFERRED",
+            "sqlite_readonly": true
+          },
+          {
+            "category": "transaction",
+            "connection": "auth_read",
+            "executions": 6,
+            "sql_template": "COMMIT",
+            "sqlite_readonly": true
+          },
+          {
+            "category": "read",
+            "connection": "primary",
+            "executions": 1,
+            "sql_template": "SELECT document_json, host_mappings_generation, revision FROM config_documents WHERE singleton = 1",
+            "sqlite_readonly": true
+          },
+          {
+            "category": "read",
+            "connection": "primary",
+            "executions": 2,
+            "sql_template": "SELECT kind FROM kv_keys WHERE key = ?1",
+            "sqlite_readonly": true
+          },
+          {
+            "category": "read",
+            "connection": "primary",
+            "executions": 2,
+            "sql_template": "SELECT value FROM kv_strings WHERE key = ?1",
+            "sqlite_readonly": true
+          },
+          {
+            "category": "transaction",
+            "connection": "primary",
+            "executions": 1,
+            "sql_template": "BEGIN IMMEDIATE",
+            "sqlite_readonly": false
+          },
+          {
+            "category": "transaction",
+            "connection": "primary",
+            "executions": 1,
+            "sql_template": "COMMIT",
+            "sqlite_readonly": true
+          },
+          {
+            "category": "write",
+            "connection": "primary",
+            "executions": 2,
+            "sql_template": "DELETE FROM kv_keys WHERE key = ?1 AND expires_at_ms IS NOT NULL AND expires_at_ms <= ?2",
+            "sqlite_readonly": false
+          }
+        ],
+        "trace_callbacks": 31
+      },
+      "idle_after": {
+        "by_category": {},
+        "by_connection": {},
+        "statement_executions": 0,
+        "templates": [],
+        "trace_callbacks": 0
+      },
+      "idle_control": {
+        "by_category": {},
+        "by_connection": {},
+        "statement_executions": 0,
+        "templates": [],
+        "trace_callbacks": 0
+      },
+      "mode": "PreflightAndVerify",
+      "operation": "session_hit",
+      "outcome": {
+        "decision": "passed",
+        "grant_kind": 1,
+        "grant_type": "browser_session",
+        "preflight_denied": false,
+        "request_id": "sql-diagnostic-request",
+        "rule_group_id": "",
+        "set_cookie_count": 0,
+        "status": 200,
+        "verify_success": true
+      },
+      "population": 100,
+      "warm_age_ms": 5072,
+      "warm_background": {
+        "active": [],
+        "spawn_generation": 2,
+        "waited_ms": 5019
+      },
+      "warm_outcome": {
+        "decision": "passed",
+        "grant_kind": 1,
+        "grant_type": "browser_session",
+        "preflight_denied": false,
+        "request_id": "sql-diagnostic-request",
+        "rule_group_id": "",
+        "set_cookie_count": 0,
+        "status": 200,
+        "verify_success": true
+      }
+    },
+    {
+      "background_generation_after": 0,
+      "background_generation_before": 0,
+      "counts": {
+        "by_category": {
+          "read": 8,
+          "transaction": 4
+        },
+        "by_connection": {
+          "auth_read": 12
+        },
+        "statement_executions": 12,
+        "templates": [
+          {
+            "category": "read",
+            "connection": "auth_read",
+            "executions": 2,
+            "sql_template": "SELECT active.member, active.score, strings.value, grant_keys.expires_at_ms FROM kv_zset AS active LEFT JOIN kv_keys AS grant_keys ON grant_keys.key = active.member AND grant_keys.kind = 'string' LEFT JOIN kv_strings AS strings ON strings.key = grant_keys.key WHERE active.key = ?1 ORDER BY active.member",
+            "sqlite_readonly": true
+          },
+          {
+            "category": "read",
+            "connection": "auth_read",
+            "executions": 2,
+            "sql_template": "SELECT grant_digest, expires_at_score FROM subdomain_rule_grant_active_entries WHERE host_digest = ?1 ORDER BY grant_digest",
+            "sqlite_readonly": true
+          },
+          {
+            "category": "read",
+            "connection": "auth_read",
+            "executions": 2,
+            "sql_template": "SELECT host, policy_version, group_id, issued_at, last_access_at, hard_expires_at, expires_at_ms FROM subdomain_rule_grants WHERE grant_digest = ?1",
+            "sqlite_readonly": true
+          },
+          {
+            "category": "read",
+            "connection": "auth_read",
+            "executions": 2,
+            "sql_template": "SELECT strings.value, keys.kind, keys.expires_at_ms FROM kv_strings AS strings JOIN kv_keys AS keys ON keys.key = strings.key WHERE strings.key = ?1 AND (keys.expires_at_ms IS NULL OR keys.expires_at_ms > ?2)",
+            "sqlite_readonly": true
+          },
+          {
+            "category": "transaction",
+            "connection": "auth_read",
+            "executions": 2,
+            "sql_template": "BEGIN DEFERRED",
+            "sqlite_readonly": true
+          },
+          {
+            "category": "transaction",
+            "connection": "auth_read",
+            "executions": 2,
+            "sql_template": "COMMIT",
+            "sqlite_readonly": true
+          }
+        ],
+        "trace_callbacks": 12
+      },
+      "idle_after": {
+        "by_category": {},
+        "by_connection": {},
+        "statement_executions": 0,
+        "templates": [],
+        "trace_callbacks": 0
+      },
+      "idle_control": {
+        "by_category": {},
+        "by_connection": {},
+        "statement_executions": 0,
+        "templates": [],
+        "trace_callbacks": 0
+      },
+      "mode": "PreflightAndVerify",
+      "operation": "grant_hit",
+      "outcome": {
+        "decision": "subdomain_rule_allowed",
+        "grant_kind": 3,
+        "grant_type": "subdomain_rule",
+        "preflight_denied": false,
+        "request_id": "sql-diagnostic-request",
+        "rule_group_id": "diagnostic-group",
+        "set_cookie_count": 0,
+        "status": 200,
+        "verify_success": true
+      },
+      "population": 100,
+      "warm_age_ms": 47,
+      "warm_background": {
+        "active": [],
+        "spawn_generation": 0,
+        "waited_ms": 0
+      },
+      "warm_outcome": {
+        "decision": "subdomain_rule_allowed",
+        "grant_kind": 3,
+        "grant_type": "subdomain_rule",
+        "preflight_denied": false,
+        "request_id": "sql-diagnostic-request",
+        "rule_group_id": "diagnostic-group",
+        "set_cookie_count": 0,
+        "status": 200,
+        "verify_success": true
+      }
+    },
+    {
+      "background_generation_after": 2,
+      "background_generation_before": 2,
+      "counts": {
+        "by_category": {
+          "read": 5,
+          "transaction": 6
+        },
+        "by_connection": {
+          "auth_read": 11
+        },
+        "statement_executions": 11,
+        "templates": [
+          {
+            "category": "read",
+            "connection": "auth_read",
+            "executions": 1,
+            "sql_template": "SELECT aggregate_json FROM mobility_session_aggregates WHERE session_id = ?1",
+            "sqlite_readonly": true
+          },
+          {
+            "category": "read",
+            "connection": "auth_read",
+            "executions": 2,
+            "sql_template": "SELECT strings.value FROM kv_strings AS strings JOIN kv_keys AS keys ON keys.key = strings.key WHERE strings.key = ?1 AND keys.kind = 'string' AND (keys.expires_at_ms IS NULL OR keys.expires_at_ms > ?2)",
+            "sqlite_readonly": true
+          },
+          {
+            "category": "read",
+            "connection": "auth_read",
+            "executions": 1,
+            "sql_template": "SELECT strings.value, keys.expires_at_ms FROM kv_strings AS strings JOIN kv_keys AS keys ON keys.key = strings.key WHERE strings.key = ?1 AND (keys.expires_at_ms IS NULL OR keys.expires_at_ms > ?2)",
+            "sqlite_readonly": true
+          },
+          {
+            "category": "read",
+            "connection": "auth_read",
+            "executions": 1,
+            "sql_template": "SELECT substr(strings.key, length('fn_knock:session:') + 1), strings.value FROM kv_strings AS strings JOIN kv_keys AS keys ON keys.key = strings.key WHERE strings.key GLOB 'fn_knock:session:*' AND keys.kind = 'string' AND (keys.expires_at_ms IS NULL OR keys.expires_at_ms > ?1) ORDER BY strings.key",
+            "sqlite_readonly": true
+          },
+          {
+            "category": "transaction",
+            "connection": "auth_read",
+            "executions": 3,
+            "sql_template": "BEGIN DEFERRED",
+            "sqlite_readonly": true
+          },
+          {
+            "category": "transaction",
+            "connection": "auth_read",
+            "executions": 3,
+            "sql_template": "COMMIT",
+            "sqlite_readonly": true
+          }
+        ],
+        "trace_callbacks": 11
+      },
+      "idle_after": {
+        "by_category": {},
+        "by_connection": {},
+        "statement_executions": 0,
+        "templates": [],
+        "trace_callbacks": 0
+      },
+      "idle_control": {
+        "by_category": {},
+        "by_connection": {},
+        "statement_executions": 0,
+        "templates": [],
+        "trace_callbacks": 0
+      },
+      "mode": "PreflightAndVerify",
+      "operation": "auto_ip_hit",
+      "outcome": {
+        "decision": "passed",
+        "grant_kind": 1,
+        "grant_type": "login_ip_grant",
+        "preflight_denied": false,
+        "request_id": "sql-diagnostic-request",
+        "rule_group_id": "",
+        "set_cookie_count": 0,
+        "status": 200,
+        "verify_success": true
+      },
+      "population": 100,
+      "warm_age_ms": 5073,
+      "warm_background": {
+        "active": [],
+        "spawn_generation": 2,
+        "waited_ms": 5019
+      },
+      "warm_outcome": {
+        "decision": "passed",
+        "grant_kind": 1,
+        "grant_type": "login_ip_grant",
+        "preflight_denied": false,
+        "request_id": "sql-diagnostic-request",
+        "rule_group_id": "",
+        "set_cookie_count": 0,
+        "status": 200,
+        "verify_success": true
+      }
+    },
+    {
+      "background_generation_after": 2,
+      "background_generation_before": 2,
+      "counts": {
+        "by_category": {
+          "read": 15,
+          "transaction": 14,
+          "write": 2
+        },
+        "by_connection": {
+          "auth_read": 22,
+          "primary": 9
+        },
+        "statement_executions": 31,
+        "templates": [
+          {
+            "category": "read",
+            "connection": "auth_read",
+            "executions": 3,
+            "sql_template": "SELECT aggregate_json FROM mobility_session_aggregates WHERE session_id = ?1",
+            "sqlite_readonly": true
+          },
+          {
+            "category": "read",
+            "connection": "auth_read",
+            "executions": 4,
+            "sql_template": "SELECT strings.value FROM kv_strings AS strings JOIN kv_keys AS keys ON keys.key = strings.key WHERE strings.key = ?1 AND keys.kind = 'string' AND (keys.expires_at_ms IS NULL OR keys.expires_at_ms > ?2)",
+            "sqlite_readonly": true
+          },
+          {
+            "category": "read",
+            "connection": "auth_read",
+            "executions": 3,
+            "sql_template": "SELECT strings.value, keys.expires_at_ms FROM kv_strings AS strings JOIN kv_keys AS keys ON keys.key = strings.key WHERE strings.key = ?1 AND (keys.expires_at_ms IS NULL OR keys.expires_at_ms > ?2)",
+            "sqlite_readonly": true
+          },
+          {
+            "category": "transaction",
+            "connection": "auth_read",
+            "executions": 6,
+            "sql_template": "BEGIN DEFERRED",
+            "sqlite_readonly": true
+          },
+          {
+            "category": "transaction",
+            "connection": "auth_read",
+            "executions": 6,
+            "sql_template": "COMMIT",
+            "sqlite_readonly": true
+          },
+          {
+            "category": "read",
+            "connection": "primary",
+            "executions": 1,
+            "sql_template": "SELECT document_json, host_mappings_generation, revision FROM config_documents WHERE singleton = 1",
+            "sqlite_readonly": true
+          },
+          {
+            "category": "read",
+            "connection": "primary",
+            "executions": 2,
+            "sql_template": "SELECT kind FROM kv_keys WHERE key = ?1",
+            "sqlite_readonly": true
+          },
+          {
+            "category": "read",
+            "connection": "primary",
+            "executions": 2,
+            "sql_template": "SELECT value FROM kv_strings WHERE key = ?1",
+            "sqlite_readonly": true
+          },
+          {
+            "category": "transaction",
+            "connection": "primary",
+            "executions": 1,
+            "sql_template": "BEGIN IMMEDIATE",
+            "sqlite_readonly": false
+          },
+          {
+            "category": "transaction",
+            "connection": "primary",
+            "executions": 1,
+            "sql_template": "COMMIT",
+            "sqlite_readonly": true
+          },
+          {
+            "category": "write",
+            "connection": "primary",
+            "executions": 2,
+            "sql_template": "DELETE FROM kv_keys WHERE key = ?1 AND expires_at_ms IS NOT NULL AND expires_at_ms <= ?2",
+            "sqlite_readonly": false
+          }
+        ],
+        "trace_callbacks": 31
+      },
+      "idle_after": {
+        "by_category": {},
+        "by_connection": {},
+        "statement_executions": 0,
+        "templates": [],
+        "trace_callbacks": 0
+      },
+      "idle_control": {
+        "by_category": {},
+        "by_connection": {},
+        "statement_executions": 0,
+        "templates": [],
+        "trace_callbacks": 0
+      },
+      "mode": "PreflightAndVerify",
+      "operation": "session_hit",
+      "outcome": {
+        "decision": "passed",
+        "grant_kind": 1,
+        "grant_type": "browser_session",
+        "preflight_denied": false,
+        "request_id": "sql-diagnostic-request",
+        "rule_group_id": "",
+        "set_cookie_count": 0,
+        "status": 200,
+        "verify_success": true
+      },
+      "population": 1000,
+      "warm_age_ms": 5069,
+      "warm_background": {
+        "active": [],
+        "spawn_generation": 2,
+        "waited_ms": 5010
+      },
+      "warm_outcome": {
+        "decision": "passed",
+        "grant_kind": 1,
+        "grant_type": "browser_session",
+        "preflight_denied": false,
+        "request_id": "sql-diagnostic-request",
+        "rule_group_id": "",
+        "set_cookie_count": 0,
+        "status": 200,
+        "verify_success": true
+      }
+    },
+    {
+      "background_generation_after": 0,
+      "background_generation_before": 0,
+      "counts": {
+        "by_category": {
+          "read": 8,
+          "transaction": 4
+        },
+        "by_connection": {
+          "auth_read": 12
+        },
+        "statement_executions": 12,
+        "templates": [
+          {
+            "category": "read",
+            "connection": "auth_read",
+            "executions": 2,
+            "sql_template": "SELECT active.member, active.score, strings.value, grant_keys.expires_at_ms FROM kv_zset AS active LEFT JOIN kv_keys AS grant_keys ON grant_keys.key = active.member AND grant_keys.kind = 'string' LEFT JOIN kv_strings AS strings ON strings.key = grant_keys.key WHERE active.key = ?1 ORDER BY active.member",
+            "sqlite_readonly": true
+          },
+          {
+            "category": "read",
+            "connection": "auth_read",
+            "executions": 2,
+            "sql_template": "SELECT grant_digest, expires_at_score FROM subdomain_rule_grant_active_entries WHERE host_digest = ?1 ORDER BY grant_digest",
+            "sqlite_readonly": true
+          },
+          {
+            "category": "read",
+            "connection": "auth_read",
+            "executions": 2,
+            "sql_template": "SELECT host, policy_version, group_id, issued_at, last_access_at, hard_expires_at, expires_at_ms FROM subdomain_rule_grants WHERE grant_digest = ?1",
+            "sqlite_readonly": true
+          },
+          {
+            "category": "read",
+            "connection": "auth_read",
+            "executions": 2,
+            "sql_template": "SELECT strings.value, keys.kind, keys.expires_at_ms FROM kv_strings AS strings JOIN kv_keys AS keys ON keys.key = strings.key WHERE strings.key = ?1 AND (keys.expires_at_ms IS NULL OR keys.expires_at_ms > ?2)",
+            "sqlite_readonly": true
+          },
+          {
+            "category": "transaction",
+            "connection": "auth_read",
+            "executions": 2,
+            "sql_template": "BEGIN DEFERRED",
+            "sqlite_readonly": true
+          },
+          {
+            "category": "transaction",
+            "connection": "auth_read",
+            "executions": 2,
+            "sql_template": "COMMIT",
+            "sqlite_readonly": true
+          }
+        ],
+        "trace_callbacks": 12
+      },
+      "idle_after": {
+        "by_category": {},
+        "by_connection": {},
+        "statement_executions": 0,
+        "templates": [],
+        "trace_callbacks": 0
+      },
+      "idle_control": {
+        "by_category": {},
+        "by_connection": {},
+        "statement_executions": 0,
+        "templates": [],
+        "trace_callbacks": 0
+      },
+      "mode": "PreflightAndVerify",
+      "operation": "grant_hit",
+      "outcome": {
+        "decision": "subdomain_rule_allowed",
+        "grant_kind": 3,
+        "grant_type": "subdomain_rule",
+        "preflight_denied": false,
+        "request_id": "sql-diagnostic-request",
+        "rule_group_id": "diagnostic-group",
+        "set_cookie_count": 0,
+        "status": 200,
+        "verify_success": true
+      },
+      "population": 1000,
+      "warm_age_ms": 73,
+      "warm_background": {
+        "active": [],
+        "spawn_generation": 0,
+        "waited_ms": 0
+      },
+      "warm_outcome": {
+        "decision": "subdomain_rule_allowed",
+        "grant_kind": 3,
+        "grant_type": "subdomain_rule",
+        "preflight_denied": false,
+        "request_id": "sql-diagnostic-request",
+        "rule_group_id": "diagnostic-group",
+        "set_cookie_count": 0,
+        "status": 200,
+        "verify_success": true
+      }
+    },
+    {
+      "background_generation_after": 2,
+      "background_generation_before": 2,
+      "counts": {
+        "by_category": {
+          "read": 5,
+          "transaction": 6
+        },
+        "by_connection": {
+          "auth_read": 11
+        },
+        "statement_executions": 11,
+        "templates": [
+          {
+            "category": "read",
+            "connection": "auth_read",
+            "executions": 1,
+            "sql_template": "SELECT aggregate_json FROM mobility_session_aggregates WHERE session_id = ?1",
+            "sqlite_readonly": true
+          },
+          {
+            "category": "read",
+            "connection": "auth_read",
+            "executions": 2,
+            "sql_template": "SELECT strings.value FROM kv_strings AS strings JOIN kv_keys AS keys ON keys.key = strings.key WHERE strings.key = ?1 AND keys.kind = 'string' AND (keys.expires_at_ms IS NULL OR keys.expires_at_ms > ?2)",
+            "sqlite_readonly": true
+          },
+          {
+            "category": "read",
+            "connection": "auth_read",
+            "executions": 1,
+            "sql_template": "SELECT strings.value, keys.expires_at_ms FROM kv_strings AS strings JOIN kv_keys AS keys ON keys.key = strings.key WHERE strings.key = ?1 AND (keys.expires_at_ms IS NULL OR keys.expires_at_ms > ?2)",
+            "sqlite_readonly": true
+          },
+          {
+            "category": "read",
+            "connection": "auth_read",
+            "executions": 1,
+            "sql_template": "SELECT substr(strings.key, length('fn_knock:session:') + 1), strings.value FROM kv_strings AS strings JOIN kv_keys AS keys ON keys.key = strings.key WHERE strings.key GLOB 'fn_knock:session:*' AND keys.kind = 'string' AND (keys.expires_at_ms IS NULL OR keys.expires_at_ms > ?1) ORDER BY strings.key",
+            "sqlite_readonly": true
+          },
+          {
+            "category": "transaction",
+            "connection": "auth_read",
+            "executions": 3,
+            "sql_template": "BEGIN DEFERRED",
+            "sqlite_readonly": true
+          },
+          {
+            "category": "transaction",
+            "connection": "auth_read",
+            "executions": 3,
+            "sql_template": "COMMIT",
+            "sqlite_readonly": true
+          }
+        ],
+        "trace_callbacks": 11
+      },
+      "idle_after": {
+        "by_category": {},
+        "by_connection": {},
+        "statement_executions": 0,
+        "templates": [],
+        "trace_callbacks": 0
+      },
+      "idle_control": {
+        "by_category": {},
+        "by_connection": {},
+        "statement_executions": 0,
+        "templates": [],
+        "trace_callbacks": 0
+      },
+      "mode": "PreflightAndVerify",
+      "operation": "auto_ip_hit",
+      "outcome": {
+        "decision": "passed",
+        "grant_kind": 1,
+        "grant_type": "login_ip_grant",
+        "preflight_denied": false,
+        "request_id": "sql-diagnostic-request",
+        "rule_group_id": "",
+        "set_cookie_count": 0,
+        "status": 200,
+        "verify_success": true
+      },
+      "population": 1000,
+      "warm_age_ms": 5112,
+      "warm_background": {
+        "active": [],
+        "spawn_generation": 2,
+        "waited_ms": 5017
+      },
+      "warm_outcome": {
+        "decision": "passed",
+        "grant_kind": 1,
+        "grant_type": "login_ip_grant",
+        "preflight_denied": false,
+        "request_id": "sql-diagnostic-request",
+        "rule_group_id": "",
+        "set_cookie_count": 0,
+        "status": 200,
+        "verify_success": true
+      }
+    }
+  ],
+  "populations": [
+    1,
+    100,
+    1000
+  ],
+  "schema_version": 1,
+  "source_commit": "5fddf896eaf9b1cf3eb300c08315320498c943b8"
+}

@@ -2,7 +2,7 @@
 
 本页只记录可审阅的回滚单元、依赖和验证要求，未执行 revert、切换分支、替换服务或修改运行配置。历史提交并非都能在当前树上直接无冲突 revert；应按功能处理依赖，再以回滚后的完整源码验证。不要把中间实验版本当作已验收的部署目标。
 
-原始基线为主仓 `d4f8805f39d9f4480bf83f4382ba59e5f49e7dc4`、相邻 Go 仓 `92d4c0cb5495d57801d52893a8f0e8496a1c9182`。下一轮冻结的 Rust 候选产品源码为 `5fddf896eaf9b1cf3eb300c08315320498c943b8`，已通过完整库测试及 Clippy；配套 Go `0978d6b03767c3e5f3ebf72fa13074c2b72afe7d` 的完整测试、race、vet 和 benchmark 尚在验证。此前 Rust `c65503d6`/Go `748c97e0` 组合的正式实验已停止并保留为 [拒绝候选证据](REJECTED_CANDIDATES.md)，不能继续标为最终制品。实际采用哪组制品，以构建 manifest 和二进制哈希为准；工具或文档提交不会改变已构建二进制的源码身份。
+原始基线为主仓 `d4f8805f39d9f4480bf83f4382ba59e5f49e7dc4`、相邻 Go 仓 `92d4c0cb5495d57801d52893a8f0e8496a1c9182`。下一轮冻结的 Rust 候选产品源码为 `5fddf896eaf9b1cf3eb300c08315320498c943b8`，已通过完整库测试及 Clippy；配套最终 Go `4d15fa32764e26df58b16930d0e2503a90880002` 已通过完整测试、proxy race、vet、17-case Cookie 三态回归及原始→最终六对本机 benchmark，见 [最终 Go 报告](/Users/edgeware/Local/Go-Reauth-Proxy/docs/experiments/auth-final-20260923/README.md)。本机验证不替代匹配 Linux 制品的正式长测。此前 Rust `c65503d6`/Go `748c97e0` 组合的正式实验已停止并保留为 [拒绝候选证据](REJECTED_CANDIDATES.md)，不能继续标为最终制品。实际采用哪组制品，以构建 manifest 和二进制哈希为准；工具或文档提交不会改变已构建二进制的源码身份。
 
 ## 先恢复 reader 默认值
 
@@ -30,7 +30,7 @@ env -u FN_KNOCK_SQLITE_AUTH_READERS <原有启动命令及参数>
 
 阶段汇总和完整测试记录见 [原实验说明](../../../../Go-Reauth-Proxy/docs/experiments/auth-hot-path-20260923/README.md)、[summary-stages.json](../../../../Go-Reauth-Proxy/docs/experiments/auth-hot-path-20260923/summary-stages.json)。`4725c86b` 把 combined auth 移入 `http_auth_combined.go` 以保持文件大小预算，没有独立收益主张。缓存写入场景仍须保留已知代价：352→368 B/op（+4.55%），allocs/op 不变；不能只报告命中改善。
 
-包含最终 trailer 修复的原始→最终直接六对实验在 [最终 Go 证据](../../../../Go-Reauth-Proxy/docs/experiments/trace-trailer-fix-20260923/README.md) 与 [overall-results](../../../../Go-Reauth-Proxy/docs/experiments/trace-trailer-fix-20260923/overall-results/)：lean AuthOff/CacheHit 的配对中位延迟变化分别为 -6.725%/-14.558%，B/op 为 -17.892%/-26.927%。这些是独立直接测量，不由阶段结果拼接。
+原始 `92d4c0c`→最终 `4d15fa3` 的直接六对实验见 [最终 Go 证据](/Users/edgeware/Local/Go-Reauth-Proxy/docs/experiments/auth-final-20260923/README.md)：lean AuthOff/CacheHit 的配对中位延迟变化分别为 -7.190%/-15.198%，B/op 为 -17.920%/-26.896%。这些是包含 trailer 与两项 Cookie 兼容修复的独立直接测量，不由阶段结果拼接；此前 `748c97e0` 的 [trailer 阶段实验](../../../../Go-Reauth-Proxy/docs/experiments/trace-trailer-fix-20260923/README.md) 仅作历史证据。
 
 ### Go 功能回滚组
 
@@ -38,10 +38,13 @@ env -u FN_KNOCK_SQLITE_AUTH_READERS <原有启动命令及参数>
 | --- | --- | --- |
 | G1：反代捕获 | `0cc5ef5d`，`pkg/proxy/handler.go` | 可针对捕获方式恢复，但后续鉴权与缓存键也修改同文件，须逐段审阅。保留路由、Host/SNI、上游错误处理和升级语义。 |
 | G2：鉴权缓存热路径 | `eb08cbb8`、`894d1122`、`2a54d305`，以及布局变更 `4725c86b` | 这些提交共同修改 lookup 参数、条目类型及 combined auth 调用点。撤回整组时先处理后续依赖，再按 `4725c86b → 2a54d305 → 894d1122 → eb08cbb8` 的逆序组织改动；可保留模块拆分而手动恢复逻辑。单撤某一层须同步适配调用方，不能混用新旧键类型或缓存所有权假设。 |
-| G3：cookie/header 快路径 | `91f65ccd`，`advanced_auth.go`、`trace_id.go` | 可以恢复原慢路径并保留相同语义测试。普通/保留/畸形 cookie、大小写、Unicode fallback 都须验证。共享 benchmark fixture可保留用于测量，不必随产品逻辑移除。 |
+| G3：cookie/header 快路径 | `91f65ccd`，`advanced_auth.go`、`trace_id.go` | 保留 Cookie 快路径时必须保留 G5 的两项兼容修复。可以恢复原慢路径并保留相同语义测试。普通/保留/畸形 cookie、大小写、Unicode fallback 都须验证。共享 benchmark fixture可保留用于测量，不必随产品逻辑移除。 |
 | G4：末尾 trailer 正确性修复 | 测试 `0f16a93b`；修复 `748c97e0`，`response_coalescing.go` | **独立于性能收益，性能回滚时保留。** 缺陷在原始基线已存在；仅恢复到 `92d4c0c` 会失去这项保护。修复在反代返回、coalescer 收尾后过滤下游 header/trailer，不依赖新增 body wrapper。测试和修复应一起保留或移植到回滚结果。 |
+| G5：Cookie 快路径兼容修复 | `0978d6b0`、`4d15fa32`，`advanced_auth.go`、`advanced_auth_cookie_compatibility_test.go` | **G3 Cookie 快路径的必需依赖，两项均须保留。** 前者恢复空片段归一化，避免大量分号使上游 Cookie 解析整体为空；后者恢复 Unicode/非 HTTP 边界空白的 `strings.TrimSpace` 语义。若整组恢复原慢路径，也须保留或移植 17-case 回归，不能只撤兼容修复而留下有行为差异的原样透传。 |
 
 G4 的增量开销、24 组真实 HTTP/1↔HTTP/2 wire 验证及普通 trailer 保留证据见 [trailer 修复记录](../../../../Go-Reauth-Proxy/docs/experiments/trace-trailer-fix-20260923/README.md)。不得把它计作性能优化收益，也不应为了消除少量测量开销重新引入已知泄漏。
+
+G5 的独立复现、原始通过/中间失败/最终通过三态、最终完整测试/race/vet 与六对 benchmark 证据统一保存在 [最终 Go 报告](/Users/edgeware/Local/Go-Reauth-Proxy/docs/experiments/auth-final-20260923/README.md) 及其 `validation/`、`results/`，本目录不重复复制日志。
 
 ## 主仓 Rust：按功能回滚
 

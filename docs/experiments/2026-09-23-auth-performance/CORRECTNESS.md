@@ -11,6 +11,7 @@
 | Rust `fde0e280`：IP 候选投影 | 局部测试：mobility 28 passed；storage auth_reads 5 passed | 本机日志 `/tmp/fn-knock-ip-candidate-mobility-tests-20260923.log`、`/tmp/fn-knock-ip-candidate-auth-reads-tests-20260923.log`；含 1000 个非匹配 session、重复匹配、bootstrap 0/1/2 owner 和投影后撤销。 |
 | Rust `c65503d6cdf49336cdad922c1f7cb2046cf318a8`：历史检查点，已拒绝 | 当时 Clippy 通过；完整库测试 2101 passed、0 failed、10 ignored，117.82 秒 | [完整测试日志](results/rust-final3-tests.log)、[Clippy 日志](results/rust-final3-clippy.log)。后补 IP owner JSON 回归在该产品代码上实测失败；这份旧测试结果不能作为最终候选通过依据，见 [拒绝记录](REJECTED_CANDIDATES.md)。 |
 | Rust `5fddf896eaf9b1cf3eb300c08315320498c943b8`：IP owner JSON 兼容修复 | `cargo clippy --locked --all-targets -- -D warnings` 通过；`cargo test --locked --lib -- --test-threads=2`：**2102 passed、0 failed、10 ignored**，119.89 秒 | [完整测试日志](results/rust-final4-tests.log)、[Clippy 日志](results/rust-final4-clippy.log)，两个进程均退出 0；修复前新回归 [1 failed](results/ip-json-before.log)，修复后 mobility 组 [29 passed、0 failed](results/ip-json-after.log)。功能验证不代表新制品的性能长测已完成。 |
+| Go `4d15fa32764e26df58b16930d0e2503a90880002`：最终 Cookie 兼容修复 | `go test ./...`、`go test -race ./pkg/proxy`、`go vet ./...` 通过；17-case Cookie 回归三态验证完成；原始 `92d4c0c` 到最终源码的六对本机 benchmark 通过检查 | [最终 Go 报告](/Users/edgeware/Local/Go-Reauth-Proxy/docs/experiments/auth-final-20260923/README.md) 及其 `validation/`、`results/` 保留完整证据，不在本目录重复复制。三态为原始通过、中间 `748c97e` 预期失败、最终通过；本机 benchmark 不代表 Linux 服务长测通过。 |
 
 完整测试日志中，`runtime_health::tests::panic_hook_captures_and_redacts_unhandled_panic` 故意启动一个 panic 子进程，该子进程打印 `FAILED`，随后父测试为 `ok`；以上结论以最末尾整个测试进程的汇总及退出码为准。
 
@@ -61,11 +62,12 @@
 
 ## 相邻 Go 仓库的相关测试入口
 
-Go `748c97e03f6fb9087ac0b3c90064611dc2c6cf66` 已通过 `go test ./...`、`go test -race ./pkg/proxy` 和 `go vet ./...`，证据位于相邻仓库的实验目录及本目录 results。仓库实际目录为 `Go-Reauth-Proxy`。
+最终 Go 产品源码为 `4d15fa32764e26df58b16930d0e2503a90880002`，已通过完整测试、proxy race 和 vet；17-case Cookie 兼容回归及原始 `92d4c0c` 到最终源码的六对本机 benchmark 也已完成。命令、原始日志与测量边界见 [最终 Go 报告](/Users/edgeware/Local/Go-Reauth-Proxy/docs/experiments/auth-final-20260923/README.md)。仓库实际目录为 `Go-Reauth-Proxy`；此前 `748c97e0` 的验证与测量仅保留为历史阶段，不代替最终源码证据。
 
-新 Go 产品源码 `0978d6b03767c3e5f3ebf72fa13074c2b72afe7d` 的完整测试、race、vet 和 benchmark 正在验证；本页尚未将它标为通过，也不沿用 `748c97e0` 的检查结果作为新源码证据。
+Cookie 快路径的必需兼容依赖是 `0978d6b03767c3e5f3ebf72fa13074c2b72afe7d` 和 `4d15fa32764e26df58b16930d0e2503a90880002`：前者恢复空片段归一化，避免大量分号触发 Go 上游 Cookie 原始片段数量限制；后者恢复 `strings.TrimSpace` 的 Unicode/非 HTTP 边界空白语义。相同的 17-case 生产 helper 测试作为 test-only overlay 验证原始 `92d4c0c` 通过、中间 `748c97e` 失败、最终 `4d15fa3` 通过。保留快路径时两项修复均须保留，回滚分组见 [ROLLBACK 的 G5](ROLLBACK.md#go-功能回滚组)。
 
 - [advanced_auth_test.go](/Users/edgeware/Local/Go-Reauth-Proxy/pkg/proxy/advanced_auth_test.go)：`TestStripAdvancedAuthGrantOrdinaryCookiesAreUntouched`、`TestStripAdvancedAuthGrantMixedCaseAndMalformedCookies`、`TestAdvancedAuthPolicyVersionPartitionsAuthCache`。
+- [advanced_auth_cookie_compatibility_test.go](/Users/edgeware/Local/Go-Reauth-Proxy/pkg/proxy/advanced_auth_cookie_compatibility_test.go)：`TestStripAdvancedAuthGrantCookieNormalizesEmptySegmentsForUpstreamLimit`、`TestStripAdvancedAuthGrantCookieNormalizesEmptySegments`，覆盖空片段、SP/HT、Unicode 边界空白及直接构造 helper 输入的 VT/FF；普通 Cookie 快路径继续验证零分配。
 - [auth_bridge_admission_test.go](/Users/edgeware/Local/Go-Reauth-Proxy/pkg/rpcbridge/auth_bridge_admission_test.go)：`TestAuthBridgeLimitsSentRequestsAndReusesCompletedSlots`、`TestAuthBridgeAdmissionReleaseResponseCancelRace`。
 - [auth_bridge_test.go](/Users/edgeware/Local/Go-Reauth-Proxy/pkg/rpcbridge/auth_bridge_test.go)：`TestAuthBridgeRoundTripHonorsContextWhileWriterBlocked`、`TestAuthBridgeBoundedWriterQueue`、`TestAuthBridgeReconnectFailsOnlyOldPendingRequests`。
 

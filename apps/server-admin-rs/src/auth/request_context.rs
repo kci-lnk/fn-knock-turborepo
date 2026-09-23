@@ -31,20 +31,20 @@ impl<T> CredentialIndex<T> {
     }
 }
 
-pub(crate) async fn scope<T>(state: &AppState, future: impl Future<Output = T>) -> T {
-    if CURRENT.try_with(|_| ()).is_ok() {
-        return future.await;
-    }
-    CURRENT
-        .scope(
-            Arc::new(RequestContext {
-                config: state.storage.store.config_snapshot(),
-                accounts: OnceCell::new(),
-                totps: OnceCell::new(),
-            }),
-            future,
-        )
-        .await
+pub(crate) fn scope<T>(
+    state: &AppState,
+    future: impl Future<Output = T>,
+) -> impl Future<Output = T> {
+    let context = CURRENT.try_with(Arc::clone).unwrap_or_else(|_| {
+        Arc::new(RequestContext {
+            config: state.storage.store.config_snapshot(),
+            accounts: OnceCell::new(),
+            totps: OnceCell::new(),
+        })
+    });
+    // Auth route futures are large. Box at the boundary instead of embedding
+    // another copy in an async wrapper for each nested stage.
+    CURRENT.scope(context, Box::pin(future))
 }
 
 pub(crate) fn config(state: &AppState) -> Arc<Value> {

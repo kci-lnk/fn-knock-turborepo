@@ -11,6 +11,7 @@ async fn test_state() -> (tempfile::TempDir, AppState) {
     settings.gateway_config_dir = directory.path().join("gateway");
     settings.sqlite_path = directory.path().join("fn-knock.sqlite3");
     settings.legacy_redis_url = String::new();
+    settings.internal_rpc_token = "auth-request-context-test".into();
     let state = AppState::new(settings).await.unwrap();
     (directory, state)
 }
@@ -80,20 +81,14 @@ async fn scope_reuses_first_valid_credential_and_next_request_observes_revocatio
 #[tokio::test]
 async fn config_is_consistent_within_scope_and_refreshed_between_requests() {
     let (_directory, state) = test_state().await;
-    state
-        .storage
-        .store
-        .save_config(&json!({"marker": 1}))
-        .await
-        .unwrap();
+    let mut next_config = state.storage.store.get_config().await.unwrap();
+    next_config["marker"] = json!(1);
+    state.storage.store.save_config(&next_config).await.unwrap();
     scope(&state, async {
         assert_eq!(config(&state)["marker"], 1);
-        state
-            .storage
-            .store
-            .save_config(&json!({"marker": 2}))
-            .await
-            .unwrap();
+        let mut next_config = state.storage.store.get_config().await.unwrap();
+        next_config["marker"] = json!(2);
+        state.storage.store.save_config(&next_config).await.unwrap();
         assert_eq!(config(&state)["marker"], 1);
     })
     .await;

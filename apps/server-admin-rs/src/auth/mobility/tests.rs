@@ -1610,8 +1610,16 @@ async fn batched_ip_owners_preserve_http_stream_normalization_and_revocation() {
             .len(),
         1
     );
-    assert_eq!(
+    // HTTP retains the legacy normalized-text comparison; stream grants use
+    // address equality and therefore accept alternate IPv6 spellings.
+    assert!(
         list_active_sessions_by_ip(&state, "2001:db8::2")
+            .await
+            .unwrap()
+            .is_empty()
+    );
+    assert_eq!(
+        list_active_sessions_by_ip(&state, "2001:0db8:0:0:0:0:0:2")
             .await
             .unwrap()
             .len(),
@@ -1638,10 +1646,12 @@ async fn batched_ip_owners_preserve_http_stream_normalization_and_revocation() {
     );
     state.storage.store.delete_session("s").await.unwrap();
     assert!(
-        restore::confirm_session_ip_candidate(&state, "s", "2001:db8::2", &settings, false)
-            .await
-            .unwrap()
-            .is_none()
+        restore::confirm_session_ip_candidate(
+            &state, "s", "2001:0db8:0:0:0:0:0:2", &settings, false,
+        )
+        .await
+        .unwrap()
+        .is_none()
     );
     assert!(
         list_active_sessions_by_ip(&state, "2001:db8::2")
@@ -1654,12 +1664,9 @@ async fn batched_ip_owners_preserve_http_stream_normalization_and_revocation() {
 #[tokio::test]
 async fn batched_ip_owners_disabled_mobility_uses_canonical_ip_and_expiry() {
     let (_directory, state) = mobility_test_state("batched-ip-single").await;
-    state
-        .storage
-        .store
-        .save_config(&json!({"auth_credential_settings":{"session_ip_mobility_enabled":false}}))
-        .await
-        .unwrap();
+    let mut next_config = state.storage.store.get_config().await.unwrap();
+    next_config["auth_credential_settings"]["session_ip_mobility_enabled"] = json!(false);
+    state.storage.store.save_config(&next_config).await.unwrap();
     let live = test_browser_session("203.0.113.10");
     state
         .storage

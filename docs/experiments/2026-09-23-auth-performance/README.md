@@ -93,6 +93,8 @@ bash scripts/run-auth-performance-isolated.sh \
 
 profile默认关闭，不能用启用profile的吞吐替代无额外观测开销的A/B。工具调用既有 `POST /api/admin/runtime-health/debug/capture` 开始、`DELETE`停止：先采一段idle背景窗口，再预热，最后单独捕获load。API内置60秒截止，因此profile load与idle均限定不超过45秒，结束状态必须为手动stopped。计量请求完成后立即停止recorder；每个capture的原始操作统计保存在trial结果。
 
+每个trial会在独立合成库配置实验管理密码并取得管理session，通过管理界面端口27991携带cookie采集health/profile；这些准备步骤在预热前完成。不可直接请求受保护的backend管理端口27998，否则403仅说明采样未获授权。load期间每秒一次的管理health采样也会产生少量SQLite操作，idle窗口没有周期采样，因此idle只能作背景参照，不可直接相减。
+
 `operation_profile`将`sqlite_admission` scope的calls/total_wall_ms识别为executor入场等待，将`sqlite_primary`及`sqlite_auth_read`的calls/total_wall_ms/total_cpu_ms识别为executor执行统计，同时提供每成功请求归一化和idle executor调用/秒。这是**进程范围executor job计数，不是SQL语句条数，也不是逐请求跟踪**：一个closure可能包含多条SQL，背景操作和采样请求也在窗口内；保留idle参照，不自动扣减背景值。旧baseline缺少新增admission埋点时对应归一化字段为null，不报告为零等待。丢弃的operation label数量、unfinished scope和原始label明细一并保留。
 
 每对实验顺序交替为 AB/BA。每个 route 和样本启动独立的新进程/数据库。先启动初始化 schema，停止实验子进程，再写入合成 typed+legacy 一致种子后重新启动。种子文件要求 harness 所建目录标记；读写的只是该目录下 `state.sqlite3`。模板包含 TOTP 身份、有效 session、匹配当前 advanced-auth policy 的 grant、自动 IP 白名单及 owner session。

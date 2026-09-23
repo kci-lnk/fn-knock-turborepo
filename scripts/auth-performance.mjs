@@ -108,7 +108,7 @@ function probe(
     );
     const timeout = setTimeout(
       () => request.destroy(new Error("probe timeout")),
-      3000,
+      spec.timeoutMs ?? 3000,
     );
     request.on("close", () => clearTimeout(timeout));
     request.on("error", reject);
@@ -163,10 +163,31 @@ async function processStats(pid, hz) {
   }
 }
 
-async function operationCapture(method) {
+async function createAdminSession() {
   const response = await probe(
-    { path: "/api/admin/runtime-health/debug/capture", headers: {} },
-    27998,
+    {
+      path: "/api/admin/panel/password",
+      headers: { "content-type": "application/json" },
+      timeoutMs: 15000,
+    },
+    27991,
+    "127.0.0.1",
+    "POST",
+    JSON.stringify({ password: "Authperf-Control-20260923!" }),
+  );
+  assert.equal(response.status, 200, "synthetic admin session setup failed");
+  assert.equal(JSON.parse(response.body).success, true);
+  const cookie = (response.headers["set-cookie"] ?? [])
+    .find((value) => value.startsWith("fn-knock-admin-panel-session="))
+    ?.split(";")[0];
+  assert.ok(cookie, "synthetic admin session cookie missing");
+  return { cookie };
+}
+
+async function operationCapture(method, headers) {
+  const response = await probe(
+    { path: "/api/admin/runtime-health/debug/capture", headers },
+    27991,
     "127.0.0.1",
     method,
   );
@@ -227,11 +248,13 @@ async function runPhase(workers, processes, options, phase, collect) {
         while (active) {
           try {
             const response = await probe(
-              { path: "/api/admin/runtime-health", headers: {} },
-              27998,
+              { path: "/api/admin/runtime-health", headers: options.adminHeaders },
+              27991,
               "127.0.0.1",
             );
             const payload = JSON.parse(response.body);
+            assert.equal(response.status, 200, "runtime health API unavailable");
+            assert.equal(payload.success, true);
             health.push({
               elapsed_ms: now() - startedAt,
               status: response.status,
@@ -319,6 +342,15 @@ async function runPhase(workers, processes, options, phase, collect) {
     quality: {
       max_sampling_gap_ms: maxGap,
       sampling_ok: !collect || maxGap <= 1000,
+      health_ok:
+        !collect ||
+        (health.length > 0 &&
+          health.every(
+            (sample) =>
+              sample.status === 200 &&
+              sample.storage !== null &&
+              sample.auth_bridge !== null,
+          )),
       client_ok:
         measurement.client_event_loop_delay_max_ms <= 100 &&
         measurement.client_start_delay_max_ms <= 100,
@@ -463,6 +495,8 @@ async function trial(
     start();
     await waitReady([go, rust]);
     await delay(1000);
+    // Finish control-plane writes before enforcing and reading live cache TTLs.
+    const adminHeaders = await createAdminSession();
     if (config.control_binary) {
       row.cache_control = JSON.parse(
         execFileSync(
@@ -566,11 +600,29 @@ async function trial(
       client: { pid: process.pid },
       fixture: options.fixture,
     };
-    const phaseOptions = { ...options, scenario };
+    const phaseOptions = { ...options, scenario, adminHeaders };
     if (options.profile) {
-      await operationCapture("POST");
+      if (config.control_binary) {
+        row.cache_control_before_profile = JSON.parse(
+          execFileSync(
+            config.control_binary,
+            [
+              "-addr",
+              "127.0.0.1:27996",
+              "-token",
+              token,
+              "-cache-ttl",
+              String(options.cacheTtl),
+              "-read-only",
+            ],
+            { encoding: "utf8", timeout: 10000 },
+          ),
+        );
+        assert.equal(row.cache_control_before_profile.runtime_verified, true);
+      }
+      await operationCapture("POST", adminHeaders);
       await delay(options.profileIdle * 1000);
-      row.profile_idle = await operationCapture("DELETE");
+      row.profile_idle = await operationCapture("DELETE", adminHeaders);
     }
     row.warmup = await runPhase(
       workers,
@@ -585,9 +637,9 @@ async function trial(
       "warmup included incorrect or failed responses",
     );
     if (options.profile) {
-      row.profile_start = await operationCapture("POST");
+      row.profile_start = await operationCapture("POST", adminHeaders);
       phaseOptions.afterRequests = async () => {
-        row.profile_capture = await operationCapture("DELETE");
+        row.profile_capture = await operationCapture("DELETE", adminHeaders);
       };
     }
     const load = await runPhase(workers, processes, phaseOptions, "load", true);
@@ -624,6 +676,7 @@ async function trial(
       passed:
         load.measurement.failures === 0 &&
         load.quality.sampling_ok &&
+        load.quality.health_ok &&
         load.quality.client_ok &&
         load.quality.duration_ok &&
         (!options.profile || row.operation_profile.dropped_operations === 0),

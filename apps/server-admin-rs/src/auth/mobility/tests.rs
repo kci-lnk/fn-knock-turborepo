@@ -1647,7 +1647,11 @@ async fn batched_ip_owners_preserve_http_stream_normalization_and_revocation() {
     state.storage.store.delete_session("s").await.unwrap();
     assert!(
         restore::confirm_session_ip_candidate(
-            &state, "s", "2001:0db8:0:0:0:0:0:2", &settings, false,
+            &state,
+            "s",
+            "2001:0db8:0:0:0:0:0:2",
+            &settings,
+            false,
         )
         .await
         .unwrap()

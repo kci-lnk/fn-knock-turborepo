@@ -128,6 +128,12 @@ bash scripts/run-auth-performance-isolated.sh \
   --cache-ttl 0 --accounts 1000 --credential-kind password
 ```
 
+## SQL 语句计数的独立证据
+
+[完整 Rust 鉴权 handler 诊断](SQL-RPC-STATEMENTS.md) 对同一完整 `AuthorizeHttp(PreflightAndVerify)` 调用使用 SQLite trace，覆盖 N=1/100/1000，配置与远端主矩阵一致（mobility 关闭）。它统计预热后同步处理期间的语句启动，包括事务边界；不包含 Go、网络、独立 Inspect RPC 或冷请求/周期后台记账，不能称为完整外部 HTTP 的 SQL 次数。
+
+[存储方法诊断](SQL-STATEMENTS.md) 单独测量 grant getter、session normal access 和开启 mobility 的 owner 查询。两种边界与配置的数字不得拼接。下述 profiler 提供 executor job 和等待/执行时间，job 也不等于 SQL 语句。
+
 ## 单独采集 SQLite executor profile
 
 ```sh

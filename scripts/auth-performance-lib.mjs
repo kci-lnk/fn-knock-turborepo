@@ -14,6 +14,15 @@ export const scenarios = [
 ];
 export const marker = "auth-performance-owned-origin-v1";
 
+export function benchmarkEnvironment(inherited, variant = {}) {
+  const env = { ...inherited, ...variant };
+  const capacity = "FN_KNOCK_AUTH_BRIDGE_MAX_IN_FLIGHT";
+  // Host shell settings must not silently replace either service's default.
+  delete env[capacity];
+  if (Object.hasOwn(variant, capacity)) env[capacity] = variant[capacity];
+  return env;
+}
+
 export function requestSpec(scenario, index = 0, phase = "load") {
   assert.ok(scenarios.includes(scenario), `unknown scenario ${scenario}`);
   const headers = {

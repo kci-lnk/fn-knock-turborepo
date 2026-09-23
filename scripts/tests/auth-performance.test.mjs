@@ -13,12 +13,28 @@ import {
   pairOrder,
   compareRuns,
   comparisonFailures,
+  benchmarkEnvironment,
 } from "../auth-performance-lib.mjs";
 import { summarizeOperationProfile } from "../auth-performance-profile.mjs";
 import {
   captureFailureSnapshot,
   runRecoveryProbe,
 } from "../auth-performance-recovery.mjs";
+
+test("bridge capacity uses product defaults unless the variant explicitly overrides it", () => {
+  const name = "FN_KNOCK_AUTH_BRIDGE_MAX_IN_FLIGHT";
+  assert.equal(benchmarkEnvironment({}, {})[name], undefined);
+  assert.equal(
+    benchmarkEnvironment({ [name]: "32", KEEP: "yes" }, {})[name],
+    undefined,
+  );
+  assert.equal(benchmarkEnvironment({ KEEP: "yes" }, {}).KEEP, "yes");
+  assert.equal(
+    benchmarkEnvironment({ [name]: "1024" }, { [name]: "32" })[name],
+    "32",
+  );
+  assert.equal(benchmarkEnvironment({}, { [name]: "256" })[name], "256");
+});
 
 test("a valid session/grant must reach the owned origin, never count login redirects as work", () => {
   for (const scenario of ["session_hit", "grant_hit", "auto_ip_hit"]) {

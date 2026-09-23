@@ -49,7 +49,7 @@ CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build \
 }
 ```
 
-额外 compiler-z/s/2/3、reader-1/2/4 变体各自列入 `candidates`，由 `go` / `rust` 指向对应构建制品，`metadata` 标明编译参数及 reader 数。新版 reader pool 支持 `"env":{"FN_KNOCK_SQLITE_AUTH_READERS":"2"}`，仅接受1/2/4，默认1；reader矩阵可使用同一新版二进制和不同env。旧基线不支持该变量，不能声称设置后已改变旧版reader数量。固定端口、数据目录、凭证、运行目标 `linux` 由 harness 覆盖，不能通过 `env` 连接生产实例。默认 Tokio workers=2、bridge max-in-flight=32，可以通过已有对应环境参数做独立变体。
+额外 compiler-z/s/2/3、reader-1/2/4 变体各自列入 `candidates`，由 `go` / `rust` 指向对应构建制品，`metadata` 标明编译参数及 reader 数。新版 reader pool 支持 `"env":{"FN_KNOCK_SQLITE_AUTH_READERS":"2"}`，仅接受1/2/4，默认1；reader矩阵可使用同一新版二进制和不同env。旧基线不支持该变量，不能声称设置后已改变旧版reader数量。固定端口、数据目录、凭证、运行目标 `linux` 由 harness 覆盖，不能通过 `env` 连接生产实例。Tokio workers固定2用于控制实验，尚未进行Tokio默认值调优。正常实验不设置bridge max-in-flight，并清除父shell继承值；只有variant.env明确提供`FN_KNOCK_AUTH_BRIDGE_MAX_IN_FLIGHT`才覆盖产品默认，未设置时effective env记录null。当前Go默认1024；Rust Linux默认`CPU×16`并限定32..256（4 CPU时64），fpk/synology默认`CPU×8`并限定32..128。共享env设1024实际会令Go=1024、Rust=256，不能声称两端同为1024。刻意饱和恢复实验应使用独立的显式32变体，不将其故障泛化为生产容量上限。
 
 ## 小批量运行
 

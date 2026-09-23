@@ -23,6 +23,7 @@ import {
   pairOrder,
   mergeMeasurements,
   compareRuns,
+  benchmarkEnvironment,
 } from "./auth-performance-lib.mjs";
 import { summarizeOperationProfile } from "./auth-performance-profile.mjs";
 import {
@@ -479,8 +480,7 @@ async function trial(
     }),
   );
   const env = {
-    ...process.env,
-    ...variant.env,
+    ...benchmarkEnvironment(process.env, variant.env),
     FN_KNOCK_RUNTIME_TARGET: "linux",
     FN_KNOCK_DISABLE_REDIS_MIGRATION: "1",
     FN_KNOCK_INTERNAL_RPC_TOKEN: token,
@@ -500,8 +500,6 @@ async function trial(
     AUTH_STATIC_PATH: config.auth_static,
     FN_KNOCK_TOKIO_WORKER_THREADS:
       variant.env?.FN_KNOCK_TOKIO_WORKER_THREADS ?? "2",
-    FN_KNOCK_AUTH_BRIDGE_MAX_IN_FLIGHT:
-      variant.env?.FN_KNOCK_AUTH_BRIDGE_MAX_IN_FLIGHT ?? "32",
     SESSION_COOKIE_SECURE: "0",
   };
   let go, rust, adminHeaders;

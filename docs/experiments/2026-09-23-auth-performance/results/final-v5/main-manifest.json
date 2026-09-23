@@ -1,0 +1,161 @@
+{
+  "schema_version": 1,
+  "created_at": "2026-09-23T08:28:02.073Z",
+  "config": {
+    "admin_static": "/tmp/fn-knock-auth-performance-20260923/assets/admin",
+    "auth_static": "/tmp/fn-knock-auth-performance-20260923/assets/auth",
+    "control_binary": "/tmp/fn-knock-auth-performance-20260923/authperf-control",
+    "baseline": {
+      "name": "base5",
+      "go": "/tmp/fn-knock-auth-performance-20260923/base5/go-reauth-proxy",
+      "rust": "/tmp/fn-knock-auth-performance-20260923/base5/server-admin-rs",
+      "env": {},
+      "metadata": {
+        "rust_toolchain": "rustc 1.96.0 (ac68faa20 2026-05-25)\nbinary: rustc\ncommit-hash: ac68faa20c58cbccd01ee7208bf3b6e93a7d7f96\ncommit-date: 2026-05-25\nhost: aarch64-apple-darwin\nrelease: 1.96.0\nLLVM version: 22.1.2",
+        "cargo_zigbuild": "cargo-zigbuild 0.23.0",
+        "zig": "0.16.0",
+        "go_toolchain": "go version go1.26.7 darwin/arm64",
+        "rust_profile": "release",
+        "opt_level": "z",
+        "lto": "fat",
+        "codegen_units": 1,
+        "target": "x86_64-unknown-linux-gnu",
+        "main_commit": "d4f8805f39d9f4480bf83f4382ba59e5f49e7dc4",
+        "go_commit": "92d4c0cb5495d57801d52893a8f0e8496a1c9182",
+        "rust_opt_level": "z",
+        "bridge_capacity": "variable absent; Go default1024, Rust runtime linux default64 on4CPUs, verified with startup log",
+        "go_buildvcs": false,
+        "go_ldflags": "-s -w -X go-reauth-proxy/pkg/version.Version=2.4.15 -X go-reauth-proxy/pkg/version.Commit=92d4c0cb5495d57801d52893a8f0e8496a1c9182"
+      }
+    },
+    "candidates": [
+      {
+        "name": "candidate5",
+        "go": "/tmp/fn-knock-auth-performance-20260923/candidate5/go-reauth-proxy",
+        "rust": "/tmp/fn-knock-auth-performance-20260923/candidate5/server-admin-rs",
+        "env": {
+          "FN_KNOCK_SQLITE_AUTH_READERS": "1"
+        },
+        "metadata": {
+          "rust_toolchain": "rustc 1.96.0 (ac68faa20 2026-05-25)\nbinary: rustc\ncommit-hash: ac68faa20c58cbccd01ee7208bf3b6e93a7d7f96\ncommit-date: 2026-05-25\nhost: aarch64-apple-darwin\nrelease: 1.96.0\nLLVM version: 22.1.2",
+          "cargo_zigbuild": "cargo-zigbuild 0.23.0",
+          "zig": "0.16.0",
+          "go_toolchain": "go version go1.26.7 darwin/arm64",
+          "rust_profile": "release",
+          "opt_level": "z",
+          "lto": "fat",
+          "codegen_units": 1,
+          "target": "x86_64-unknown-linux-gnu",
+          "main_commit": "5fddf896eaf9b1cf3eb300c08315320498c943b8",
+          "go_commit": "4d15fa32764e26df58b16930d0e2503a90880002",
+          "rust_opt_level": "z",
+          "bridge_capacity": "variable absent; Go default1024, Rust runtime linux default64 on4CPUs, verified with startup log",
+          "go_buildvcs": false,
+          "go_ldflags": "-s -w -X go-reauth-proxy/pkg/version.Version=2.4.15 -X go-reauth-proxy/pkg/version.Commit=4d15fa32764e26df58b16930d0e2503a90880002"
+        }
+      }
+    ]
+  },
+  "options": {
+    "config": "/tmp/fn-knock-auth-performance-20260923/variants5.json",
+    "out": "/tmp/fn-knock-auth-performance-20260923/formal-v5-main",
+    "routes": [
+      "bootstrap",
+      "session_api",
+      "session_hit",
+      "grant_hit",
+      "auto_ip_hit",
+      "auto_ip_miss",
+      "challenge",
+      "session_miss",
+      "grant_miss"
+    ],
+    "pairs": 6,
+    "warmup": 20,
+    "seconds": 60,
+    "concurrency": 16,
+    "clients": 2,
+    "sessions": 1000,
+    "grants": 100,
+    "accounts": 1000,
+    "credentialKind": "totp",
+    "renewals": 64,
+    "cacheTtl": 0,
+    "timeoutMs": 10000,
+    "profile": false,
+    "recoveryProbe": false,
+    "profileIdle": 5,
+    "roles": [
+      "baseline",
+      "candidate"
+    ],
+    "hz": 100
+  },
+  "identities": [
+    {
+      "variant": "base5",
+      "component": "go",
+      "path": "/tmp/fn-knock-auth-performance-20260923/base5/go-reauth-proxy",
+      "sha256": "88a6ef9a80bab166eaf49ba96a620e98dced25a527d0dc5ad653ff7ac15139eb"
+    },
+    {
+      "variant": "base5",
+      "component": "rust",
+      "path": "/tmp/fn-knock-auth-performance-20260923/base5/server-admin-rs",
+      "sha256": "6aee890974e6caa7f961e4c6778fdca00c23886880fb00286d7ccc1c8256bfa2"
+    },
+    {
+      "variant": "candidate5",
+      "component": "go",
+      "path": "/tmp/fn-knock-auth-performance-20260923/candidate5/go-reauth-proxy",
+      "sha256": "603188b385a10abb7bf1d6a6f8798c2234e0beafcc692e5abda0e7112a48eab6"
+    },
+    {
+      "variant": "candidate5",
+      "component": "rust",
+      "path": "/tmp/fn-knock-auth-performance-20260923/candidate5/server-admin-rs",
+      "sha256": "08bdd768e0e239d5fad08ac7c987ff9fbc5f1c1d26fbbbeb1d6bc6e3f56b3bd9"
+    }
+  ],
+  "harness_identity": {
+    "files": [
+      {
+        "name": "run-auth-performance-isolated.sh",
+        "sha256": "3ec736aa7c11491f7a001b95d8950b0efd807f1f4bbf724187cc359d6bf9b497"
+      },
+      {
+        "name": "auth-performance.mjs",
+        "sha256": "cd3d4e2d520a80ac1509a3486b89d0e26fea7b1d16556806b9b1b1823751930b"
+      },
+      {
+        "name": "auth-performance-lib.mjs",
+        "sha256": "3af4d7d887d7d948a20eb356ba30f21dd45dd0c5d526f83e3ede232af749f816"
+      },
+      {
+        "name": "auth-performance-worker.mjs",
+        "sha256": "e0b6ba055d6880f72eb14a85534582bf5e4febee03e2975204479bc7e33a03e1"
+      },
+      {
+        "name": "auth-performance-seed.py",
+        "sha256": "41fa8d436d9473ea53d76fc037b70913d05cef1e2d5aab525929b1d55caee1d7"
+      },
+      {
+        "name": "auth-performance-profile.mjs",
+        "sha256": "37e9e84a1baacc47532ffee52293164e4970410b30fcc8b45a193b48eb1b0e66"
+      },
+      {
+        "name": "auth-performance-recovery.mjs",
+        "sha256": "cabb463a9b404522591e1f0f4a6d82668e5edcaac17566d068254b66cc129e7c"
+      },
+      {
+        "name": "auth-performance-soak.mjs",
+        "sha256": "d60f312010a4fc3a4023e24cd551892db4d6270fa62820387bc48c4302518c79"
+      }
+    ],
+    "control_binary_sha256": "897cfef2a9f4b1fdf7330e66acbe7b4449945875fa2ac99ac9ab63632fc2d398"
+  },
+  "host": {
+    "kernel": "Linux OTN 6.18.18.c1032-trim #1032 SMP PREEMPT_DYNAMIC Fri Aug 21 01:49:29 UTC 2026 x86_64 GNU/Linux",
+    "node": "v22.23.1"
+  }
+}

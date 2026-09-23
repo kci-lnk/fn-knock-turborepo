@@ -313,6 +313,12 @@ async fn selective_credential_reads_match_legacy_normalization_and_json_validati
         format!(r#"[{first},{{"unknown":{too_deep}}}]"#),
         format!(r#"[{first},{{"unknown":1e9999}}]"#),
         format!(r#"[{first},{{"unknown":"\ud800"}}]"#),
+        format!(r#"[{first},{{"$serde_json::private::RawValue":"broken"}}]"#),
+        format!(r#"[{first},{{"$serde_json::private::RawValue":123}}]"#),
+        json!({"$serde_json::private::RawValue": format!("[{first}]")}).to_string(),
+        json!({"$serde_json::private::RawValue": format!(r#"[{first},{{"id":"b","secret":"second","username":"second"}}]"#)}).to_string(),
+        json!({"$serde_json::private::RawValue": "broken"}).to_string(),
+        json!({"$serde_json::private::RawValue": 123}).to_string(),
         format!("[{first},"),
         format!("[{first}] trailing"),
         format!(r#"[{{"id":"a","secret":"","username":""}},{first}]"#),
@@ -503,5 +509,44 @@ fn skipped_json_suffix_has_the_same_validation_as_serde_value() {
             serde_json::from_str::<Value>(&raw).is_ok(),
             "{raw}"
         );
+    }
+}
+
+#[test]
+fn raw_value_wrappers_match_whole_value_parsing_before_and_after_first_match() {
+    let first = r#"{"id":"a","secret":"first"}"#;
+    let second = r#"{"id":"b","secret":"second"}"#;
+    let wrapped =
+        json!({"$serde_json::private::RawValue": format!("[{first},{second}]")}).to_string();
+    // raw_value is enabled by the resolved dependency graph. Its private map
+    // representation can turn an apparent object into an array or an error.
+    assert!(serde_json::from_str::<Value>(&wrapped).unwrap().is_array());
+    for raw in [
+        wrapped,
+        format!(r#"[{first},{{"$serde_json::private::RawValue":"broken"}}]"#),
+        format!(r#"[{first},{{"$serde_json::private::RawValue":123}}]"#),
+        json!({"$serde_json::private::RawValue": "broken"}).to_string(),
+        json!({"$serde_json::private::RawValue": 123}).to_string(),
+        format!("[{first},{}]", json!({"$serde_json::private::RawValue": second})),
+        format!("[{first},{}]", json!({"$serde_json::private::RawValue": second, "extra": true})),
+        json!({"$serde_json::private::RawValue": format!(r#"[{first},{{"$serde_json::private::RawValue":"broken"}}]"#)}).to_string(),
+    ] {
+        let expected = serde_json::from_str::<Value>(&raw);
+        // One selected value models the common hit; full traversal models
+        // promotion to the multi-owner index from the identical raw snapshot.
+        for limit in [1, usize::MAX] {
+            let mut selected = Vec::new();
+            let result = json_scan::array(&raw, |value| {
+                selected.push(value);
+                selected.len() < limit
+            });
+            match &expected {
+                Err(_) => assert!(result.is_err(), "{raw}"),
+                Ok(value) => {
+                    result.unwrap();
+                    assert_eq!(selected, value.as_array().into_iter().flatten().take(limit).cloned().collect::<Vec<_>>(), "{raw}");
+                }
+            }
+        }
     }
 }

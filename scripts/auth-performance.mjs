@@ -995,6 +995,30 @@ async function main() {
     config,
     options: { ...options },
     identities,
+    harness_identity: {
+      files: await Promise.all(
+        [
+          "run-auth-performance-isolated.sh",
+          "auth-performance.mjs",
+          "auth-performance-lib.mjs",
+          "auth-performance-worker.mjs",
+          "auth-performance-seed.py",
+          "auth-performance-profile.mjs",
+          "auth-performance-recovery.mjs",
+          "auth-performance-soak.mjs",
+        ].map(async (name) => ({
+          name,
+          sha256: createHash("sha256")
+            .update(await readFile(path.join(path.dirname(script), name)))
+            .digest("hex"),
+        })),
+      ),
+      control_binary_sha256: config.control_binary
+        ? createHash("sha256")
+            .update(await readFile(config.control_binary))
+            .digest("hex")
+        : null,
+    },
     host: {
       kernel: execFileSync("uname", ["-a"], { encoding: "utf8" }).trim(),
       node: process.version,

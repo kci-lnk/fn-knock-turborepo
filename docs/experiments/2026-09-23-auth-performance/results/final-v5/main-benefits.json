@@ -1,0 +1,8 @@
+{
+  "input": "main-summary.json",
+  "input_sha256": "ac4149f56fecf81fca35413de59970cce1da77f0fdd3664cfcff2bf0ad6a6437",
+  "generator_sha256": "6e4d15d4434e62b2a47a0edc3626f154c12e4bc4fb2c7a8dba668076c0501d91",
+  "matplotlib": "3.10.6",
+  "source_scope": "v5 only; no audit6 results or compounded ratios",
+  "new_intervals_estimated": false
+}

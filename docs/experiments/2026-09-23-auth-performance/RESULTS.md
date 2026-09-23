@@ -53,6 +53,10 @@
 
 ## Linux v5 优化端到端 A/B
 
+![v5 九个接口的配对吞吐、P99 与合计峰值 RSS 变化](results/final-v5/main-benefits.png)
+
+图中误差线为已有六对 bootstrap 区间，RSS 点没有新增区间估计；[SVG](results/final-v5/main-benefits.svg)、[绘图脚本](results/final-v5/plot-benefits.py) 和 [输入身份](results/final-v5/main-benefits.json) 可独立复用。该图仅对应 Rust5fdd/Go4d，不包含后续 Go669 修复。
+
 正式测试前的44次预备 smoke 全部有效，151,406次测量响应符合预期。它们分别覆盖 N1/N100/N1000 和已有 PASSWORD session 的账户权限路径；不包含密码登录/hash 性能，也不能跨不同规模比较并发扩展性。见 [预备验证报告](results/final-v5/preliminary-review.md) 与已离线重放核对的 [分析包](results/final-v5/preliminary-replay.tar.gz)。
 
 `formal-v5-main` 的108个 trial 全部有效，六个目标场景均通过收益门槛，三个保护场景通过回归门槛；远端验收和本地重算结果一致。测量期共6,832,047次符合预期的请求，预热及测量语义错误均为0。这里的成功包含应当拒绝的302，不能把请求总数称为成功授权次数。
@@ -148,7 +152,9 @@ Go `66998225` 修复原基线已有的失效竞态：注销/配置清空后，�
 
 本机单独比较 `4d15fa3→66998225` 的六对结果：AuthOff 配对耗时 −0.147%（95%区间 −3.320%～+1.404%）；CacheHit +0.870%（−0.024%～+1.343%），B/op 6094.5→6109.5、配对 +0.262%，66 次分配不变。命中时间区间跨零，不能称确定退化，也不能称零开销。上面的原始→修复后表来自另一组直接六对；两组百分比不相乘。
 
-Linux 独立复测固定相同 Rust `5fddf896` 源码、reader1/z、两客户端/c16、N1000账户/session与100 grant、mobility=false；baseline 使用 v5 原制品，candidate 使用新 Go 和嵌入对应 gateway commit 后重新构建的 Rust。两端 Rust 二进制不同，源码相同。[构建记录](results/builds/audit-v6) 和 [冻结 45-trial 协议](audit6-plan/README.md) 包括精确 SHA、配置与退出规则。18 项 smoke、TTL0/TTL1 各六对、TTL1 30分钟 soak、一次独立饱和恢复串行执行；稳定 session 负载不主动注销，不能替代并发回归。六对只检验原吞吐/P99/RSS非回退门槛，不要求正确性修复另产生性能收益。**本轮远端结果尚未完成，暂不宣告通过。**
+Linux 独立复测固定相同 Rust `5fddf896` 源码、reader1/z、两客户端/c16、N1000账户/session与100 grant、mobility=false；baseline 使用 v5 原制品，candidate 使用新 Go 和嵌入对应 gateway commit 后重新构建的 Rust。两端 Rust 二进制不同，源码相同。[构建记录](results/builds/audit-v6) 和 [冻结 45-trial 协议](audit6-plan/README.md) 包括精确 SHA、配置与退出规则。18 项 smoke、TTL0/TTL1 各六对、TTL1 30分钟 soak、一次独立饱和恢复串行执行；稳定 session 负载不主动注销，不能替代并发回归。六对只检验原吞吐/P99/RSS非回退门槛，不要求正确性修复另产生性能收益。目前 smoke 18 项和 TTL0 六对已通过；TTL1、soak 与恢复仍在执行，本批尚未整体完成。
+
+TTL0 六对的增量变化为：吞吐 +0.4008%（95%区间 −0.9508%～+1.1559%），P99 +1.1905%（−1.1628%～+2.3810%），合计峰值 RSS +0.5518%，全部原非回退门槛通过。吞吐与 P99 区间跨零，不声称加速。356,342 次测量响应、117,776 次预热响应均符合预期；客户端最大事件循环延迟 20.218ms、最大采样间隔 214.185ms。原合同与冻结 gate 已独立离线复算一致。
 
 ## 功能验证与交付索引
 

@@ -25,6 +25,10 @@ import {
   compareRuns,
 } from "./auth-performance-lib.mjs";
 import { summarizeOperationProfile } from "./auth-performance-profile.mjs";
+import {
+  captureFailureSnapshot,
+  runRecoveryProbe,
+} from "./auth-performance-recovery.mjs";
 
 const script = fileURLToPath(import.meta.url);
 const token = "isolated-auth-performance-20260923";
@@ -198,15 +202,79 @@ async function operationCapture(method, headers) {
   return payload.data;
 }
 
+async function healthSnapshot(headers, timeoutMs = 3000) {
+  let response;
+  try {
+    assert.ok(headers, "admin session is not available");
+    response = await probe(
+      { path: "/api/admin/runtime-health", headers, timeoutMs },
+      27991,
+      "127.0.0.1",
+    );
+    const payload = JSON.parse(response.body);
+    assert.equal(response.status, 200, "runtime health API unavailable");
+    assert.equal(payload.success, true);
+    return {
+      observed_at_epoch_ms: now(),
+      status: response.status,
+      storage: payload.data?.components?.storage ?? null,
+      auth_bridge: payload.data?.components?.auth_bridge ?? null,
+      snapshot: payload.data,
+    };
+  } catch (error) {
+    return {
+      observed_at_epoch_ms: now(),
+      status: response?.status ?? null,
+      error: error.message,
+    };
+  }
+}
+
+async function startWorkers(options, scenario, ownedWorkers) {
+  const workers = [];
+  for (let index = 0; index < options.clients; index++) {
+    const concurrency =
+      Math.floor(options.concurrency / options.clients) +
+      (index < options.concurrency % options.clients ? 1 : 0);
+    if (!concurrency) continue;
+    const worker = new Worker(
+      new URL("./auth-performance-worker.mjs", import.meta.url),
+      {
+        workerData: {
+          concurrency,
+          scenario,
+          renewals: options.renewals,
+          workerIndex: index,
+          workerCount: Math.min(options.clients, options.concurrency),
+          timeoutMs: options.timeoutMs,
+        },
+      },
+    );
+    workers.push(worker);
+    ownedWorkers.push(worker);
+    await new Promise((resolve, reject) => {
+      worker.once("message", (message) =>
+        message.type === "ready"
+          ? resolve()
+          : reject(new Error("worker startup failed")),
+      );
+      worker.once("error", reject);
+    });
+  }
+  return workers;
+}
+
 async function runPhase(workers, processes, options, phase, collect) {
   const durationMs =
     (phase === "warm" ? options.warmup : options.seconds) * 1000;
+  const completedRows = [];
   const results = workers.map(
     (worker) =>
       new Promise((resolve, reject) => {
         const message = (value) => {
           if (value.type === "result" && value.phase === phase) {
             worker.off("message", message);
+            completedRows.push(value);
             resolve(value);
           }
           if (value.type === "failure") {
@@ -247,19 +315,13 @@ async function runPhase(workers, processes, options, phase, collect) {
     ? (async () => {
         while (active) {
           try {
-            const response = await probe(
-              { path: "/api/admin/runtime-health", headers: options.adminHeaders },
-              27991,
-              "127.0.0.1",
+            const { snapshot, ...sample } = await healthSnapshot(
+              options.adminHeaders,
+              options.healthTimeoutMs,
             );
-            const payload = JSON.parse(response.body);
-            assert.equal(response.status, 200, "runtime health API unavailable");
-            assert.equal(payload.success, true);
             health.push({
               elapsed_ms: now() - startedAt,
-              status: response.status,
-              storage: payload.data?.components?.storage ?? null,
-              auth_bridge: payload.data?.components?.auth_bridge ?? null,
+              ...sample,
             });
           } catch (error) {
             health.push({
@@ -281,10 +343,29 @@ async function runPhase(workers, processes, options, phase, collect) {
       new Promise((_, reject) => {
         timer = setTimeout(
           () => reject(new Error("client phase exceeded bounded duration")),
-          durationMs + options.timeoutMs + 5000,
+          Math.max(
+            1,
+            Math.min(
+              durationMs + options.timeoutMs + 5000,
+              (options.deadlineAt ?? Infinity) - now(),
+            ),
+          ),
         );
       }),
     ]);
+  } catch (error) {
+    error.phase_evidence = {
+      phase,
+      elapsed_ms: now() - startedAt,
+      completed_workers: completedRows.length,
+      expected_workers: workers.length,
+      partial_measurement: completedRows.length
+        ? mergeMeasurements(completedRows)
+        : null,
+      samples,
+      runtime_health: health,
+    };
+    throw error;
   } finally {
     clearTimeout(timer);
     active = false;
@@ -335,6 +416,8 @@ async function runPhase(workers, processes, options, phase, collect) {
     ? Math.max(...times.slice(1).map((time, index) => time - times[index]))
     : null;
   return {
+    started_at_epoch_ms: startedAt,
+    requests_finished_at_epoch_ms: startedAt + measurement.elapsed_ms,
     measurement,
     resources,
     samples,
@@ -421,7 +504,7 @@ async function trial(
       variant.env?.FN_KNOCK_AUTH_BRIDGE_MAX_IN_FLIGHT ?? "32",
     SESSION_COOKIE_SECURE: "0",
   };
-  let go, rust;
+  let go, rust, adminHeaders;
   const start = () => {
     go = launch(
       variant.go,
@@ -450,6 +533,7 @@ async function trial(
     env: variant.env ?? {},
     cache_ttl_seconds: options.cacheTtl,
     profiling: options.profile,
+    recovery_probe: options.recoveryProbe,
     roles: options.roles,
     started_at: new Date().toISOString(),
   };
@@ -496,7 +580,7 @@ async function trial(
     await waitReady([go, rust]);
     await delay(1000);
     // Finish control-plane writes before enforcing and reading live cache TTLs.
-    const adminHeaders = await createAdminSession();
+    adminHeaders = await createAdminSession();
     if (config.control_binary) {
       row.cache_control = JSON.parse(
         execFileSync(
@@ -566,34 +650,6 @@ async function trial(
       origin: response.headers["x-authperf-origin"] ?? null,
       renewal: Boolean(response.headers["set-cookie"]),
     };
-    for (let index = 0; index < options.clients; index++) {
-      const concurrency =
-        Math.floor(options.concurrency / options.clients) +
-        (index < options.concurrency % options.clients ? 1 : 0);
-      if (!concurrency) continue;
-      const worker = new Worker(
-        new URL("./auth-performance-worker.mjs", import.meta.url),
-        {
-          workerData: {
-            concurrency,
-            scenario,
-            renewals: options.renewals,
-            workerIndex: index,
-            workerCount: Math.min(options.clients, options.concurrency),
-            timeoutMs: options.timeoutMs,
-          },
-        },
-      );
-      workers.push(worker);
-      await new Promise((resolve, reject) => {
-        worker.once("message", (message) =>
-          message.type === "ready"
-            ? resolve()
-            : reject(new Error("worker startup failed")),
-        );
-        worker.once("error", reject);
-      });
-    }
     const processes = {
       go,
       rust,
@@ -601,6 +657,42 @@ async function trial(
       fixture: options.fixture,
     };
     const phaseOptions = { ...options, scenario, adminHeaders };
+    if (options.recoveryProbe) {
+      const runProbePhase = async (concurrency, phase, deadlineAt) => {
+        const probeOptions = {
+          ...phaseOptions,
+          concurrency,
+          clients: concurrency === 1 ? 1 : Math.min(2, options.clients),
+          seconds: 2,
+          timeoutMs: 1000,
+          healthTimeoutMs: 1000,
+          deadlineAt,
+        };
+        const probeWorkers = await startWorkers(
+          probeOptions,
+          scenario,
+          workers,
+        );
+        try {
+          return await runPhase(
+            probeWorkers,
+            processes,
+            probeOptions,
+            phase,
+            true,
+          );
+        } finally {
+          await Promise.all(probeWorkers.map((worker) => worker.terminate()));
+        }
+      };
+      row.recovery = {};
+      await runRecoveryProbe(row.recovery, {
+        readHealth: () => healthSnapshot(adminHeaders, 1000),
+        runBurst: () => runProbePhase(64, "recovery-burst"),
+        runCheck: (deadline) => runProbePhase(1, "recovery-check", deadline),
+      });
+    }
+    const benchmarkWorkers = await startWorkers(options, scenario, workers);
     if (options.profile) {
       if (config.control_binary) {
         row.cache_control_before_profile = JSON.parse(
@@ -625,7 +717,7 @@ async function trial(
       row.profile_idle = await operationCapture("DELETE", adminHeaders);
     }
     row.warmup = await runPhase(
-      workers,
+      benchmarkWorkers,
       processes,
       phaseOptions,
       "warm",
@@ -642,7 +734,13 @@ async function trial(
         row.profile_capture = await operationCapture("DELETE", adminHeaders);
       };
     }
-    const load = await runPhase(workers, processes, phaseOptions, "load", true);
+    const load = await runPhase(
+      benchmarkWorkers,
+      processes,
+      phaseOptions,
+      "load",
+      true,
+    );
     Object.assign(row, load);
     if (options.profile) {
       assert.equal(
@@ -679,6 +777,7 @@ async function trial(
         load.quality.health_ok &&
         load.quality.client_ok &&
         load.quality.duration_ok &&
+        (!options.recoveryProbe || row.recovery.passed) &&
         (!options.profile || row.operation_profile.dropped_operations === 0),
       note:
         scenario === "grant_renewal"
@@ -686,8 +785,13 @@ async function trial(
           : "closed-loop keep-alive per-route workload",
     };
   } catch (error) {
-    row.validation = { passed: false, error: error.stack };
+    if (error.phase_evidence) row.failed_phase = error.phase_evidence;
+    await captureFailureSnapshot(row, error, () =>
+      healthSnapshot(adminHeaders),
+    );
   } finally {
+    if (!row.validation?.passed && !row.failure_health)
+      row.failure_health = await healthSnapshot(adminHeaders);
     await Promise.all(workers.map((worker) => worker.terminate()));
     await Promise.all([stop(rust), stop(go)]);
     row.timeout_phase_events = [];
@@ -750,6 +854,7 @@ function parseArgs(args) {
     timeoutMs: Number(values["timeout-ms"] ?? 10000),
     selected: values.candidates?.split(","),
     profile: values.profile === "1",
+    recoveryProbe: values["recovery-probe"] === "1",
     profileIdle: Number(values["profile-idle"] ?? 5),
     roles: (values.roles ?? "baseline,candidate").split(","),
   };
@@ -784,6 +889,20 @@ function parseArgs(args) {
   assert.ok(
     !options.profile || (options.seconds <= 45 && options.profileIdle <= 45),
     "profile captures must be at most 45 seconds to avoid the built-in 60 second deadline",
+  );
+  assert.ok(
+    values["recovery-probe"] === undefined ||
+      ["0", "1"].includes(values["recovery-probe"]),
+    "recovery-probe must be 0 or 1",
+  );
+  assert.ok(
+    !options.recoveryProbe ||
+      (options.pairs === 1 &&
+        options.seconds <= 10 &&
+        options.warmup <= 10 &&
+        !options.profile &&
+        !options.routes.includes("grant_renewal")),
+    "recovery probes are short smoke only: pairs=1, warmup/seconds<=10, profiling disabled, no finite renewal route",
   );
   assert.ok(
     options.roles.length > 0 &&

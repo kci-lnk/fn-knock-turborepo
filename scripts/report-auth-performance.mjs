@@ -87,6 +87,24 @@ if (profiled.length) {
     "Operation recorder统计进程内executor job scope，包含同一捕获窗口的背景操作；每成功请求归一化不等于每请求精确SQL条数。一次executor job可能执行多条SQL。idle频率保留作背景参照，不自动扣减。profiling会增加开销，应另跑关闭profiling的性能A/B。",
   );
 }
+const recoveryRuns = runs.filter((run) => run.recovery_probe);
+if (recoveryRuns.length) {
+  lines.push(
+    "",
+    "| 恢复探测 / 角色 | burst状态码计数 | 2秒连续成功 | 恢复完成ms | 检查次数 |",
+    "| --- | --- | --- | ---: | ---: |",
+  );
+  for (const run of recoveryRuns) {
+    const recovery = run.recovery;
+    lines.push(
+      `| ${cell(`${run.candidate}/${run.scenario}/${run.role}`)} | ${cell(JSON.stringify(recovery?.burst?.measurement?.statuses ?? null))} | ${recovery?.recovered === true ? "是" : "否"} | ${number(recovery?.recovery_elapsed_ms)} | ${recovery?.checks?.length ?? 0} |`,
+    );
+  }
+  lines.push(
+    "",
+    "恢复探测的burst及恢复检查不进入性能measurement；只有实际观测到503/pressure证据时才能声称测试覆盖了饱和。恢复完成时间包含成功窗口本身，最后的health读取与采样清理可能在此之后结束。这些trial不能支持六对性能收益声明。",
+  );
+}
 let unavailable = 0;
 const queues = [];
 const phases = {};
@@ -128,7 +146,7 @@ lines.push(
       : "未记录"
   }。${unavailable ? `${unavailable}份原始trial文件当前不可读。` : ""}`,
   "",
-  "此工具的正常负载结果不等于故障恢复测试。Rust暂停/退出、SQLite写锁和上游断开恢复应单独故障注入并记录恢复截止时间。RSS为负载期间峰值和结束值，没有主动触发GC，也不代表空闲30秒后的保留量。",
+  "正常负载结果不等于故障恢复测试；可选recovery-probe仅测试请求burst后的恢复，不覆盖Rust暂停/退出、SQLite写锁或上游断开。失败trial的failure_health保留清理前最后一次管理快照，快照自身错误单独记录。RSS为负载期间峰值和结束值，没有主动触发GC，也不代表空闲30秒后的保留量。",
   "",
   "grant_renewal是每token仅执行一次的有限批次；短smoke中的CPU tick量化和少量尾延迟样本不适合衡量收益。phase只反映已记录的超时事件，空结果不表示SQLite等待为零。",
 );

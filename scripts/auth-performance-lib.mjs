@@ -163,7 +163,7 @@ export function comparisonKey(run) {
   ]
     .map(([name, value]) => `${name}-${value ?? "unknown"}`)
     .join("/");
-  return `${run.scenario}/${run.concurrency}/${run.candidate}/cache-${run.cache_ttl_seconds ?? "unknown"}/profile-${run.profiling ? "on" : "off"}/${scale}`;
+  return `${run.scenario}/${run.concurrency}/${run.candidate}/cache-${run.cache_ttl_seconds ?? "unknown"}/profile-${run.profiling ? "on" : "off"}/recovery-${run.recovery_probe ? "on" : "off"}/${scale}`;
 }
 
 const median = (values) => {
@@ -229,6 +229,7 @@ export function compareRuns(runs) {
       values.length && values.every(Number.isFinite) ? median(values) : null;
     return {
       key,
+      recovery_probe: values.some((run) => run.recovery_probe),
       complete_pairs: complete.length,
       incomplete_pairs: pairs.size - complete.length,
       invalid_runs: invalid,
@@ -266,6 +267,8 @@ export function comparisonFailures(comparison, options = {}) {
     if (group.invalid_runs !== 0) fail("invalid trials");
     if (group.incomplete_pairs !== 0) fail("incomplete pairs");
     if (!strict) continue;
+    if (group.recovery_probe)
+      fail("recovery probes cannot support performance claims");
     if (!group.six_valid_pairs)
       fail("at least six valid complete pairs required");
     if (

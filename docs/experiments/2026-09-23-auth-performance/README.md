@@ -81,6 +81,19 @@ node scripts/report-auth-performance.mjs /tmp/auth-session-c16-UNIQUE/results.js
 
 只观察入选candidate而不再跑baseline时，加 `--roles candidate --pairs 1 --seconds 1800`。单角色只允许至少60秒、单轮且关闭profiling；结果明确为不完整pair，不能进入A/B门槛比较，但仍有独立trial成功条件及完整资源时间序列。用report工具查看，不运行`check --require-six-pairs`。
 
+需要检查短时饱和后的恢复时，单独运行smoke：
+
+```sh
+bash scripts/run-auth-performance-isolated.sh \
+  --config /tmp/variants.json --out /tmp/auth-recovery-UNIQUE \
+  --routes session_hit --pairs 1 --warmup 1 --seconds 3 \
+  --concurrency 1 --clients 2 --cache-ttl 0 --recovery-probe 1
+```
+
+`--recovery-probe 1`在业务preflight之后额外施加64并发、2秒burst，复用同一路由的语义校验，完整保留状态码、失败次数、资源及health样本；503保留为失败响应，但burst不进入正式性能measurement。burst客户端请求超时固定1秒；结束并清理这些连接后，改为1并发，在10秒截止内寻找完整2秒、逐请求语义正确且零错误的连续窗口。`recovery`记录每次检查、pressure快照和恢复完成时间；完成时间包含2秒成功窗口，管理采样与清理可能稍后结束。无503或其他pressure证据时，只能说burst通过，不能宣称已经验证队列饱和恢复。
+
+探测后继续原有warm/load；若恢复失败，整轮仍为无效，不会由后续成功覆盖。此选项限定pairs=1、warmup/seconds≤10、关闭profiling，且不支持有限token的grant_renewal。比较器按recovery开关分组，并拒绝此类trial的六对/收益门槛，避免预先施压改变缓存和内存状态后混入常规A/B。该探测不修改服务capacity，也不替代进程退出、SQLite写锁等其他故障注入测试。
+
 规模参数独立控制：`--sessions 1..10000`（默认64）、`--accounts 1..1000`（默认1，产生同数量TOTP身份和账户）、`--grants 1..10000`（默认2，普通grant场景实际活跃总条数，包含hit token）。session按账户轮转关联。`--grants 1`的普通grant预检复用hit token，不额外增加grant；renewal场景另外增加1个专用预检token及两份`--renewals`池，`seed.total_grants`记录实际总数。大量grant索引可能使renewal批次无法在截止内完成，先用8/64/256小批定位，不能宣称默认4096必能在60秒内耗尽。
 
 ## 单独采集 SQLite executor profile
@@ -130,6 +143,7 @@ profile默认关闭，不能用启用profile的吞吐替代无额外观测开销
 - `timeout_phase_events`及保留的`runtime/logs`包含现有phase诊断。**phase只在超时事件中可读，不是所有成功请求的阶段耗时直方图。** 未触发超时不能由空数组推断SQLite等待为0。
 - Worker延迟直方图先求和后计算分位数，不平均各worker的P99。计量包含客户端错误，且任何错误响应/语义不符会使样本无效。P99只精确到1ms，60秒以上归入溢出桶并报告。
 - 客户端启动延迟>100ms、事件循环最大延迟>100ms、OS采样间隔>1s、时长过冲>5%（最低容忍500ms）均使trial无效并保留证据；不静默重试。失败会停止当前批，避免把错误路由测成高吞吐。
+- trial失败时在停止Go/Rust前尝试最后一次有界管理health快照，保存在`failure_health`；管理接口不可用时保留其错误，不覆盖原始业务/预热错误。默认warm阶段仍不做周期health采样；最后快照只能提供失败后的状态和累计计数，不能重建失败瞬间的峰值pressure。客户端phase超时保留已完成worker计数和可取得的部分样本，明确标为partial，不能当作完整性能measurement。
 - 比较器按route、并发、candidate、cache TTL、profiling及实际种子规模分组。规模包含sessions、accounts、ordinary grants、total grants及每阶段renewal tokens；不同规模不能凑成六对。缺失的旧版规模字段显示unknown，不应当作已知规模证据。
 - 不加门槛参数时只检查有效、完整的smoke pair。`--require-six-pairs`要求每组至少六个有效完整pair，吞吐变化中位数≥−5%、P99变化中位数≤+10%，并要求Go+Rust峰值RSS合计的配对变化中位数≤+5%。任一pair缺失/无效RSS会使此门槛失败，不以零补齐或忽略样本。合计RSS先对每trial的Go、Rust各自峰值求和，再计算每对的candidate/baseline变化，最后取中位数；这是两个进程峰值之和，不表示它们一定同时达到峰值。JSON和Markdown同时列出Go、Rust各自及合计的RSS变化。
 - `--require-improvement`隐含上述六对、回归和RSS门槛，且每组必须满足至少一项目标：吞吐变化中位数≥+10%且paired bootstrap 95%区间下界>0，或P99变化中位数≤−15%且区间上界<0。建议只对实验前选定的目标route/规模运行这一更严格的检查；其他保护路由用六对回归门槛。不能先挑出最好的分组再把区间解释成预先指定目标的证据。

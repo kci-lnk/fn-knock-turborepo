@@ -15,6 +15,10 @@ import {
   comparisonFailures,
 } from "../auth-performance-lib.mjs";
 import { summarizeOperationProfile } from "../auth-performance-profile.mjs";
+import {
+  captureFailureSnapshot,
+  runRecoveryProbe,
+} from "../auth-performance-recovery.mjs";
 
 test("a valid session/grant must reach the owned origin, never count login redirects as work", () => {
   for (const scenario of ["session_hit", "grant_hit", "auto_ip_hit"]) {
@@ -359,6 +363,137 @@ test("operation profile distinguishes executor jobs, admissions, background rate
     summarizeOperationProfile(report, 10).admission_calls_per_success,
     null,
   );
+});
+
+test("failure health capture preserves the original error even if diagnostics fail", async () => {
+  const row = {};
+  const original = new Error("warmup returned 503");
+  await captureFailureSnapshot(row, original, async () => {
+    throw new Error("admin probe timed out");
+  });
+  assert.equal(row.validation.error, original.stack);
+  assert.equal(row.validation.passed, false);
+  assert.match(row.failure_health.error, /admin probe timed out/);
+  await captureFailureSnapshot(row, original, async () => ({
+    status: 200,
+    storage: { queue_depth: 32 },
+  }));
+  assert.equal(row.failure_health.storage.queue_depth, 32);
+  assert.equal(row.validation.error, original.stack);
+});
+
+test("recovery records burst rejections separately and requires a full successful bounded window", async () => {
+  let clock = 1000,
+    attempt = 0;
+  const report = {};
+  await runRecoveryProbe(report, {
+    now: () => clock,
+    readHealth: async () => ({ status: 200, storage: { queue_depth: 0 } }),
+    runBurst: async () => {
+      clock += 2000;
+      return {
+        measurement: {
+          statuses: { 200: 12, 503: 330 },
+          failures: 330,
+          successful_requests: 12,
+        },
+      };
+    },
+    runCheck: async (deadline) => {
+      assert.equal(deadline, 13000);
+      clock += 2000;
+      attempt++;
+      return {
+        requests_finished_at_epoch_ms: clock,
+        measurement: {
+          elapsed_ms: 2000,
+          successful_requests: 30,
+          failures: attempt === 1 ? 2 : 0,
+        },
+      };
+    },
+  });
+  assert.equal(report.passed, true);
+  assert.equal(report.burst_503_responses, 330);
+  assert.equal(report.checks.length, 2);
+  assert.equal(report.recovery_elapsed_ms, 4000);
+  assert.equal(report.checks[0].continuous_success, false);
+  assert.equal(report.performance_claim_allowed, false);
+  assert.equal(
+    report.measurement,
+    undefined,
+    "burst/check requests are never the benchmark measurement",
+  );
+});
+
+test("persistent errors and late successful responses cannot claim recovery", async () => {
+  for (const late of [false, true]) {
+    let clock = 0;
+    const report = {};
+    await runRecoveryProbe(report, {
+      now: () => clock,
+      readHealth: async () => ({ status: 200 }),
+      runBurst: async () => ({ measurement: { statuses: { 503: 10 } } }),
+      runCheck: async () => {
+        clock += late ? 10001 : 2000;
+        return {
+          requests_finished_at_epoch_ms: clock,
+          measurement: {
+            elapsed_ms: late ? 10001 : 2000,
+            successful_requests: 2,
+            failures: late ? 0 : 1,
+          },
+        };
+      },
+    });
+    assert.equal(report.recovered, false);
+    assert.equal(report.passed, false);
+    assert.equal(report.checks.length, late ? 1 : 5);
+  }
+  const runs = gateRuns().map((run) => ({ ...run, recovery_probe: true }));
+  assert.deepEqual(comparisonFailures(compareRuns(runs)), []);
+  assert.match(
+    comparisonFailures(compareRuns(runs), { requireSixPairs: true }).join("\n"),
+    /cannot support performance claims/,
+  );
+  assert.equal(compareRuns([...runs, ...gateRuns()]).length, 2);
+});
+
+test("recovery CLI refuses performance-sized runs before touching the environment", () => {
+  const script = fileURLToPath(
+    new URL("../auth-performance.mjs", import.meta.url),
+  );
+  for (const extra of [
+    ["--pairs", "6"],
+    ["--seconds", "60"],
+    ["--routes", "grant_renewal"],
+    ["--profile", "1"],
+  ]) {
+    const result = spawnSync(
+      process.execPath,
+      [
+        script,
+        "--config",
+        "/not-read.json",
+        "--out",
+        "/not-created",
+        "--pairs",
+        "1",
+        "--warmup",
+        "1",
+        "--seconds",
+        "3",
+        "--routes",
+        "session_hit",
+        "--recovery-probe",
+        "1",
+        ...extra,
+      ],
+      { encoding: "utf8" },
+    );
+    assert.notEqual(result.status, 0);
+    assert.match(result.stderr, /recovery probes are short smoke only/);
+  }
 });
 
 test("synthetic seeder refuses unowned databases and keeps legacy and typed grant/session authority equal", async () => {

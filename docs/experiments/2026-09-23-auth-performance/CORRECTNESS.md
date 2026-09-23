@@ -38,6 +38,8 @@
 | IP 规范化、排序、候选再确认 | [auth/mobility/tests.rs][mobility-tests]：`batched_ip_owners_preserve_http_stream_normalization_and_revocation`；`batched_ip_owners_disabled_mobility_uses_canonical_ip_and_expiry`；[storage/auth_reads.rs][read-tests]：`batched_session_ip_snapshot_preserves_recent_detail_semantics_and_order`；`batched_ip_candidates_match_legacy_reads_at_multiple_session_counts` | HTTP 文本比较与 stream 地址比较差异保持；JSON detail IP 不以 zset member 替代；发现后的撤销被最终重读拒绝；最新 session 优先，1/100/1000 session 与旧实现逐项一致。 |
 | Grant JOIN 等价 | [typed_subdomain_grant/tests.rs][grant-batch-tests]：`batched_active_entries_preserve_legacy_validation_and_orphans`；`batched_active_entries_reject_invalid_scores_only_for_live_grants` | LEFT JOIN 不隐藏 malformed/orphan；失效记录及非法 score 保持原处理顺序。 |
 
+写锁测试的保证限于稳定 session 子路径及授权元数据读取，不能外推为完整 `AuthorizeHttp` 纯只读或完全不受 writer lock 影响。[完整 handler SQL 诊断](SQL-RPC-STATEMENTS.md) 中，候选 `session_hit` 的 31 条 STMT 仍有 9 条在 primary：成功 verify 调用 `sync_trusted_request` → [`refresh_proxy_session_binding`](../../../apps/server-admin-rs/src/auth/mobility/trusted_sync.rs#L237) → `get_config` → [`load_shadow`](../../../apps/server-admin-rs/src/storage/typed_config.rs#L212)。即使无 binding、mobility 关闭且数据健康，该分支仍先读取实时配置，使用 `BEGIN IMMEDIATE`；两个 legacy 配置键的过期保护及读取、typed 配置读取和事务边界合计 9 条。live getter 承担权威读取、legacy/typed 一致性检查及必要修复职责；本次健康 fixture 未进入修复，但仍排 primary 并获取写锁。未来若增加这一场景的早退快路，必须另验证配置并发更新和修复触发时机，不能仅据当前稳定读取测试删除 live getter。
+
 ## 后续修复的新增覆盖
 
 - **局部及最终全库已通过**：`32d1aa53` 在 [request_context/tests.rs][context-tests] 新增 `raw_value_wrappers_match_whole_value_parsing_before_and_after_first_match`，并扩充既有标准化差分测试。依赖启用 `serde_json/raw_value` 时，特殊首键可把顶层对象展开成数组，或让表面合法的后缀解析失败。已删除自写 discard；普通数组逐个 `Value` 解析后释放，少见顶层包装走完整 `Value`，严格遵从旧行为。

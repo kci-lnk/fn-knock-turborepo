@@ -128,6 +128,25 @@ statements in both versions and 2→0 write starts; baseline work is on primary,
 candidate work on the auth reader. Expiry-guard DELETE attempts can affect no
 rows, so write starts are not rows changed or disk writes.
 
+The candidate session's remaining nine primary statements come from successful
+verify's `sync_trusted_request` →
+[`refresh_proxy_session_binding`](../../../apps/server-admin-rs/src/auth/mobility/trusted_sync.rs#L237)
+→ `Store::get_config` →
+[`load_shadow`](../../../apps/server-admin-rs/src/storage/typed_config.rs#L212).
+Even this healthy fixture, with no mobility binding and mobility disabled, reads
+live configuration before deciding no refresh is needed. That read uses
+`BEGIN IMMEDIATE`/`COMMIT` (two starts), reads the two legacy config/generation
+keys with an expiry-guard DELETE plus kind/value SELECTs (six), and reads the
+typed config document (one). The live getter checks authority and legacy/typed
+consistency and can trigger repair; this fixture takes its healthy path, without
+repair. It still queues on primary and acquires the SQLite writer lock.
+
+Writer-lock tests cover stable session subpaths and authorization metadata, not
+the complete `AuthorizeHttp` handler. These results do not establish that the
+whole RPC is read-only or unaffected by a writer lock. A future early return for
+the no-binding, mobility-disabled case needs separate validation of concurrent
+configuration updates and repair timing before replacing the live getter.
+
 The grant template histograms show three baseline grant reads versus two
 candidate reads across this combined preflight/verify handler. The baseline's
 active-grant compatibility validation scales with the grant population; the

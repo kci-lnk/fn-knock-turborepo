@@ -147,6 +147,33 @@ profile默认关闭，不能用启用profile的吞吐替代无额外观测开销
 
 ## 指标、判读和限制
 
+正式串行suite可先生成计划，再显式执行。`prepare`在本机也可运行，只写计划和每case的variant配置，不启动服务；`run`仅接受Linux环境并逐case调用隔离harness，首个失败即停止且保留证据。计划使用绝对路径，转移设备时应在目标设备重新prepare或保持同一路径布局。
+
+```sh
+# 每case固定6对、20秒warm、60秒measurement；只选当前要验证的小批。
+node scripts/auth-performance-suite.mjs prepare \
+  --config /tmp/variants.json --out /tmp/formal-suite-UNIQUE \
+  --mode paired --candidates candidate --routes session_hit \
+  --concurrency 16 --readers 1 --credential-kind totp --accounts 1000
+# 检查suite-plan.json后，在目标Linux设备显式执行：
+node scripts/auth-performance-suite.mjs run --plan /tmp/formal-suite-UNIQUE/suite-plan.json
+
+# 通过六对门槛后，单独准备已入选candidate的30分钟稳定性观察。
+node scripts/auth-performance-suite.mjs prepare \
+  --config /tmp/variants.json --out /tmp/soak-suite-UNIQUE \
+  --mode soak --candidates candidate --routes session_hit \
+  --concurrency 16 --readers 1 --credential-kind totp --accounts 1000
+node scripts/auth-performance-suite.mjs run --plan /tmp/soak-suite-UNIQUE/suite-plan.json
+
+# 即使执行中途失败也可以收集已产生的原始JSON指标。
+node scripts/auth-performance-suite.mjs collect \
+  --plan /tmp/formal-suite-UNIQUE/suite-plan.json --out /tmp/formal-evidence-UNIQUE
+```
+
+suite的`--concurrency`、`--readers`、`--credential-kind`、`--routes`、`--candidates`支持逗号列表，组合数相乘；accounts/sessions/grants取单值，分别prepare不同规模避免无意启动巨大矩阵。`--compilers z,s,2,3`只筛选已有candidate的`metadata.rust_opt_level`，不负责构建。`--mode profile`固定单对20秒warm+30秒profile、idle5秒；`--mode recovery`固定独立显式capacity32、单对1秒warm+3秒load，附加64并发burst探测。正常paired/soak/profile一律移除capacity覆盖，双方保持产品默认，Tokio固定2；reader覆盖只施加到新版candidate。paired默认自动运行六对回归/RSS门槛；预先确定的目标case可加`--improvement 1`。soak仅candidate、1800秒，不运行A/B门槛。renewal必须显式给`--renewals`，拒绝soak/recovery，仍只是有限批次。
+
+collector只收集`results.json`、`manifest.json`、每trial的`result.json`及suite outcome，保留完整process/health/phase/recovery/profile JSON时间序列；不复制数据库、key文件、配置文件、日志、静态资源或二进制。已知secret/token/password/cookie环境字段进行脱敏，`collection.json`记录原始与收集字节的SHA256。原始运行目录仍保留日志和数据库供本机调查，收集包中的路径引用仍指向原运行位置。
+
 - `manifest.json`：二进制SHA、路径、variant metadata、环境参数、内核与Node版本。
 - `results.json`及每trial `result.json`：真实elapsed、成功/失败请求、状态码、P50/P95/P99、稀疏1ms延迟直方图、Go/Rust/client/fixture CPU秒及每1000次成功请求CPU成本、RSS/FD/thread采样和峰值。
 - 每200ms读`/proc`，每秒采样runtime-health中的storage队列、bridge数据；值不存在明确为null，不能用0代替。队列计数是进程累计值，不是每路由的独立事件分布。
@@ -164,7 +191,7 @@ profile默认关闭，不能用启用profile的吞吐替代无额外观测开销
 工具单元验证（无需设备、不运行负载）：
 
 ```sh
-node --test scripts/tests/auth-performance.test.mjs
+node --test scripts/tests/auth-performance.test.mjs scripts/tests/auth-performance-suite.test.mjs
 node --check scripts/auth-performance.mjs
 ```
 

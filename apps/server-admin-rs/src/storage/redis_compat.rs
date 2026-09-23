@@ -23,6 +23,7 @@ use tokio_rusqlite::{
 use crate::storage::{StorageError, StorageResult, storage_error};
 
 mod auth_reads;
+mod auth_read_pool;
 mod command;
 mod connection;
 mod connection_ops;

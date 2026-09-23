@@ -12,6 +12,7 @@ pub(crate) struct ConnectionManager {
     pub(super) db: Connection,
     pub(super) analytics_db: Connection,
     pub(super) auth_read_db: Connection,
+    pub(super) auth_read_pool: Option<Arc<super::auth_read_pool::AuthReadPool>>,
     pub(super) health_db: Connection,
     pub(super) checkpoint_gate: Arc<RwLock<()>>,
     pub(super) primary_admission: Arc<Semaphore>,

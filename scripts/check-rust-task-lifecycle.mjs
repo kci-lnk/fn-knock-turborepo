@@ -3,7 +3,7 @@ import path from "node:path";
 import process from "node:process";
 
 const sourceRoot = path.resolve("apps/server-admin-rs/src");
-const maxDirectSpawnCallSites = 124;
+const maxDirectSpawnCallSites = 127;
 
 // Direct spawns are limited to explicitly audited owners, request-scoped
 // fan-out, subprocess pipe/wait tasks, platform entry points, and tests.
@@ -42,9 +42,13 @@ const auditedBudgets = new Map(
     // Serialization and concurrency probes; every handle is awaited.
     "security/whitelist/tests.rs": 2,
     "storage/redis_compat/tests/migrations.rs": 2,
+    // Test-only reader leases; canceled handles and remaining workers are all awaited.
+    "storage/redis_compat/auth_read_pool.rs": 1,
     // Test-only concurrency and local fixture tasks; every handle is joined,
     // awaited, or explicitly aborted by the owning test.
     "storage/redis_store/tests/aggregates.rs": 2,
+    // Test-only reader blocker and TTL probe; both are released and awaited.
+    "storage/redis_store/tests/auth_reads.rs": 2,
     "storage/redis_store/tests/analytics.rs": 1,
     "storage/redis_store/tests/core.rs": 2,
     "storage/redis_store/tests/events_notifications.rs": 4,

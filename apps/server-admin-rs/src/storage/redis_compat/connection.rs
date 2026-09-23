@@ -2,6 +2,23 @@ use super::*;
 
 impl ConnectionManager {
     pub(crate) async fn open(path: &Path) -> RedisResult<Self> {
+        let readers = match std::env::var("FN_KNOCK_SQLITE_AUTH_READERS").as_deref() {
+            Ok("2") => 2,
+            Ok("4") => 4,
+            Ok("1" | "") | Err(_) => 1,
+            Ok(_) => {
+                return Err(storage_error(
+                    "FN_KNOCK_SQLITE_AUTH_READERS must be 1, 2, or 4",
+                ));
+            }
+        };
+        Self::open_with_auth_readers(path, readers).await
+    }
+
+    pub(super) async fn open_with_auth_readers(path: &Path, readers: usize) -> RedisResult<Self> {
+        if !matches!(readers, 1 | 2 | 4) {
+            return Err(storage_error("auth reader count must be 1, 2, or 4"));
+        }
         if let Some(parent) = path.parent() {
             let should_secure_parent = !tokio::fs::try_exists(parent).await?
                 || parent.file_name() == Some(std::ffi::OsStr::new("storage"));
@@ -27,10 +44,19 @@ impl ConnectionManager {
             rusqlite::OpenFlags::SQLITE_OPEN_READ_ONLY | rusqlite::OpenFlags::SQLITE_OPEN_NO_MUTEX,
         )
         .await?;
+        let auth_read_pool = if readers == 1 {
+            None
+        } else {
+            Some(Arc::new(
+                super::auth_read_pool::AuthReadPool::open(path, readers, auth_read_db.clone())
+                    .await?,
+            ))
+        };
         let manager = Self {
             db,
             analytics_db,
             auth_read_db,
+            auth_read_pool,
             health_db,
             checkpoint_gate: Arc::new(RwLock::new(())),
             primary_admission: Arc::new(Semaphore::new(1)),
@@ -304,6 +330,9 @@ impl ConnectionManager {
         // request cannot release admission until that submitted work is truly
         // finished. Waiters canceled before admission are never submitted.
         let phase = crate::auth::diagnostics::enter("sqlite_primary_wait");
+        let admission_operation = self
+            .operation_recorder
+            .scope("sqlite_admission", "sqlite_primary");
         let admission = self.primary_admission.clone();
         let (permit, wait_ms) = match admission.clone().try_acquire_owned() {
             Ok(permit) => (permit, 0),
@@ -320,6 +349,7 @@ impl ConnectionManager {
             }
         };
         drop(phase);
+        admission_operation.finish(true, None);
         let _phase = crate::auth::diagnostics::enter("sqlite_primary_execute");
         let execution = self.primary_metrics.begin_execution(wait_ms);
         let recorder = self.diagnostics();
@@ -365,11 +395,13 @@ impl ConnectionManager {
         // stays outside its internal queue, while both guards move into the
         // closure so caller cancellation cannot release them prematurely.
         let phase = crate::auth::diagnostics::enter("sqlite_reader_wait");
+        let admission_operation = self.operation_recorder.scope("sqlite_admission", kind);
         let permit = admission
             .acquire_owned()
             .await
             .map_err(|_| storage_error("sqlite reader admission is closed"))?;
         drop(phase);
+        admission_operation.finish(true, None);
         let phase = crate::auth::diagnostics::enter("sqlite_checkpoint_wait");
         let checkpoint_guard = self.checkpoint_gate.clone().read_owned().await;
         drop(phase);
@@ -408,6 +440,16 @@ impl ConnectionManager {
         T: Send + 'static,
         F: FnOnce(&mut rusqlite::Connection) -> RedisResult<T> + Send + 'static,
     {
+        if let Some(pool) = &self.auth_read_pool {
+            return pool
+                .call(
+                    self.checkpoint_gate.clone(),
+                    self.diagnostics(),
+                    std::any::type_name::<F>(),
+                    f,
+                )
+                .await;
+        }
         self.call_reader(
             &self.auth_read_db,
             self.auth_read_admission.clone(),

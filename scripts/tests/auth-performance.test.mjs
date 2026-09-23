@@ -378,12 +378,122 @@ test("operation profile distinguishes executor jobs, admissions, background rate
   assert.equal(summary.admission_calls_per_success, 3);
   assert.equal(summary.admission_wall_ms_per_success, 6);
   assert.equal(summary.idle_executor_calls_per_second, 2);
+  assert.equal(summary.auth_reader.executor_calls, 10);
+  assert.equal(summary.auth_reader.admission_instrumentation_observed, false);
+  assert.equal(summary.auth_reader.admission_wall_ms_per_success, null);
   assert.match(summary.measurement, /not SQL statement count/);
   report.capture.operations.operations = [operation];
   assert.equal(
     summarizeOperationProfile(report, 10).admission_calls_per_success,
     null,
   );
+  assert.equal(
+    summarizeOperationProfile(report, 10).auth_reader
+      .executor_calls_per_success,
+    null,
+  );
+});
+
+function mixedReaderProfile() {
+  const operation = (kind, label, calls, wall, cpu, inFlight = 0) => ({
+    kind,
+    label,
+    calls,
+    total_wall_ms: wall,
+    total_cpu_ms: cpu,
+    in_flight: inFlight,
+  });
+  const report = (operations, elapsed = 1000) => ({
+    capture: {
+      operations: { elapsed_ms: elapsed, dropped_operations: 0, operations },
+    },
+  });
+  return summarizeOperationProfile(
+    report([
+      operation("sqlite_primary", "write", 20, 200, 100, 4),
+      operation("sqlite_auth_read", "read_accounts", 6, 60, 20, 1),
+      operation("sqlite_auth_read", "read_sessions", 4, 40, 10),
+      operation("sqlite_admission", "sqlite_primary", 20, 400, null),
+      operation("sqlite_admission", "sqlite_auth_read", 10, 30, null, 2),
+      operation("sqlite_admission", "sqlite_health", 2, 90, null),
+      operation("sqlite_analytics", "read_analytics", 100, 900, 500),
+    ]),
+    10,
+    report(
+      [
+        operation("sqlite_primary", "write", 4, 80, 20),
+        operation("sqlite_auth_read", "read_sessions", 2, 40, 10),
+      ],
+      2000,
+    ),
+  );
+}
+
+test("auth reader profile aggregates all auth labels without primary or health admissions", () => {
+  const summary = mixedReaderProfile();
+  // Existing overall fields retain their original aggregation semantics.
+  assert.equal(summary.executor_calls, 30);
+  assert.equal(summary.executor_wall_ms, 300);
+  assert.equal(summary.executor_cpu_ms, 130);
+  assert.equal(summary.admission_calls, 32);
+  assert.equal(summary.admission_wall_ms, 520);
+  assert.equal(summary.idle_executor_calls_per_second, 3);
+  assert.equal(summary.unfinished_scopes, 7);
+  assert.deepEqual(summary.auth_reader, {
+    measurement: "all auth reader slots in the shared operation recorder",
+    checkpoint_wait_included: false,
+    executor_calls: 10,
+    executor_wall_ms: 100,
+    executor_cpu_ms: 30,
+    admission_calls: 10,
+    admission_wall_ms: 30,
+    executor_instrumentation_observed: true,
+    admission_instrumentation_observed: true,
+    unfinished_scopes: 3,
+    executor_calls_per_success: 1,
+    executor_wall_ms_per_success: 10,
+    executor_cpu_ms_per_success: 3,
+    admission_calls_per_success: 1,
+    admission_wall_ms_per_success: 3,
+    idle_executor_calls_per_second: 1,
+  });
+});
+
+test("profile report separates auth readers and labels health queues as primary for old and new summaries", async () => {
+  const directory = await mkdtemp(path.join(tmpdir(), "auth-profile-report-"));
+  try {
+    const runs = gateRuns({ pairs: 1 });
+    const summary = mixedReaderProfile();
+    const { auth_reader: _authReader, ...legacy } = summary;
+    runs[0].operation_profile = legacy;
+    runs[1].operation_profile = summary;
+    for (const run of runs)
+      run.runtime_health = [
+        {
+          storage: { queue_depth: 7, queue_wait_ms: 8, active_operation_ms: 9 },
+        },
+      ];
+    const file = path.join(directory, "results.json");
+    await writeFile(file, JSON.stringify({ schema_version: 1, runs }));
+    const output = execFileSync(
+      process.execPath,
+      [
+        fileURLToPath(
+          new URL("../report-auth-performance.mjs", import.meta.url),
+        ),
+        file,
+      ],
+      { encoding: "utf8" },
+    );
+    assert.match(output, /auth reader调用\/成功请求/);
+    assert.ok(output.includes("| 1.000 | 10.000 | 3.000 | 3.000 | 1.000 |"));
+    assert.ok(output.includes("| n/a | n/a | n/a | n/a | n/a |"));
+    assert.match(output, /SQLite primary采样最大队列深度 7/);
+    assert.match(output, /不代表auth reader单slot或全池/);
+    assert.match(output, /不包含中间的checkpoint gate等待/);
+  } finally {
+    await rm(directory, { recursive: true, force: true });
+  }
 });
 
 test("failure health capture preserves the original error even if diagnostics fail", async () => {

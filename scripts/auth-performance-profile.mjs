@@ -30,6 +30,25 @@ export function summarizeOperationProfile(report, requests, idleReport) {
   );
   const idleSnapshot = idleReport?.capture?.operations;
   const idle = idleSnapshot ? summarize(idleSnapshot.operations) : null;
+  // Every auth reader slot shares the recorder. Keep its execution/admission
+  // scopes separate from primary work and other reader families. Neither scope
+  // includes the checkpoint gate wait between admission and SQLite execution.
+  const isAuthReader = (operation) =>
+    operation.kind === "sqlite_auth_read" ||
+    (operation.kind === "sqlite_admission" &&
+      operation.label === "sqlite_auth_read");
+  const authOperations = snapshot.operations.filter(isAuthReader);
+  const authTotals = summarize(authOperations);
+  const authExecutorAvailable = authOperations.some(
+    (operation) => operation.kind === "sqlite_auth_read",
+  );
+  const authAdmissionAvailable = authOperations.some(
+    (operation) => operation.kind === "sqlite_admission",
+  );
+  const idleAuthOperations = idleSnapshot?.operations.filter(isAuthReader);
+  const idleAuth = idleAuthOperations ? summarize(idleAuthOperations) : null;
+  const authPerSuccess = (value, observed) =>
+    requests > 0 && observed && value !== null ? value / requests : null;
   return {
     measurement:
       "process-wide instrumented executor scopes; not SQL statement count",
@@ -63,6 +82,45 @@ export function summarizeOperationProfile(report, requests, idleReport) {
       idle && idleSnapshot.elapsed_ms > 0
         ? (idle.executor_calls * 1000) / idleSnapshot.elapsed_ms
         : null,
+    auth_reader: {
+      measurement: "all auth reader slots in the shared operation recorder",
+      checkpoint_wait_included: false,
+      ...authTotals,
+      executor_instrumentation_observed: authExecutorAvailable,
+      admission_instrumentation_observed: authAdmissionAvailable,
+      unfinished_scopes: authOperations.reduce(
+        (sum, operation) => sum + operation.in_flight,
+        0,
+      ),
+      executor_calls_per_success: authPerSuccess(
+        authTotals.executor_calls,
+        authExecutorAvailable,
+      ),
+      executor_wall_ms_per_success: authPerSuccess(
+        authTotals.executor_wall_ms,
+        authExecutorAvailable,
+      ),
+      executor_cpu_ms_per_success: authPerSuccess(
+        authTotals.executor_cpu_ms,
+        authExecutorAvailable,
+      ),
+      admission_calls_per_success: authPerSuccess(
+        authTotals.admission_calls,
+        authAdmissionAvailable,
+      ),
+      admission_wall_ms_per_success: authPerSuccess(
+        authTotals.admission_wall_ms,
+        authAdmissionAvailable,
+      ),
+      idle_executor_calls_per_second:
+        idleAuth &&
+        idleSnapshot.elapsed_ms > 0 &&
+        idleAuthOperations.some(
+          (operation) => operation.kind === "sqlite_auth_read",
+        )
+          ? (idleAuth.executor_calls * 1000) / idleSnapshot.elapsed_ms
+          : null,
+    },
     operations: snapshot.operations,
   };
 }

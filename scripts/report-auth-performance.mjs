@@ -84,7 +84,19 @@ if (profiled.length) {
   }
   lines.push(
     "",
+    "| 路由 / 角色 | auth reader调用/成功请求 | auth reader wall ms/成功请求 | auth reader CPU ms/成功请求 | auth reader admission等待 ms/成功请求 | idle auth reader调用/秒 |",
+    "| --- | ---: | ---: | ---: | ---: | ---: |",
+  );
+  for (const run of profiled) {
+    const auth = run.operation_profile.auth_reader;
+    lines.push(
+      `| ${cell(`${run.candidate}/${run.scenario}/${run.role}/pair${run.pair + 1}`)} | ${number(auth?.executor_calls_per_success, 3)} | ${number(auth?.executor_wall_ms_per_success, 3)} | ${number(auth?.executor_cpu_ms_per_success, 3)} | ${number(auth?.admission_wall_ms_per_success, 3)} | ${number(auth?.idle_executor_calls_per_second, 3)} |`,
+    );
+  }
+  lines.push(
+    "",
     "Operation recorder统计进程内executor job scope，包含同一捕获窗口的背景操作；每成功请求归一化不等于每请求精确SQL条数。一次executor job可能执行多条SQL。idle频率保留作背景参照，不自动扣减。profiling会增加开销，应另跑关闭profiling的性能A/B。",
+    "原overall executor合计primary与auth reader，overall admission合计全部入场label；auth_reader单独聚合全部auth reader slot，执行仅取kind=sqlite_auth_read，入场仅取kind=sqlite_admission且label=sqlite_auth_read。两者都不包含中间的checkpoint gate等待，也不提供逐slot分布；并行scope的累计wall可以超过捕获时长。旧报告缺少auth_reader时显示n/a。",
   );
 }
 const recoveryRuns = runs.filter((run) => run.recovery_probe);
@@ -136,7 +148,7 @@ const max = (field) => {
 };
 lines.push(
   "",
-  `SQLite采样最大队列深度 ${number(max("queue_depth"), 0)}，最大队列等待 ${number(max("queue_wait_ms"))}ms，最大活动操作 ${number(max("active_operation_ms"))}ms。`,
+  `SQLite primary采样最大队列深度 ${number(max("queue_depth"), 0)}，最大队列等待 ${number(max("queue_wait_ms"))}ms，最大活动操作 ${number(max("active_operation_ms"))}ms。这些health字段只统计primary executor，不代表auth reader单slot或全池；auth pool饱和时仍可能为零。`,
   "",
   `超时phase事件：${
     Object.keys(phases).length

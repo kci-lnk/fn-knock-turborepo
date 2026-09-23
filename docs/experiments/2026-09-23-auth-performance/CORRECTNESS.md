@@ -46,9 +46,9 @@
 
 ## 请求内复用的实现边界
 
-- 配置、accounts/TOTP 只在单请求内固定快照，没有跨请求 TTL 缓存。并发凭据/权限变更可能延至下一请求可见，新请求重新读取已提交状态。
-- Session 未加入 `request_context`。既有读取点继续调用权威 `get_session`，恢复/写入路径保留存活重验，避免缓存把已注销 session 变成可写授权。
-- Grant 只在 bridge/preflight 间复用 inspection 的布尔结果；最终 verify 重新读取，续期使用 expected raw 的事务 CAS，失败后重新检查。整个 host 的 grant 校验和 shadow 修复仍同步进行，本轮用 JOIN 消除 N+1，没有将完整校验移到维护任务。
+- 配置、accounts/TOTP 没有跨请求 TTL 缓存。配置在创建请求 scope 时取得已发布的快照，accounts 与 TOTP 各自在首次访问时读取并固定原始数据；三者不是同一时刻的数据库快照。并发变更可能延至下一请求可见，新请求会取得当前已发布配置，并在首次凭据读取时看到当时已提交的状态。
+- Session 未加入 `request_context`。既有读取点继续调用权威 `get_session`，恢复/写入路径保留存活重验，避免缓存把已注销 session 变成可写授权。这不保证注销会追溯取消所有已经开始的请求：preflight 已计算的 `normal_access` 仍可由 verify 使用，该跨阶段复用在原始基线 `d4f8805f` 中已存在，区别于本轮新增的配置及凭据请求内快照。注销屏障测试证明的是后续写入不能复建授权状态，不是整个 RPC 与注销之间的线性一致性。
+- Grant 只在 bridge/preflight 间复用 inspection 的布尔结果；实际进入 verify 的 grant 路径重新读取，续期使用 expected raw 的事务 CAS，失败后重新检查。`PREFLIGHT_ONLY` 本次没有 verify，不能由相应局部测试推导其在响应前再次读取 grant；网关已有授权缓存的有效窗口也不由这些 Rust 测试消除，这是原有 gateway cache 的边界，本轮没有新增跨请求认证缓存。CAS 检查的是事务执行时 key 仍存活且 raw 相同，不提供跨删除后重建同值的代际标识。整个 host 的 grant 校验和 shadow 修复仍同步进行，本轮用 JOIN 消除 N+1，没有将完整校验移到维护任务。
 - IP 批量查询只负责发现候选，不能替代最终 session 权威重读；后续投影修改应继续遵守此边界。
 
 ## 为什么没有重复 1/2/4 reader 的 TTL 测试矩阵

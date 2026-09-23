@@ -1638,7 +1638,7 @@ async fn batched_ip_owners_preserve_http_stream_normalization_and_revocation() {
         state
             .storage
             .store
-            .list_auth_session_ip_candidates(Some(1200))
+            .map_auth_session_ip_candidates(Some(1200), std::convert::identity)
             .await
             .unwrap()
             .len(),
@@ -1712,6 +1712,166 @@ async fn batched_ip_owners_disabled_mobility_uses_canonical_ip_and_expiry() {
             .await
             .unwrap()
             .is_empty()
+    );
+}
+
+#[tokio::test]
+async fn batched_ip_candidates_drop_nonmatching_snapshots_before_authority_reads() {
+    let (_directory, state) = mobility_test_state("batched-ip-projection").await;
+    let target_ip = "203.0.113.42";
+    let mut fixture =
+        tokio_rusqlite::rusqlite::Connection::open(&state.settings.sqlite_path).unwrap();
+    let tx = fixture.transaction().unwrap();
+    for index in 0..1000 {
+        let mut session = test_browser_session("203.0.113.99");
+        session.user_agent = "unmatched-large-session".repeat(100);
+        crate::storage::redis_compat::execute_command_in_transaction(
+            &tx,
+            "SET",
+            vec![
+                format!("fn_knock:session:nonmatch-{index:04}"),
+                serde_json::to_string(&session).unwrap(),
+            ],
+        )
+        .unwrap();
+    }
+    tx.commit().unwrap();
+    assert!(
+        restore::resolve_bootstrap_owner(&state, target_ip)
+            .await
+            .unwrap()
+            .is_none()
+    );
+
+    let mut matching = test_browser_session(target_ip);
+    matching.login_time = "2026-01-01T00:00:00Z".into();
+    state
+        .storage
+        .store
+        .add_session("a-match", &matching, 3600)
+        .await
+        .unwrap();
+    for member in [target_ip, "legacy-duplicate-member"] {
+        state
+            .storage
+            .store
+            .save_auth_mobility_active_ip_detail(
+                "a-match",
+                member,
+                now_seconds(),
+                &json!({"ip":target_ip,"lastSeenAt":now_seconds()}),
+                3600,
+            )
+            .await
+            .unwrap();
+    }
+    let settings = AuthCredentialSettings::from_config(&state.storage.store.config_snapshot());
+    let caller_thread = std::thread::current().id();
+    let candidate_settings = settings.clone();
+    // This is the production projection: its only result is matching IDs, not
+    // the 1000 unmatched sessions or even the matching session's object tree.
+    let candidate_ids: Vec<String> = state
+        .storage
+        .store
+        .map_auth_session_ip_candidates(
+            Some(settings.session_ip_mobility_window_seconds),
+            move |candidates| {
+                assert_ne!(std::thread::current().id(), caller_thread);
+                assert_eq!(candidates.len(), 1001);
+                restore::matching_session_ip_candidate_ids(
+                    candidates,
+                    target_ip,
+                    &candidate_settings,
+                    false,
+                )
+            },
+        )
+        .await
+        .unwrap();
+    assert_eq!(candidate_ids, vec!["a-match"]);
+    assert!(
+        candidate_ids.capacity() < 100,
+        "projection retained the full candidate allocation"
+    );
+    assert_eq!(
+        list_active_sessions_by_ip(&state, target_ip)
+            .await
+            .unwrap()
+            .iter()
+            .map(|(id, _)| id.as_str())
+            .collect::<Vec<_>>(),
+        vec!["a-match"],
+    );
+    // Canonical IP plus two matching active details still yields one owner.
+    assert_eq!(
+        list_stream_access_sessions_by_ip(&state, target_ip)
+            .await
+            .unwrap()
+            .len(),
+        1
+    );
+    assert_eq!(
+        restore::resolve_bootstrap_owner(&state, target_ip)
+            .await
+            .unwrap()
+            .unwrap()
+            .0,
+        "a-match"
+    );
+
+    state
+        .storage
+        .store
+        .add_session("z-match", &matching, 3600)
+        .await
+        .unwrap();
+    state
+        .storage
+        .store
+        .save_auth_mobility_active_ip_detail(
+            "z-match",
+            target_ip,
+            now_seconds(),
+            &json!({"ip":target_ip,"lastSeenAt":now_seconds()}),
+            3600,
+        )
+        .await
+        .unwrap();
+    // Equal login times retain the legacy stable key order after filtering.
+    assert_eq!(
+        list_active_sessions_by_ip(&state, target_ip)
+            .await
+            .unwrap()
+            .iter()
+            .map(|(id, _)| id.as_str())
+            .collect::<Vec<_>>(),
+        vec!["a-match", "z-match"],
+    );
+    assert!(
+        restore::resolve_bootstrap_owner(&state, target_ip)
+            .await
+            .unwrap()
+            .is_none()
+    );
+
+    // A projected ID cannot revive authority deleted before confirmation.
+    state
+        .storage
+        .store
+        .delete_session(&candidate_ids[0])
+        .await
+        .unwrap();
+    assert!(
+        restore::confirm_session_ip_candidate(
+            &state,
+            &candidate_ids[0],
+            target_ip,
+            &settings,
+            false
+        )
+        .await
+        .unwrap()
+        .is_none()
     );
 }
 

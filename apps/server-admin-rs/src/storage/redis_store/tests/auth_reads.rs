@@ -252,7 +252,7 @@ async fn batched_session_ip_snapshot_preserves_recent_detail_semantics_and_order
     let (release, blocker) = block_primary_executor(&store).await;
     let snapshot = tokio::time::timeout(
         Duration::from_millis(500),
-        store.list_auth_session_ip_candidates(Some(60)),
+        store.map_auth_session_ip_candidates(Some(60), std::convert::identity),
     )
     .await;
     release.send(()).unwrap();
@@ -332,7 +332,7 @@ async fn batched_ip_candidates_match_legacy_reads_at_multiple_session_counts() {
             .await
             .unwrap();
         let candidates = store
-            .list_auth_session_ip_candidates(Some(60))
+            .map_auth_session_ip_candidates(Some(60), std::convert::identity)
             .await
             .unwrap();
         let legacy = store.list_login_sessions().await.unwrap();

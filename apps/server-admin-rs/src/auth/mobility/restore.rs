@@ -442,16 +442,22 @@ async fn list_sessions_by_ip(
     let window = settings
         .session_ip_mobility_enabled
         .then_some(settings.session_ip_mobility_window_seconds);
-    let candidates = state
+    let candidate_ip = normalized_ip.clone();
+    let candidate_settings = settings.clone();
+    let candidate_ids = state
         .storage
         .store
-        .list_auth_session_ip_candidates(window)
+        .map_auth_session_ip_candidates(window, move |candidates| {
+            matching_session_ip_candidate_ids(
+                candidates,
+                &candidate_ip,
+                &candidate_settings,
+                stream,
+            )
+        })
         .await?;
     let mut owners = Vec::new();
-    for (session_id, session, details) in candidates {
-        if !session_ip_candidate_matches(&session, details, &normalized_ip, &settings, stream) {
-            continue;
-        }
+    for session_id in candidate_ids {
         if let Some(session) =
             confirm_session_ip_candidate(state, &session_id, &normalized_ip, &settings, stream)
                 .await?
@@ -460,6 +466,25 @@ async fn list_sessions_by_ip(
         }
     }
     Ok(owners)
+}
+
+pub(super) fn matching_session_ip_candidate_ids(
+    candidates: Vec<(String, LoginSession, Vec<Value>)>,
+    client_ip: &str,
+    settings: &AuthCredentialSettings,
+    stream: bool,
+) -> Vec<String> {
+    // Keep stable discovery order while dropping every snapshot and detail on
+    // the SQLite worker. Only matching IDs cross the live-authority awaits.
+    // Allocate by matches rather than reusing the full candidate Vec's backing
+    // allocation through an in-place iterator collection.
+    let mut ids = Vec::new();
+    for (id, session, details) in candidates {
+        if session_ip_candidate_matches(&session, details, client_ip, settings, stream) {
+            ids.push(id);
+        }
+    }
+    ids
 }
 
 fn session_ip_candidate_matches(

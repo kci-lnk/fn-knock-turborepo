@@ -55,12 +55,15 @@ impl Store {
             .and_then(|raw| serde_json::from_str(&raw).ok()))
     }
 
-    /// Candidate discovery only. Callers must reload session authority before
-    /// authorizing; this snapshot never replaces the compatibility session key.
-    pub(crate) async fn list_auth_session_ip_candidates(
+    /// Project candidate discovery on the SQLite worker before returning to the
+    /// async caller, so unmatched sessions need not survive later awaits.
+    /// Callers must reload session authority before authorizing; this snapshot
+    /// never replaces the compatibility session key.
+    pub(crate) async fn map_auth_session_ip_candidates<T: Send + 'static>(
         &self,
         mobility_window_seconds: Option<i64>,
-    ) -> crate::storage::StorageResult<Vec<(String, LoginSession, Vec<Value>)>> {
+        project: impl FnOnce(Vec<(String, LoginSession, Vec<Value>)>) -> T + Send + 'static,
+    ) -> crate::storage::StorageResult<T> {
         use tokio_rusqlite::rusqlite::params;
         self.manager.call_auth_read(move |conn| {
             let tx = conn.transaction()?;
@@ -119,7 +122,7 @@ impl Store {
             tx.commit()?;
             // Match list_login_sessions' stable newest-first owner order.
             sessions.sort_by(|(_, a, _), (_, b, _)| b.login_time.cmp(&a.login_time));
-            Ok(sessions)
+            Ok(project(sessions))
         }).await
     }
 

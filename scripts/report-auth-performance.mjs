@@ -1,7 +1,7 @@
 import { readFile } from "node:fs/promises";
 import path from "node:path";
 import assert from "node:assert/strict";
-import { compareRuns } from "./auth-performance-lib.mjs";
+import { compareRuns, comparisonKey } from "./auth-performance-lib.mjs";
 
 const file = process.argv[2];
 assert.ok(
@@ -31,15 +31,15 @@ const lines = [
   "",
   `记录 ${runs.length} 个trial；${runs.filter((run) => !run.validation?.passed).length} 个无效。所有变化按candidate相对baseline计算。`,
   "",
-  "| 路由 / 并发 / 候选 / cache TTL | 完整对数 | 成功吞吐变化 | P99变化 | 吞吐95%区间 | P99 95%区间 |",
-  "| --- | ---: | ---: | ---: | --- | --- |",
+  "| 路由 / 并发 / 候选 / cache TTL / 规模 | 完整对数 | 成功吞吐变化 | P99变化 | 吞吐95%区间 | P99 95%区间 | Go峰值RSS变化 | Rust峰值RSS变化 | 合计峰值RSS变化 |",
+  "| --- | ---: | ---: | ---: | --- | --- | ---: | ---: | ---: |",
 ];
 const comparisons = compareRuns(runs);
 for (const group of comparisons) {
   const interval = (value) =>
     value ? value.map(percent).join(" … ") : "不足6对";
   lines.push(
-    `| ${cell(group.key)} | ${group.complete_pairs} | ${percent(group.throughput_change_median)} | ${percent(group.p99_change_median)} | ${interval(group.throughput_change_bootstrap_95)} | ${interval(group.p99_change_bootstrap_95)} |`,
+    `| ${cell(group.key)} | ${group.complete_pairs} | ${percent(group.throughput_change_median)} | ${percent(group.p99_change_median)} | ${interval(group.throughput_change_bootstrap_95)} | ${interval(group.p99_change_bootstrap_95)} | ${percent(group.peak_rss_change_median.go)} | ${percent(group.peak_rss_change_median.rust)} | ${percent(group.peak_rss_change_median.combined)} |`,
   );
 }
 if (comparisons.some((group) => !group.six_valid_pairs))
@@ -54,7 +54,7 @@ lines.push(
 );
 const groups = new Map();
 for (const run of runs) {
-  const key = `${run.candidate}/${run.scenario}/c${run.concurrency}/cache${run.cache_ttl_seconds}/${run.role}`;
+  const key = `${comparisonKey(run)}/${run.role}`;
   if (!groups.has(key)) groups.set(key, []);
   groups.get(key).push(run);
 }

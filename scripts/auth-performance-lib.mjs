@@ -151,6 +151,21 @@ export function mergeMeasurements(rows) {
 export function pairOrder(pair) {
   return pair % 2 === 0 ? ["baseline", "candidate"] : ["candidate", "baseline"];
 }
+
+export function comparisonKey(run) {
+  const seed = run.seed ?? {};
+  const scale = [
+    ["sessions", seed.sessions],
+    ["accounts", seed.accounts],
+    ["grants", seed.ordinary_grants],
+    ["total-grants", seed.total_grants],
+    ["renewals", seed.renewal_tokens_per_phase],
+  ]
+    .map(([name, value]) => `${name}-${value ?? "unknown"}`)
+    .join("/");
+  return `${run.scenario}/${run.concurrency}/${run.candidate}/cache-${run.cache_ttl_seconds ?? "unknown"}/profile-${run.profiling ? "on" : "off"}/${scale}`;
+}
+
 const median = (values) => {
   const a = [...values].sort((a, b) => a - b);
   return a.length % 2
@@ -158,7 +173,7 @@ const median = (values) => {
     : (a[a.length / 2 - 1] + a[a.length / 2]) / 2;
 };
 function pairedInterval(values) {
-  if (values.length < 6) return null;
+  if (values.length < 6 || !values.every(Number.isFinite)) return null;
   let state = 23;
   const random = () => {
     state = (1664525 * state + 1013904223) >>> 0;
@@ -172,7 +187,7 @@ function pairedInterval(values) {
 export function compareRuns(runs) {
   const groups = new Map();
   for (const run of runs) {
-    const key = `${run.scenario}/${run.concurrency}/${run.candidate}/cache-${run.cache_ttl_seconds ?? "unknown"}/profile-${run.profiling ? "on" : "off"}`;
+    const key = comparisonKey(run);
     if (!groups.has(key)) groups.set(key, []);
     groups.get(key).push(run);
   }
@@ -186,27 +201,101 @@ export function compareRuns(runs) {
       (pair) => pair.baseline?.measurement && pair.candidate?.measurement,
     );
     const invalid = values.filter((value) => !value.validation?.passed).length;
-    const ratios = (metric) =>
-      complete.map(
-        (pair) =>
-          pair.candidate.measurement[metric] /
-            pair.baseline.measurement[metric] -
-          1,
-      );
-    const throughput = ratios("successful_requests_per_second");
-    const p99 = ratios("p99_ms");
+    const positive = (value) => Number.isFinite(value) && value > 0;
+    const ratios = (read) =>
+      complete.map((pair) => {
+        const baseline = read(pair.baseline);
+        const candidate = read(pair.candidate);
+        return positive(baseline) && positive(candidate)
+          ? candidate / baseline - 1
+          : null;
+      });
+    const throughput = ratios(
+      (run) => run.measurement.successful_requests_per_second,
+    );
+    const p99 = ratios((run) => run.measurement.p99_ms);
+    const rss = Object.fromEntries(
+      ["go", "rust", "combined"].map((name) => [
+        name,
+        ratios((run) => {
+          if (name !== "combined") return run.resources?.[name]?.peak_rss_bytes;
+          const go = run.resources?.go?.peak_rss_bytes;
+          const rust = run.resources?.rust?.peak_rss_bytes;
+          return positive(go) && positive(rust) ? go + rust : null;
+        }),
+      ]),
+    );
+    const completeMedian = (values) =>
+      values.length && values.every(Number.isFinite) ? median(values) : null;
     return {
       key,
       complete_pairs: complete.length,
       incomplete_pairs: pairs.size - complete.length,
       invalid_runs: invalid,
-      six_valid_pairs: invalid === 0 && complete.length >= 6,
-      throughput_change_median: throughput.length ? median(throughput) : null,
-      p99_change_median: p99.length ? median(p99) : null,
+      six_valid_pairs:
+        invalid === 0 && complete.length >= 6 && complete.length === pairs.size,
+      throughput_change_median: completeMedian(throughput),
+      p99_change_median: completeMedian(p99),
       throughput_change_bootstrap_95: pairedInterval(throughput),
       p99_change_bootstrap_95: pairedInterval(p99),
       paired_throughput_changes: throughput,
       paired_p99_changes: p99,
+      rss_complete_pairs: rss.combined.filter(Number.isFinite).length,
+      peak_rss_change_median: Object.fromEntries(
+        Object.entries(rss).map(([name, values]) => [
+          name,
+          completeMedian(values),
+        ]),
+      ),
+      paired_peak_rss_changes: rss,
     };
   });
+}
+
+export function comparisonFailures(comparison, options = {}) {
+  const failures = [];
+  if (!comparison.length) failures.push("no comparisons");
+  const strict = options.requireSixPairs || options.requireImprovement;
+  // Ratios such as 105/100 - 1 may exceed their exact threshold by an ulp.
+  const atLeast = (value, threshold) =>
+    Number.isFinite(value) && value >= threshold - 1e-12;
+  const atMost = (value, threshold) =>
+    Number.isFinite(value) && value <= threshold + 1e-12;
+  for (const group of comparison) {
+    const fail = (reason) => failures.push(`${group.key}: ${reason}`);
+    if (group.invalid_runs !== 0) fail("invalid trials");
+    if (group.incomplete_pairs !== 0) fail("incomplete pairs");
+    if (!strict) continue;
+    if (!group.six_valid_pairs)
+      fail("at least six valid complete pairs required");
+    if (
+      !atLeast(group.throughput_change_median, -0.05) ||
+      !atMost(group.p99_change_median, 0.1)
+    )
+      fail(
+        "missing performance data or throughput/P99 regression budget exceeded",
+      );
+    if (
+      group.rss_complete_pairs !== group.complete_pairs ||
+      !Number.isFinite(group.peak_rss_change_median?.combined)
+    )
+      fail("missing or invalid Go/Rust peak RSS data");
+    else if (!atMost(group.peak_rss_change_median.combined, 0.05))
+      fail("combined Go+Rust peak RSS median growth exceeded 5%");
+    if (options.requireImprovement) {
+      const throughput =
+        atLeast(group.throughput_change_median, 0.1) &&
+        Number.isFinite(group.throughput_change_bootstrap_95?.[0]) &&
+        group.throughput_change_bootstrap_95[0] > 0;
+      const p99 =
+        atMost(group.p99_change_median, -0.15) &&
+        Number.isFinite(group.p99_change_bootstrap_95?.[1]) &&
+        group.p99_change_bootstrap_95[1] < 0;
+      if (!throughput && !p99)
+        fail(
+          "improvement target not established: throughput >=10% with paired 95% lower bound >0, or P99 <=-15% with paired 95% upper bound <0 required",
+        );
+    }
+  }
+  return failures;
 }

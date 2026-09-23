@@ -72,6 +72,8 @@ bash scripts/run-auth-performance-isolated.sh \
   --pairs 6 --warmup 20 --seconds 60 --concurrency 16 --clients 2 \
   --cache-ttl 0 --sessions 1000
 node scripts/check-auth-performance.mjs /tmp/auth-session-c16-UNIQUE/results.json --require-six-pairs
+# 对预先选定的目标路由另外检查有统计支持的收益：
+node scripts/check-auth-performance.mjs /tmp/auth-session-c16-UNIQUE/results.json --require-improvement
 node scripts/report-auth-performance.mjs /tmp/auth-session-c16-UNIQUE/results.json > /tmp/auth-session-report.md
 ```
 
@@ -128,7 +130,10 @@ profile默认关闭，不能用启用profile的吞吐替代无额外观测开销
 - `timeout_phase_events`及保留的`runtime/logs`包含现有phase诊断。**phase只在超时事件中可读，不是所有成功请求的阶段耗时直方图。** 未触发超时不能由空数组推断SQLite等待为0。
 - Worker延迟直方图先求和后计算分位数，不平均各worker的P99。计量包含客户端错误，且任何错误响应/语义不符会使样本无效。P99只精确到1ms，60秒以上归入溢出桶并报告。
 - 客户端启动延迟>100ms、事件循环最大延迟>100ms、OS采样间隔>1s、时长过冲>5%（最低容忍500ms）均使trial无效并保留证据；不静默重试。失败会停止当前批，避免把错误路由测成高吞吐。
-- 比较器输出每对吞吐/P99变化、中位数、六对以上的确定性paired bootstrap 95%区间；不足六对只作smoke。`--require-six-pairs`要求有效完整六对，并守住吞吐−5%及P99+10%预算。置信区间仍不能消除同机负载、热漂移或设计混杂。
+- 比较器按route、并发、candidate、cache TTL、profiling及实际种子规模分组。规模包含sessions、accounts、ordinary grants、total grants及每阶段renewal tokens；不同规模不能凑成六对。缺失的旧版规模字段显示unknown，不应当作已知规模证据。
+- 不加门槛参数时只检查有效、完整的smoke pair。`--require-six-pairs`要求每组至少六个有效完整pair，吞吐变化中位数≥−5%、P99变化中位数≤+10%，并要求Go+Rust峰值RSS合计的配对变化中位数≤+5%。任一pair缺失/无效RSS会使此门槛失败，不以零补齐或忽略样本。合计RSS先对每trial的Go、Rust各自峰值求和，再计算每对的candidate/baseline变化，最后取中位数；这是两个进程峰值之和，不表示它们一定同时达到峰值。JSON和Markdown同时列出Go、Rust各自及合计的RSS变化。
+- `--require-improvement`隐含上述六对、回归和RSS门槛，且每组必须满足至少一项目标：吞吐变化中位数≥+10%且paired bootstrap 95%区间下界>0，或P99变化中位数≤−15%且区间上界<0。建议只对实验前选定的目标route/规模运行这一更严格的检查；其他保护路由用六对回归门槛。不能先挑出最好的分组再把区间解释成预先指定目标的证据。
+- 变化按每对candidate/baseline计算，输出配对变化、中位数、六对以上的确定性paired bootstrap 95%区间。六对时区间仍较粗，P99还受1ms分桶精度限制；置信区间不能消除同机负载、热漂移或设计混杂。
 
 本工具是闭环负载，适合路由拆分、热点归因和A/B；不声称给出固定到达率下的SLO。最终方案还应补固定请求率/突发队列实验和授权撤销、策略变化、跨host拒绝等正确性测试。若客户端CPU或Worker延迟接近瓶颈，应增加独立client worker或分离客户端CPU，不能把客户端饱和归咎Rust。`linux`运行目标有意避开fnOS宿主操作，因此不能代替完整版后台任务/分配器的单独验证。
 

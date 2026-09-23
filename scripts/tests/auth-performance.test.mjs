@@ -12,6 +12,7 @@ import {
   mergeMeasurements,
   pairOrder,
   compareRuns,
+  comparisonFailures,
 } from "../auth-performance-lib.mjs";
 import { summarizeOperationProfile } from "../auth-performance-profile.mjs";
 
@@ -138,6 +139,178 @@ test("paired comparison alternates order and rejects incomplete or invalid evide
   assert.equal(comparison.six_valid_pairs, false);
   [comparison] = compareRuns([{ ...runs[0], measurement: undefined }]);
   assert.equal(comparison.incomplete_pairs, 1);
+});
+
+function gateRuns({
+  throughput = [1.1],
+  p99 = [1],
+  go = [60],
+  rust = [45],
+  pairs = 6,
+} = {}) {
+  return Array.from({ length: pairs }, (_, pair) =>
+    pairOrder(pair).map((role) => ({
+      pair,
+      role,
+      candidate: "opt",
+      scenario: "session_hit",
+      concurrency: 16,
+      cache_ttl_seconds: 0,
+      seed: {
+        sessions: 64,
+        accounts: 1,
+        ordinary_grants: 2,
+        total_grants: 2,
+        renewal_tokens_per_phase: 0,
+      },
+      validation: { passed: true },
+      measurement: {
+        successful_requests_per_second:
+          100 *
+          (role === "baseline" ? 1 : throughput[pair % throughput.length]),
+        p99_ms: 100 * (role === "baseline" ? 1 : p99[pair % p99.length]),
+      },
+      resources: {
+        go: { peak_rss_bytes: role === "baseline" ? 50 : go[pair % go.length] },
+        rust: {
+          peak_rss_bytes: role === "baseline" ? 50 : rust[pair % rust.length],
+        },
+      },
+    })),
+  ).flat();
+}
+
+test("six-pair gates apply paired combined RSS growth and report individual process changes", () => {
+  const runs = gateRuns();
+  let comparison = compareRuns(runs);
+  assert.deepEqual(
+    comparisonFailures(comparison, { requireSixPairs: true }),
+    [],
+  );
+  assert.ok(Math.abs(comparison[0].peak_rss_change_median.go - 0.2) < 1e-12);
+  assert.ok(Math.abs(comparison[0].peak_rss_change_median.rust + 0.1) < 1e-12);
+  assert.ok(
+    Math.abs(comparison[0].peak_rss_change_median.combined - 0.05) < 1e-12,
+  );
+  assert.equal(comparison[0].rss_complete_pairs, 6);
+  comparison = compareRuns(gateRuns({ go: [70, 70, 60, 60, 60, 60] }));
+  assert.deepEqual(
+    comparisonFailures(comparison, { requireSixPairs: true }),
+    [],
+  );
+  comparison = compareRuns(gateRuns({ go: [60.01] }));
+  assert.match(
+    comparisonFailures(comparison, { requireSixPairs: true }).join("\n"),
+    /RSS median growth exceeded/,
+  );
+  delete runs[0].resources.rust;
+  comparison = compareRuns(runs);
+  assert.equal(comparison[0].peak_rss_change_median.combined, null);
+  assert.equal(comparison[0].rss_complete_pairs, 5);
+  assert.match(
+    comparisonFailures(comparison, { requireSixPairs: true }).join("\n"),
+    /missing or invalid.*RSS/,
+  );
+  assert.deepEqual(
+    comparisonFailures(comparison),
+    [],
+    "smoke does not require RSS or six pairs",
+  );
+});
+
+test("improvement gate accepts either target only with a directional paired interval", () => {
+  const check = (options) =>
+    comparisonFailures(compareRuns(gateRuns(options)), {
+      requireImprovement: true,
+    });
+  assert.deepEqual(check(), [], "exact 10% throughput target passes");
+  assert.deepEqual(
+    check({ throughput: [1.09], p99: [0.85] }),
+    [],
+    "exact 15% P99 target passes",
+  );
+  assert.match(
+    check({ throughput: [1.09], p99: [0.86] }).join("\n"),
+    /improvement target not established/,
+  );
+  assert.match(
+    check({ throughput: [0.8, 0.9, 1.1, 1.2, 1.3, 1.4] }).join("\n"),
+    /improvement target not established/,
+  );
+  assert.match(
+    check({ throughput: [1, 1, 1.1, 1.1, 1.2, 1.2] }).join("\n"),
+    /improvement target not established/,
+    "an interval lower bound of exactly zero fails",
+  );
+  assert.match(
+    check({ throughput: [1], p99: [0.5, 0.6, 0.7, 0.9, 1.1, 1.2] }).join("\n"),
+    /improvement target not established/,
+  );
+  assert.match(check({ pairs: 5 }).join("\n"), /six valid complete pairs/);
+  assert.match(check({ go: [61] }).join("\n"), /RSS median growth exceeded/);
+  assert.match(check({ p99: [1.11] }).join("\n"), /regression budget exceeded/);
+});
+
+test("comparison groups cannot combine different session, account, grant or renewal scales", () => {
+  const seedFields = [
+    "sessions",
+    "accounts",
+    "ordinary_grants",
+    "total_grants",
+    "renewal_tokens_per_phase",
+  ];
+  const original = gateRuns();
+  const runs = [
+    ...original,
+    ...seedFields.flatMap((field) =>
+      original.map((run) => ({
+        ...run,
+        seed: { ...run.seed, [field]: run.seed[field] + 1 },
+      })),
+    ),
+  ];
+  const comparison = compareRuns(runs);
+  assert.equal(comparison.length, 6);
+  assert.ok(comparison.every((group) => group.complete_pairs === 6));
+  const mismatched = gateRuns({ pairs: 1 });
+  mismatched[0].seed.accounts++;
+  assert.equal(compareRuns(mismatched).length, 2);
+  assert.match(
+    comparisonFailures(compareRuns(mismatched)).join("\n"),
+    /incomplete pairs/,
+  );
+});
+
+test("check CLI keeps smoke permissive while optional gates reject missing RSS and uncertain improvement", async () => {
+  const directory = await mkdtemp(
+    path.join(tmpdir(), "auth-performance-gate-"),
+  );
+  try {
+    const file = path.join(directory, "results.json");
+    const check = fileURLToPath(
+      new URL("../check-auth-performance.mjs", import.meta.url),
+    );
+    const run = (...flags) =>
+      spawnSync(process.execPath, [check, file, ...flags], {
+        encoding: "utf8",
+      });
+    await writeFile(
+      file,
+      JSON.stringify({ schema_version: 1, runs: gateRuns() }),
+    );
+    assert.equal(run("--require-improvement").status, 0);
+    assert.notEqual(run("--unknown").status, 0);
+    const runs = gateRuns({ throughput: [1.01] });
+    await writeFile(file, JSON.stringify({ schema_version: 1, runs }));
+    assert.equal(run("--require-six-pairs").status, 0);
+    assert.notEqual(run("--require-improvement").status, 0);
+    delete runs[0].resources;
+    await writeFile(file, JSON.stringify({ schema_version: 1, runs }));
+    assert.equal(run().status, 0);
+    assert.notEqual(run("--require-six-pairs").status, 0);
+  } finally {
+    await rm(directory, { recursive: true, force: true });
+  }
 });
 
 test("operation profile distinguishes executor jobs, admissions, background rate and missing instrumentation", () => {

@@ -49,7 +49,7 @@ CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build \
 }
 ```
 
-额外 compiler-z/s/2/3、reader-1/2/4 变体各自列入 `candidates`，由 `go` / `rust` 指向对应构建制品，`metadata` 标明编译参数及 reader 数。运行时支持通过 `env` 传入该二进制已支持的环境参数；**该工具不会假设一个不存在的 reader 配置环境变量生效**。固定端口、数据目录、凭证、运行目标 `linux` 由 harness 覆盖，不能通过 `env` 连接生产实例。默认 Tokio workers=2、bridge max-in-flight=32，可以通过已有对应环境参数做独立变体。
+额外 compiler-z/s/2/3、reader-1/2/4 变体各自列入 `candidates`，由 `go` / `rust` 指向对应构建制品，`metadata` 标明编译参数及 reader 数。新版 reader pool 支持 `"env":{"FN_KNOCK_SQLITE_AUTH_READERS":"2"}`，仅接受1/2/4，默认1；reader矩阵可使用同一新版二进制和不同env。旧基线不支持该变量，不能声称设置后已改变旧版reader数量。固定端口、数据目录、凭证、运行目标 `linux` 由 harness 覆盖，不能通过 `env` 连接生产实例。默认 Tokio workers=2、bridge max-in-flight=32，可以通过已有对应环境参数做独立变体。
 
 ## 小批量运行
 
@@ -72,9 +72,28 @@ bash scripts/run-auth-performance-isolated.sh \
   --pairs 6 --warmup 20 --seconds 60 --concurrency 16 --clients 2 \
   --cache-ttl 0 --sessions 1000
 node scripts/check-auth-performance.mjs /tmp/auth-session-c16-UNIQUE/results.json --require-six-pairs
+node scripts/report-auth-performance.mjs /tmp/auth-session-c16-UNIQUE/results.json > /tmp/auth-session-report.md
 ```
 
 入选方案可用 `--pairs 1 --warmup 20 --seconds 1800` 做30分钟持续负载；它是稳定性观察，不能代替六对吞吐比较。不要同时运行其他负载脚本。总运行量随 routes × candidates × pairs 线性增长，优先用 `--routes`、`--candidates` 限定单因素小批。
+
+只观察入选candidate而不再跑baseline时，加 `--roles candidate --pairs 1 --seconds 1800`。单角色只允许至少60秒、单轮且关闭profiling；结果明确为不完整pair，不能进入A/B门槛比较，但仍有独立trial成功条件及完整资源时间序列。用report工具查看，不运行`check --require-six-pairs`。
+
+规模参数独立控制：`--sessions 1..10000`（默认64）、`--accounts 1..1000`（默认1，产生同数量TOTP身份和账户）、`--grants 1..10000`（默认2，普通grant场景实际活跃总条数，包含hit token）。session按账户轮转关联。`--grants 1`的普通grant预检复用hit token，不额外增加grant；renewal场景另外增加1个专用预检token及两份`--renewals`池，`seed.total_grants`记录实际总数。大量grant索引可能使renewal批次无法在截止内完成，先用8/64/256小批定位，不能宣称默认4096必能在60秒内耗尽。
+
+## 单独采集 SQLite executor profile
+
+```sh
+bash scripts/run-auth-performance-isolated.sh \
+  --config /tmp/variants.json --out /tmp/auth-profile-UNIQUE \
+  --routes session_hit --pairs 1 --warmup 20 --seconds 30 \
+  --concurrency 16 --cache-ttl 0 --sessions 1000 --accounts 100 \
+  --grants 100 --profile 1 --profile-idle 5
+```
+
+profile默认关闭，不能用启用profile的吞吐替代无额外观测开销的A/B。工具调用既有 `POST /api/admin/runtime-health/debug/capture` 开始、`DELETE`停止：先采一段idle背景窗口，再预热，最后单独捕获load。API内置60秒截止，因此profile load与idle均限定不超过45秒，结束状态必须为手动stopped。计量请求完成后立即停止recorder；每个capture的原始操作统计保存在trial结果。
+
+`operation_profile`将`sqlite_admission` scope的calls/total_wall_ms识别为executor入场等待，将`sqlite_primary`及`sqlite_auth_read`的calls/total_wall_ms/total_cpu_ms识别为executor执行统计，同时提供每成功请求归一化和idle executor调用/秒。这是**进程范围executor job计数，不是SQL语句条数，也不是逐请求跟踪**：一个closure可能包含多条SQL，背景操作和采样请求也在窗口内；保留idle参照，不自动扣减背景值。旧baseline缺少新增admission埋点时对应归一化字段为null，不报告为零等待。丢弃的operation label数量、unfinished scope和原始label明细一并保留。
 
 每对实验顺序交替为 AB/BA。每个 route 和样本启动独立的新进程/数据库。先启动初始化 schema，停止实验子进程，再写入合成 typed+legacy 一致种子后重新启动。种子文件要求 harness 所建目录标记；读写的只是该目录下 `state.sqlite3`。模板包含 TOTP 身份、有效 session、匹配当前 advanced-auth policy 的 grant、自动 IP 白名单及 owner session。
 

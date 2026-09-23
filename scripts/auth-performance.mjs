@@ -24,6 +24,7 @@ import {
   mergeMeasurements,
   compareRuns,
 } from "./auth-performance-lib.mjs";
+import { summarizeOperationProfile } from "./auth-performance-profile.mjs";
 
 const script = fileURLToPath(import.meta.url);
 const token = "isolated-auth-performance-20260923";
@@ -162,6 +163,20 @@ async function processStats(pid, hz) {
   }
 }
 
+async function operationCapture(method) {
+  const response = await probe(
+    { path: "/api/admin/runtime-health/debug/capture", headers: {} },
+    27998,
+    "127.0.0.1",
+    method,
+  );
+  assert.equal(response.status, 200, "operation capture API unavailable");
+  const payload = JSON.parse(response.body);
+  assert.equal(payload.success, true);
+  assert.equal(payload.data.capture.operations.active, method === "POST");
+  return payload.data;
+}
+
 async function runPhase(workers, processes, options, phase, collect) {
   const durationMs =
     (phase === "warm" ? options.warmup : options.seconds) * 1000;
@@ -251,6 +266,7 @@ async function runPhase(workers, processes, options, phase, collect) {
     clearTimeout(timer);
     active = false;
   }
+  if (phase === "load" && options.afterRequests) await options.afterRequests();
   const after = await stats();
   await Promise.all([sampling, healthSampling]);
   const measurement = mergeMeasurements(rows);
@@ -401,6 +417,8 @@ async function trial(
     variant_metadata: variant.metadata ?? {},
     env: variant.env ?? {},
     cache_ttl_seconds: options.cacheTtl,
+    profiling: options.profile,
+    roles: options.roles,
     started_at: new Date().toISOString(),
   };
   row.effective_runtime_env = Object.fromEntries(
@@ -408,6 +426,7 @@ async function trial(
       "FN_KNOCK_RUNTIME_TARGET",
       "FN_KNOCK_TOKIO_WORKER_THREADS",
       "FN_KNOCK_AUTH_BRIDGE_MAX_IN_FLIGHT",
+      "FN_KNOCK_SQLITE_AUTH_READERS",
       "GLIBC_TUNABLES",
       "LD_PRELOAD",
       "MALLOC_ARENA_MAX",
@@ -433,6 +452,10 @@ async function trial(
           String(options.renewals),
           "--cache-ttl",
           String(options.cacheTtl),
+          "--grants",
+          String(options.grants),
+          "--accounts",
+          String(options.accounts),
         ],
         { encoding: "utf8" },
       ),
@@ -544,6 +567,11 @@ async function trial(
       fixture: options.fixture,
     };
     const phaseOptions = { ...options, scenario };
+    if (options.profile) {
+      await operationCapture("POST");
+      await delay(options.profileIdle * 1000);
+      row.profile_idle = await operationCapture("DELETE");
+    }
     row.warmup = await runPhase(
       workers,
       processes,
@@ -556,8 +584,26 @@ async function trial(
       0,
       "warmup included incorrect or failed responses",
     );
+    if (options.profile) {
+      row.profile_start = await operationCapture("POST");
+      phaseOptions.afterRequests = async () => {
+        row.profile_capture = await operationCapture("DELETE");
+      };
+    }
     const load = await runPhase(workers, processes, phaseOptions, "load", true);
     Object.assign(row, load);
+    if (options.profile) {
+      assert.equal(
+        row.profile_capture.capture.status,
+        "stopped",
+        "capture expired before load completed",
+      );
+      row.operation_profile = summarizeOperationProfile(
+        row.profile_capture,
+        load.measurement.successful_requests,
+        row.profile_idle,
+      );
+    }
     if (config.control_binary)
       row.cache_control_after = JSON.parse(
         execFileSync(
@@ -579,7 +625,8 @@ async function trial(
         load.measurement.failures === 0 &&
         load.quality.sampling_ok &&
         load.quality.client_ok &&
-        load.quality.duration_ok,
+        load.quality.duration_ok &&
+        (!options.profile || row.operation_profile.dropped_operations === 0),
       note:
         scenario === "grant_renewal"
           ? "finite unique-token renewal batch; throughput is not a sustained fixed-duration workload"
@@ -643,10 +690,15 @@ function parseArgs(args) {
     concurrency: Number(values.concurrency ?? 16),
     clients: Number(values.clients ?? 2),
     sessions: Number(values.sessions ?? 64),
+    grants: Number(values.grants ?? 2),
+    accounts: Number(values.accounts ?? 1),
     renewals: Number(values.renewals ?? 4096),
     cacheTtl: Number(values["cache-ttl"] ?? 1),
     timeoutMs: Number(values["timeout-ms"] ?? 10000),
     selected: values.candidates?.split(","),
+    profile: values.profile === "1",
+    profileIdle: Number(values["profile-idle"] ?? 5),
+    roles: (values.roles ?? "baseline,candidate").split(","),
   };
   for (const name of [
     "pairs",
@@ -655,6 +707,9 @@ function parseArgs(args) {
     "concurrency",
     "clients",
     "sessions",
+    "grants",
+    "accounts",
+    "profileIdle",
     "renewals",
     "timeoutMs",
   ])
@@ -667,8 +722,26 @@ function parseArgs(args) {
       options.clients <= 32 &&
       options.seconds <= 1800 &&
       options.pairs <= 30 &&
+      options.accounts <= 1000 &&
+      options.grants <= 10000 &&
+      options.sessions <= 10000 &&
       [0, 1].includes(options.cacheTtl),
     "parameter exceeds bounded experiment limits",
+  );
+  assert.ok(
+    !options.profile || (options.seconds <= 45 && options.profileIdle <= 45),
+    "profile captures must be at most 45 seconds to avoid the built-in 60 second deadline",
+  );
+  assert.ok(
+    options.roles.length > 0 &&
+      options.roles.every((role) => ["baseline", "candidate"].includes(role)) &&
+      new Set(options.roles).size === options.roles.length,
+    "roles must be baseline,candidate or one of them",
+  );
+  assert.ok(
+    options.roles.length === 2 ||
+      (options.pairs === 1 && options.seconds >= 60 && !options.profile),
+    "single-role runs are soak only: pairs=1, seconds>=60, profiling disabled",
   );
   options.routes.forEach((name) =>
     assert.ok(scenarios.includes(name), `unknown scenario ${name}`),
@@ -764,7 +837,9 @@ async function main() {
     for (const candidate of selected)
       for (let pair = 0; pair < options.pairs; pair++)
         for (const scenario of options.routes)
-          for (const role of pairOrder(pair)) {
+          for (const role of pairOrder(pair).filter((role) =>
+            options.roles.includes(role),
+          )) {
             process.stderr.write(
               `[auth-performance] ${candidate.name} pair=${pair + 1} ${scenario} ${role}\n`,
             );

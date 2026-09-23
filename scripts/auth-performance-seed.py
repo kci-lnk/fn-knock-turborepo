@@ -9,7 +9,7 @@ import sqlite3
 import time
 
 
-def seed(directory, scenario, sessions, renewals, cache_ttl=1):
+def seed(directory, scenario, sessions, renewals, cache_ttl=1, grants=2, accounts=1):
     directory = pathlib.Path(directory).resolve()
     marker = directory / ".auth-performance-owned"
     if marker.read_text().strip() != "synthetic-auth-performance-v1":
@@ -48,10 +48,13 @@ def seed(directory, scenario, sessions, renewals, cache_ttl=1):
                                      {"host": "grant.authperf.test", "target": "http://127.0.0.1:28081", "target_type": "proxy", "use_auth": True, "suppress_toolbar": True, "advanced_auth": policy}]})
     string("fn_knock:config", config)
     db.execute("UPDATE config_documents SET document_json=?,revision=revision+1,updated_at_ms=? WHERE singleton=1", (encode(config), now * 1000))
-    totp = {"id": "authperf-totp", "secret": "JBSWY3DPEHPK3PXP", "comment": "Synthetic benchmark", "createdAt": iso(now), "access_scopes": [], "subdomain_access": {"mode": "all", "hosts": []}}
-    string("fn_knock:totps", [totp])
+    totps = [{"id": "authperf-totp" if index == 0 else f"authperf-totp-{index}", "secret": "JBSWY3DPEHPK3PXP", "comment": f"Synthetic benchmark {index}", "createdAt": iso(now), "access_scopes": [], "subdomain_access": {"mode": "all", "hosts": []}} for index in range(accounts)]
+    string("fn_knock:totps", totps)
+    account_records = [{"id": f"authperf-account-{index}", "username": f"authperf-user-{index}", "displayName": f"Synthetic benchmark {index}", "sourceTotpId": totp["id"], "createdAt": iso(now), "updatedAt": iso(now), "access_scopes": [], "subdomain_access": {"mode": "all", "hosts": []}} for index, totp in enumerate(totps)]
+    string("fn_knock:auth:accounts:v1", account_records)
     for index in range(sessions):
         sid = f"authperf-session-{index}"
+        totp = totps[index % accounts]
         ip = "198.18.0.1" if index == 0 and scenario != "auto_ip_miss" else "198.18.0.2"
         value = {"totpId": totp["id"], "method": "TOTP", "credentialId": totp["id"], "credentialName": "Synthetic benchmark", "grantType": "browser_session", "ip": ip,
                  "userAgent": "auth-performance", "loginTime": iso(now), "expiresAt": iso(now + 86400), "subdomainAccess": {"mode": "all", "hosts": []}}
@@ -61,8 +64,10 @@ def seed(directory, scenario, sessions, renewals, cache_ttl=1):
         aggregate = {"session_id": sid, "session": {"value": value, "expires_at_ms": expiry}, "binding_index": [], "bindings": [], "active_ips": [], "pending_whitelist": [], "whitelist_owners": []}
         db.execute("INSERT OR REPLACE INTO mobility_session_aggregates VALUES (?,?,?,?)", (sid, encode(aggregate), expiry, now * 1000))
     host = "grant.authperf.test"
-    tokens = ["authperf-grant-hit", "authperf-grant-preflight"]
+    tokens = ["authperf-grant-hit"]
+    tokens += [f"authperf-grant-unused-{i}" for i in range(grants - 1)]
     if scenario == "grant_renewal":
+        tokens += ["authperf-grant-preflight"]
         tokens += [f"authperf-grant-load-{i}" for i in range(renewals)]
         tokens += [f"authperf-grant-warm-{i}" for i in range(renewals)]
     for token in tokens:
@@ -86,7 +91,7 @@ def seed(directory, scenario, sessions, renewals, cache_ttl=1):
         db.execute("INSERT OR REPLACE INTO whitelist_documents VALUES ('record',?,?,?,?,?,?)", (record["id"], encode(record), now, now + 86400, "active", now * 1000))
     db.commit()
     db.close()
-    return {"scenario": scenario, "sessions": sessions, "renewal_tokens_per_phase": renewals, "created_at": iso(now), "expires_at": iso(now + 86400)}
+    return {"scenario": scenario, "sessions": sessions, "accounts": accounts, "ordinary_grants": grants, "total_grants": len(tokens), "renewal_tokens_per_phase": renewals if scenario == "grant_renewal" else 0, "created_at": iso(now), "expires_at": iso(now + 86400)}
 
 
 if __name__ == "__main__":
@@ -96,7 +101,11 @@ if __name__ == "__main__":
     parser.add_argument("--sessions", type=int, default=64)
     parser.add_argument("--renewals", type=int, default=4096)
     parser.add_argument("--cache-ttl", type=int, choices=[0, 1], default=1)
+    parser.add_argument("--grants", type=int, default=2)
+    parser.add_argument("--accounts", type=int, default=1)
     args = parser.parse_args()
     if not 1 <= args.sessions <= 10000 or not 1 <= args.renewals <= 100000:
         parser.error("sessions must be 1..10000 and renewals 1..100000")
-    print(json.dumps(seed(args.directory, args.scenario, args.sessions, args.renewals, args.cache_ttl)))
+    if not 1 <= args.grants <= 10000 or not 1 <= args.accounts <= 1000:
+        parser.error("grants must be 1..10000 and accounts 1..1000")
+    print(json.dumps(seed(args.directory, args.scenario, args.sessions, args.renewals, args.cache_ttl, args.grants, args.accounts)))

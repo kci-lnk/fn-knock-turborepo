@@ -172,7 +172,7 @@ function pairedInterval(values) {
 export function compareRuns(runs) {
   const groups = new Map();
   for (const run of runs) {
-    const key = `${run.scenario}/${run.concurrency}/${run.candidate}/cache-${run.cache_ttl_seconds ?? "unknown"}`;
+    const key = `${run.scenario}/${run.concurrency}/${run.candidate}/cache-${run.cache_ttl_seconds ?? "unknown"}/profile-${run.profiling ? "on" : "off"}`;
     if (!groups.has(key)) groups.set(key, []);
     groups.get(key).push(run);
   }

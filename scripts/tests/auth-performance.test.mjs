@@ -13,6 +13,7 @@ import {
   pairOrder,
   compareRuns,
 } from "../auth-performance-lib.mjs";
+import { summarizeOperationProfile } from "../auth-performance-profile.mjs";
 
 test("a valid session/grant must reach the owned origin, never count login redirects as work", () => {
   for (const scenario of ["session_hit", "grant_hit", "auto_ip_hit"]) {
@@ -139,6 +140,54 @@ test("paired comparison alternates order and rejects incomplete or invalid evide
   assert.equal(comparison.incomplete_pairs, 1);
 });
 
+test("operation profile distinguishes executor jobs, admissions, background rate and missing instrumentation", () => {
+  const operation = {
+    kind: "sqlite_primary",
+    calls: 20,
+    total_wall_ms: 40,
+    total_cpu_ms: 10,
+    in_flight: 0,
+  };
+  const report = {
+    capture: {
+      operations: {
+        elapsed_ms: 1000,
+        dropped_operations: 0,
+        operations: [
+          operation,
+          { ...operation, kind: "sqlite_auth_read", calls: 10 },
+          {
+            ...operation,
+            kind: "sqlite_admission",
+            calls: 30,
+            total_wall_ms: 60,
+          },
+        ],
+      },
+    },
+  };
+  const idle = {
+    capture: {
+      operations: {
+        elapsed_ms: 2000,
+        operations: [{ ...operation, calls: 4 }],
+      },
+    },
+  };
+  const summary = summarizeOperationProfile(report, 10, idle);
+  assert.equal(summary.executor_calls, 30);
+  assert.equal(summary.executor_calls_per_success, 3);
+  assert.equal(summary.admission_calls_per_success, 3);
+  assert.equal(summary.admission_wall_ms_per_success, 6);
+  assert.equal(summary.idle_executor_calls_per_second, 2);
+  assert.match(summary.measurement, /not SQL statement count/);
+  report.capture.operations.operations = [operation];
+  assert.equal(
+    summarizeOperationProfile(report, 10).admission_calls_per_success,
+    null,
+  );
+});
+
 test("synthetic seeder refuses unowned databases and keeps legacy and typed grant/session authority equal", async () => {
   const directory = await mkdtemp(
     path.join(tmpdir(), "auth-performance-test-"),
@@ -181,6 +230,10 @@ INSERT INTO config_documents VALUES(1,'{}',1,0);
       "8",
       "--cache-ttl",
       "0",
+      "--grants",
+      "1",
+      "--accounts",
+      "3",
     ]);
     const check = `import sqlite3,sys,json,time
 c=sqlite3.connect(sys.argv[1]);
@@ -189,7 +242,9 @@ for sid,raw,expires,_ in c.execute('SELECT * FROM mobility_session_aggregates'):
 assert c.execute('SELECT COUNT(*) FROM subdomain_rule_grants').fetchone()[0]==18
 for digest,host,policy,group,issued,last,hard,expires,_ in c.execute('SELECT * FROM subdomain_rule_grants'):
  b=json.loads(c.execute('SELECT value FROM kv_strings WHERE key=?',('fn_knock:auth:subdomain_rule_grant:'+digest,)).fetchone()[0]); assert (b['host'],b['policy_version'],b['group_id'],b['issued_at'],b['last_access_at'],b['hard_expires_at'])==(host,policy,group,issued,last,hard); assert int(time.time())-last>=60
-config=json.loads(c.execute('SELECT document_json FROM config_documents').fetchone()[0]); assert config['subdomain_mode']['auth_cache_ttl_seconds']==0; assert config==json.loads(c.execute("SELECT value FROM kv_strings WHERE key='fn_knock:config'").fetchone()[0])`;
+config=json.loads(c.execute('SELECT document_json FROM config_documents').fetchone()[0]); assert config['subdomain_mode']['auth_cache_ttl_seconds']==0; assert config==json.loads(c.execute("SELECT value FROM kv_strings WHERE key='fn_knock:config'").fetchone()[0])
+assert len(json.loads(c.execute("SELECT value FROM kv_strings WHERE key='fn_knock:totps'").fetchone()[0]))==3
+assert len(json.loads(c.execute("SELECT value FROM kv_strings WHERE key='fn_knock:auth:accounts:v1'").fetchone()[0]))==3`;
     execFileSync("python3", ["-c", check, database]);
   } finally {
     await rm(directory, { recursive: true, force: true });

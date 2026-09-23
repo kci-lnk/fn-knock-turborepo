@@ -1,0 +1,21 @@
+{
+  "archive_sha256": "1225b68915bddd9426838e55864427938c65a8df7e275089e74b46fa84fc6b50",
+  "offline_only": true,
+  "archive_files_extracted": 387,
+  "collection_verify_passed": true,
+  "main_gate_passed": true,
+  "main_gate_equal_except_input_hash_and_path": true,
+  "soak_summary_deep_equal": true,
+  "source_or_product_modified": false,
+  "commands": [
+    "python3 -B tools/collect-final5.py verify --out evidence",
+    "node tools/check-auth-performance-plan.mjs --plan evidence/support/EXPERIMENT_PLAN5.json --results evidence/formal-v5-main/results.json --phase main",
+    "node tools/auth-performance-soak.mjs evidence/post5-soak/candidate5-1-candidate-auto_ip_hit/result.json"
+  ],
+  "outputs": {
+    "collection-verify.json": "cb8644359078a3a10a2dd8cd0952f34be144f02a8fc6834b93d850aaf9f0c7e4",
+    "main-gate-replayed.json": "79a38899ca710cc6f6f51ceb2d6cc2ceea6c0f896f936ad48e10ca58fe22fdbb",
+    "recomputed-soak.json": "8fb3e5bb702fce9005bad49b0298628893cd2571c19d16b9a86c4c4f700a9b61"
+  },
+  "repack_change": "Only tools/CHECKLIST.md wording corrected after replay; all evidence and executable tool bytes identical."
+}

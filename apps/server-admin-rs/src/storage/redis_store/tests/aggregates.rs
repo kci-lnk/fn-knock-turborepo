@@ -1,5 +1,141 @@
 use super::*;
 
+#[tokio::test]
+async fn subdomain_grant_auth_repair_rereads_revoked_authority_after_writer_wait() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("auth-repair.sqlite3");
+    let store = Store::connect(&path).await.unwrap();
+    let host = "repair-race.example.com";
+    let (grant, active) = subdomain_grant_keys("repair-race", host);
+    let raw = subdomain_grant_document(host, 1_700_000_020);
+    store
+        .set_expiring_string_with_zset_limit(
+            &grant,
+            &raw,
+            60,
+            &active,
+            1_700_000_020,
+            1_700_000_080,
+            10,
+        )
+        .await
+        .unwrap();
+    let external = open_fixture_connection(&path);
+    external
+        .execute("DELETE FROM subdomain_rule_grants", [])
+        .unwrap();
+    let (started_tx, started_rx) = tokio::sync::oneshot::channel();
+    let (release_tx, release_rx) = std::sync::mpsc::channel();
+    let manager = store.manager.clone();
+    let blocker = manager.call(move |_| {
+        let _ = started_tx.send(());
+        release_rx
+            .recv_timeout(std::time::Duration::from_secs(5))
+            .unwrap();
+        Ok(())
+    });
+    let exercise = async {
+        started_rx.await.unwrap();
+        let read = store.get_string_value_auth(&grant);
+        tokio::pin!(read);
+        tokio::select! {
+            result = &mut read => panic!("repair bypassed blocked writer: {result:?}"),
+            () = async {
+                tokio::time::timeout(std::time::Duration::from_secs(2), async {
+                    while store.manager.primary_queue_status().queue_depth == 0 {
+                        tokio::task::yield_now().await;
+                    }
+                }).await.unwrap();
+            } => {}
+        }
+        external
+            .execute("DELETE FROM kv_keys WHERE key = ?1", [&grant])
+            .unwrap();
+        release_tx.send(()).unwrap();
+        assert_eq!(read.await.unwrap(), None);
+    };
+    let (result, ()) = tokio::join!(blocker, exercise);
+    result.unwrap();
+}
+
+#[tokio::test]
+async fn subdomain_grant_renewal_does_not_restore_a_revoked_or_replaced_value() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("auth-renew.sqlite3");
+    let store = Store::connect(&path).await.unwrap();
+    let host = "renew-race.example.com";
+    let (grant, active) = subdomain_grant_keys("renew-race", host);
+    let raw = subdomain_grant_document(host, 1_700_000_020);
+    let next = subdomain_grant_document(host, 1_700_000_030);
+    store
+        .set_expiring_string_with_zset_limit(
+            &grant,
+            &raw,
+            60,
+            &active,
+            1_700_000_020,
+            1_700_000_080,
+            10,
+        )
+        .await
+        .unwrap();
+    assert!(
+        store
+            .renew_expiring_string_with_zset_limit(
+                &grant,
+                &raw,
+                &next,
+                60,
+                &active,
+                1_700_000_030,
+                1_700_000_090,
+                10
+            )
+            .await
+            .unwrap()
+    );
+    assert!(
+        !store
+            .renew_expiring_string_with_zset_limit(
+                &grant,
+                &raw,
+                &raw,
+                60,
+                &active,
+                1_700_000_030,
+                1_700_000_090,
+                10
+            )
+            .await
+            .unwrap()
+    );
+    assert_eq!(
+        store
+            .get_string_value_auth(&grant)
+            .await
+            .unwrap()
+            .as_deref(),
+        Some(next.as_str())
+    );
+    store.delete_key(&grant).await.unwrap();
+    assert!(
+        !store
+            .renew_expiring_string_with_zset_limit(
+                &grant,
+                &next,
+                &raw,
+                60,
+                &active,
+                1_700_000_030,
+                1_700_000_090,
+                10
+            )
+            .await
+            .unwrap()
+    );
+    assert!(store.get_string_value_auth(&grant).await.unwrap().is_none());
+}
+
 fn fnos_validation_document() -> Value {
     json!({
         "version": 2,

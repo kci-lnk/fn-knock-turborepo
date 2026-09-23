@@ -38,17 +38,21 @@ impl Store {
             .typed_subdomain_grant
             .verify_and_repair_key(key)
             .await?;
+        self.observe_subdomain_grant_shadow(matched);
+        Ok(())
+    }
+
+    fn observe_subdomain_grant_shadow(&self, matched: bool) {
         if matched {
             if self.typed_subdomain_grant_shadow.mark_healthy() {
                 tracing::info!("typed subdomain grant aggregate comparison recovered");
             }
-            return Ok(());
+            return;
         }
         self.typed_subdomain_grant_shadow.mark_mismatch();
         tracing::warn!(
             "typed subdomain grant shadow differed from the compatibility aggregate and was repaired"
         );
-        Ok(())
     }
 
     pub(super) async fn verify_whitelist_runtime_shadow_key(
@@ -142,7 +146,15 @@ impl Store {
         &self,
         key: &str,
     ) -> crate::storage::StorageResult<Option<String>> {
-        self.verify_subdomain_grant_shadow_key(key).await?;
+        if crate::storage::typed_subdomain_grant::owns_key(key) {
+            let (matched, value) = self
+                .typed
+                .typed_subdomain_grant
+                .verify_and_read_key(key)
+                .await?;
+            self.observe_subdomain_grant_shadow(matched);
+            return Ok(value);
+        }
         self.verify_whitelist_runtime_shadow_key(key).await?;
         self.manager
             .get_live_string_auth(key.to_string(), crate::time_utils::now_ms())
@@ -266,6 +278,48 @@ return 1
             .arg(now_score)
             .arg(expires_at_score)
             .arg(limit.max(1))
+            .query_async(&mut conn)
+            .await?;
+        Ok(stored == 1)
+    }
+
+    /// Renew only the exact live value inspected by the caller. Revocation or
+    /// a concurrent renewal must not be overwritten after writer admission.
+    #[allow(clippy::too_many_arguments)]
+    pub(crate) async fn renew_expiring_string_with_zset_limit(
+        &self,
+        data_key: &str,
+        expected: &str,
+        value: &str,
+        ttl_seconds: i64,
+        index_key: &str,
+        now_score: i64,
+        expires_at_score: i64,
+        limit: i64,
+    ) -> crate::storage::StorageResult<bool> {
+        self.verify_subdomain_grant_shadow_key(data_key).await?;
+        self.verify_subdomain_grant_shadow_key(index_key).await?;
+        let mut conn = self.conn();
+        let stored: i64 = redis::cmd("EVAL")
+            .arg(
+                r#"
+-- fn-knock:eval:renew-expiring-string-with-zset-limit:v1
+if redis.call("GET", KEYS[1]) ~= ARGV[6] then return 0 end
+redis.call("ZREMRANGEBYSCORE", KEYS[2], "-inf", ARGV[3])
+redis.call("SET", KEYS[1], ARGV[1], "EX", ARGV[2])
+redis.call("ZADD", KEYS[2], ARGV[4], KEYS[1])
+return 1
+"#,
+            )
+            .arg(2)
+            .arg(data_key)
+            .arg(index_key)
+            .arg(value)
+            .arg(ttl_seconds.max(1))
+            .arg(now_score)
+            .arg(expires_at_score)
+            .arg(limit.max(1))
+            .arg(expected)
             .query_async(&mut conn)
             .await?;
         Ok(stored == 1)

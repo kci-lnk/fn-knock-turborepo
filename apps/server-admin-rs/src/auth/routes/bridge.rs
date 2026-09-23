@@ -437,7 +437,9 @@ async fn run_auth_bridge_once(state: AppState, shutdown: &CancellationToken) -> 
                 // outbound queue cannot stall otherwise independent requests.
                 let _permit = permit;
                 let diagnostics = crate::auth::diagnostics::Diagnostics::default();
-                let handler = diagnostics.scope(handle_bridge_message(state.clone(), message));
+                let handler = diagnostics.scope(crate::auth::request_context::scope(
+                    &state, handle_bridge_message(state.clone(), message),
+                ));
                 tokio::pin!(handler);
                 tokio::select! {
                     _ = worker_shutdown.cancelled() => None,
@@ -587,7 +589,7 @@ async fn handle_authorize_http(
     let access_mode = requested_access_mode(&headers);
     let mut response = empty_authorize_http_response();
 
-    let config = state.storage.store.config_snapshot();
+    let config = crate::auth::request_context::config(&state);
     if request.mode == HttpAuthMode::InspectSubdomainGrant as i32 {
         // No normal-access resolution, issuance, renewal or IP trust side effects.
         response.subdomain_grant_security_exempt =
@@ -614,21 +616,22 @@ async fn handle_authorize_http(
                 matched,
             )
         });
-    let existing_rule_access = if matched_rule_valid {
-        false
+    let inspected_rule_access = if matched_rule_valid {
+        None
     } else if subdomain_grant::has_valid_probe(&state, &headers, &config) {
         // Probe validation is stateless. Keep its exchange path available even
         // when persistent credential storage is temporarily unavailable.
-        true
+        Some(true)
     } else {
         match subdomain_grant::inspect_existing(&state, &headers, &config).await {
-            Ok(grant) => grant.is_some(),
+            Ok(grant) => Some(grant.is_some()),
             Err(error) => {
                 tracing::warn!(%error, "auth bridge existing subdomain grant inspection failed");
-                false
+                None
             }
         }
     };
+    let existing_rule_access = inspected_rule_access.unwrap_or(false);
     // A rule grant is host-scoped and must not refresh a broader FNOS/session
     // IP grant as a side effect of resolving normal access.
     let normal_access = if matched_rule_valid || existing_rule_access {
@@ -655,7 +658,7 @@ async fn handle_authorize_http(
     let mut preflight_rejected = false;
     if run_preflight {
         let mut preflight = new_preflight_response();
-        match apply_preflight_behavior_with_normal_access(
+        match super::preflight::apply_preflight_behavior_with_grant_inspection(
             &state,
             &headers,
             &uri,
@@ -667,6 +670,7 @@ async fn handle_authorize_http(
             routed_upstream,
             routed_upstream_host,
             routed_upstream_route_id,
+            inspected_rule_access,
         )
         .await
         {
@@ -759,7 +763,7 @@ async fn handle_verify_auth(state: AppState, request: VerifyAuthRequest) -> Veri
     let uri = uri_from_auth_context(request.context.as_ref());
     let (routed_upstream, routed_upstream_host, routed_upstream_route_id) =
         routed_upstream_from_auth_context(request.context.as_ref());
-    let config = state.storage.store.config_snapshot();
+    let config = crate::auth::request_context::config(&state);
     let translator = translator_from_config(&config);
     match resolve_auth_access_with_routed_upstream_and_config(
         &state,
@@ -895,7 +899,7 @@ async fn handle_preflight_auth(
         routed_upstream_from_auth_context(request.context.as_ref());
     let mut response = new_preflight_response();
 
-    let config = state.storage.store.config_snapshot();
+    let config = crate::auth::request_context::config(&state);
     if let Err(error) = apply_preflight_behavior_with_routed_upstream_and_config(
         &state,
         &headers,
@@ -964,7 +968,7 @@ async fn handle_verify_stream_auth(
     );
     insert_header(&mut headers, "X-Reauth-Target", &request.target);
     let uri = Uri::from_static("/");
-    let config = state.storage.store.config_snapshot();
+    let config = crate::auth::request_context::config(&state);
     let translator = translator_from_config(&config);
 
     let session_access = match resolve_stream_session_access(

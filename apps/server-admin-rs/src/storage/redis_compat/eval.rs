@@ -46,7 +46,9 @@ pub(super) fn eval_command_tx(
         return Ok(CmdOutput::Int(next));
     }
 
-    if script.contains("fn-knock:eval:set-expiring-string-with-zset-limit:v1") {
+    if script.contains("fn-knock:eval:set-expiring-string-with-zset-limit:v1")
+        || script.contains("fn-knock:eval:renew-expiring-string-with-zset-limit:v1")
+    {
         let data_key = keys
             .first()
             .ok_or_else(|| storage_error("limited string EVAL data key missing"))?;
@@ -74,6 +76,15 @@ pub(super) fn eval_command_tx(
                 .ok_or_else(|| storage_error("limited string EVAL limit missing"))?,
         )?
         .max(1);
+
+        if script.contains("fn-knock:eval:renew-expiring-string-with-zset-limit:v1") {
+            let expected = argv
+                .get(5)
+                .ok_or_else(|| storage_error("grant renewal EVAL expected value missing"))?;
+            if string_get_tx(tx, data_key)?.as_deref() != Some(expected.as_str()) {
+                return Ok(CmdOutput::Int(0));
+            }
+        }
 
         purge_expired_tx(tx, index_key)?;
         delete_zset_score_range_tx(

@@ -30,8 +30,13 @@ pub(super) async fn apply_preflight_behavior(
     uri: &Uri,
     response: &mut Response,
 ) -> anyhow::Result<()> {
-    apply_preflight_behavior_with_routed_upstream(state, headers, uri, response, None, None, None)
-        .await
+    crate::auth::request_context::scope(
+        state,
+        apply_preflight_behavior_with_routed_upstream(
+            state, headers, uri, response, None, None, None,
+        ),
+    )
+    .await
 }
 
 pub(super) async fn apply_preflight_behavior_with_routed_upstream(
@@ -43,7 +48,7 @@ pub(super) async fn apply_preflight_behavior_with_routed_upstream(
     routed_upstream_host: Option<&str>,
     routed_upstream_route_id: Option<&str>,
 ) -> anyhow::Result<()> {
-    let config = state.storage.store.config_snapshot();
+    let config = crate::auth::request_context::config(state);
     apply_preflight_behavior_with_routed_upstream_and_config(
         state,
         headers,
@@ -104,6 +109,40 @@ pub(super) async fn apply_preflight_behavior_with_normal_access(
     routed_upstream_host: Option<&str>,
     routed_upstream_route_id: Option<&str>,
 ) -> anyhow::Result<()> {
+    apply_preflight_behavior_with_grant_inspection(
+        state,
+        headers,
+        uri,
+        response,
+        config,
+        client_ip,
+        access_mode,
+        normal_access,
+        routed_upstream,
+        routed_upstream_host,
+        routed_upstream_route_id,
+        None,
+    )
+    .await
+}
+
+/// Reuse only a successful preparation-stage inspection for these same
+/// headers/config. Verify deliberately performs a fresh authoritative read.
+#[allow(clippy::too_many_arguments)]
+pub(super) async fn apply_preflight_behavior_with_grant_inspection(
+    state: &AppState,
+    headers: &HeaderMap,
+    uri: &Uri,
+    response: &mut Response,
+    config: &Value,
+    client_ip: &str,
+    access_mode: RequestedAccessMode,
+    normal_access: &PreflightNormalAccess,
+    routed_upstream: Option<&str>,
+    routed_upstream_host: Option<&str>,
+    routed_upstream_route_id: Option<&str>,
+    inspected_rule_access: Option<bool>,
+) -> anyhow::Result<()> {
     let _phase = crate::auth::diagnostics::enter("preflight");
     let forwarded_path = preflight_forwarded_path(headers);
     let mut share_decision_handled = false;
@@ -123,10 +162,15 @@ pub(super) async fn apply_preflight_behavior_with_normal_access(
         false
     };
     let active_rule_access = if !normal_access.authorized && !strict_whitelist_denied {
-        subdomain_grant::has_valid_probe(state, headers, config)
-            || subdomain_grant::inspect_existing(state, headers, config)
-                .await?
-                .is_some()
+        match inspected_rule_access {
+            Some(allowed) => allowed,
+            None => {
+                subdomain_grant::has_valid_probe(state, headers, config)
+                    || subdomain_grant::inspect_existing(state, headers, config)
+                        .await?
+                        .is_some()
+            }
+        }
     } else {
         false
     };
@@ -861,7 +905,7 @@ pub(super) async fn auth_mobility_binding_owner_session(
     let Some(binding) = state
         .storage
         .store
-        .get_auth_mobility_binding(subject_type, subject_key)
+        .get_auth_mobility_binding_for_authorization(subject_type, subject_key)
         .await?
     else {
         return Ok(None);
@@ -896,26 +940,7 @@ pub(super) async fn list_auth_mobility_owner_sessions_by_ip(
     state: &AppState,
     client_ip: &str,
 ) -> anyhow::Result<Vec<(String, LoginSession)>> {
-    let normalized_ip = http_utils::normalize_ip(client_ip);
-    let target_ip = if normalized_ip.is_empty() {
-        client_ip.trim().to_string()
-    } else {
-        normalized_ip
-    };
-    if target_ip.is_empty() {
-        return Ok(Vec::new());
-    }
-
-    let config = state.storage.store.config_snapshot();
-    let mut owners = Vec::new();
-    for (session_id, session) in state.storage.store.list_login_sessions().await? {
-        let ips =
-            auth_mobility::effective_session_ips(state, &session_id, &session, &config).await?;
-        if ips.iter().any(|ip| ip == &target_ip) {
-            owners.push((session_id, session));
-        }
-    }
-    Ok(owners)
+    auth_mobility::list_active_sessions_by_ip(state, client_ip).await
 }
 
 pub(super) fn normalize_forwarded_pathname(raw_path: Option<&str>) -> String {
@@ -1014,20 +1039,13 @@ pub(super) async fn session_auth_credential(
     session: &LoginSession,
 ) -> anyhow::Result<Option<TotpCredential>> {
     if AuthMethod::Password.matches_session_str(&session.method) {
-        return Ok(state
-            .storage
-            .store
-            .get_auth_account(&session.credential_id)
-            .await?
-            .map(password_account_to_credential));
+        return Ok(
+            crate::auth::request_context::account(state, &session.credential_id)
+                .await?
+                .map(password_account_to_credential),
+        );
     }
-    Ok(state
-        .storage
-        .store
-        .get_totps()
-        .await?
-        .into_iter()
-        .find(|credential| credential.id == session.totp_id))
+    Ok(crate::auth::request_context::totp(state, &session.totp_id).await?)
 }
 
 fn password_account_to_credential(account: crate::store::AuthAccount) -> TotpCredential {

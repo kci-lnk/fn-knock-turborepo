@@ -507,8 +507,9 @@ async fn authorize_existing(
         let stored = state
             .storage
             .store
-            .set_expiring_string_with_zset_limit(
+            .renew_expiring_string_with_zset_limit(
                 &grant_key,
+                &raw,
                 &encoded,
                 effective_remaining,
                 &active_index_key(&record.host),
@@ -518,7 +519,10 @@ async fn authorize_existing(
             )
             .await?;
         if !stored {
-            anyhow::bail!(RATE_LIMITED_ERROR);
+            // Another request may have renewed it, or logout may have removed
+            // it while this request waited for SQLite. Re-read without sliding
+            // instead of recreating a revoked grant from the old snapshot.
+            return Box::pin(authorize_existing(state, headers, config, false)).await;
         }
     }
     Ok(Some(GrantAccess {
@@ -700,6 +704,53 @@ mod tests {
         assert_eq!(bounded_cache_max_age(3_600), 60);
         assert_eq!(bounded_cache_max_age(17), 17);
         assert_eq!(bounded_cache_max_age(0), 1);
+    }
+
+    #[tokio::test]
+    async fn reused_preflight_inspection_does_not_replace_final_revocation_check() {
+        let (_directory, state) = test_state("inspection-revoke").await;
+        let config = test_config(serde_json::json!([{"id": "group-1", "conditions": []}]));
+        let mut headers = test_headers();
+        let probe = authorize(&state, &headers, &config, Some(&test_match("group-1")))
+            .await
+            .unwrap()
+            .unwrap();
+        headers.insert(header::COOKIE, cookie_header(&probe.set_cookie.unwrap()));
+        let issued = authorize(&state, &headers, &config, None)
+            .await
+            .unwrap()
+            .unwrap();
+        headers.insert(header::COOKIE, cookie_header(&issued.set_cookie.unwrap()));
+        assert!(
+            inspect_existing(&state, &headers, &config)
+                .await
+                .unwrap()
+                .is_some()
+        );
+        revoke(&state, &headers).await.unwrap();
+        let mut response = axum::response::Response::new(axum::body::Body::empty());
+        super::super::preflight::apply_preflight_behavior_with_grant_inspection(
+            &state,
+            &headers,
+            &axum::http::Uri::from_static("/"),
+            &mut response,
+            &config,
+            "203.0.113.20",
+            super::super::RequestedAccessMode::LoginFirst,
+            &super::super::PreflightNormalAccess::default(),
+            None,
+            None,
+            None,
+            Some(true),
+        )
+        .await
+        .unwrap();
+        assert!(
+            authorize(&state, &headers, &config, None)
+                .await
+                .unwrap()
+                .is_none()
+        );
     }
 
     #[test]

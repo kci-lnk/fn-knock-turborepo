@@ -3,6 +3,9 @@ use tokio_rusqlite::rusqlite::{OptionalExtension, Transaction, TransactionBehavi
 
 use super::{StorageResult, redis_compat::ConnectionManager, storage_error};
 
+#[cfg(test)]
+mod tests;
+
 pub(crate) const GRANT_PREFIX: &str = "fn_knock:auth:subdomain_rule_grant:";
 pub(crate) const ACTIVE_INDEX_PREFIX: &str = "fn_knock:auth:subdomain_rule_grant_active:";
 
@@ -175,55 +178,44 @@ impl TypedSubdomainGrantRepository {
     }
 
     pub(crate) async fn verify_and_repair_key(&self, key: &str) -> StorageResult<bool> {
-        let key = key.to_string();
+        self.verify_and_read_key(key)
+            .await
+            .map(|(matched, _)| matched)
+    }
+
+    /// Compare the shadow and return the compatibility value in the same
+    /// transaction. A repair re-reads authority after writer admission so it
+    /// can never return a credential revoked while waiting for the writer.
+    pub(crate) async fn verify_and_read_key(
+        &self,
+        key: &str,
+    ) -> StorageResult<(bool, Option<String>)> {
+        let key = key.to_owned();
         let compare_key = key.clone();
-        let (matched, repair_keys) = self
+        let compared = self
             .manager
             .call_auth_read(move |conn| {
                 let tx = conn.transaction()?;
-                let mut repair_keys = vec![compare_key.clone()];
-                let matched = if let Some(grant_digest) = parse_grant_key(&compare_key) {
-                    let raw = live_legacy_string_tx(&tx, &compare_key)?;
-                    let legacy = live_legacy_grant_tx(&tx, &compare_key)?;
-                    let invalid = raw.is_some() && legacy.is_none();
-                    let typed = typed_grant_tx(&tx, grant_digest)?;
-                    let mut matched = !invalid && typed == legacy;
-                    if let Some(grant) = legacy {
-                        let active_key = active_key(&grant.host);
-                        repair_keys.push(active_key.clone());
-                        let host_digest = parse_active_key(&active_key)
-                            .ok_or_else(|| storage_error("invalid subdomain grant active key"))?;
-                        let (active, active_invalid) =
-                            legacy_active_entries_checked_tx(&tx, &active_key)?;
-                        let typed_active = typed_active_entries_tx(&tx, host_digest)?;
-                        if active_invalid || typed_active != active {
-                            matched = false;
-                        }
-                    }
-                    matched
-                } else if let Some(host_digest) = parse_active_key(&compare_key) {
-                    let (legacy, invalid) = legacy_active_entries_checked_tx(&tx, &compare_key)?;
-                    let typed = typed_active_entries_tx(&tx, host_digest)?;
-                    !invalid && typed == legacy
-                } else {
-                    return Err(storage_error("invalid subdomain grant runtime key"));
-                };
+                let compared = compare_key_tx(&tx, &compare_key)?;
                 tx.commit()?;
-                Ok((matched, repair_keys))
+                Ok(compared)
             })
             .await?;
-        if matched {
-            return Ok(true);
+        if compared.matched {
+            return Ok((true, compared.authority));
         }
-        self.manager
+        let authority = self
+            .manager
             .call(move |conn| {
                 let tx = conn.transaction_with_behavior(TransactionBehavior::Immediate)?;
-                Self::reconcile_legacy_keys_tx(&tx, &repair_keys)?;
+                let current = compare_key_tx(&tx, &key)?;
+                Self::reconcile_legacy_keys_tx(&tx, &current.repair_keys)?;
+                let authority = live_auth_string_tx(&tx, &key)?.map(|(raw, _, _)| raw);
                 tx.commit()?;
-                Ok(())
+                Ok(authority)
             })
             .await?;
-        Ok(false)
+        Ok((false, authority))
     }
 
     #[cfg(test)]
@@ -289,6 +281,65 @@ fn active_key(host: &str) -> String {
     )
 }
 
+struct GrantShadowRead {
+    matched: bool,
+    repair_keys: Vec<String>,
+    authority: Option<String>,
+}
+
+fn compare_key_tx(tx: &Transaction<'_>, key: &str) -> StorageResult<GrantShadowRead> {
+    let authority = live_auth_string_tx(tx, key)?;
+    let mut repair_keys = vec![key.to_owned()];
+    let matched = if let Some(grant_digest) = parse_grant_key(key) {
+        let raw = authority
+            .as_ref()
+            .filter(|(_, kind, expiry)| kind == "string" && expiry.is_some());
+        let legacy = raw.and_then(|(raw, _, expiry)| parse_legacy_grant(key, raw, (*expiry)?));
+        let invalid = raw.is_some() && legacy.is_none();
+        let typed = typed_grant_tx(tx, grant_digest)?;
+        let mut matched = !invalid && typed == legacy;
+        if let Some(grant) = legacy {
+            let active_key = active_key(&grant.host);
+            let host_digest = parse_active_key(&active_key)
+                .ok_or_else(|| storage_error("invalid subdomain grant active key"))?;
+            let (active, invalid) = legacy_active_entries_checked_tx(tx, &active_key)?;
+            let typed_active = typed_active_entries_tx(tx, host_digest)?;
+            matched &= !invalid && typed_active == active;
+            repair_keys.push(active_key);
+        }
+        matched
+    } else if let Some(host_digest) = parse_active_key(key) {
+        let (legacy, invalid) = legacy_active_entries_checked_tx(tx, key)?;
+        !invalid && typed_active_entries_tx(tx, host_digest)? == legacy
+    } else {
+        return Err(storage_error("invalid subdomain grant runtime key"));
+    };
+    Ok(GrantShadowRead {
+        matched,
+        repair_keys,
+        authority: authority
+            .filter(|(_, _, expires)| {
+                expires.is_none_or(|expires| expires > crate::time_utils::now_ms())
+            })
+            .map(|(raw, _, _)| raw),
+    })
+}
+
+fn live_auth_string_tx(
+    tx: &Transaction<'_>,
+    key: &str,
+) -> StorageResult<Option<(String, String, Option<i64>)>> {
+    tx.query_row(
+        "SELECT strings.value, keys.kind, keys.expires_at_ms
+         FROM kv_strings AS strings JOIN kv_keys AS keys ON keys.key = strings.key
+         WHERE strings.key = ?1 AND (keys.expires_at_ms IS NULL OR keys.expires_at_ms > ?2)",
+        params![key, crate::time_utils::now_ms()],
+        |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
+    )
+    .optional()
+    .map_err(Into::into)
+}
+
 fn live_legacy_string_tx(tx: &Transaction<'_>, key: &str) -> StorageResult<Option<(String, i64)>> {
     tx.query_row(
         "SELECT strings.value, keys.expires_at_ms
@@ -306,14 +357,19 @@ fn live_legacy_grant_tx(
     tx: &Transaction<'_>,
     key: &str,
 ) -> StorageResult<Option<TypedSubdomainGrant>> {
-    let Some(grant_digest) = parse_grant_key(key) else {
+    if parse_grant_key(key).is_none() {
         return Ok(None);
-    };
+    }
     let Some((raw, expires_at_ms)) = live_legacy_string_tx(tx, key)? else {
         return Ok(None);
     };
-    let Ok(record) = serde_json::from_str::<LegacyGrantRecord>(&raw) else {
-        return Ok(None);
+    Ok(parse_legacy_grant(key, &raw, expires_at_ms))
+}
+
+fn parse_legacy_grant(key: &str, raw: &str, expires_at_ms: i64) -> Option<TypedSubdomainGrant> {
+    let grant_digest = parse_grant_key(key)?;
+    let Ok(record) = serde_json::from_str::<LegacyGrantRecord>(raw) else {
+        return None;
     };
     if record.host.trim().is_empty()
         || record.policy_version.trim().is_empty()
@@ -321,9 +377,9 @@ fn live_legacy_grant_tx(
         || record.last_access_at <= 0
         || record.hard_expires_at <= record.issued_at
     {
-        return Ok(None);
+        return None;
     }
-    Ok(Some(TypedSubdomainGrant {
+    Some(TypedSubdomainGrant {
         grant_digest: grant_digest.to_ascii_lowercase(),
         host: record.host,
         policy_version: record.policy_version,
@@ -332,7 +388,7 @@ fn live_legacy_grant_tx(
         last_access_at: record.last_access_at,
         hard_expires_at: record.hard_expires_at,
         expires_at_ms,
-    }))
+    })
 }
 
 fn legacy_grants_tx(tx: &Transaction<'_>) -> StorageResult<Vec<TypedSubdomainGrant>> {
@@ -361,20 +417,40 @@ fn legacy_active_entries_checked_tx(
     let Some(host_digest) = parse_active_key(key) else {
         return Ok((Vec::new(), true));
     };
-    let mut statement =
-        tx.prepare("SELECT member, score FROM kv_zset WHERE key = ?1 ORDER BY member")?;
+    // Keep every index member visible, including malformed and dangling ones.
+    // An inner join would hide corruption and change synchronous shadow repair.
+    let mut statement = tx.prepare(
+        "SELECT active.member, active.score, strings.value, grant_keys.expires_at_ms
+         FROM kv_zset AS active
+         LEFT JOIN kv_keys AS grant_keys
+           ON grant_keys.key = active.member AND grant_keys.kind = 'string'
+         LEFT JOIN kv_strings AS strings ON strings.key = grant_keys.key
+         WHERE active.key = ?1 ORDER BY active.member",
+    )?;
     let rows = statement.query_map([key], |row| {
-        Ok((row.get::<_, String>(0)?, row.get::<_, f64>(1)?))
+        Ok((
+            row.get::<_, String>(0)?,
+            row.get::<_, f64>(1)?,
+            row.get::<_, Option<String>>(2)?,
+            row.get::<_, Option<i64>>(3)?,
+        ))
     })?;
     let mut entries = Vec::new();
     let mut invalid = false;
     for row in rows {
-        let (member, score) = row?;
+        let (member, score, raw, expires_at_ms) = row?;
         let Some(grant_digest) = parse_grant_key(&member) else {
             invalid = true;
             continue;
         };
-        if live_legacy_grant_tx(tx, &member)?.is_none() {
+        let Some((raw, expires_at_ms)) = raw.zip(expires_at_ms) else {
+            continue;
+        };
+        // Check on the SQLite executor, not before reader admission. Retain
+        // per-member expiry checks even if iterating a large host takes time.
+        if expires_at_ms <= crate::time_utils::now_ms()
+            || parse_legacy_grant(&member, &raw, expires_at_ms).is_none()
+        {
             continue;
         }
         if !score.is_finite()

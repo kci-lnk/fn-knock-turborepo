@@ -1,0 +1,121 @@
+# 可重复的鉴权性能实验
+
+本工具只运行在**新的 Linux 网络命名空间**中，使用新数据库、固定实验端口、合成凭证和独立 Go/Rust 子进程。拒绝宿主网络命名空间；不替换服务、不复制生产数据库、不修改防火墙或宿主 DNS。结果目录必须不存在，失败数据保留。默认基线主仓 `d4f8805f39d9f4480bf83f4382ba59e5f49e7dc4`，Go `92d4c0c`；每次仍须记录完整源提交、dirty patch、工具链和构建参数。
+
+## 准备
+
+需要 Linux root、Node 22、Python 3（仅初始化 SQLite，**不承担负载**）、`ip`、`unshare`、`getconf`。压测采用多个 Node Worker，每个 Worker 有独立事件循环，使用 keep-alive HTTP/1.1 客户端，来源固定 `198.18.0.1`，不会跟随 302。业务上游是独立 Node 子进程。客户端、上游和两服务进程分别统计 CPU。
+
+提供基线和候选的 Linux Go/Rust 二进制，以及同一份管理/鉴权前端 dist。各组 Go 版本身份必须满足对应 Rust 的 bundle 校验。使用相同工具链、依赖锁和构建设置做代码 A/B；编译参数实验则仅改变指定参数。二进制自动记录 SHA256。
+
+从相邻 Go 仓库编译实验控制工具（仅此独立文件，不修改产品源码）：
+
+```sh
+CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build \
+  -o /tmp/authperf-control \
+  /ABS/fn-knock-turborepo/scripts/auth-performance-control.go
+```
+
+`variants.json` 示例：
+
+```json
+{
+  "admin_static": "/tmp/auth-artifacts/ui/www",
+  "auth_static": "/tmp/auth-artifacts/server-auth-view/dist",
+  "control_binary": "/tmp/authperf-control",
+  "baseline": {
+    "name": "base",
+    "go": "/tmp/auth-artifacts/base/go-reauth-proxy",
+    "rust": "/tmp/auth-artifacts/base/server-admin-rs",
+    "env": {},
+    "metadata": {
+      "main_commit": "d4f8805f",
+      "go_commit": "92d4c0c",
+      "rust_profile": "release"
+    }
+  },
+  "candidates": [
+    {
+      "name": "candidate",
+      "go": "/tmp/auth-artifacts/candidate/go-reauth-proxy",
+      "rust": "/tmp/auth-artifacts/candidate/server-admin-rs",
+      "env": {},
+      "metadata": {
+        "main_commit": "RECORD_FULL_COMMIT",
+        "go_commit": "RECORD_FULL_COMMIT"
+      }
+    }
+  ]
+}
+```
+
+额外 compiler-z/s/2/3、reader-1/2/4 变体各自列入 `candidates`，由 `go` / `rust` 指向对应构建制品，`metadata` 标明编译参数及 reader 数。运行时支持通过 `env` 传入该二进制已支持的环境参数；**该工具不会假设一个不存在的 reader 配置环境变量生效**。固定端口、数据目录、凭证、运行目标 `linux` 由 harness 覆盖，不能通过 `env` 连接生产实例。默认 Tokio workers=2、bridge max-in-flight=32，可以通过已有对应环境参数做独立变体。
+
+## 小批量运行
+
+先验证所有路径；基线和候选甚至可以指向同一二进制，先验证工具自身噪声：
+
+```sh
+bash scripts/run-auth-performance-isolated.sh \
+  --config /tmp/variants.json --out /tmp/auth-smoke-UNIQUE \
+  --routes bootstrap,challenge,session_api,session_hit,session_miss,grant_hit,grant_miss,grant_renewal,auto_ip_hit,auto_ip_miss \
+  --pairs 1 --warmup 1 --seconds 2 --concurrency 2 --clients 1 \
+  --renewals 8 --cache-ttl 0
+```
+
+确认 smoke 通过后，先做逐路由的单并发、16、64并发，再在拐点附近补测。每个命令只取一个并发数，输出目录不同：
+
+```sh
+bash scripts/run-auth-performance-isolated.sh \
+  --config /tmp/variants.json --out /tmp/auth-session-c16-UNIQUE \
+  --candidates candidate --routes session_hit \
+  --pairs 6 --warmup 20 --seconds 60 --concurrency 16 --clients 2 \
+  --cache-ttl 0 --sessions 1000
+node scripts/check-auth-performance.mjs /tmp/auth-session-c16-UNIQUE/results.json --require-six-pairs
+```
+
+入选方案可用 `--pairs 1 --warmup 20 --seconds 1800` 做30分钟持续负载；它是稳定性观察，不能代替六对吞吐比较。不要同时运行其他负载脚本。总运行量随 routes × candidates × pairs 线性增长，优先用 `--routes`、`--candidates` 限定单因素小批。
+
+每对实验顺序交替为 AB/BA。每个 route 和样本启动独立的新进程/数据库。先启动初始化 schema，停止实验子进程，再写入合成 typed+legacy 一致种子后重新启动。种子文件要求 harness 所建目录标记；读写的只是该目录下 `state.sqlite3`。模板包含 TOTP 身份、有效 session、匹配当前 advanced-auth policy 的 grant、自动 IP 白名单及 owner session。
+
+## 路由和真实工作检查
+
+| route         | 数据路径                                        | 必须满足的预检及逐请求条件                    |
+| ------------- | ----------------------------------------------- | --------------------------------------------- |
+| bootstrap     | Go 内置鉴权 HTTP 代理→Rust                      | 200，success=true，client.ip=198.18.0.1       |
+| challenge     | 同上                                            | 200，JSON challenge 和 signature 存在         |
+| session_api   | 内置 session API＋有效 session cookie           | 200，authenticated=true                       |
+| session_hit   | 受保护业务＋有效 session cookie                 | 200，独立业务 fixture 的特征头及正文均匹配    |
+| session_miss  | 每请求不同的不存在 session cookie               | 302登录跳转，无 fixture 标记                  |
+| grant_hit     | 受保护业务＋有效持久化 grant cookie             | 200，真实业务 fixture 标记                    |
+| grant_miss    | 每请求不同的不存在 grant cookie，规则条件不匹配 | 302登录跳转，无 fixture 标记                  |
+| grant_renewal | 每请求独立、已到续期时间且仍有效的 grant        | 200业务标记，且必须包含 grant 续期 Set-Cookie |
+| auto_ip_hit   | 无cookie，自动IP白名单＋匹配IP的owner session   | 200业务标记                                   |
+| auto_ip_miss  | 同样自动IP白名单，但所有owner session IP不匹配  | 302登录跳转，无 fixture 标记                  |
+
+这里 hit/miss 指**凭证或owner查找是否命中**，不等于 Go 的授权缓存 hit/miss。`--cache-ttl 0` 明确关闭正负缓存，用来衡量实际 RPC/SQLite 路径；`--cache-ttl 1` 独立测量正常缓存开启的端到端表现。不能靠 query 变化声称避开 host-scope 缓存。
+
+两项 TTL 均写入合成配置的 `subdomain_mode`，在 Rust 完成启动同步后使用 gRPC `GetAuthConfig → SetAuthConfig → GetAuthConfig` 设定并读回，结束时只读再次确认。关闭缓存必须提供 `control_binary`。只读生成的 config.json 不足以证实 live runtime 状态（零值有省略序列化行为）。
+
+`grant_renewal` 是**有限 token 批次**：`--renewals` 默认为4096，每个load token只用一次，不循环伪装成持续续期。预检使用第三份独立token，warm使用独立token池；warm池用完后用普通grant复用请求继续预热到设定时长。load必须在`--seconds`上限内完成所有token，报告真实elapsed；未完成则试验无效。它的req/s不能与固定时长的grant复用负载混比。普通grant_hit长期运行中自然产生的滑动续期属于该路由真实行为。
+
+## 指标、判读和限制
+
+- `manifest.json`：二进制SHA、路径、variant metadata、环境参数、内核与Node版本。
+- `results.json`及每trial `result.json`：真实elapsed、成功/失败请求、状态码、P50/P95/P99、稀疏1ms延迟直方图、Go/Rust/client/fixture CPU秒及每1000次成功请求CPU成本、RSS/FD/thread采样和峰值。
+- 每200ms读`/proc`，每秒采样runtime-health中的storage队列、bridge数据；值不存在明确为null，不能用0代替。队列计数是进程累计值，不是每路由的独立事件分布。
+- `timeout_phase_events`及保留的`runtime/logs`包含现有phase诊断。**phase只在超时事件中可读，不是所有成功请求的阶段耗时直方图。** 未触发超时不能由空数组推断SQLite等待为0。
+- Worker延迟直方图先求和后计算分位数，不平均各worker的P99。计量包含客户端错误，且任何错误响应/语义不符会使样本无效。P99只精确到1ms，60秒以上归入溢出桶并报告。
+- 客户端启动延迟>100ms、事件循环最大延迟>100ms、OS采样间隔>1s、时长过冲>5%（最低容忍500ms）均使trial无效并保留证据；不静默重试。失败会停止当前批，避免把错误路由测成高吞吐。
+- 比较器输出每对吞吐/P99变化、中位数、六对以上的确定性paired bootstrap 95%区间；不足六对只作smoke。`--require-six-pairs`要求有效完整六对，并守住吞吐−5%及P99+10%预算。置信区间仍不能消除同机负载、热漂移或设计混杂。
+
+本工具是闭环负载，适合路由拆分、热点归因和A/B；不声称给出固定到达率下的SLO。最终方案还应补固定请求率/突发队列实验和授权撤销、策略变化、跨host拒绝等正确性测试。若客户端CPU或Worker延迟接近瓶颈，应增加独立client worker或分离客户端CPU，不能把客户端饱和归咎Rust。`linux`运行目标有意避开fnOS宿主操作，因此不能代替完整版后台任务/分配器的单独验证。
+
+工具单元验证（无需设备、不运行负载）：
+
+```sh
+node --test scripts/tests/auth-performance.test.mjs
+node --check scripts/auth-performance.mjs
+```
+
+该目录只存工具说明；测量结果必须在实际运行后另行记录，不能把旧实验数字当作此次改动收益。

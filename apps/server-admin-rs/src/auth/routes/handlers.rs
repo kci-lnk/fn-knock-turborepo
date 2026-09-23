@@ -14,15 +14,28 @@ pub(super) async fn bootstrap(
     uri: Uri,
     Query(query): Query<BootstrapQuery>,
 ) -> Response {
-    let translator = Translator::from_state(&state).await;
+    crate::auth::request_context::scope(
+        &state,
+        bootstrap_scoped(state.clone(), headers, uri, query),
+    )
+    .await
+}
+
+async fn bootstrap_scoped(
+    state: AppState,
+    headers: HeaderMap,
+    uri: Uri,
+    query: BootstrapQuery,
+) -> Response {
+    let translator = translator_from_config(&crate::auth::request_context::config(&state));
     let client_ip = client_ip_for_auth(&headers);
     enqueue_auth_ip_location(&state, &client_ip, "bootstrap");
     match build_auth_shell_data(&state, &headers, &uri, query.redirect_uri.as_deref(), true).await {
         Ok((mut data, access)) => {
             let mut clear_cookie = None;
-            if let Ok(config) = state.storage.store.get_config().await
-                && let Some((message, cookie)) =
-                    consume_login_error_for_bootstrap(&state, &headers, &uri, &config).await
+            let config = crate::auth::request_context::config(&state);
+            if let Some((message, cookie)) =
+                consume_login_error_for_bootstrap(&state, &headers, &uri, &config).await
             {
                 if let Some(oidc) = data.get_mut("oidc").and_then(Value::as_object_mut) {
                     oidc.insert("login_error".to_string(), Value::String(message));

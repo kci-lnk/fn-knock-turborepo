@@ -1135,8 +1135,8 @@ pub(crate) async fn public_passkey_status(
     config: &Value,
 ) -> Value {
     let passkey_count = match (
-        state.storage.store.get_passkeys().await,
-        state.storage.store.get_totps().await,
+        state.storage.store.get_passkeys_for_authorization().await,
+        crate::auth::request_context::totps(state).await,
     ) {
         (Ok(passkeys), Ok(totps)) => valid_linked_passkey_count(&passkeys, &totps),
         _ => 0,
@@ -1144,11 +1144,19 @@ pub(crate) async fn public_passkey_status(
     let passkey_login_enabled = state
         .storage
         .store
-        .get_auth_login_mode()
+        .get_auth_login_mode_for_authorization()
         .await
         .map(AuthLoginMode::allows_totp_family)
         .unwrap_or(false);
-    let rp = rp_info(state, config, headers).await;
+    let configured_host = state
+        .storage
+        .store
+        .get_auth_presentation_values(&[CA_HOSTS_KEY])
+        .await
+        .ok()
+        .and_then(|mut values| values.pop().flatten())
+        .and_then(configured_rp_host_from_value);
+    let rp = rp_info_with_configured_host(config, headers, configured_host.as_deref());
     let request_host = request_hostname(headers);
     let shared_auth_host = public_auth_base_host(config);
     let available_on_host = if rp.mode == "parent_domain" {
@@ -1762,6 +1770,10 @@ async fn configured_rp_host(state: &AppState) -> Option<String> {
         .get_json_value(CA_HOSTS_KEY)
         .await
         .ok()??;
+    configured_rp_host_from_value(hosts)
+}
+
+fn configured_rp_host_from_value(hosts: Value) -> Option<String> {
     hosts
         .as_array()?
         .iter()

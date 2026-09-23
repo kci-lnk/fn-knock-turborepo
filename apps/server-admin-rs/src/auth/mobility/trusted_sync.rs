@@ -20,7 +20,7 @@ pub(crate) async fn sync_browser_session_ip_with_session(
     source: &str,
 ) -> anyhow::Result<Option<LoginSession>> {
     let _phase = crate::auth::diagnostics::enter("mobility_ip_refresh");
-    let config = state.storage.store.get_config().await?;
+    let config = crate::auth::request_context::config(state);
     let settings = AuthCredentialSettings::from_config(&config);
     let normalized_client_ip = normalized_or_trimmed_ip(client_ip);
     if normalized_client_ip.is_empty() {
@@ -249,7 +249,7 @@ pub(super) async fn refresh_proxy_session_binding(
     let binding = state
         .storage
         .store
-        .get_auth_mobility_binding("proxy-session", session_id)
+        .get_auth_mobility_binding_for_authorization("proxy-session", session_id)
         .await?;
     if let Some(binding) = binding {
         if mobility_binding_touch_is_fresh(&binding, &normalized_ip, session_id, now_seconds()) {
@@ -327,7 +327,7 @@ pub(super) async fn refresh_app_token_binding(
     let mut binding = state
         .storage
         .store
-        .get_auth_mobility_binding(subject_type, subject_key)
+        .get_auth_mobility_binding_for_authorization(subject_type, subject_key)
         .await?;
 
     if let Some(session_id) = session_id.filter(|value| !value.trim().is_empty()) {

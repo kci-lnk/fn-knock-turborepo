@@ -73,7 +73,7 @@ pub(super) async fn restore_app_token_binding(
     let mut binding = state
         .storage
         .store
-        .get_auth_mobility_binding(subject_type, subject_key)
+        .get_auth_mobility_binding_for_authorization(subject_type, subject_key)
         .await?;
     if let Some(owner_session_id) = binding.as_ref().and_then(binding_owner_session_id)
         && state
@@ -246,13 +246,34 @@ pub(super) async fn restore_proxy_session(
     if normalized_ip.is_empty() {
         return Ok(false);
     }
-    let config = state.storage.store.get_config().await?;
+    let config = crate::auth::request_context::config(state);
     let settings = AuthCredentialSettings::from_config(&config);
+    // The common same-IP path needs no binding or primary-executor work.
+    if settings.session_ip_mobility_enabled && session_ip_matches(&session, &normalized_ip) {
+        return Ok(false);
+    }
     let binding = state
         .storage
         .store
-        .get_auth_mobility_binding("proxy-session", session_id)
+        .get_auth_mobility_binding_for_authorization("proxy-session", session_id)
         .await?;
+    if !settings.session_ip_mobility_enabled {
+        let Some(binding) = binding.as_ref() else {
+            return Ok(false);
+        };
+        if binding_whitelist_record_id(binding).is_none() {
+            return Ok(false);
+        }
+        if session_ip_matches(&session, &normalized_ip)
+            && mobility_binding_touch_is_fresh(binding, &normalized_ip, session_id, now_seconds())
+        {
+            return Ok(true);
+        }
+    }
+    // A request snapshot only drives read-only shortcuts. Re-read configuration
+    // before the slow path can mutate IP ownership or publish a whitelist.
+    let config = state.storage.store.get_config().await?;
+    let settings = AuthCredentialSettings::from_config(&config);
 
     if settings.session_ip_mobility_enabled {
         if session_ip_matches(&session, &normalized_ip) {
@@ -324,7 +345,7 @@ async fn restore_single_ip_proxy_session(
         let Some(binding) = state
             .storage
             .store
-            .get_auth_mobility_binding("proxy-session", session_id)
+            .get_auth_mobility_binding_for_authorization("proxy-session", session_id)
             .await?
         else {
             return Ok(false);
@@ -397,48 +418,110 @@ pub async fn list_active_sessions_by_ip(
     state: &AppState,
     client_ip: &str,
 ) -> anyhow::Result<Vec<(String, LoginSession)>> {
-    let normalized_ip = normalized_or_trimmed_ip(client_ip);
-    if normalized_ip.is_empty() {
-        return Ok(Vec::new());
-    }
-    let config = state.storage.store.get_config().await?;
-    let mut owners = Vec::new();
-    for (session_id, session) in state.storage.store.list_login_sessions().await? {
-        let ips = effective_session_ips(state, &session_id, &session, &config).await?;
-        if ips.iter().any(|ip| ip == &normalized_ip) {
-            owners.push((session_id, session));
-        }
-    }
-    Ok(owners)
+    list_sessions_by_ip(state, client_ip, false).await
 }
 
 pub(crate) async fn list_stream_access_sessions_by_ip(
     state: &AppState,
     client_ip: &str,
 ) -> anyhow::Result<Vec<(String, LoginSession)>> {
+    list_sessions_by_ip(state, client_ip, true).await
+}
+
+async fn list_sessions_by_ip(
+    state: &AppState,
+    client_ip: &str,
+    stream: bool,
+) -> anyhow::Result<Vec<(String, LoginSession)>> {
     let normalized_ip = normalized_or_trimmed_ip(client_ip);
     if normalized_ip.is_empty() {
         return Ok(Vec::new());
     }
-    let config = state.storage.store.get_config().await?;
+    let config = crate::auth::request_context::config(state);
+    let settings = AuthCredentialSettings::from_config(&config);
+    let window = settings
+        .session_ip_mobility_enabled
+        .then_some(settings.session_ip_mobility_window_seconds);
+    let candidates = state
+        .storage
+        .store
+        .list_auth_session_ip_candidates(window)
+        .await?;
     let mut owners = Vec::new();
-    for (session_id, session) in state.storage.store.list_login_sessions().await? {
-        // Protocol mappings have no browser cookie to refresh mobility state.
-        // Keep the session's canonical IP eligible for the lifetime of its
-        // stream grant, while additional drift IPs remain window-bound.
-        if stream_access_ip_matches(&session.ip, &normalized_ip) {
-            owners.push((session_id, session));
+    for (session_id, session, details) in candidates {
+        if !session_ip_candidate_matches(&session, details, &normalized_ip, &settings, stream) {
             continue;
         }
-        let ips = effective_session_ips(state, &session_id, &session, &config).await?;
-        if ips
-            .iter()
-            .any(|ip| stream_access_ip_matches(ip, &normalized_ip))
+        if let Some(session) =
+            confirm_session_ip_candidate(state, &session_id, &normalized_ip, &settings, stream)
+                .await?
         {
             owners.push((session_id, session));
         }
     }
     Ok(owners)
+}
+
+fn session_ip_candidate_matches(
+    session: &LoginSession,
+    details: Vec<Value>,
+    client_ip: &str,
+    settings: &AuthCredentialSettings,
+    stream: bool,
+) -> bool {
+    let matches = |ip: &str| {
+        if stream {
+            stream_access_ip_matches(ip, client_ip)
+        } else {
+            normalized_or_trimmed_ip(ip) == client_ip
+        }
+    };
+    // Streams retain canonical IP access for the grant lifetime; HTTP with
+    // mobility enabled only recognizes addresses in the active window.
+    if (stream || !settings.session_ip_mobility_enabled) && matches(&session.ip) {
+        return true;
+    }
+    settings.session_ip_mobility_enabled
+        && details
+            .into_iter()
+            .filter_map(parse_active_ip_detail)
+            .any(|detail| matches(&detail.ip))
+}
+
+pub(super) async fn confirm_session_ip_candidate(
+    state: &AppState,
+    session_id: &str,
+    client_ip: &str,
+    settings: &AuthCredentialSettings,
+    stream: bool,
+) -> anyhow::Result<Option<LoginSession>> {
+    // Do not authorize from a candidate snapshot: logout, expiry and drift can
+    // invalidate it while other candidates are being inspected.
+    let Some(session) = state.storage.store.get_session(session_id).await? else {
+        return Ok(None);
+    };
+    if crate::auth::login_session_has_expired(&session) {
+        return Ok(None);
+    }
+    if session_ip_candidate_matches(&session, Vec::new(), client_ip, settings, stream) {
+        return Ok(Some(session));
+    }
+    let details = if settings.session_ip_mobility_enabled {
+        state
+            .storage
+            .store
+            .get_auth_mobility_recent_ip_details_for_authorization(
+                session_id,
+                settings.session_ip_mobility_window_seconds,
+            )
+            .await?
+    } else {
+        Vec::new()
+    };
+    Ok(
+        session_ip_candidate_matches(&session, details, client_ip, settings, stream)
+            .then_some(session),
+    )
 }
 
 fn stream_access_ip_matches(left: &str, right: &str) -> bool {

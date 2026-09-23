@@ -13,6 +13,7 @@ pub(crate) mod oidc_runtime;
 pub(crate) mod oidc_tokens;
 pub(crate) mod passkey;
 pub(crate) mod password;
+pub(crate) mod request_context;
 pub(crate) mod routes;
 
 pub(crate) use routes::*;

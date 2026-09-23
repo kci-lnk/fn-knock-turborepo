@@ -641,7 +641,7 @@ async fn cached_ip_location(state: &AppState, ip: &str) -> Option<String> {
     state
         .storage
         .store
-        .get_ip_location_cache(ip)
+        .get_ip_location_cache_for_authorization(ip)
         .await
         .ok()
         .flatten()
@@ -681,9 +681,9 @@ pub use cleanup::{
 };
 use events::*;
 pub use login::create_login_session;
-pub(crate) use restore::list_stream_access_sessions_by_ip;
 use restore::resolve_bootstrap_owner;
 pub use restore::try_restore_access;
+pub(crate) use restore::{list_active_sessions_by_ip, list_stream_access_sessions_by_ip};
 pub(crate) use trusted_sync::sync_browser_session_ip_with_session;
 pub use trusted_sync::{sync_browser_session_ip, sync_trusted_request};
 

@@ -595,7 +595,7 @@ pub(super) async fn active_ip_touch_is_fresh_for_session(
     let existing = state
         .storage
         .store
-        .get_auth_mobility_active_ip_detail(session_id, &normalized_ip)
+        .get_auth_mobility_active_ip_detail_for_authorization(session_id, &normalized_ip)
         .await?
         .and_then(parse_active_ip_detail);
     Ok(active_ip_detail_touch_is_fresh(

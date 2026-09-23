@@ -1524,6 +1524,186 @@ fn test_browser_session(ip: &str) -> LoginSession {
     }
 }
 
+#[tokio::test]
+async fn stable_session_read_paths_work_while_sqlite_writer_is_locked() {
+    let (_directory, state) = mobility_test_state("stable-session-read-lock").await;
+    let session = test_browser_session("203.0.113.10");
+    state
+        .storage
+        .store
+        .add_session("stable", &session, 3600)
+        .await
+        .unwrap();
+    state
+        .storage
+        .store
+        .save_auth_mobility_active_ip_detail(
+            "stable",
+            &session.ip,
+            now_seconds(),
+            &json!({"ip":session.ip, "lastSeenAt":now_seconds()}),
+            3600,
+        )
+        .await
+        .unwrap();
+    let database = tokio_rusqlite::rusqlite::Connection::open(&state.settings.sqlite_path).unwrap();
+    database.execute_batch("BEGIN IMMEDIATE").unwrap();
+    let result = tokio::time::timeout(std::time::Duration::from_millis(500), async {
+        assert!(
+            !restore::restore_proxy_session(&state, "stable", &session.ip)
+                .await
+                .unwrap()
+        );
+        assert!(
+            sync_browser_session_ip_with_session(&state, "stable", &session, &session.ip, "test")
+                .await
+                .unwrap()
+                .is_some()
+        );
+        assert_eq!(
+            list_active_sessions_by_ip(&state, &session.ip)
+                .await
+                .unwrap()
+                .len(),
+            1
+        );
+    })
+    .await;
+    database.execute_batch("ROLLBACK").unwrap();
+    result.expect("stable session reads unexpectedly needed SQLite's writer");
+}
+
+#[tokio::test]
+async fn batched_ip_owners_preserve_http_stream_normalization_and_revocation() {
+    let (_directory, state) = mobility_test_state("batched-ip-owners").await;
+    let session = test_browser_session("2001:db8::1");
+    state
+        .storage
+        .store
+        .add_session("s", &session, 3600)
+        .await
+        .unwrap();
+    // Legacy member and detail IP can differ: effective_session_ips uses the
+    // normalized JSON IP, not the zset member.
+    state
+        .storage
+        .store
+        .save_auth_mobility_active_ip_detail(
+            "s",
+            "legacy-member",
+            now_seconds(),
+            &json!({"ip":"2001:0db8:0:0:0:0:0:2", "lastSeenAt":now_seconds()}),
+            3600,
+        )
+        .await
+        .unwrap();
+    assert!(
+        list_active_sessions_by_ip(&state, "2001:db8::1")
+            .await
+            .unwrap()
+            .is_empty()
+    );
+    assert_eq!(
+        list_stream_access_sessions_by_ip(&state, "2001:0db8::1")
+            .await
+            .unwrap()
+            .len(),
+        1
+    );
+    assert_eq!(
+        list_active_sessions_by_ip(&state, "2001:db8::2")
+            .await
+            .unwrap()
+            .len(),
+        1
+    );
+    assert_eq!(
+        list_stream_access_sessions_by_ip(&state, "2001:db8::2")
+            .await
+            .unwrap()
+            .len(),
+        1
+    );
+    let settings = AuthCredentialSettings::from_config(&state.storage.store.config_snapshot());
+    // Discovery must never turn into a positive cache after session deletion.
+    assert_eq!(
+        state
+            .storage
+            .store
+            .list_auth_session_ip_candidates(Some(1200))
+            .await
+            .unwrap()
+            .len(),
+        1
+    );
+    state.storage.store.delete_session("s").await.unwrap();
+    assert!(
+        restore::confirm_session_ip_candidate(&state, "s", "2001:db8::2", &settings, false)
+            .await
+            .unwrap()
+            .is_none()
+    );
+    assert!(
+        list_active_sessions_by_ip(&state, "2001:db8::2")
+            .await
+            .unwrap()
+            .is_empty()
+    );
+}
+
+#[tokio::test]
+async fn batched_ip_owners_disabled_mobility_uses_canonical_ip_and_expiry() {
+    let (_directory, state) = mobility_test_state("batched-ip-single").await;
+    state
+        .storage
+        .store
+        .save_config(&json!({"auth_credential_settings":{"session_ip_mobility_enabled":false}}))
+        .await
+        .unwrap();
+    let live = test_browser_session("203.0.113.10");
+    state
+        .storage
+        .store
+        .add_session("live", &live, 3600)
+        .await
+        .unwrap();
+    let mut expired = live.clone();
+    expired.expires_at = Some(time_utils::iso_after_seconds(-1));
+    state
+        .storage
+        .store
+        .add_session("expired", &expired, 3600)
+        .await
+        .unwrap();
+    state
+        .storage
+        .store
+        .save_auth_mobility_active_ip_detail(
+            "live",
+            "203.0.113.20",
+            now_seconds(),
+            &json!({"ip":"203.0.113.20"}),
+            3600,
+        )
+        .await
+        .unwrap();
+    assert_eq!(
+        list_active_sessions_by_ip(&state, "203.0.113.10")
+            .await
+            .unwrap()
+            .iter()
+            .map(|(id, _)| id.as_str())
+            .collect::<Vec<_>>(),
+        vec!["live"]
+    );
+    assert!(
+        list_active_sessions_by_ip(&state, "203.0.113.20")
+            .await
+            .unwrap()
+            .is_empty()
+    );
+}
+
 async fn mobility_test_state(name: &str) -> (tempfile::TempDir, AppState) {
     let directory = tempfile::tempdir().expect("temporary auth database");
     let mut settings = {

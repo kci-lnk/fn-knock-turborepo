@@ -6,6 +6,7 @@ use support::*;
 mod aggregates;
 mod analytics;
 mod auth_account_create;
+mod auth_reads;
 mod config;
 mod core;
 mod discovery;

@@ -49,8 +49,22 @@ pub(super) async fn build_auth_shell_data(
     redirect_uri: Option<&str>,
     include_redirect: bool,
 ) -> anyhow::Result<(Value, AuthAccess)> {
-    let config = state.storage.store.config_snapshot();
-    let captcha_settings = runtime_config::load_captcha_settings(state).await?;
+    crate::auth::request_context::scope(
+        state,
+        build_auth_shell_data_scoped(state, headers, uri, redirect_uri, include_redirect),
+    )
+    .await
+}
+
+async fn build_auth_shell_data_scoped(
+    state: &AppState,
+    headers: &HeaderMap,
+    uri: &Uri,
+    redirect_uri: Option<&str>,
+    include_redirect: bool,
+) -> anyhow::Result<(Value, AuthAccess)> {
+    let config = crate::auth::request_context::config(state);
+    let captcha_settings = runtime_config::load_captcha_settings_for_authorization(state).await?;
     let locale = config
         .get("locale")
         .cloned()
@@ -69,7 +83,7 @@ pub(super) async fn build_auth_shell_data(
     let login_mode = state
         .storage
         .store
-        .get_auth_login_mode()
+        .get_auth_login_mode_for_authorization()
         .await
         .unwrap_or(AuthLoginMode::Totp);
     let oidc_providers = if login_mode.allows_totp_family() {
@@ -193,8 +207,11 @@ pub(super) async fn resolve_auth_access(
     uri: &Uri,
     translator: &Translator,
 ) -> anyhow::Result<AuthAccess> {
-    resolve_auth_access_with_routed_upstream(state, headers, uri, translator, None, None, None)
-        .await
+    crate::auth::request_context::scope(
+        state,
+        resolve_auth_access_with_routed_upstream(state, headers, uri, translator, None, None, None),
+    )
+    .await
 }
 
 pub(super) async fn resolve_auth_access_with_routed_upstream(
@@ -206,7 +223,7 @@ pub(super) async fn resolve_auth_access_with_routed_upstream(
     routed_upstream_host: Option<&str>,
     routed_upstream_route_id: Option<&str>,
 ) -> anyhow::Result<AuthAccess> {
-    let config = state.storage.store.config_snapshot();
+    let config = crate::auth::request_context::config(state);
     resolve_auth_access_with_routed_upstream_and_config(
         state,
         headers,
@@ -506,8 +523,8 @@ fn rate_limited_access(set_cookies: Vec<String>) -> AuthAccess {
 }
 
 pub(super) async fn public_captcha_settings(state: &AppState) -> anyhow::Result<Value> {
-    let config = state.storage.store.config_snapshot();
-    let settings = runtime_config::load_captcha_settings(state).await?;
+    let config = crate::auth::request_context::config(state);
+    let settings = runtime_config::load_captcha_settings_for_authorization(state).await?;
     let translator = translator_from_config(&config);
     Ok(public_captcha_settings_from_settings(
         state,

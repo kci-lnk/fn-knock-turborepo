@@ -98,6 +98,22 @@ pub(crate) async fn load_captcha_settings(
     Ok(normalize_captcha_settings(value.as_ref()))
 }
 
+/// Same standalone-key precedence and normalization, without taking the writer
+/// merely to prune expired keys during an authentication page request.
+pub(crate) async fn load_captcha_settings_for_authorization(
+    state: &AppState,
+) -> crate::storage::StorageResult<Value> {
+    let value = state
+        .storage
+        .store
+        .get_auth_presentation_values(&[CAPTCHA_SETTINGS_KEY, LEGACY_CAPTCHA_SETTINGS_KEY])
+        .await?
+        .into_iter()
+        .flatten()
+        .next();
+    Ok(normalize_captcha_settings(value.as_ref()))
+}
+
 pub(super) async fn update_captcha_settings(
     state: &AppState,
     patch: &Value,

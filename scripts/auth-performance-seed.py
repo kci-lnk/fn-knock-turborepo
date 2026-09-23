@@ -9,7 +9,9 @@ import sqlite3
 import time
 
 
-def seed(directory, scenario, sessions, renewals, cache_ttl=1, grants=2, accounts=1):
+def seed(directory, scenario, sessions, renewals, cache_ttl=1, grants=2, accounts=1, credential_kind="totp"):
+    if credential_kind not in ("totp", "password"):
+        raise ValueError("credential_kind must be totp or password")
     directory = pathlib.Path(directory).resolve()
     marker = directory / ".auth-performance-owned"
     if marker.read_text().strip() != "synthetic-auth-performance-v1":
@@ -52,11 +54,17 @@ def seed(directory, scenario, sessions, renewals, cache_ttl=1, grants=2, account
     string("fn_knock:totps", totps)
     account_records = [{"id": f"authperf-account-{index}", "username": f"authperf-user-{index}", "displayName": f"Synthetic benchmark {index}", "sourceTotpId": totp["id"], "createdAt": iso(now), "updatedAt": iso(now), "access_scopes": [], "subdomain_access": {"mode": "all", "hosts": []}} for index, totp in enumerate(totps)]
     string("fn_knock:auth:accounts:v1", account_records)
+    # Login mode is a raw Redis string, unlike the JSON documents above.
+    key("fn_knock:auth:login_mode:v1", "string")
+    db.execute("INSERT OR REPLACE INTO kv_strings VALUES (?,?)", ("fn_knock:auth:login_mode:v1", credential_kind))
     for index in range(sessions):
         sid = f"authperf-session-{index}"
         totp = totps[index % accounts]
+        account = account_records[index % accounts]
         ip = "198.18.0.1" if index == 0 and scenario != "auto_ip_miss" else "198.18.0.2"
-        value = {"totpId": totp["id"], "method": "TOTP", "credentialId": totp["id"], "credentialName": "Synthetic benchmark", "grantType": "browser_session", "ip": ip,
+        # AuthMethod::Password.as_session_str() is PASSWORD; existing sessions
+        # resolve account permissions without performing a password hash/login.
+        value = {"totpId": account["sourceTotpId"], "method": "PASSWORD" if credential_kind == "password" else "TOTP", "credentialId": account["id"] if credential_kind == "password" else totp["id"], "credentialName": account["displayName"], "grantType": "browser_session", "ip": ip,
                  "userAgent": "auth-performance", "loginTime": iso(now), "expiresAt": iso(now + 86400), "subdomainAccess": {"mode": "all", "hosts": []}}
         if scenario.startswith("auto_ip"):
             value.update({"grantType": "login_ip_grant", "postLoginIpGrantMode": "follow_session"})
@@ -91,7 +99,7 @@ def seed(directory, scenario, sessions, renewals, cache_ttl=1, grants=2, account
         db.execute("INSERT OR REPLACE INTO whitelist_documents VALUES ('record',?,?,?,?,?,?)", (record["id"], encode(record), now, now + 86400, "active", now * 1000))
     db.commit()
     db.close()
-    return {"scenario": scenario, "sessions": sessions, "accounts": accounts, "ordinary_grants": grants, "total_grants": len(tokens), "renewal_tokens_per_phase": renewals if scenario == "grant_renewal" else 0, "created_at": iso(now), "expires_at": iso(now + 86400)}
+    return {"scenario": scenario, "credential_kind": credential_kind, "sessions": sessions, "accounts": accounts, "ordinary_grants": grants, "total_grants": len(tokens), "renewal_tokens_per_phase": renewals if scenario == "grant_renewal" else 0, "created_at": iso(now), "expires_at": iso(now + 86400)}
 
 
 if __name__ == "__main__":
@@ -103,9 +111,10 @@ if __name__ == "__main__":
     parser.add_argument("--cache-ttl", type=int, choices=[0, 1], default=1)
     parser.add_argument("--grants", type=int, default=2)
     parser.add_argument("--accounts", type=int, default=1)
+    parser.add_argument("--credential-kind", choices=["totp", "password"], default="totp")
     args = parser.parse_args()
     if not 1 <= args.sessions <= 10000 or not 1 <= args.renewals <= 100000:
         parser.error("sessions must be 1..10000 and renewals 1..100000")
     if not 1 <= args.grants <= 10000 or not 1 <= args.accounts <= 1000:
         parser.error("grants must be 1..10000 and accounts 1..1000")
-    print(json.dumps(seed(args.directory, args.scenario, args.sessions, args.renewals, args.cache_ttl, args.grants, args.accounts)))
+    print(json.dumps(seed(args.directory, args.scenario, args.sessions, args.renewals, args.cache_ttl, args.grants, args.accounts, args.credential_kind)))

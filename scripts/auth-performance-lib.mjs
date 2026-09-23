@@ -163,7 +163,7 @@ export function comparisonKey(run) {
   ]
     .map(([name, value]) => `${name}-${value ?? "unknown"}`)
     .join("/");
-  return `${run.scenario}/${run.concurrency}/${run.candidate}/cache-${run.cache_ttl_seconds ?? "unknown"}/profile-${run.profiling ? "on" : "off"}/recovery-${run.recovery_probe ? "on" : "off"}/${scale}`;
+  return `${run.scenario}/${run.concurrency}/${run.candidate}/cache-${run.cache_ttl_seconds ?? "unknown"}/profile-${run.profiling ? "on" : "off"}/recovery-${run.recovery_probe ? "on" : "off"}/credential-${seed.credential_kind ?? "unknown"}/${scale}`;
 }
 
 const median = (values) => {

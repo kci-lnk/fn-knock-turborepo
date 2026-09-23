@@ -572,6 +572,8 @@ async function trial(
           String(options.grants),
           "--accounts",
           String(options.accounts),
+          "--credential-kind",
+          options.credentialKind,
         ],
         { encoding: "utf8" },
       ),
@@ -849,6 +851,7 @@ function parseArgs(args) {
     sessions: Number(values.sessions ?? 64),
     grants: Number(values.grants ?? 2),
     accounts: Number(values.accounts ?? 1),
+    credentialKind: values["credential-kind"] ?? "totp",
     renewals: Number(values.renewals ?? 4096),
     cacheTtl: Number(values["cache-ttl"] ?? 1),
     timeoutMs: Number(values["timeout-ms"] ?? 10000),
@@ -875,6 +878,10 @@ function parseArgs(args) {
       Number.isInteger(options[name]) && options[name] >= 1,
       `invalid ${name}`,
     );
+  assert.ok(
+    ["totp", "password"].includes(options.credentialKind),
+    "credential-kind must be totp or password",
+  );
   assert.ok(
     options.concurrency <= 1024 &&
       options.clients <= 32 &&

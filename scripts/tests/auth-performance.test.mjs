@@ -283,6 +283,11 @@ test("comparison groups cannot combine different session, account, grant or rene
     comparisonFailures(compareRuns(mismatched)).join("\n"),
     /incomplete pairs/,
   );
+  const kinds = ["totp", "password"].flatMap((credential_kind) =>
+    original.map((run) => ({ ...run, seed: { ...run.seed, credential_kind } })),
+  );
+  assert.equal(compareRuns(kinds).length, 2);
+  assert.ok(compareRuns(kinds).every((group) => group.complete_pairs === 6));
 });
 
 test("check CLI keeps smoke permissive while optional gates reject missing RSS and uncertain improvement", async () => {
@@ -528,33 +533,126 @@ INSERT INTO config_documents VALUES(1,'{}',1,0);
 ''');c.commit()`;
     const database = path.join(directory, "state.sqlite3");
     execFileSync("python3", ["-c", schema, database]);
-    execFileSync("python3", [
-      seeder,
-      directory,
-      "grant_renewal",
-      "--sessions",
-      "4",
-      "--renewals",
-      "8",
-      "--cache-ttl",
-      "0",
-      "--grants",
-      "1",
-      "--accounts",
-      "3",
-    ]);
+    const seeded = JSON.parse(
+      execFileSync(
+        "python3",
+        [
+          seeder,
+          directory,
+          "grant_renewal",
+          "--sessions",
+          "4",
+          "--renewals",
+          "8",
+          "--cache-ttl",
+          "0",
+          "--grants",
+          "1",
+          "--accounts",
+          "3",
+        ],
+        { encoding: "utf8" },
+      ),
+    );
+    assert.equal(seeded.credential_kind, "totp");
     const check = `import sqlite3,sys,json,time
-c=sqlite3.connect(sys.argv[1]);
+c=sqlite3.connect(sys.argv[1]); kind=sys.argv[2]
+accounts=json.loads(c.execute("SELECT value FROM kv_strings WHERE key='fn_knock:auth:accounts:v1'").fetchone()[0]); by_id={a['id']:a for a in accounts}
+totps=json.loads(c.execute("SELECT value FROM kv_strings WHERE key='fn_knock:totps'").fetchone()[0]); totp_ids={t['id'] for t in totps}
+assert c.execute("SELECT value FROM kv_strings WHERE key='fn_knock:auth:login_mode:v1'").fetchone()[0]==kind
 for sid,raw,expires,_ in c.execute('SELECT * FROM mobility_session_aggregates'):
  a=json.loads(raw); b=json.loads(c.execute('SELECT value FROM kv_strings WHERE key=?',('fn_knock:session:'+sid,)).fetchone()[0]); assert a['session']['value']==b; assert a['session']['expires_at_ms']==expires
+ assert b['method']==('PASSWORD' if kind=='password' else 'TOTP'); assert b['totpId'] in totp_ids
+ if kind=='password':
+  account=by_id[b['credentialId']]; assert account['sourceTotpId']==b['totpId']; assert account['subdomain_access']['mode']=='all'; assert b['credentialName']==account['displayName']
+ else: assert b['credentialId']==b['totpId']
 assert c.execute('SELECT COUNT(*) FROM subdomain_rule_grants').fetchone()[0]==18
 for digest,host,policy,group,issued,last,hard,expires,_ in c.execute('SELECT * FROM subdomain_rule_grants'):
  b=json.loads(c.execute('SELECT value FROM kv_strings WHERE key=?',('fn_knock:auth:subdomain_rule_grant:'+digest,)).fetchone()[0]); assert (b['host'],b['policy_version'],b['group_id'],b['issued_at'],b['last_access_at'],b['hard_expires_at'])==(host,policy,group,issued,last,hard); assert int(time.time())-last>=60
 config=json.loads(c.execute('SELECT document_json FROM config_documents').fetchone()[0]); assert config['subdomain_mode']['auth_cache_ttl_seconds']==0; assert config==json.loads(c.execute("SELECT value FROM kv_strings WHERE key='fn_knock:config'").fetchone()[0])
 assert len(json.loads(c.execute("SELECT value FROM kv_strings WHERE key='fn_knock:totps'").fetchone()[0]))==3
 assert len(json.loads(c.execute("SELECT value FROM kv_strings WHERE key='fn_knock:auth:accounts:v1'").fetchone()[0]))==3`;
-    execFileSync("python3", ["-c", check, database]);
+    execFileSync("python3", ["-c", check, database, "totp"]);
+    const passwordSeed = JSON.parse(
+      execFileSync(
+        "python3",
+        [
+          seeder,
+          directory,
+          "grant_renewal",
+          "--sessions",
+          "4",
+          "--renewals",
+          "8",
+          "--cache-ttl",
+          "0",
+          "--grants",
+          "1",
+          "--accounts",
+          "3",
+          "--credential-kind",
+          "password",
+        ],
+        { encoding: "utf8" },
+      ),
+    );
+    assert.equal(passwordSeed.credential_kind, "password");
+    execFileSync("python3", ["-c", check, database, "password"]);
+    // Exercise a real 1000-account list and password-backed automatic IP owner.
+    await rm(database);
+    execFileSync("python3", ["-c", schema, database]);
+    const autoSeed = JSON.parse(
+      execFileSync(
+        "python3",
+        [
+          seeder,
+          directory,
+          "auto_ip_hit",
+          "--sessions",
+          "4",
+          "--accounts",
+          "1000",
+          "--credential-kind",
+          "password",
+        ],
+        { encoding: "utf8" },
+      ),
+    );
+    assert.equal(autoSeed.accounts, 1000);
+    assert.equal(autoSeed.credential_kind, "password");
+    execFileSync("python3", [
+      "-c",
+      `import sqlite3,json,sys
+c=sqlite3.connect(sys.argv[1]); load=lambda k: json.loads(c.execute('SELECT value FROM kv_strings WHERE key=?',(k,)).fetchone()[0])
+accounts=load('fn_knock:auth:accounts:v1'); assert len(accounts)==1000; assert len(load('fn_knock:totps'))==1000
+s=load('fn_knock:session:authperf-session-0'); assert s['method']=='PASSWORD'; assert s['credentialId']==accounts[0]['id']; assert s['totpId']==accounts[0]['sourceTotpId']; assert s['grantType']=='login_ip_grant'; assert s['postLoginIpGrantMode']=='follow_session'; assert s['ip']=='198.18.0.1'
+assert all(a['subdomain_access']['mode']=='all' for a in accounts)
+assert c.execute("SELECT COUNT(*) FROM kv_strings WHERE key LIKE 'fn_knock:auth:password_credentials:%'").fetchone()[0]==0
+assert c.execute("SELECT COUNT(*) FROM whitelist_documents WHERE kind='record'").fetchone()[0]==1`,
+      database,
+    ]);
   } finally {
     await rm(directory, { recursive: true, force: true });
   }
+});
+
+test("credential kind accepts only documented session fixture types", () => {
+  const runner = fileURLToPath(
+    new URL("../auth-performance.mjs", import.meta.url),
+  );
+  const result = spawnSync(
+    process.execPath,
+    [
+      runner,
+      "--config",
+      "/not-read.json",
+      "--out",
+      "/not-created",
+      "--credential-kind",
+      "PASSWORD",
+    ],
+    { encoding: "utf8" },
+  );
+  assert.notEqual(result.status, 0);
+  assert.match(result.stderr, /credential-kind must be totp or password/);
 });

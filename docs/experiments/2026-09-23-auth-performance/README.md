@@ -96,6 +96,16 @@ bash scripts/run-auth-performance-isolated.sh \
 
 规模参数独立控制：`--sessions 1..10000`（默认64）、`--accounts 1..1000`（默认1，产生同数量TOTP身份和账户）、`--grants 1..10000`（默认2，普通grant场景实际活跃总条数，包含hit token）。session按账户轮转关联。`--grants 1`的普通grant预检复用hit token，不额外增加grant；renewal场景另外增加1个专用预检token及两份`--renewals`池，`seed.total_grants`记录实际总数。大量grant索引可能使renewal批次无法在截止内完成，先用8/64/256小批定位，不能宣称默认4096必能在60秒内耗尽。
 
+`--credential-kind totp|password`选择已认证session的凭证种类，默认totp。password种子使用规范`method=PASSWORD`，`credentialId`关联实际存在的AuthAccount，`totpId`关联其`sourceTotpId`，账户权限`subdomain_access.mode=all`；合成login mode也设为password。它覆盖session_hit、session_api与autoIP owner路径中的AuthAccount读取，**不执行密码登录或hash计算**，也不生成密码hash记录。TOTP与AuthAccount列表都保持`--accounts`指定规模，session按对应账户轮转；`seed.credential_kind`随结果保存并独立分组。示例：
+
+```sh
+bash scripts/run-auth-performance-isolated.sh \
+  --config /tmp/variants.json --out /tmp/auth-password-smoke-UNIQUE \
+  --routes session_hit,session_api,auto_ip_hit,auto_ip_miss \
+  --pairs 1 --warmup 1 --seconds 3 --concurrency 1 --clients 1 \
+  --cache-ttl 0 --accounts 1000 --credential-kind password
+```
+
 ## 单独采集 SQLite executor profile
 
 ```sh
@@ -144,7 +154,7 @@ profile默认关闭，不能用启用profile的吞吐替代无额外观测开销
 - Worker延迟直方图先求和后计算分位数，不平均各worker的P99。计量包含客户端错误，且任何错误响应/语义不符会使样本无效。P99只精确到1ms，60秒以上归入溢出桶并报告。
 - 客户端启动延迟>100ms、事件循环最大延迟>100ms、OS采样间隔>1s、时长过冲>5%（最低容忍500ms）均使trial无效并保留证据；不静默重试。失败会停止当前批，避免把错误路由测成高吞吐。
 - trial失败时在停止Go/Rust前尝试最后一次有界管理health快照，保存在`failure_health`；管理接口不可用时保留其错误，不覆盖原始业务/预热错误。默认warm阶段仍不做周期health采样；最后快照只能提供失败后的状态和累计计数，不能重建失败瞬间的峰值pressure。客户端phase超时保留已完成worker计数和可取得的部分样本，明确标为partial，不能当作完整性能measurement。
-- 比较器按route、并发、candidate、cache TTL、profiling及实际种子规模分组。规模包含sessions、accounts、ordinary grants、total grants及每阶段renewal tokens；不同规模不能凑成六对。缺失的旧版规模字段显示unknown，不应当作已知规模证据。
+- 比较器按route、并发、candidate、cache TTL、profiling、recovery、credential kind及实际种子规模分组。规模包含sessions、accounts、ordinary grants、total grants及每阶段renewal tokens；不同凭证种类/规模不能凑成六对。缺失的旧版种类/规模字段显示unknown，不应当作已知种类/规模证据。
 - 不加门槛参数时只检查有效、完整的smoke pair。`--require-six-pairs`要求每组至少六个有效完整pair，吞吐变化中位数≥−5%、P99变化中位数≤+10%，并要求Go+Rust峰值RSS合计的配对变化中位数≤+5%。任一pair缺失/无效RSS会使此门槛失败，不以零补齐或忽略样本。合计RSS先对每trial的Go、Rust各自峰值求和，再计算每对的candidate/baseline变化，最后取中位数；这是两个进程峰值之和，不表示它们一定同时达到峰值。JSON和Markdown同时列出Go、Rust各自及合计的RSS变化。
 - `--require-improvement`隐含上述六对、回归和RSS门槛，且每组必须满足至少一项目标：吞吐变化中位数≥+10%且paired bootstrap 95%区间下界>0，或P99变化中位数≤−15%且区间上界<0。建议只对实验前选定的目标route/规模运行这一更严格的检查；其他保护路由用六对回归门槛。不能先挑出最好的分组再把区间解释成预先指定目标的证据。
 - 变化按每对candidate/baseline计算，输出配对变化、中位数、六对以上的确定性paired bootstrap 95%区间。六对时区间仍较粗，P99还受1ms分桶精度限制；置信区间不能消除同机负载、热漂移或设计混杂。

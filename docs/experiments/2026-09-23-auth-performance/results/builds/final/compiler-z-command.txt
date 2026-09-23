@@ -1,0 +1,2 @@
+cd /private/tmp/fn-knock-auth-candidate4-20260923
+env CARGO_TARGET_DIR=/Users/edgeware/Local/fn-knock-turborepo/dist/server-admin-rs-target/fpk-zig-amd64 FN_KNOCK_GATEWAY_COMMIT=4d15fa32764e26df58b16930d0e2503a90880002 CARGO_BUILD_JOBS=2 CARGO_PROFILE_RELEASE_LTO=fat CARGO_PROFILE_RELEASE_CODEGEN_UNITS=1 CARGO_PROFILE_RELEASE_OPT_LEVEL=z cargo zigbuild --locked --release --manifest-path /private/tmp/fn-knock-auth-candidate4-20260923/apps/server-admin-rs/Cargo.toml --bin server-admin-rs --target x86_64-unknown-linux-gnu

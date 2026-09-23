@@ -1,0 +1,52 @@
+{
+  "schema_version": 1,
+  "independent_confirmation": true,
+  "mixed_with_prior_trials": false,
+  "gate_flags": [
+    "--require-six-pairs",
+    "--require-improvement"
+  ],
+  "stages": {
+    "harness": {
+      "executed": true,
+      "exit_code": 0
+    },
+    "contract": {
+      "executed": true,
+      "exit_code": 0
+    },
+    "gate": {
+      "executed": true,
+      "exit_code": 0
+    },
+    "report": {
+      "executed": true,
+      "exit_code": 0
+    }
+  },
+  "exit_code": 0,
+  "passed": true,
+  "finished_at_utc": "2026-09-23T13:06:59.096901+00:00",
+  "evidence": {
+    "session_hit/results.json": {
+      "sha256": "994969661011ce8d3bf946065dd6f3cee8709425d03f85d999b70772c1b730dc",
+      "bytes": 309306
+    },
+    "session_hit/manifest.json": {
+      "sha256": "c027611169374f31885d7d41e3664b0083b16de4bcf687bb610000cbf8334767",
+      "bytes": 6066
+    },
+    "session_hit.contract.json": {
+      "sha256": "50439fac6b6212482538d087b55a7c6908d47868023be02d77a2d9dbb4003765",
+      "bytes": 700
+    },
+    "session_hit.gate.json": {
+      "sha256": "964ac713e3a2accf74af8aedc8a2ef1231d11808cba5280dc9a43d8d6b38c912",
+      "bytes": 1826
+    },
+    "session_hit.report.md": {
+      "sha256": "ceb8cff1e4c8d93f521e0bd093d4fce146158b82622e2b595ea6e9b2b9750c66",
+      "bytes": 2132
+    }
+  }
+}

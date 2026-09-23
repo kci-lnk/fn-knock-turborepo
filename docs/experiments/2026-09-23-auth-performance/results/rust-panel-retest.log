@@ -1,0 +1,9 @@
+   Compiling server-admin-rs v2.4.15 (/Users/edgeware/Local/fn-knock-turborepo/apps/server-admin-rs)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 12.99s
+     Running unittests src/lib.rs (apps/server-admin-rs/target/debug/deps/server_admin_rs-ed054e4940692f27)
+
+running 1 test
+test admin::panel::tests::concurrent_panel_bootstrap_installs_only_one_password ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 2101 filtered out; finished in 3.80s
+

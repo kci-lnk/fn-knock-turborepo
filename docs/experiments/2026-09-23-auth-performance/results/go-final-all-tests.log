@@ -1,0 +1,26 @@
+ok  	go-reauth-proxy/cmd/server	4.966s
+?   	go-reauth-proxy/internal/testutil	[no test files]
+?   	go-reauth-proxy/internal/wafwaitfixture	[no test files]
+ok  	go-reauth-proxy/pkg/admin	5.380s
+ok  	go-reauth-proxy/pkg/config	(cached)
+ok  	go-reauth-proxy/pkg/deepmonitor	(cached)
+ok  	go-reauth-proxy/pkg/diagnostics	(cached)
+ok  	go-reauth-proxy/pkg/errors	(cached)
+ok  	go-reauth-proxy/pkg/events	(cached)
+ok  	go-reauth-proxy/pkg/gatewaylog	(cached)
+?   	go-reauth-proxy/pkg/grpc/pb	[no test files]
+ok  	go-reauth-proxy/pkg/i18n	(cached)
+ok  	go-reauth-proxy/pkg/ipset	(cached)
+ok  	go-reauth-proxy/pkg/iptables	(cached)
+ok  	go-reauth-proxy/pkg/logger	(cached)
+ok  	go-reauth-proxy/pkg/middleware	(cached)
+ok  	go-reauth-proxy/pkg/models	(cached)
+ok  	go-reauth-proxy/pkg/proxy	13.796s
+ok  	go-reauth-proxy/pkg/response	(cached)
+ok  	go-reauth-proxy/pkg/rpcbridge	(cached)
+ok  	go-reauth-proxy/pkg/staticserve	(cached)
+ok  	go-reauth-proxy/pkg/stream	4.887s
+ok  	go-reauth-proxy/pkg/streamprobe	(cached)
+?   	go-reauth-proxy/pkg/version	[no test files]
+ok  	go-reauth-proxy/pkg/waf	(cached)
+ok  	go-reauth-proxy/tools/benchcheck	(cached)

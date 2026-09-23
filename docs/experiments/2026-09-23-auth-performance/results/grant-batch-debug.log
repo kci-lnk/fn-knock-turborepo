@@ -1,0 +1,54 @@
+
+running 1 test
+grant_batch count=1 pair=0 batch=false iterations=10 elapsed_us=332
+grant_batch count=1 pair=0 batch=true iterations=10 elapsed_us=188
+grant_batch count=1 pair=1 batch=true iterations=10 elapsed_us=171
+grant_batch count=1 pair=1 batch=false iterations=10 elapsed_us=191
+grant_batch count=1 pair=2 batch=false iterations=10 elapsed_us=194
+grant_batch count=1 pair=2 batch=true iterations=10 elapsed_us=171
+grant_batch count=1 pair=3 batch=true iterations=10 elapsed_us=167
+grant_batch count=1 pair=3 batch=false iterations=10 elapsed_us=190
+grant_batch count=1 pair=4 batch=false iterations=10 elapsed_us=263
+grant_batch count=1 pair=4 batch=true iterations=10 elapsed_us=186
+grant_batch count=1 pair=5 batch=true iterations=10 elapsed_us=167
+grant_batch count=1 pair=5 batch=false iterations=10 elapsed_us=193
+grant_batch count=100 pair=0 batch=false iterations=10 elapsed_us=13246
+grant_batch count=100 pair=0 batch=true iterations=10 elapsed_us=4834
+grant_batch count=100 pair=1 batch=true iterations=10 elapsed_us=4845
+grant_batch count=100 pair=1 batch=false iterations=10 elapsed_us=13046
+grant_batch count=100 pair=2 batch=false iterations=10 elapsed_us=13129
+grant_batch count=100 pair=2 batch=true iterations=10 elapsed_us=4900
+grant_batch count=100 pair=3 batch=true iterations=10 elapsed_us=4862
+grant_batch count=100 pair=3 batch=false iterations=10 elapsed_us=13127
+grant_batch count=100 pair=4 batch=false iterations=10 elapsed_us=13594
+grant_batch count=100 pair=4 batch=true iterations=10 elapsed_us=4961
+grant_batch count=100 pair=5 batch=true iterations=10 elapsed_us=4953
+grant_batch count=100 pair=5 batch=false iterations=10 elapsed_us=13289
+grant_batch count=1000 pair=0 batch=false iterations=10 elapsed_us=132423
+grant_batch count=1000 pair=0 batch=true iterations=10 elapsed_us=48976
+grant_batch count=1000 pair=1 batch=true iterations=10 elapsed_us=48931
+grant_batch count=1000 pair=1 batch=false iterations=10 elapsed_us=133025
+grant_batch count=1000 pair=2 batch=false iterations=10 elapsed_us=131826
+grant_batch count=1000 pair=2 batch=true iterations=10 elapsed_us=49587
+grant_batch count=1000 pair=3 batch=true iterations=10 elapsed_us=49547
+grant_batch count=1000 pair=3 batch=false iterations=10 elapsed_us=134360
+grant_batch count=1000 pair=4 batch=false iterations=10 elapsed_us=133341
+grant_batch count=1000 pair=4 batch=true iterations=10 elapsed_us=48920
+grant_batch count=1000 pair=5 batch=true iterations=10 elapsed_us=49455
+grant_batch count=1000 pair=5 batch=false iterations=10 elapsed_us=135263
+grant_batch count=10000 pair=0 batch=false iterations=10 elapsed_us=1358254
+grant_batch count=10000 pair=0 batch=true iterations=10 elapsed_us=511215
+grant_batch count=10000 pair=1 batch=true iterations=10 elapsed_us=508032
+grant_batch count=10000 pair=1 batch=false iterations=10 elapsed_us=1351763
+grant_batch count=10000 pair=2 batch=false iterations=10 elapsed_us=1352301
+grant_batch count=10000 pair=2 batch=true iterations=10 elapsed_us=507342
+grant_batch count=10000 pair=3 batch=true iterations=10 elapsed_us=507422
+grant_batch count=10000 pair=3 batch=false iterations=10 elapsed_us=1352901
+grant_batch count=10000 pair=4 batch=false iterations=10 elapsed_us=1353811
+grant_batch count=10000 pair=4 batch=true iterations=10 elapsed_us=509158
+grant_batch count=10000 pair=5 batch=true iterations=10 elapsed_us=506219
+grant_batch count=10000 pair=5 batch=false iterations=10 elapsed_us=1376156
+test storage::typed_subdomain_grant::tests::active_grant_batch_benchmark ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 2101 filtered out; finished in 12.73s
+

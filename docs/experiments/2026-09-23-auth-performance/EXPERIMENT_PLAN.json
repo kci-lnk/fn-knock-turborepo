@@ -1,0 +1,24 @@
+{
+  "baseline": {"rust":"d4f8805f39d9f4480bf83f4382ba59e5f49e7dc4","go":"92d4c0cb5495d57801d52893a8f0e8496a1c9182"},
+  "candidate": {"rust":"c65503d6cdf49336cdad922c1f7cb2046cf318a8","go":"748c97e03f6fb9087ac0b3c90064611dc2c6cf66","opt_level":"z","lto":"fat","codegen_units":1,"auth_readers":1},
+  "primary_matrix": {
+    "pairs":6,"order":"AB/BA alternating","fresh_processes_and_database_per_trial":true,
+    "warmup_seconds":20,"measurement_seconds":60,"concurrency":16,"client_workers":2,
+    "accounts":1000,"sessions":1000,"grants":100,"credential_kind":"totp","cache_ttl_seconds":0,
+    "target_routes":["bootstrap","session_api","session_hit","grant_hit","auto_ip_hit","auto_ip_miss"],
+    "guard_routes":["challenge","session_miss","grant_miss"]
+  },
+  "cache_matrix":{"route":"session_hit","pairs":6,"warmup_seconds":20,"measurement_seconds":60,"cache_ttl_seconds":1,"concurrency":16,"accounts":1000,"sessions":1000,"grants":100},
+  "renewal_matrix":{"route":"grant_renewal","pairs":6,"warmup_seconds":20,"measurement_deadline_seconds":60,"renewal_tokens_per_phase":64,"ordinary_grants":1,"concurrency":16,"note":"finite unique-token batch, report actual elapsed; not a sustained 60-second rate"},
+  "exploration":{"concurrency":[1,16,64],"accounts_sessions":[1,100,1000],"grants":[1,100,1000,10000],"credential_kinds":["totp","password"],"reader_counts":[1,2,4],"compiler_opt_levels":["z","s","2","3"]},
+  "soak":{"route":"auto_ip_hit","role":"candidate","seconds":1800,"concurrency":16,"cache_ttl_seconds":0,"accounts":1000,"sessions":1000},
+  "notes":[
+    "Run only one remote load job at a time. Fresh isolated Linux namespace and synthetic data.",
+    "Normal bridge capacity env is absent: Go default1024; Rust linux default64 on the four-CPU test host. Tokio workers fixed at2.",
+    "Capacity32 is an explicit separate saturation/recovery fixture, excluded from performance claims.",
+    "No reader-count or compiler default change without six paired samples satisfying benefit and all regression gates. Exploratory gains alone are insufficient.",
+    "If semantic or client-quality validation fails, preserve the failed run and diagnose; do not silently retry or merge invalid/incompatible groups.",
+    "Primary target groups use improvement gate; guard and cache groups use no-regression gate. Go allocation acceptance has its independent six-pair local benchmark.",
+    "Original short candidates144f5e7f and60c95286 are rejected/incomplete checkpoints; never use their gains as final acceptance evidence."
+  ]
+}

@@ -2,7 +2,7 @@
 
 本页只记录可审阅的回滚单元、依赖和验证要求，未执行 revert、切换分支、替换服务或修改运行配置。历史提交并非都能在当前树上直接无冲突 revert；应按功能处理依赖，再以回滚后的完整源码验证。不要把中间实验版本当作已验收的部署目标。
 
-原始基线为主仓 `d4f8805f39d9f4480bf83f4382ba59e5f49e7dc4`、相邻 Go 仓 `92d4c0cb5495d57801d52893a8f0e8496a1c9182`。当前这轮最终制品的产品源码身份为 Rust `c65503d6cdf49336cdad922c1f7cb2046cf318a8`、Go `748c97e03f6fb9087ac0b3c90064611dc2c6cf66`；后续实验工具、证据和文档提交不改变这些已冻结制品的源码身份。实际采用哪组制品，以构建 manifest 和二进制哈希为准。
+原始基线为主仓 `d4f8805f39d9f4480bf83f4382ba59e5f49e7dc4`、相邻 Go 仓 `92d4c0cb5495d57801d52893a8f0e8496a1c9182`。下一轮冻结的 Rust 候选产品源码为 `5fddf896eaf9b1cf3eb300c08315320498c943b8`，已通过完整库测试及 Clippy；配套 Go `0978d6b03767c3e5f3ebf72fa13074c2b72afe7d` 的完整测试、race、vet 和 benchmark 尚在验证。此前 Rust `c65503d6`/Go `748c97e0` 组合的正式实验已停止并保留为 [拒绝候选证据](REJECTED_CANDIDATES.md)，不能继续标为最终制品。实际采用哪组制品，以构建 manifest 和二进制哈希为准；工具或文档提交不会改变已构建二进制的源码身份。
 
 ## 先恢复 reader 默认值
 
@@ -45,7 +45,7 @@ G4 的增量开销、24 组真实 HTTP/1↔HTTP/2 wire 验证及普通 trailer �
 
 ## 主仓 Rust：按功能回滚
 
-整轮撤回的产品代码应对照 `fde0e280 → 32d1aa53 → 60c95286 → 144f5e7f → ed792980 → f792ec97 → 5eccf4f5` 逆向处理依赖。后续格式变化和 `c65503d6`、`1968f4e8` 等测试也须检查，不能假定逐个 revert 无冲突。以下按功能拆分时可以保留独立改进；正确性修复和行为断言应移植到最终回滚结果，而不是为通过编译直接删除。
+整轮撤回的产品代码应对照 `5fddf896 → fde0e280 → 32d1aa53 → 60c95286 → 144f5e7f → ed792980 → f792ec97 → 5eccf4f5` 逆向处理依赖。后续格式变化和 `c65503d6`、`1968f4e8` 等测试也须检查，不能假定逐个 revert 无冲突。以下按功能拆分时可以保留独立改进；正确性修复和行为断言应移植到最终回滚结果，而不是为通过编译直接删除。
 
 ### R1：请求上下文、批量只读发现及低留存修复
 
@@ -57,14 +57,15 @@ G4 的增量开销、24 组真实 HTTP/1↔HTTP/2 wire 验证及普通 trailer �
 | `60c95286` | 凭据由整张标准化 Vec 留存改为 raw snapshot + 首个选中 ID；第二个不同 ID 才升级完整索引；passkey 状态只取 membership。 |
 | `32d1aa53` | 修复选择解析与 `serde_json::Value` 在 `raw_value` 特性下的不一致，覆盖特殊首键、顶层数组包装和损坏后缀。保留选择解析就必须保留该修复。 |
 | `fde0e280` | SQLite worker 内完成 IP 候选投影，仅匹配 IDs 跨异步边界；保留排序、规范化与后续权威 session 重读。 |
+| `5fddf896` | R1/IP 组的正确性依赖：候选恢复 `raw → Value → LoginSession`，最终确认用权威 `get_session_value → Value → LoginSession`。修复重复字段/RawValue 包装被剔除、把两个 owner 错缩为唯一 owner 的回归；保留 IP 批量投影和最终重读时必须同时保留两处兼容语义及回归断言。 |
 
 主要文件为 `auth/request_context*`、`auth/passkey.rs`、`auth/routes/{handlers,verify,preflight,bridge}.rs`、`auth/mobility/{restore,trusted_sync,active_ips}.rs`、`config/runtime/store.rs`、`storage/redis_compat/auth_reads.rs` 和 `storage/redis_store/auth/reads.rs`。
 
-撤回整个 R1 时，先处理 `fde0e280` 的 projection API、`32d1aa53`/`60c95286` 的选择读取 API、`144f5e7f` 的 scope 包装，再恢复 `f792ec97` 中依赖这些 API 的接线，最后处理 `5eccf4f5` 的入口与基础读取层。此处给的是依赖逆序，不是一串保证可直接执行的 `git revert` 命令。若保留 R2，应只调整 `f792ec97` 中与上下文有关的部分，保留独立 grant 逻辑。
+撤回整个 R1 时，先检查 `5fddf896` 的 IP JSON 兼容修复，再处理 `fde0e280` 的 projection API、`32d1aa53`/`60c95286` 的选择读取 API、`144f5e7f` 的 scope 包装，再恢复 `f792ec97` 中依赖这些 API 的接线，最后处理 `5eccf4f5` 的入口与基础读取层。恢复旧 IP 列表实现时也须移植 `5fddf896` 的 owner 集合/唯一性/撤销断言；不能单独撤销它而保留会缩减兼容 owner 集合的解析。此处给的是依赖逆序，不是一串保证可直接执行的 `git revert` 命令。若保留 R2，应只调整 `f792ec97` 中与上下文有关的部分，保留独立 grant 逻辑。
 
 不要只撤掉 RawValue 修复而留下自写 discard；也不要把恢复整张 Vec 留存或让 1000 个候选跨 await 存活当作无代价开关。早期大规模单对实验出现吞吐/RSS 退化，记录在 [accounts1000 初始诊断](results/accounts1000-c16-initial.md)；它只是定位线索，并非六对收益结论。回滚后的内存/吞吐必须重新测量。
 
-配套验证：`auth::request_context`、`auth::mobility::tests`、`storage::redis_store::tests::auth_reads`，以及 route/bridge 的密码/TOTP、权限和 stream 用例。保留重复 ID、默认时间、完整 JSON 校验、下一请求撤销可见、1000 非匹配项、同 IP 多 owner、IPv6、时间窗和最终 session 重验断言；若 API 被移除，应改写测试入口以保留行为断言。
+配套验证：`auth::request_context`、`auth::mobility::tests`、`storage::redis_store::tests::auth_reads`，以及 route/bridge 的密码/TOTP、权限和 stream 用例。保留重复 ID、默认时间、完整 JSON 校验、下一请求撤销可见、1000 非匹配项、同 IP 多 owner、IPv6、时间窗和最终 session 重验断言；IP JSON 还须保留 `ip_owner_confirmation_preserves_legacy_json_and_unique_owner_semantics` 对重复字段同值/异值、RawValue 包装、唯一 owner 拒绝及删除后确认的覆盖。若 API 被移除，应改写测试入口以保留行为断言。
 
 ### R2：grant JOIN、inspection 复用与 CAS
 

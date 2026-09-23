@@ -7,9 +7,10 @@
 | 检查点 | 已完成验证 | 证据与限制 |
 | --- | --- | --- |
 | Rust `60c95286b78d784c288c5060e8a52339e65eabf6` | `cargo clippy --all-targets -- -D warnings` 通过；`cargo test --lib -- --test-threads=2`：2098 passed、0 failed、10 ignored | [Clippy 日志](results/rust-final2-clippy.log)、[完整测试日志](results/rust-final2-tests.log)。这是已完成完整回归的低留存候选检查点，**不是**性能 A/B 的原始基线 `d4f8805f`。 |
-| Rust `32d1aa53`：JSON 兼容修复 | `cargo test --lib auth::request_context -- --test-threads=2`：11 passed、0 failed | 本机局部日志 `/tmp/fn-knock-auth-json-value-compat-tests.log`；覆盖 RawValue 包装及损坏后缀，且已由下方 `c65503d6` 的最终完整检查覆盖。 |
+| Rust `32d1aa53`：JSON 兼容修复 | `cargo test --lib auth::request_context -- --test-threads=2`：11 passed、0 failed | 本机局部日志 `/tmp/fn-knock-auth-json-value-compat-tests.log`；覆盖 RawValue 包装及损坏后缀，且已由下方 `5fddf896` 的完整检查覆盖。 |
 | Rust `fde0e280`：IP 候选投影 | 局部测试：mobility 28 passed；storage auth_reads 5 passed | 本机日志 `/tmp/fn-knock-ip-candidate-mobility-tests-20260923.log`、`/tmp/fn-knock-ip-candidate-auth-reads-tests-20260923.log`；含 1000 个非匹配 session、重复匹配、bootstrap 0/1/2 owner 和投影后撤销。 |
-| Rust `c65503d6cdf49336cdad922c1f7cb2046cf318a8`：CAS 排队重验及上述修复 | Clippy `--all-targets -- -D warnings` 通过；`cargo test --lib -- --test-threads=2`：**2101 passed、0 failed、10 ignored**，117.82 秒 | [完整测试日志](results/rust-final3-tests.log)、[Clippy 日志](results/rust-final3-clippy.log)，两个进程均退出 0；包含 RawValue、候选投影/唯一 owner 及 CAS 排队新增测试。 |
+| Rust `c65503d6cdf49336cdad922c1f7cb2046cf318a8`：历史检查点，已拒绝 | 当时 Clippy 通过；完整库测试 2101 passed、0 failed、10 ignored，117.82 秒 | [完整测试日志](results/rust-final3-tests.log)、[Clippy 日志](results/rust-final3-clippy.log)。后补 IP owner JSON 回归在该产品代码上实测失败；这份旧测试结果不能作为最终候选通过依据，见 [拒绝记录](REJECTED_CANDIDATES.md)。 |
+| Rust `5fddf896eaf9b1cf3eb300c08315320498c943b8`：IP owner JSON 兼容修复 | `cargo clippy --locked --all-targets -- -D warnings` 通过；`cargo test --locked --lib -- --test-threads=2`：**2102 passed、0 failed、10 ignored**，119.89 秒 | [完整测试日志](results/rust-final4-tests.log)、[Clippy 日志](results/rust-final4-clippy.log)，两个进程均退出 0；修复前新回归 [1 failed](results/ip-json-before.log)，修复后 mobility 组 [29 passed、0 failed](results/ip-json-after.log)。功能验证不代表新制品的性能长测已完成。 |
 
 完整测试日志中，`runtime_health::tests::panic_hook_captures_and_redacts_unhandled_panic` 故意启动一个 panic 子进程，该子进程打印 `FAILED`，随后父测试为 `ok`；以上结论以最末尾整个测试进程的汇总及退出码为准。
 
@@ -41,15 +42,16 @@
 - **局部及最终全库已通过**：`32d1aa53` 在 [request_context/tests.rs][context-tests] 新增 `raw_value_wrappers_match_whole_value_parsing_before_and_after_first_match`，并扩充既有标准化差分测试。依赖启用 `serde_json/raw_value` 时，特殊首键可把顶层对象展开成数组，或让表面合法的后缀解析失败。已删除自写 discard；普通数组逐个 `Value` 解析后释放，少见顶层包装走完整 `Value`，严格遵从旧行为。
 - **局部及最终全库已通过**：`c65503d6` 的 [storage/aggregates.rs][aggregate-tests] 测试 `subdomain_grant_renewal_rechecks_authority_after_writer_admission`：1 passed，内部对 revoke/replace/expire 三种变更验证续期排队后的事务重验。
 - **局部及最终全库已通过**：`fde0e280` 的 mobility 组 28 passed、storage auth_reads 组 5 passed；[auth/mobility/tests.rs][mobility-tests] 的 `batched_ip_candidates_drop_nonmatching_snapshots_before_authority_reads` 补充 1000 个不匹配 session 不跨 await 留存、执行线程内投影、canonical/detail 重复匹配仅一个 owner、bootstrap 0/1/2 owner、同时间稳定排序及投影后撤销。
+- **实测复现并修复，局部及最终全库已通过**：`5fddf896` 在 [auth/mobility/tests.rs][mobility-tests] 新增 `ip_owner_confirmation_preserves_legacy_json_and_unique_owner_semantics`。旧列表经 `raw → Value → LoginSession` 解析，唯一 owner 判断前没有逐条严格 `get_session`；候选投影改用直接 struct 解析后，会剔除重复字段或 RawValue 顶层对象包装，令两个兼容 owner 缩为一个。修复前该回归实际得到 `["a-normal"]`、预期 `["a-normal", "b-compatible"]`，见 [失败日志](results/ip-json-before.log)。候选解析及最终权威确认现已恢复一致的 Value 语义；四种输入覆盖重复同值、最后字段改为匹配/不匹配 IP、RawValue 包装，并检查 HTTP/stream owner 集合、唯一 owner 拒绝和删除后再确认。修复后 [mobility 29 项全通过](results/ip-json-after.log)，亦包含在 `5fddf896` 完整库测试中。该拒绝到选择的回归已通过失败与修复后的结果实测确认。
 
-以上新增项均已在 `c65503d6` 的最终完整库测试中通过，不再沿用旧检查点结果推断新源码状态。跨 cookie/token/IP 来源的 owner 去重，以及单个完整 RPC 中交错权限删除与 preflight/verify，目前仍没有独立组合测试；现有快照、权限、候选重验及注销屏障测试分别覆盖其组成部分。
+以上新增项均已在 `5fddf896` 的完整库测试中通过，不再沿用旧检查点结果推断新源码状态。跨 cookie/token/IP 来源的 owner 去重，以及单个完整 RPC 中交错权限删除与 preflight/verify，目前仍没有独立组合测试；现有快照、权限、候选重验及注销屏障测试分别覆盖其组成部分。
 
 ## 请求内复用的实现边界
 
 - 配置、accounts/TOTP 没有跨请求 TTL 缓存。配置在创建请求 scope 时取得已发布的快照，accounts 与 TOTP 各自在首次访问时读取并固定原始数据；三者不是同一时刻的数据库快照。并发变更可能延至下一请求可见，新请求会取得当前已发布配置，并在首次凭据读取时看到当时已提交的状态。
-- Session 未加入 `request_context`。既有读取点继续调用权威 `get_session`，恢复/写入路径保留存活重验，避免缓存把已注销 session 变成可写授权。这不保证注销会追溯取消所有已经开始的请求：preflight 已计算的 `normal_access` 仍可由 verify 使用，该跨阶段复用在原始基线 `d4f8805f` 中已存在，区别于本轮新增的配置及凭据请求内快照。注销屏障测试证明的是后续写入不能复建授权状态，不是整个 RPC 与注销之间的线性一致性。
+- Session 未加入 `request_context`。普通 cookie/session 读取继续使用权威 `get_session`；IP owner 最终确认使用 `get_session_value → Value → LoginSession`，两者均经 `load_and_repair_session_authority` 重读 KV 权威，保留 TTL 与 shadow 修复。恢复/写入路径保留存活重验，避免缓存把已注销 session 变成可写授权。这不保证注销会追溯取消所有已经开始的请求：preflight 已计算的 `normal_access` 仍可由 verify 使用，该跨阶段复用在原始基线 `d4f8805f` 中已存在，区别于本轮新增的配置及凭据请求内快照。注销屏障测试证明的是后续写入不能复建授权状态，不是整个 RPC 与注销之间的线性一致性。
 - Grant 只在 bridge/preflight 间复用 inspection 的布尔结果；实际进入 verify 的 grant 路径重新读取，续期使用 expected raw 的事务 CAS，失败后重新检查。`PREFLIGHT_ONLY` 本次没有 verify，不能由相应局部测试推导其在响应前再次读取 grant；网关已有授权缓存的有效窗口也不由这些 Rust 测试消除，这是原有 gateway cache 的边界，本轮没有新增跨请求认证缓存。CAS 检查的是事务执行时 key 仍存活且 raw 相同，不提供跨删除后重建同值的代际标识。整个 host 的 grant 校验和 shadow 修复仍同步进行，本轮用 JOIN 消除 N+1，没有将完整校验移到维护任务。
-- IP 批量查询只负责发现候选，不能替代最终 session 权威重读；后续投影修改应继续遵守此边界。
+- IP 批量查询只负责发现候选，不能替代最终 session 权威重读。候选与最终确认均保持旧列表的 `raw → Value → LoginSession` 解码语义，避免仅在其中一处改为严格 struct 解析而改变唯一 owner 判断；后续投影修改应继续遵守此边界。
 
 ## 为什么没有重复 1/2/4 reader 的 TTL 测试矩阵
 
@@ -60,6 +62,8 @@
 ## 相邻 Go 仓库的相关测试入口
 
 Go `748c97e03f6fb9087ac0b3c90064611dc2c6cf66` 已通过 `go test ./...`、`go test -race ./pkg/proxy` 和 `go vet ./...`，证据位于相邻仓库的实验目录及本目录 results。仓库实际目录为 `Go-Reauth-Proxy`。
+
+新 Go 产品源码 `0978d6b03767c3e5f3ebf72fa13074c2b72afe7d` 的完整测试、race、vet 和 benchmark 正在验证；本页尚未将它标为通过，也不沿用 `748c97e0` 的检查结果作为新源码证据。
 
 - [advanced_auth_test.go](/Users/edgeware/Local/Go-Reauth-Proxy/pkg/proxy/advanced_auth_test.go)：`TestStripAdvancedAuthGrantOrdinaryCookiesAreUntouched`、`TestStripAdvancedAuthGrantMixedCaseAndMalformedCookies`、`TestAdvancedAuthPolicyVersionPartitionsAuthCache`。
 - [auth_bridge_admission_test.go](/Users/edgeware/Local/Go-Reauth-Proxy/pkg/rpcbridge/auth_bridge_admission_test.go)：`TestAuthBridgeLimitsSentRequestsAndReusesCompletedSlots`、`TestAuthBridgeAdmissionReleaseResponseCancelRace`。

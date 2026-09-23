@@ -1,0 +1,37 @@
+   Compiling server-admin-rs v2.4.15 (/Users/edgeware/Local/fn-knock-turborepo/apps/server-admin-rs)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 57.08s
+     Running unittests src/lib.rs (apps/server-admin-rs/target/debug/deps/server_admin_rs-ed054e4940692f27)
+
+running 29 tests
+test auth::mobility::tests::auth_credential_settings_runtime_normalizes_like_node ... ok
+test auth::mobility::tests::active_ip_parser_exposes_persisted_last_seen_for_debounce ... ok
+test auth::mobility::tests::batched_ip_owners_disabled_mobility_uses_canonical_ip_and_expiry ... ok
+test auth::mobility::tests::batched_ip_owners_preserve_http_stream_normalization_and_revocation ... ok
+test auth::mobility::tests::canceled_session_lock_acquisition_cleans_up_committed_write ... ok
+test auth::mobility::tests::canceled_session_lock_waiter_preserves_current_owner ... ok
+test auth::mobility::tests::canceled_session_mutation_owner_releases_its_lease_promptly ... ok
+test auth::mobility::tests::concurrent_disabled_mobility_restores_share_one_session_mutation ... ok
+test auth::mobility::tests::batched_ip_candidates_drop_nonmatching_snapshots_before_authority_reads ... ok
+test auth::mobility::tests::concurrent_logout_is_a_barrier_for_active_whitelist_and_bindings ... ok
+test auth::mobility::tests::custom_login_whitelist_is_session_indexed_and_revoked ... ok
+test auth::mobility::tests::disabled_mobility_same_ip_keeps_session_migration_grant_without_writes ... ok
+test auth::mobility::tests::failed_authoritative_session_delete_remains_retryable_after_grant_cleanup ... ok
+test auth::mobility::tests::ip_owner_confirmation_preserves_legacy_json_and_unique_owner_semantics ... ok
+test auth::mobility::tests::logout_collects_whitelist_left_pending_before_publication ... ok
+test auth::mobility::tests::loopback_and_invalid_login_sources_are_stored_as_unknown_without_ip_grants ... ok
+test auth::mobility::tests::loopback_session_refresh_does_not_drift_session_or_binding ... ok
+test auth::mobility::tests::mobility_binding_builder_preserves_and_clears_node_fields ... ok
+test auth::mobility::tests::mobility_touch_debounce_requires_same_live_owner_and_ip ... ok
+test auth::mobility::tests::repeated_same_session_ip_does_not_commit_storage_writes ... ok
+test auth::mobility::tests::revoked_borrowed_session_cannot_recreate_active_ip_or_whitelist ... ok
+test auth::mobility::tests::session_ip_match_uses_normalized_addresses_and_rejects_empty_values ... ok
+test auth::mobility::tests::session_lock_deadline_covers_blocked_sqlite_write_and_cleans_late_commit ... ok
+test auth::mobility::tests::session_lock_does_not_acquire_after_its_deadline ... ok
+test auth::mobility::tests::session_lock_rejects_committed_result_received_after_deadline ... ok
+test auth::mobility::tests::stable_session_read_paths_work_while_sqlite_writer_is_locked ... ok
+test auth::mobility::tests::stream_access_grant_follows_ip_grant_policy_and_credential_scope ... ok
+test auth::mobility::tests::valid_remote_refresh_repairs_legacy_loopback_session_without_drift_event ... ok
+test auth::mobility::tests::concurrent_first_fragments_create_one_follow_session_whitelist ... ok
+
+test result: ok. 29 passed; 0 failed; 0 ignored; 0 measured; 2083 filtered out; finished in 1.89s
+

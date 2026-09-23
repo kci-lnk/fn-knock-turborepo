@@ -1,0 +1,1904 @@
+{
+  "schema_version": 1,
+  "purpose": "exploratory_and_correctness_smoke_only",
+  "formal_performance_acceptance": false,
+  "passed": true,
+  "errors": [],
+  "inputs": [
+    {
+      "file": "accounts1000-c16-v5/results.json",
+      "sha256": "c6384052d4f619071a072348af2898ad588264602b6ffddfcfb5fccfa821de16",
+      "bytes": 110073
+    },
+    {
+      "file": "accounts1000-c16-v5/manifest.json",
+      "sha256": "b983f3b2c1ceef270f7265b9e03534d4be30f9cdd339d3e47a224502e353b9da",
+      "bytes": 6017
+    },
+    {
+      "file": "smoke-v5-c1/results.json",
+      "sha256": "aa8533e57b2f15a1dde4764c65122227714b83cb455a2916eb21ae5641d6728b",
+      "bytes": 260403
+    },
+    {
+      "file": "smoke-v5-c1/manifest.json",
+      "sha256": "187ddee046f51564c8d78cad87655a2f016627f88457c540a71a2b48c24381c9",
+      "bytes": 6145
+    },
+    {
+      "file": "smoke-v5-c64/results.json",
+      "sha256": "67ed74a9236f4539ddb0d1f5dcb5f1ec8230b8cf41ac616f0777a3b318f10e76",
+      "bytes": 202445
+    },
+    {
+      "file": "smoke-v5-c64/manifest.json",
+      "sha256": "a1c14d809571840d7939f742aed2c409d0fd5b27f7ab62eb51354ab5e230b7a0",
+      "bytes": 6046
+    },
+    {
+      "file": "password-v5-c16/results.json",
+      "sha256": "3c4ec4c39d5b4855ef53142ded37467fc2594c051bd5cf7fcb3dd41426482360",
+      "bytes": 152090
+    },
+    {
+      "file": "password-v5-c16/manifest.json",
+      "sha256": "e6377712260403ea6bc7f12a6f36f7ac26a831176efb2c629d6e907a07bc161a",
+      "bytes": 6041
+    }
+  ],
+  "identities": {
+    "baseline": {
+      "name": "base5",
+      "rust": "d4f8805f39d9f4480bf83f4382ba59e5f49e7dc4",
+      "go": "92d4c0cb5495d57801d52893a8f0e8496a1c9182",
+      "rust_sha256": "6aee890974e6caa7f961e4c6778fdca00c23886880fb00286d7ccc1c8256bfa2",
+      "go_sha256": "88a6ef9a80bab166eaf49ba96a620e98dced25a527d0dc5ad653ff7ac15139eb"
+    },
+    "candidate": {
+      "name": "candidate5",
+      "rust": "5fddf896eaf9b1cf3eb300c08315320498c943b8",
+      "go": "4d15fa32764e26df58b16930d0e2503a90880002",
+      "rust_sha256": "08bdd768e0e239d5fad08ac7c987ff9fbc5f1c1d26fbbbeb1d6bc6e3f56b3bd9",
+      "go_sha256": "603188b385a10abb7bf1d6a6f8798c2234e0beafcc692e5abda0e7112a48eab6"
+    }
+  },
+  "harness_identity": {
+    "files": [
+      {
+        "name": "run-auth-performance-isolated.sh",
+        "sha256": "3ec736aa7c11491f7a001b95d8950b0efd807f1f4bbf724187cc359d6bf9b497"
+      },
+      {
+        "name": "auth-performance.mjs",
+        "sha256": "cd3d4e2d520a80ac1509a3486b89d0e26fea7b1d16556806b9b1b1823751930b"
+      },
+      {
+        "name": "auth-performance-lib.mjs",
+        "sha256": "3af4d7d887d7d948a20eb356ba30f21dd45dd0c5d526f83e3ede232af749f816"
+      },
+      {
+        "name": "auth-performance-worker.mjs",
+        "sha256": "e0b6ba055d6880f72eb14a85534582bf5e4febee03e2975204479bc7e33a03e1"
+      },
+      {
+        "name": "auth-performance-seed.py",
+        "sha256": "41fa8d436d9473ea53d76fc037b70913d05cef1e2d5aab525929b1d55caee1d7"
+      },
+      {
+        "name": "auth-performance-profile.mjs",
+        "sha256": "37e9e84a1baacc47532ffee52293164e4970410b30fcc8b45a193b48eb1b0e66"
+      },
+      {
+        "name": "auth-performance-recovery.mjs",
+        "sha256": "cabb463a9b404522591e1f0f4a6d82668e5edcaac17566d068254b66cc129e7c"
+      },
+      {
+        "name": "auth-performance-soak.mjs",
+        "sha256": "d60f312010a4fc3a4023e24cd551892db4d6270fa62820387bc48c4302518c79"
+      }
+    ],
+    "control_binary_sha256": "897cfef2a9f4b1fdf7330e66acbe7b4449945875fa2ac99ac9ab63632fc2d398"
+  },
+  "evidence_files": [
+    {
+      "file": "evidence/auth-performance-lib.mjs",
+      "sha256": "3af4d7d887d7d948a20eb356ba30f21dd45dd0c5d526f83e3ede232af749f816"
+    },
+    {
+      "file": "evidence/auth-performance-seed.py",
+      "sha256": "41fa8d436d9473ea53d76fc037b70913d05cef1e2d5aab525929b1d55caee1d7"
+    },
+    {
+      "file": "evidence/auth-performance-worker.mjs",
+      "sha256": "e0b6ba055d6880f72eb14a85534582bf5e4febee03e2975204479bc7e33a03e1"
+    }
+  ],
+  "total_trials": 44,
+  "total_load_requests": 151406,
+  "total_warmup_requests": 56254,
+  "unique_process_identities": {
+    "go": 44,
+    "rust": 44
+  },
+  "unique_trial_directories": 44,
+  "cases": [
+    {
+      "name": "accounts1000-c16-v5",
+      "trials": 6,
+      "options": {
+        "routes": [
+          "bootstrap",
+          "session_hit",
+          "auto_ip_hit"
+        ],
+        "concurrency": 16,
+        "clients": 2,
+        "sessions": 1000,
+        "accounts": 1000,
+        "grants": 100,
+        "credentialKind": "totp",
+        "warmup": 3,
+        "seconds": 8,
+        "renewals": 64
+      },
+      "load_requests": 11675,
+      "load_statuses": {
+        "200": 11675
+      },
+      "warmup_requests": 4375,
+      "warmup_statuses": {
+        "200": 4375
+      },
+      "max_client_event_loop_delay_ms": 16.424959,
+      "max_client_start_delay_ms": 0.8203125,
+      "max_sampling_gap_ms": 214.952880859375,
+      "timeout_phase_events": 0,
+      "rows": [
+        {
+          "route": "bootstrap",
+          "role": "baseline",
+          "pair": 0,
+          "successful_requests": 1169,
+          "warmup_successful_requests": 449,
+          "elapsed_ms": 8057.41943359375,
+          "seed": {
+            "scenario": "bootstrap",
+            "credential_kind": "totp",
+            "sessions": 1000,
+            "accounts": 1000,
+            "ordinary_grants": 100,
+            "total_grants": 100,
+            "renewal_tokens_per_phase": 0,
+            "created_at": "2026-09-23T08:18:25Z",
+            "expires_at": "2026-09-24T08:18:25Z"
+          },
+          "preflight": {
+            "status": 200,
+            "expected": "bootstrap",
+            "origin": null,
+            "renewal": false
+          },
+          "quality": {
+            "max_sampling_gap_ms": 214.952880859375,
+            "sampling_ok": true,
+            "health_ok": true,
+            "client_ok": true,
+            "duration_ok": true
+          },
+          "observation_counts": {
+            "process_samples": 40,
+            "health_samples": 8,
+            "timeout_phase_events": 0
+          }
+        },
+        {
+          "route": "bootstrap",
+          "role": "candidate",
+          "pair": 0,
+          "successful_requests": 3141,
+          "warmup_successful_requests": 1172,
+          "elapsed_ms": 8026.806396484375,
+          "seed": {
+            "scenario": "bootstrap",
+            "credential_kind": "totp",
+            "sessions": 1000,
+            "accounts": 1000,
+            "ordinary_grants": 100,
+            "total_grants": 100,
+            "renewal_tokens_per_phase": 0,
+            "created_at": "2026-09-23T08:18:38Z",
+            "expires_at": "2026-09-24T08:18:38Z"
+          },
+          "preflight": {
+            "status": 200,
+            "expected": "bootstrap",
+            "origin": null,
+            "renewal": false
+          },
+          "quality": {
+            "max_sampling_gap_ms": 205.567626953125,
+            "sampling_ok": true,
+            "health_ok": true,
+            "client_ok": true,
+            "duration_ok": true
+          },
+          "observation_counts": {
+            "process_samples": 40,
+            "health_samples": 8,
+            "timeout_phase_events": 0
+          }
+        },
+        {
+          "route": "session_hit",
+          "role": "baseline",
+          "pair": 0,
+          "successful_requests": 1527,
+          "warmup_successful_requests": 581,
+          "elapsed_ms": 8041.2939453125,
+          "seed": {
+            "scenario": "session_hit",
+            "credential_kind": "totp",
+            "sessions": 1000,
+            "accounts": 1000,
+            "ordinary_grants": 100,
+            "total_grants": 100,
+            "renewal_tokens_per_phase": 0,
+            "created_at": "2026-09-23T08:18:55Z",
+            "expires_at": "2026-09-24T08:18:55Z"
+          },
+          "preflight": {
+            "status": 200,
+            "expected": "origin",
+            "origin": "auth-performance-owned-origin-v1",
+            "renewal": false
+          },
+          "quality": {
+            "max_sampling_gap_ms": 207.824951171875,
+            "sampling_ok": true,
+            "health_ok": true,
+            "client_ok": true,
+            "duration_ok": true
+          },
+          "observation_counts": {
+            "process_samples": 40,
+            "health_samples": 8,
+            "timeout_phase_events": 0
+          }
+        },
+        {
+          "route": "session_hit",
+          "role": "candidate",
+          "pair": 0,
+          "successful_requests": 3855,
+          "warmup_successful_requests": 1405,
+          "elapsed_ms": 8009.68408203125,
+          "seed": {
+            "scenario": "session_hit",
+            "credential_kind": "totp",
+            "sessions": 1000,
+            "accounts": 1000,
+            "ordinary_grants": 100,
+            "total_grants": 100,
+            "renewal_tokens_per_phase": 0,
+            "created_at": "2026-09-23T08:19:12Z",
+            "expires_at": "2026-09-24T08:19:12Z"
+          },
+          "preflight": {
+            "status": 200,
+            "expected": "origin",
+            "origin": "auth-performance-owned-origin-v1",
+            "renewal": false
+          },
+          "quality": {
+            "max_sampling_gap_ms": 208.045654296875,
+            "sampling_ok": true,
+            "health_ok": true,
+            "client_ok": true,
+            "duration_ok": true
+          },
+          "observation_counts": {
+            "process_samples": 40,
+            "health_samples": 8,
+            "timeout_phase_events": 0
+          }
+        },
+        {
+          "route": "auto_ip_hit",
+          "role": "baseline",
+          "pair": 0,
+          "successful_requests": 655,
+          "warmup_successful_requests": 256,
+          "elapsed_ms": 8111.739013671875,
+          "seed": {
+            "scenario": "auto_ip_hit",
+            "credential_kind": "totp",
+            "sessions": 1000,
+            "accounts": 1000,
+            "ordinary_grants": 100,
+            "total_grants": 100,
+            "renewal_tokens_per_phase": 0,
+            "created_at": "2026-09-23T08:19:29Z",
+            "expires_at": "2026-09-24T08:19:29Z"
+          },
+          "preflight": {
+            "status": 200,
+            "expected": "origin",
+            "origin": "auth-performance-owned-origin-v1",
+            "renewal": false
+          },
+          "quality": {
+            "max_sampling_gap_ms": 204.936767578125,
+            "sampling_ok": true,
+            "health_ok": true,
+            "client_ok": true,
+            "duration_ok": true
+          },
+          "observation_counts": {
+            "process_samples": 41,
+            "health_samples": 7,
+            "timeout_phase_events": 0
+          }
+        },
+        {
+          "route": "auto_ip_hit",
+          "role": "candidate",
+          "pair": 0,
+          "successful_requests": 1328,
+          "warmup_successful_requests": 512,
+          "elapsed_ms": 8073.656005859375,
+          "seed": {
+            "scenario": "auto_ip_hit",
+            "credential_kind": "totp",
+            "sessions": 1000,
+            "accounts": 1000,
+            "ordinary_grants": 100,
+            "total_grants": 100,
+            "renewal_tokens_per_phase": 0,
+            "created_at": "2026-09-23T08:19:46Z",
+            "expires_at": "2026-09-24T08:19:46Z"
+          },
+          "preflight": {
+            "status": 200,
+            "expected": "origin",
+            "origin": "auth-performance-owned-origin-v1",
+            "renewal": false
+          },
+          "quality": {
+            "max_sampling_gap_ms": 207.468017578125,
+            "sampling_ok": true,
+            "health_ok": true,
+            "client_ok": true,
+            "duration_ok": true
+          },
+          "observation_counts": {
+            "process_samples": 40,
+            "health_samples": 9,
+            "timeout_phase_events": 0
+          }
+        }
+      ]
+    },
+    {
+      "name": "smoke-v5-c1",
+      "trials": 20,
+      "options": {
+        "routes": [
+          "bootstrap",
+          "challenge",
+          "session_api",
+          "session_hit",
+          "session_miss",
+          "grant_hit",
+          "grant_miss",
+          "grant_renewal",
+          "auto_ip_hit",
+          "auto_ip_miss"
+        ],
+        "concurrency": 1,
+        "clients": 1,
+        "sessions": 1,
+        "accounts": 1,
+        "grants": 1,
+        "credentialKind": "totp",
+        "warmup": 1,
+        "seconds": 3,
+        "renewals": 8
+      },
+      "load_requests": 30403,
+      "load_statuses": {
+        "200": 18868,
+        "302": 11535
+      },
+      "warmup_requests": 10634,
+      "warmup_statuses": {
+        "200": 6994,
+        "302": 3640
+      },
+      "max_client_event_loop_delay_ms": 14.221311,
+      "max_client_start_delay_ms": 1.294189453125,
+      "max_sampling_gap_ms": 206.91015625,
+      "timeout_phase_events": 0,
+      "rows": [
+        {
+          "route": "bootstrap",
+          "role": "baseline",
+          "pair": 0,
+          "successful_requests": 779,
+          "warmup_successful_requests": 278,
+          "elapsed_ms": 3000.357421875,
+          "seed": {
+            "scenario": "bootstrap",
+            "credential_kind": "totp",
+            "sessions": 1,
+            "accounts": 1,
+            "ordinary_grants": 1,
+            "total_grants": 1,
+            "renewal_tokens_per_phase": 0,
+            "created_at": "2026-09-23T08:20:07Z",
+            "expires_at": "2026-09-24T08:20:07Z"
+          },
+          "preflight": {
+            "status": 200,
+            "expected": "bootstrap",
+            "origin": null,
+            "renewal": false
+          },
+          "quality": {
+            "max_sampling_gap_ms": 206.55908203125,
+            "sampling_ok": true,
+            "health_ok": true,
+            "client_ok": true,
+            "duration_ok": true
+          },
+          "observation_counts": {
+            "process_samples": 15,
+            "health_samples": 3,
+            "timeout_phase_events": 0
+          }
+        },
+        {
+          "route": "bootstrap",
+          "role": "candidate",
+          "pair": 0,
+          "successful_requests": 1039,
+          "warmup_successful_requests": 328,
+          "elapsed_ms": 3001.782958984375,
+          "seed": {
+            "scenario": "bootstrap",
+            "credential_kind": "totp",
+            "sessions": 1,
+            "accounts": 1,
+            "ordinary_grants": 1,
+            "total_grants": 1,
+            "renewal_tokens_per_phase": 0,
+            "created_at": "2026-09-23T08:20:16Z",
+            "expires_at": "2026-09-24T08:20:16Z"
+          },
+          "preflight": {
+            "status": 200,
+            "expected": "bootstrap",
+            "origin": null,
+            "renewal": false
+          },
+          "quality": {
+            "max_sampling_gap_ms": 204.147705078125,
+            "sampling_ok": true,
+            "health_ok": true,
+            "client_ok": true,
+            "duration_ok": true
+          },
+          "observation_counts": {
+            "process_samples": 15,
+            "health_samples": 3,
+            "timeout_phase_events": 0
+          }
+        },
+        {
+          "route": "challenge",
+          "role": "baseline",
+          "pair": 0,
+          "successful_requests": 3131,
+          "warmup_successful_requests": 995,
+          "elapsed_ms": 3000.415771484375,
+          "seed": {
+            "scenario": "challenge",
+            "credential_kind": "totp",
+            "sessions": 1,
+            "accounts": 1,
+            "ordinary_grants": 1,
+            "total_grants": 1,
+            "renewal_tokens_per_phase": 0,
+            "created_at": "2026-09-23T08:20:23Z",
+            "expires_at": "2026-09-24T08:20:23Z"
+          },
+          "preflight": {
+            "status": 200,
+            "expected": "challenge",
+            "origin": null,
+            "renewal": false
+          },
+          "quality": {
+            "max_sampling_gap_ms": 203.015380859375,
+            "sampling_ok": true,
+            "health_ok": true,
+            "client_ok": true,
+            "duration_ok": true
+          },
+          "observation_counts": {
+            "process_samples": 15,
+            "health_samples": 3,
+            "timeout_phase_events": 0
+          }
+        },
+        {
+          "route": "challenge",
+          "role": "candidate",
+          "pair": 0,
+          "successful_requests": 3143,
+          "warmup_successful_requests": 976,
+          "elapsed_ms": 3000.725830078125,
+          "seed": {
+            "scenario": "challenge",
+            "credential_kind": "totp",
+            "sessions": 1,
+            "accounts": 1,
+            "ordinary_grants": 1,
+            "total_grants": 1,
+            "renewal_tokens_per_phase": 0,
+            "created_at": "2026-09-23T08:20:32Z",
+            "expires_at": "2026-09-24T08:20:32Z"
+          },
+          "preflight": {
+            "status": 200,
+            "expected": "challenge",
+            "origin": null,
+            "renewal": false
+          },
+          "quality": {
+            "max_sampling_gap_ms": 203.885009765625,
+            "sampling_ok": true,
+            "health_ok": true,
+            "client_ok": true,
+            "duration_ok": true
+          },
+          "observation_counts": {
+            "process_samples": 15,
+            "health_samples": 3,
+            "timeout_phase_events": 0
+          }
+        },
+        {
+          "route": "session_api",
+          "role": "baseline",
+          "pair": 0,
+          "successful_requests": 536,
+          "warmup_successful_requests": 192,
+          "elapsed_ms": 3000.58203125,
+          "seed": {
+            "scenario": "session_api",
+            "credential_kind": "totp",
+            "sessions": 1,
+            "accounts": 1,
+            "ordinary_grants": 1,
+            "total_grants": 1,
+            "renewal_tokens_per_phase": 0,
+            "created_at": "2026-09-23T08:20:41Z",
+            "expires_at": "2026-09-24T08:20:41Z"
+          },
+          "preflight": {
+            "status": 200,
+            "expected": "session",
+            "origin": null,
+            "renewal": false
+          },
+          "quality": {
+            "max_sampling_gap_ms": 204.167724609375,
+            "sampling_ok": true,
+            "health_ok": true,
+            "client_ok": true,
+            "duration_ok": true
+          },
+          "observation_counts": {
+            "process_samples": 15,
+            "health_samples": 3,
+            "timeout_phase_events": 0
+          }
+        },
+        {
+          "route": "session_api",
+          "role": "candidate",
+          "pair": 0,
+          "successful_requests": 747,
+          "warmup_successful_requests": 252,
+          "elapsed_ms": 3000.3076171875,
+          "seed": {
+            "scenario": "session_api",
+            "credential_kind": "totp",
+            "sessions": 1,
+            "accounts": 1,
+            "ordinary_grants": 1,
+            "total_grants": 1,
+            "renewal_tokens_per_phase": 0,
+            "created_at": "2026-09-23T08:20:51Z",
+            "expires_at": "2026-09-24T08:20:51Z"
+          },
+          "preflight": {
+            "status": 200,
+            "expected": "session",
+            "origin": null,
+            "renewal": false
+          },
+          "quality": {
+            "max_sampling_gap_ms": 205.1689453125,
+            "sampling_ok": true,
+            "health_ok": true,
+            "client_ok": true,
+            "duration_ok": true
+          },
+          "observation_counts": {
+            "process_samples": 15,
+            "health_samples": 3,
+            "timeout_phase_events": 0
+          }
+        },
+        {
+          "route": "session_hit",
+          "role": "baseline",
+          "pair": 0,
+          "successful_requests": 880,
+          "warmup_successful_requests": 264,
+          "elapsed_ms": 3002.860595703125,
+          "seed": {
+            "scenario": "session_hit",
+            "credential_kind": "totp",
+            "sessions": 1,
+            "accounts": 1,
+            "ordinary_grants": 1,
+            "total_grants": 1,
+            "renewal_tokens_per_phase": 0,
+            "created_at": "2026-09-23T08:21:00Z",
+            "expires_at": "2026-09-24T08:21:00Z"
+          },
+          "preflight": {
+            "status": 200,
+            "expected": "origin",
+            "origin": "auth-performance-owned-origin-v1",
+            "renewal": false
+          },
+          "quality": {
+            "max_sampling_gap_ms": 204.44970703125,
+            "sampling_ok": true,
+            "health_ok": true,
+            "client_ok": true,
+            "duration_ok": true
+          },
+          "observation_counts": {
+            "process_samples": 15,
+            "health_samples": 3,
+            "timeout_phase_events": 0
+          }
+        },
+        {
+          "route": "session_hit",
+          "role": "candidate",
+          "pair": 0,
+          "successful_requests": 1216,
+          "warmup_successful_requests": 353,
+          "elapsed_ms": 3000.123779296875,
+          "seed": {
+            "scenario": "session_hit",
+            "credential_kind": "totp",
+            "sessions": 1,
+            "accounts": 1,
+            "ordinary_grants": 1,
+            "total_grants": 1,
+            "renewal_tokens_per_phase": 0,
+            "created_at": "2026-09-23T08:21:06Z",
+            "expires_at": "2026-09-24T08:21:06Z"
+          },
+          "preflight": {
+            "status": 200,
+            "expected": "origin",
+            "origin": "auth-performance-owned-origin-v1",
+            "renewal": false
+          },
+          "quality": {
+            "max_sampling_gap_ms": 203.5673828125,
+            "sampling_ok": true,
+            "health_ok": true,
+            "client_ok": true,
+            "duration_ok": true
+          },
+          "observation_counts": {
+            "process_samples": 15,
+            "health_samples": 3,
+            "timeout_phase_events": 0
+          }
+        },
+        {
+          "route": "session_miss",
+          "role": "baseline",
+          "pair": 0,
+          "successful_requests": 1905,
+          "warmup_successful_requests": 603,
+          "elapsed_ms": 3001.244384765625,
+          "seed": {
+            "scenario": "session_miss",
+            "credential_kind": "totp",
+            "sessions": 1,
+            "accounts": 1,
+            "ordinary_grants": 1,
+            "total_grants": 1,
+            "renewal_tokens_per_phase": 0,
+            "created_at": "2026-09-23T08:21:16Z",
+            "expires_at": "2026-09-24T08:21:16Z"
+          },
+          "preflight": {
+            "status": 302,
+            "expected": "redirect",
+            "origin": null,
+            "renewal": true
+          },
+          "quality": {
+            "max_sampling_gap_ms": 203.026123046875,
+            "sampling_ok": true,
+            "health_ok": true,
+            "client_ok": true,
+            "duration_ok": true
+          },
+          "observation_counts": {
+            "process_samples": 15,
+            "health_samples": 3,
+            "timeout_phase_events": 0
+          }
+        },
+        {
+          "route": "session_miss",
+          "role": "candidate",
+          "pair": 0,
+          "successful_requests": 1937,
+          "warmup_successful_requests": 614,
+          "elapsed_ms": 3000.5966796875,
+          "seed": {
+            "scenario": "session_miss",
+            "credential_kind": "totp",
+            "sessions": 1,
+            "accounts": 1,
+            "ordinary_grants": 1,
+            "total_grants": 1,
+            "renewal_tokens_per_phase": 0,
+            "created_at": "2026-09-23T08:21:22Z",
+            "expires_at": "2026-09-24T08:21:22Z"
+          },
+          "preflight": {
+            "status": 302,
+            "expected": "redirect",
+            "origin": null,
+            "renewal": true
+          },
+          "quality": {
+            "max_sampling_gap_ms": 203.562744140625,
+            "sampling_ok": true,
+            "health_ok": true,
+            "client_ok": true,
+            "duration_ok": true
+          },
+          "observation_counts": {
+            "process_samples": 15,
+            "health_samples": 3,
+            "timeout_phase_events": 0
+          }
+        },
+        {
+          "route": "grant_hit",
+          "role": "baseline",
+          "pair": 0,
+          "successful_requests": 1358,
+          "warmup_successful_requests": 442,
+          "elapsed_ms": 3001.466796875,
+          "seed": {
+            "scenario": "grant_hit",
+            "credential_kind": "totp",
+            "sessions": 1,
+            "accounts": 1,
+            "ordinary_grants": 1,
+            "total_grants": 1,
+            "renewal_tokens_per_phase": 0,
+            "created_at": "2026-09-23T08:21:31Z",
+            "expires_at": "2026-09-24T08:21:31Z"
+          },
+          "preflight": {
+            "status": 200,
+            "expected": "origin",
+            "origin": "auth-performance-owned-origin-v1",
+            "renewal": false
+          },
+          "quality": {
+            "max_sampling_gap_ms": 204.1640625,
+            "sampling_ok": true,
+            "health_ok": true,
+            "client_ok": true,
+            "duration_ok": true
+          },
+          "observation_counts": {
+            "process_samples": 15,
+            "health_samples": 3,
+            "timeout_phase_events": 0
+          }
+        },
+        {
+          "route": "grant_hit",
+          "role": "candidate",
+          "pair": 0,
+          "successful_requests": 2092,
+          "warmup_successful_requests": 658,
+          "elapsed_ms": 3001.327880859375,
+          "seed": {
+            "scenario": "grant_hit",
+            "credential_kind": "totp",
+            "sessions": 1,
+            "accounts": 1,
+            "ordinary_grants": 1,
+            "total_grants": 1,
+            "renewal_tokens_per_phase": 0,
+            "created_at": "2026-09-23T08:21:41Z",
+            "expires_at": "2026-09-24T08:21:41Z"
+          },
+          "preflight": {
+            "status": 200,
+            "expected": "origin",
+            "origin": "auth-performance-owned-origin-v1",
+            "renewal": false
+          },
+          "quality": {
+            "max_sampling_gap_ms": 206.91015625,
+            "sampling_ok": true,
+            "health_ok": true,
+            "client_ok": true,
+            "duration_ok": true
+          },
+          "observation_counts": {
+            "process_samples": 15,
+            "health_samples": 3,
+            "timeout_phase_events": 0
+          }
+        },
+        {
+          "route": "grant_miss",
+          "role": "baseline",
+          "pair": 0,
+          "successful_requests": 1290,
+          "warmup_successful_requests": 447,
+          "elapsed_ms": 3000.3388671875,
+          "seed": {
+            "scenario": "grant_miss",
+            "credential_kind": "totp",
+            "sessions": 1,
+            "accounts": 1,
+            "ordinary_grants": 1,
+            "total_grants": 1,
+            "renewal_tokens_per_phase": 0,
+            "created_at": "2026-09-23T08:21:50Z",
+            "expires_at": "2026-09-24T08:21:50Z"
+          },
+          "preflight": {
+            "status": 302,
+            "expected": "redirect",
+            "origin": null,
+            "renewal": false
+          },
+          "quality": {
+            "max_sampling_gap_ms": 203.230224609375,
+            "sampling_ok": true,
+            "health_ok": true,
+            "client_ok": true,
+            "duration_ok": true
+          },
+          "observation_counts": {
+            "process_samples": 15,
+            "health_samples": 3,
+            "timeout_phase_events": 0
+          }
+        },
+        {
+          "route": "grant_miss",
+          "role": "candidate",
+          "pair": 0,
+          "successful_requests": 2015,
+          "warmup_successful_requests": 608,
+          "elapsed_ms": 3000.440185546875,
+          "seed": {
+            "scenario": "grant_miss",
+            "credential_kind": "totp",
+            "sessions": 1,
+            "accounts": 1,
+            "ordinary_grants": 1,
+            "total_grants": 1,
+            "renewal_tokens_per_phase": 0,
+            "created_at": "2026-09-23T08:21:59Z",
+            "expires_at": "2026-09-24T08:21:59Z"
+          },
+          "preflight": {
+            "status": 302,
+            "expected": "redirect",
+            "origin": null,
+            "renewal": false
+          },
+          "quality": {
+            "max_sampling_gap_ms": 203.060302734375,
+            "sampling_ok": true,
+            "health_ok": true,
+            "client_ok": true,
+            "duration_ok": true
+          },
+          "observation_counts": {
+            "process_samples": 15,
+            "health_samples": 3,
+            "timeout_phase_events": 0
+          }
+        },
+        {
+          "route": "grant_renewal",
+          "role": "baseline",
+          "pair": 0,
+          "successful_requests": 8,
+          "warmup_successful_requests": 371,
+          "elapsed_ms": 34.838623046875,
+          "seed": {
+            "scenario": "grant_renewal",
+            "credential_kind": "totp",
+            "sessions": 1,
+            "accounts": 1,
+            "ordinary_grants": 1,
+            "total_grants": 18,
+            "renewal_tokens_per_phase": 8,
+            "created_at": "2026-09-23T08:22:09Z",
+            "expires_at": "2026-09-24T08:22:09Z"
+          },
+          "preflight": {
+            "status": 200,
+            "expected": "renewal",
+            "origin": "auth-performance-owned-origin-v1",
+            "renewal": true
+          },
+          "quality": {
+            "max_sampling_gap_ms": 34.8369140625,
+            "sampling_ok": true,
+            "health_ok": true,
+            "client_ok": true,
+            "duration_ok": true
+          },
+          "observation_counts": {
+            "process_samples": 1,
+            "health_samples": 1,
+            "timeout_phase_events": 0
+          }
+        },
+        {
+          "route": "grant_renewal",
+          "role": "candidate",
+          "pair": 0,
+          "successful_requests": 8,
+          "warmup_successful_requests": 631,
+          "elapsed_ms": 23.90234375,
+          "seed": {
+            "scenario": "grant_renewal",
+            "credential_kind": "totp",
+            "sessions": 1,
+            "accounts": 1,
+            "ordinary_grants": 1,
+            "total_grants": 18,
+            "renewal_tokens_per_phase": 8,
+            "created_at": "2026-09-23T08:22:18Z",
+            "expires_at": "2026-09-24T08:22:18Z"
+          },
+          "preflight": {
+            "status": 200,
+            "expected": "renewal",
+            "origin": "auth-performance-owned-origin-v1",
+            "renewal": true
+          },
+          "quality": {
+            "max_sampling_gap_ms": 23.900634765625,
+            "sampling_ok": true,
+            "health_ok": true,
+            "client_ok": true,
+            "duration_ok": true
+          },
+          "observation_counts": {
+            "process_samples": 1,
+            "health_samples": 1,
+            "timeout_phase_events": 0
+          }
+        },
+        {
+          "route": "auto_ip_hit",
+          "role": "baseline",
+          "pair": 0,
+          "successful_requests": 1945,
+          "warmup_successful_requests": 631,
+          "elapsed_ms": 3001.3154296875,
+          "seed": {
+            "scenario": "auto_ip_hit",
+            "credential_kind": "totp",
+            "sessions": 1,
+            "accounts": 1,
+            "ordinary_grants": 1,
+            "total_grants": 1,
+            "renewal_tokens_per_phase": 0,
+            "created_at": "2026-09-23T08:22:24Z",
+            "expires_at": "2026-09-24T08:22:24Z"
+          },
+          "preflight": {
+            "status": 200,
+            "expected": "origin",
+            "origin": "auth-performance-owned-origin-v1",
+            "renewal": false
+          },
+          "quality": {
+            "max_sampling_gap_ms": 203.641845703125,
+            "sampling_ok": true,
+            "health_ok": true,
+            "client_ok": true,
+            "duration_ok": true
+          },
+          "observation_counts": {
+            "process_samples": 15,
+            "health_samples": 3,
+            "timeout_phase_events": 0
+          }
+        },
+        {
+          "route": "auto_ip_hit",
+          "role": "candidate",
+          "pair": 0,
+          "successful_requests": 1986,
+          "warmup_successful_requests": 623,
+          "elapsed_ms": 3000.888671875,
+          "seed": {
+            "scenario": "auto_ip_hit",
+            "credential_kind": "totp",
+            "sessions": 1,
+            "accounts": 1,
+            "ordinary_grants": 1,
+            "total_grants": 1,
+            "renewal_tokens_per_phase": 0,
+            "created_at": "2026-09-23T08:22:30Z",
+            "expires_at": "2026-09-24T08:22:30Z"
+          },
+          "preflight": {
+            "status": 200,
+            "expected": "origin",
+            "origin": "auth-performance-owned-origin-v1",
+            "renewal": false
+          },
+          "quality": {
+            "max_sampling_gap_ms": 203.218505859375,
+            "sampling_ok": true,
+            "health_ok": true,
+            "client_ok": true,
+            "duration_ok": true
+          },
+          "observation_counts": {
+            "process_samples": 15,
+            "health_samples": 3,
+            "timeout_phase_events": 0
+          }
+        },
+        {
+          "route": "auto_ip_miss",
+          "role": "baseline",
+          "pair": 0,
+          "successful_requests": 2084,
+          "warmup_successful_requests": 639,
+          "elapsed_ms": 3001.325439453125,
+          "seed": {
+            "scenario": "auto_ip_miss",
+            "credential_kind": "totp",
+            "sessions": 1,
+            "accounts": 1,
+            "ordinary_grants": 1,
+            "total_grants": 1,
+            "renewal_tokens_per_phase": 0,
+            "created_at": "2026-09-23T08:22:40Z",
+            "expires_at": "2026-09-24T08:22:40Z"
+          },
+          "preflight": {
+            "status": 302,
+            "expected": "redirect",
+            "origin": null,
+            "renewal": false
+          },
+          "quality": {
+            "max_sampling_gap_ms": 204.1025390625,
+            "sampling_ok": true,
+            "health_ok": true,
+            "client_ok": true,
+            "duration_ok": true
+          },
+          "observation_counts": {
+            "process_samples": 15,
+            "health_samples": 3,
+            "timeout_phase_events": 0
+          }
+        },
+        {
+          "route": "auto_ip_miss",
+          "role": "candidate",
+          "pair": 0,
+          "successful_requests": 2304,
+          "warmup_successful_requests": 729,
+          "elapsed_ms": 3000.509765625,
+          "seed": {
+            "scenario": "auto_ip_miss",
+            "credential_kind": "totp",
+            "sessions": 1,
+            "accounts": 1,
+            "ordinary_grants": 1,
+            "total_grants": 1,
+            "renewal_tokens_per_phase": 0,
+            "created_at": "2026-09-23T08:22:49Z",
+            "expires_at": "2026-09-24T08:22:49Z"
+          },
+          "preflight": {
+            "status": 302,
+            "expected": "redirect",
+            "origin": null,
+            "renewal": false
+          },
+          "quality": {
+            "max_sampling_gap_ms": 203.430419921875,
+            "sampling_ok": true,
+            "health_ok": true,
+            "client_ok": true,
+            "duration_ok": true
+          },
+          "observation_counts": {
+            "process_samples": 15,
+            "health_samples": 3,
+            "timeout_phase_events": 0
+          }
+        }
+      ]
+    },
+    {
+      "name": "smoke-v5-c64",
+      "trials": 10,
+      "options": {
+        "routes": [
+          "bootstrap",
+          "challenge",
+          "session_hit",
+          "grant_hit",
+          "auto_ip_hit"
+        ],
+        "concurrency": 64,
+        "clients": 2,
+        "sessions": 100,
+        "accounts": 100,
+        "grants": 100,
+        "credentialKind": "totp",
+        "warmup": 3,
+        "seconds": 8,
+        "renewals": 64
+      },
+      "load_requests": 97281,
+      "load_statuses": {
+        "200": 97281
+      },
+      "warmup_requests": 36676,
+      "warmup_statuses": {
+        "200": 36676
+      },
+      "max_client_event_loop_delay_ms": 27.361279,
+      "max_client_start_delay_ms": 0.963134765625,
+      "max_sampling_gap_ms": 211.474609375,
+      "timeout_phase_events": 0,
+      "rows": [
+        {
+          "route": "bootstrap",
+          "role": "baseline",
+          "pair": 0,
+          "successful_requests": 2752,
+          "warmup_successful_requests": 962,
+          "elapsed_ms": 8159.34228515625,
+          "seed": {
+            "scenario": "bootstrap",
+            "credential_kind": "totp",
+            "sessions": 100,
+            "accounts": 100,
+            "ordinary_grants": 100,
+            "total_grants": 100,
+            "renewal_tokens_per_phase": 0,
+            "created_at": "2026-09-23T08:23:02Z",
+            "expires_at": "2026-09-24T08:23:02Z"
+          },
+          "preflight": {
+            "status": 200,
+            "expected": "bootstrap",
+            "origin": null,
+            "renewal": false
+          },
+          "quality": {
+            "max_sampling_gap_ms": 210.603759765625,
+            "sampling_ok": true,
+            "health_ok": true,
+            "client_ok": true,
+            "duration_ok": true
+          },
+          "observation_counts": {
+            "process_samples": 41,
+            "health_samples": 8,
+            "timeout_phase_events": 0
+          }
+        },
+        {
+          "route": "bootstrap",
+          "role": "candidate",
+          "pair": 0,
+          "successful_requests": 5072,
+          "warmup_successful_requests": 1935,
+          "elapsed_ms": 8048.670654296875,
+          "seed": {
+            "scenario": "bootstrap",
+            "credential_kind": "totp",
+            "sessions": 100,
+            "accounts": 100,
+            "ordinary_grants": 100,
+            "total_grants": 100,
+            "renewal_tokens_per_phase": 0,
+            "created_at": "2026-09-23T08:23:19Z",
+            "expires_at": "2026-09-24T08:23:19Z"
+          },
+          "preflight": {
+            "status": 200,
+            "expected": "bootstrap",
+            "origin": null,
+            "renewal": false
+          },
+          "quality": {
+            "max_sampling_gap_ms": 206.877685546875,
+            "sampling_ok": true,
+            "health_ok": true,
+            "client_ok": true,
+            "duration_ok": true
+          },
+          "observation_counts": {
+            "process_samples": 40,
+            "health_samples": 8,
+            "timeout_phase_events": 0
+          }
+        },
+        {
+          "route": "challenge",
+          "role": "baseline",
+          "pair": 0,
+          "successful_requests": 26419,
+          "warmup_successful_requests": 9730,
+          "elapsed_ms": 8016.967529296875,
+          "seed": {
+            "scenario": "challenge",
+            "credential_kind": "totp",
+            "sessions": 100,
+            "accounts": 100,
+            "ordinary_grants": 100,
+            "total_grants": 100,
+            "renewal_tokens_per_phase": 0,
+            "created_at": "2026-09-23T08:23:36Z",
+            "expires_at": "2026-09-24T08:23:36Z"
+          },
+          "preflight": {
+            "status": 200,
+            "expected": "challenge",
+            "origin": null,
+            "renewal": false
+          },
+          "quality": {
+            "max_sampling_gap_ms": 209.45556640625,
+            "sampling_ok": true,
+            "health_ok": true,
+            "client_ok": true,
+            "duration_ok": true
+          },
+          "observation_counts": {
+            "process_samples": 40,
+            "health_samples": 8,
+            "timeout_phase_events": 0
+          }
+        },
+        {
+          "route": "challenge",
+          "role": "candidate",
+          "pair": 0,
+          "successful_requests": 25907,
+          "warmup_successful_requests": 9869,
+          "elapsed_ms": 8016.267578125,
+          "seed": {
+            "scenario": "challenge",
+            "credential_kind": "totp",
+            "sessions": 100,
+            "accounts": 100,
+            "ordinary_grants": 100,
+            "total_grants": 100,
+            "renewal_tokens_per_phase": 0,
+            "created_at": "2026-09-23T08:23:53Z",
+            "expires_at": "2026-09-24T08:23:53Z"
+          },
+          "preflight": {
+            "status": 200,
+            "expected": "challenge",
+            "origin": null,
+            "renewal": false
+          },
+          "quality": {
+            "max_sampling_gap_ms": 206.660888671875,
+            "sampling_ok": true,
+            "health_ok": true,
+            "client_ok": true,
+            "duration_ok": true
+          },
+          "observation_counts": {
+            "process_samples": 40,
+            "health_samples": 8,
+            "timeout_phase_events": 0
+          }
+        },
+        {
+          "route": "session_hit",
+          "role": "baseline",
+          "pair": 0,
+          "successful_requests": 4930,
+          "warmup_successful_requests": 1872,
+          "elapsed_ms": 8071.427734375,
+          "seed": {
+            "scenario": "session_hit",
+            "credential_kind": "totp",
+            "sessions": 100,
+            "accounts": 100,
+            "ordinary_grants": 100,
+            "total_grants": 100,
+            "renewal_tokens_per_phase": 0,
+            "created_at": "2026-09-23T08:24:09Z",
+            "expires_at": "2026-09-24T08:24:09Z"
+          },
+          "preflight": {
+            "status": 200,
+            "expected": "origin",
+            "origin": "auth-performance-owned-origin-v1",
+            "renewal": false
+          },
+          "quality": {
+            "max_sampling_gap_ms": 207.699951171875,
+            "sampling_ok": true,
+            "health_ok": true,
+            "client_ok": true,
+            "duration_ok": true
+          },
+          "observation_counts": {
+            "process_samples": 40,
+            "health_samples": 8,
+            "timeout_phase_events": 0
+          }
+        },
+        {
+          "route": "session_hit",
+          "role": "candidate",
+          "pair": 0,
+          "successful_requests": 8080,
+          "warmup_successful_requests": 3078,
+          "elapsed_ms": 8045.428955078125,
+          "seed": {
+            "scenario": "session_hit",
+            "credential_kind": "totp",
+            "sessions": 100,
+            "accounts": 100,
+            "ordinary_grants": 100,
+            "total_grants": 100,
+            "renewal_tokens_per_phase": 0,
+            "created_at": "2026-09-23T08:24:26Z",
+            "expires_at": "2026-09-24T08:24:26Z"
+          },
+          "preflight": {
+            "status": 200,
+            "expected": "origin",
+            "origin": "auth-performance-owned-origin-v1",
+            "renewal": false
+          },
+          "quality": {
+            "max_sampling_gap_ms": 211.474609375,
+            "sampling_ok": true,
+            "health_ok": true,
+            "client_ok": true,
+            "duration_ok": true
+          },
+          "observation_counts": {
+            "process_samples": 40,
+            "health_samples": 8,
+            "timeout_phase_events": 0
+          }
+        },
+        {
+          "route": "grant_hit",
+          "role": "baseline",
+          "pair": 0,
+          "successful_requests": 2240,
+          "warmup_successful_requests": 850,
+          "elapsed_ms": 8110.808837890625,
+          "seed": {
+            "scenario": "grant_hit",
+            "credential_kind": "totp",
+            "sessions": 100,
+            "accounts": 100,
+            "ordinary_grants": 100,
+            "total_grants": 100,
+            "renewal_tokens_per_phase": 0,
+            "created_at": "2026-09-23T08:24:40Z",
+            "expires_at": "2026-09-24T08:24:40Z"
+          },
+          "preflight": {
+            "status": 200,
+            "expected": "origin",
+            "origin": "auth-performance-owned-origin-v1",
+            "renewal": false
+          },
+          "quality": {
+            "max_sampling_gap_ms": 205.919677734375,
+            "sampling_ok": true,
+            "health_ok": true,
+            "client_ok": true,
+            "duration_ok": true
+          },
+          "observation_counts": {
+            "process_samples": 41,
+            "health_samples": 9,
+            "timeout_phase_events": 0
+          }
+        },
+        {
+          "route": "grant_hit",
+          "role": "candidate",
+          "pair": 0,
+          "successful_requests": 8250,
+          "warmup_successful_requests": 3171,
+          "elapsed_ms": 8054.9404296875,
+          "seed": {
+            "scenario": "grant_hit",
+            "credential_kind": "totp",
+            "sessions": 100,
+            "accounts": 100,
+            "ordinary_grants": 100,
+            "total_grants": 100,
+            "renewal_tokens_per_phase": 0,
+            "created_at": "2026-09-23T08:24:57Z",
+            "expires_at": "2026-09-24T08:24:57Z"
+          },
+          "preflight": {
+            "status": 200,
+            "expected": "origin",
+            "origin": "auth-performance-owned-origin-v1",
+            "renewal": false
+          },
+          "quality": {
+            "max_sampling_gap_ms": 205.913818359375,
+            "sampling_ok": true,
+            "health_ok": true,
+            "client_ok": true,
+            "duration_ok": true
+          },
+          "observation_counts": {
+            "process_samples": 40,
+            "health_samples": 9,
+            "timeout_phase_events": 0
+          }
+        },
+        {
+          "route": "auto_ip_hit",
+          "role": "baseline",
+          "pair": 0,
+          "successful_requests": 5633,
+          "warmup_successful_requests": 2172,
+          "elapsed_ms": 8056.895751953125,
+          "seed": {
+            "scenario": "auto_ip_hit",
+            "credential_kind": "totp",
+            "sessions": 100,
+            "accounts": 100,
+            "ordinary_grants": 100,
+            "total_grants": 100,
+            "renewal_tokens_per_phase": 0,
+            "created_at": "2026-09-23T08:25:12Z",
+            "expires_at": "2026-09-24T08:25:12Z"
+          },
+          "preflight": {
+            "status": 200,
+            "expected": "origin",
+            "origin": "auth-performance-owned-origin-v1",
+            "renewal": false
+          },
+          "quality": {
+            "max_sampling_gap_ms": 210.123291015625,
+            "sampling_ok": true,
+            "health_ok": true,
+            "client_ok": true,
+            "duration_ok": true
+          },
+          "observation_counts": {
+            "process_samples": 40,
+            "health_samples": 8,
+            "timeout_phase_events": 0
+          }
+        },
+        {
+          "route": "auto_ip_hit",
+          "role": "candidate",
+          "pair": 0,
+          "successful_requests": 7998,
+          "warmup_successful_requests": 3037,
+          "elapsed_ms": 8050.41650390625,
+          "seed": {
+            "scenario": "auto_ip_hit",
+            "credential_kind": "totp",
+            "sessions": 100,
+            "accounts": 100,
+            "ordinary_grants": 100,
+            "total_grants": 100,
+            "renewal_tokens_per_phase": 0,
+            "created_at": "2026-09-23T08:25:26Z",
+            "expires_at": "2026-09-24T08:25:26Z"
+          },
+          "preflight": {
+            "status": 200,
+            "expected": "origin",
+            "origin": "auth-performance-owned-origin-v1",
+            "renewal": false
+          },
+          "quality": {
+            "max_sampling_gap_ms": 208.744140625,
+            "sampling_ok": true,
+            "health_ok": true,
+            "client_ok": true,
+            "duration_ok": true
+          },
+          "observation_counts": {
+            "process_samples": 40,
+            "health_samples": 9,
+            "timeout_phase_events": 0
+          }
+        }
+      ]
+    },
+    {
+      "name": "password-v5-c16",
+      "trials": 8,
+      "options": {
+        "routes": [
+          "session_api",
+          "session_hit",
+          "auto_ip_hit",
+          "auto_ip_miss"
+        ],
+        "concurrency": 16,
+        "clients": 2,
+        "sessions": 1000,
+        "accounts": 1000,
+        "grants": 100,
+        "credentialKind": "password",
+        "warmup": 3,
+        "seconds": 8,
+        "renewals": 64
+      },
+      "load_requests": 12047,
+      "load_statuses": {
+        "200": 9302,
+        "302": 2745
+      },
+      "warmup_requests": 4569,
+      "warmup_statuses": {
+        "200": 3498,
+        "302": 1071
+      },
+      "max_client_event_loop_delay_ms": 18.497535,
+      "max_client_start_delay_ms": 0.865234375,
+      "max_sampling_gap_ms": 218.5986328125,
+      "timeout_phase_events": 0,
+      "rows": [
+        {
+          "route": "session_api",
+          "role": "baseline",
+          "pair": 0,
+          "successful_requests": 686,
+          "warmup_successful_requests": 266,
+          "elapsed_ms": 8086.551025390625,
+          "seed": {
+            "scenario": "session_api",
+            "credential_kind": "password",
+            "sessions": 1000,
+            "accounts": 1000,
+            "ordinary_grants": 100,
+            "total_grants": 100,
+            "renewal_tokens_per_phase": 0,
+            "created_at": "2026-09-23T08:25:47Z",
+            "expires_at": "2026-09-24T08:25:47Z"
+          },
+          "preflight": {
+            "status": 200,
+            "expected": "session",
+            "origin": null,
+            "renewal": false
+          },
+          "quality": {
+            "max_sampling_gap_ms": 212.3681640625,
+            "sampling_ok": true,
+            "health_ok": true,
+            "client_ok": true,
+            "duration_ok": true
+          },
+          "observation_counts": {
+            "process_samples": 40,
+            "health_samples": 8,
+            "timeout_phase_events": 0
+          }
+        },
+        {
+          "route": "session_api",
+          "role": "candidate",
+          "pair": 0,
+          "successful_requests": 2298,
+          "warmup_successful_requests": 843,
+          "elapsed_ms": 8034.371826171875,
+          "seed": {
+            "scenario": "session_api",
+            "credential_kind": "password",
+            "sessions": 1000,
+            "accounts": 1000,
+            "ordinary_grants": 100,
+            "total_grants": 100,
+            "renewal_tokens_per_phase": 0,
+            "created_at": "2026-09-23T08:26:04Z",
+            "expires_at": "2026-09-24T08:26:04Z"
+          },
+          "preflight": {
+            "status": 200,
+            "expected": "session",
+            "origin": null,
+            "renewal": false
+          },
+          "quality": {
+            "max_sampling_gap_ms": 204.87744140625,
+            "sampling_ok": true,
+            "health_ok": true,
+            "client_ok": true,
+            "duration_ok": true
+          },
+          "observation_counts": {
+            "process_samples": 40,
+            "health_samples": 9,
+            "timeout_phase_events": 0
+          }
+        },
+        {
+          "route": "session_hit",
+          "role": "baseline",
+          "pair": 0,
+          "successful_requests": 1169,
+          "warmup_successful_requests": 453,
+          "elapsed_ms": 8067.831787109375,
+          "seed": {
+            "scenario": "session_hit",
+            "credential_kind": "password",
+            "sessions": 1000,
+            "accounts": 1000,
+            "ordinary_grants": 100,
+            "total_grants": 100,
+            "renewal_tokens_per_phase": 0,
+            "created_at": "2026-09-23T08:26:22Z",
+            "expires_at": "2026-09-24T08:26:22Z"
+          },
+          "preflight": {
+            "status": 200,
+            "expected": "origin",
+            "origin": "auth-performance-owned-origin-v1",
+            "renewal": false
+          },
+          "quality": {
+            "max_sampling_gap_ms": 206.539794921875,
+            "sampling_ok": true,
+            "health_ok": true,
+            "client_ok": true,
+            "duration_ok": true
+          },
+          "observation_counts": {
+            "process_samples": 40,
+            "health_samples": 8,
+            "timeout_phase_events": 0
+          }
+        },
+        {
+          "route": "session_hit",
+          "role": "candidate",
+          "pair": 0,
+          "successful_requests": 3256,
+          "warmup_successful_requests": 1199,
+          "elapsed_ms": 8017.3955078125,
+          "seed": {
+            "scenario": "session_hit",
+            "credential_kind": "password",
+            "sessions": 1000,
+            "accounts": 1000,
+            "ordinary_grants": 100,
+            "total_grants": 100,
+            "renewal_tokens_per_phase": 0,
+            "created_at": "2026-09-23T08:26:36Z",
+            "expires_at": "2026-09-24T08:26:36Z"
+          },
+          "preflight": {
+            "status": 200,
+            "expected": "origin",
+            "origin": "auth-performance-owned-origin-v1",
+            "renewal": false
+          },
+          "quality": {
+            "max_sampling_gap_ms": 209.461181640625,
+            "sampling_ok": true,
+            "health_ok": true,
+            "client_ok": true,
+            "duration_ok": true
+          },
+          "observation_counts": {
+            "process_samples": 40,
+            "health_samples": 8,
+            "timeout_phase_events": 0
+          }
+        },
+        {
+          "route": "auto_ip_hit",
+          "role": "baseline",
+          "pair": 0,
+          "successful_requests": 597,
+          "warmup_successful_requests": 241,
+          "elapsed_ms": 8135.318603515625,
+          "seed": {
+            "scenario": "auto_ip_hit",
+            "credential_kind": "password",
+            "sessions": 1000,
+            "accounts": 1000,
+            "ordinary_grants": 100,
+            "total_grants": 100,
+            "renewal_tokens_per_phase": 0,
+            "created_at": "2026-09-23T08:26:52Z",
+            "expires_at": "2026-09-24T08:26:52Z"
+          },
+          "preflight": {
+            "status": 200,
+            "expected": "origin",
+            "origin": "auth-performance-owned-origin-v1",
+            "renewal": false
+          },
+          "quality": {
+            "max_sampling_gap_ms": 218.5986328125,
+            "sampling_ok": true,
+            "health_ok": true,
+            "client_ok": true,
+            "duration_ok": true
+          },
+          "observation_counts": {
+            "process_samples": 41,
+            "health_samples": 7,
+            "timeout_phase_events": 0
+          }
+        },
+        {
+          "route": "auto_ip_hit",
+          "role": "candidate",
+          "pair": 0,
+          "successful_requests": 1296,
+          "warmup_successful_requests": 496,
+          "elapsed_ms": 8073.355224609375,
+          "seed": {
+            "scenario": "auto_ip_hit",
+            "credential_kind": "password",
+            "sessions": 1000,
+            "accounts": 1000,
+            "ordinary_grants": 100,
+            "total_grants": 100,
+            "renewal_tokens_per_phase": 0,
+            "created_at": "2026-09-23T08:27:09Z",
+            "expires_at": "2026-09-24T08:27:09Z"
+          },
+          "preflight": {
+            "status": 200,
+            "expected": "origin",
+            "origin": "auth-performance-owned-origin-v1",
+            "renewal": false
+          },
+          "quality": {
+            "max_sampling_gap_ms": 209.108154296875,
+            "sampling_ok": true,
+            "health_ok": true,
+            "client_ok": true,
+            "duration_ok": true
+          },
+          "observation_counts": {
+            "process_samples": 40,
+            "health_samples": 9,
+            "timeout_phase_events": 0
+          }
+        },
+        {
+          "route": "auto_ip_miss",
+          "role": "baseline",
+          "pair": 0,
+          "successful_requests": 1019,
+          "warmup_successful_requests": 400,
+          "elapsed_ms": 8073.220703125,
+          "seed": {
+            "scenario": "auto_ip_miss",
+            "credential_kind": "password",
+            "sessions": 1000,
+            "accounts": 1000,
+            "ordinary_grants": 100,
+            "total_grants": 100,
+            "renewal_tokens_per_phase": 0,
+            "created_at": "2026-09-23T08:27:27Z",
+            "expires_at": "2026-09-24T08:27:27Z"
+          },
+          "preflight": {
+            "status": 302,
+            "expected": "redirect",
+            "origin": null,
+            "renewal": false
+          },
+          "quality": {
+            "max_sampling_gap_ms": 208.04833984375,
+            "sampling_ok": true,
+            "health_ok": true,
+            "client_ok": true,
+            "duration_ok": true
+          },
+          "observation_counts": {
+            "process_samples": 40,
+            "health_samples": 8,
+            "timeout_phase_events": 0
+          }
+        },
+        {
+          "route": "auto_ip_miss",
+          "role": "candidate",
+          "pair": 0,
+          "successful_requests": 1726,
+          "warmup_successful_requests": 671,
+          "elapsed_ms": 8074.092041015625,
+          "seed": {
+            "scenario": "auto_ip_miss",
+            "credential_kind": "password",
+            "sessions": 1000,
+            "accounts": 1000,
+            "ordinary_grants": 100,
+            "total_grants": 100,
+            "renewal_tokens_per_phase": 0,
+            "created_at": "2026-09-23T08:27:44Z",
+            "expires_at": "2026-09-24T08:27:44Z"
+          },
+          "preflight": {
+            "status": 302,
+            "expected": "redirect",
+            "origin": null,
+            "renewal": false
+          },
+          "quality": {
+            "max_sampling_gap_ms": 215.483642578125,
+            "sampling_ok": true,
+            "health_ok": true,
+            "client_ok": true,
+            "duration_ok": true
+          },
+          "observation_counts": {
+            "process_samples": 40,
+            "health_samples": 9,
+            "timeout_phase_events": 0
+          }
+        }
+      ]
+    }
+  ]
+}

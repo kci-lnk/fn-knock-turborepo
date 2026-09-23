@@ -1,0 +1,9 @@
+{
+  "archive": "preliminary-replay.tar.gz",
+  "sha256": "d21b63953d7b522e5450d82ecafca328232f972227633a8cb97cfa5d0b2f8067",
+  "bytes": 87372,
+  "files": 16,
+  "trials": 44,
+  "archive_extracted_replay": "byte-identical Markdown and JSON",
+  "contains": "Only aggregate metrics, manifests, pinned fixture source, analysis and provenance; full raw samples are delivered separately."
+}

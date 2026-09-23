@@ -1,0 +1,116 @@
+{
+  "started_utc": "2026-09-23T06:56:17.262817+00:00",
+  "status": "complete",
+  "source_dir": "/private/tmp/fn-knock-auth-candidate3-20260923",
+  "source_commit": "c65503d6cdf49336cdad922c1f7cb2046cf318a8",
+  "gateway_commit": "748c97e03f6fb9087ac0b3c90064611dc2c6cf66",
+  "target_dir": "/Users/edgeware/Local/fn-knock-turborepo/dist/server-admin-rs-target/fpk-zig-amd64",
+  "levels": [
+    "s",
+    "2",
+    "3"
+  ],
+  "toolchain": {
+    "cargo": "cargo 1.96.0 (30a34c682 2026-05-25)",
+    "rustc": "rustc 1.96.0 (ac68faa20 2026-05-25)\nbinary: rustc\ncommit-hash: ac68faa20c58cbccd01ee7208bf3b6e93a7d7f96\ncommit-date: 2026-05-25\nhost: aarch64-apple-darwin\nrelease: 1.96.0\nLLVM version: 22.1.2",
+    "zig": "0.16.0",
+    "rustup_active": "stable-aarch64-apple-darwin (default)",
+    "cargo_zigbuild": "cargo-zigbuild 0.23.0"
+  },
+  "cargo_lock_sha256": "f1267cf91fafb62deacea2d7eb25ed06b158e3918a6a32d048a3d9e1686e5a21",
+  "base_environment": {
+    "CARGO_TARGET_DIR": "/Users/edgeware/Local/fn-knock-turborepo/dist/server-admin-rs-target/fpk-zig-amd64",
+    "FN_KNOCK_GATEWAY_COMMIT": "748c97e03f6fb9087ac0b3c90064611dc2c6cf66",
+    "CARGO_BUILD_JOBS": "2",
+    "CARGO_PROFILE_RELEASE_LTO": "fat",
+    "CARGO_PROFILE_RELEASE_CODEGEN_UNITS": "1"
+  },
+  "command_argv": [
+    "cargo",
+    "zigbuild",
+    "--locked",
+    "--release",
+    "--manifest-path",
+    "/private/tmp/fn-knock-auth-candidate3-20260923/apps/server-admin-rs/Cargo.toml",
+    "--bin",
+    "server-admin-rs",
+    "--target",
+    "x86_64-unknown-linux-gnu"
+  ],
+  "minimum_free_bytes": 5368709120,
+  "variants": [
+    {
+      "opt_level": "s",
+      "status": "complete",
+      "started_utc": "2026-09-23T06:56:17.343248+00:00",
+      "free_bytes_before": 20382064640,
+      "artifact_free_bytes_before": 20382064640,
+      "environment": {
+        "CARGO_TARGET_DIR": "/Users/edgeware/Local/fn-knock-turborepo/dist/server-admin-rs-target/fpk-zig-amd64",
+        "FN_KNOCK_GATEWAY_COMMIT": "748c97e03f6fb9087ac0b3c90064611dc2c6cf66",
+        "CARGO_BUILD_JOBS": "2",
+        "CARGO_PROFILE_RELEASE_LTO": "fat",
+        "CARGO_PROFILE_RELEASE_CODEGEN_UNITS": "1",
+        "CARGO_PROFILE_RELEASE_OPT_LEVEL": "s"
+      },
+      "command": "env CARGO_TARGET_DIR=/Users/edgeware/Local/fn-knock-turborepo/dist/server-admin-rs-target/fpk-zig-amd64 FN_KNOCK_GATEWAY_COMMIT=748c97e03f6fb9087ac0b3c90064611dc2c6cf66 CARGO_BUILD_JOBS=2 CARGO_PROFILE_RELEASE_LTO=fat CARGO_PROFILE_RELEASE_CODEGEN_UNITS=1 CARGO_PROFILE_RELEASE_OPT_LEVEL=s cargo zigbuild --locked --release --manifest-path /private/tmp/fn-knock-auth-candidate3-20260923/apps/server-admin-rs/Cargo.toml --bin server-admin-rs --target x86_64-unknown-linux-gnu",
+      "log": "/private/tmp/fn-knock-auth-artifacts3-params-20260923/compiler-s/build.log",
+      "elapsed_seconds": 230.85802154200002,
+      "exit_code": 0,
+      "finished_utc": "2026-09-23T07:00:08.181938+00:00",
+      "artifact": "/private/tmp/fn-knock-auth-artifacts3-params-20260923/compiler-s/server-admin-rs",
+      "sha256": "b23433b3fff24d2c16fa5c93ab0e31b6a5361d0b99f5b78cbb29bf630b31f4ca",
+      "size_bytes": 42251888,
+      "free_bytes_after": 19891695616
+    },
+    {
+      "opt_level": "2",
+      "status": "complete",
+      "started_utc": "2026-09-23T07:00:08.382320+00:00",
+      "free_bytes_before": 19891687424,
+      "artifact_free_bytes_before": 19891687424,
+      "environment": {
+        "CARGO_TARGET_DIR": "/Users/edgeware/Local/fn-knock-turborepo/dist/server-admin-rs-target/fpk-zig-amd64",
+        "FN_KNOCK_GATEWAY_COMMIT": "748c97e03f6fb9087ac0b3c90064611dc2c6cf66",
+        "CARGO_BUILD_JOBS": "2",
+        "CARGO_PROFILE_RELEASE_LTO": "fat",
+        "CARGO_PROFILE_RELEASE_CODEGEN_UNITS": "1",
+        "CARGO_PROFILE_RELEASE_OPT_LEVEL": "2"
+      },
+      "command": "env CARGO_TARGET_DIR=/Users/edgeware/Local/fn-knock-turborepo/dist/server-admin-rs-target/fpk-zig-amd64 FN_KNOCK_GATEWAY_COMMIT=748c97e03f6fb9087ac0b3c90064611dc2c6cf66 CARGO_BUILD_JOBS=2 CARGO_PROFILE_RELEASE_LTO=fat CARGO_PROFILE_RELEASE_CODEGEN_UNITS=1 CARGO_PROFILE_RELEASE_OPT_LEVEL=2 cargo zigbuild --locked --release --manifest-path /private/tmp/fn-knock-auth-candidate3-20260923/apps/server-admin-rs/Cargo.toml --bin server-admin-rs --target x86_64-unknown-linux-gnu",
+      "log": "/private/tmp/fn-knock-auth-artifacts3-params-20260923/compiler-2/build.log",
+      "elapsed_seconds": 654.696266083,
+      "exit_code": 0,
+      "finished_utc": "2026-09-23T07:11:03.079417+00:00",
+      "artifact": "/private/tmp/fn-knock-auth-artifacts3-params-20260923/compiler-2/server-admin-rs",
+      "sha256": "826df363ead5ade609f2df0db9962b6b4703d341a5cac286934c62aefc11687d",
+      "size_bytes": 55183424,
+      "free_bytes_after": 18383130624
+    },
+    {
+      "opt_level": "3",
+      "status": "complete",
+      "started_utc": "2026-09-23T07:11:03.320330+00:00",
+      "free_bytes_before": 18383085568,
+      "artifact_free_bytes_before": 18383085568,
+      "environment": {
+        "CARGO_TARGET_DIR": "/Users/edgeware/Local/fn-knock-turborepo/dist/server-admin-rs-target/fpk-zig-amd64",
+        "FN_KNOCK_GATEWAY_COMMIT": "748c97e03f6fb9087ac0b3c90064611dc2c6cf66",
+        "CARGO_BUILD_JOBS": "2",
+        "CARGO_PROFILE_RELEASE_LTO": "fat",
+        "CARGO_PROFILE_RELEASE_CODEGEN_UNITS": "1",
+        "CARGO_PROFILE_RELEASE_OPT_LEVEL": "3"
+      },
+      "command": "env CARGO_TARGET_DIR=/Users/edgeware/Local/fn-knock-turborepo/dist/server-admin-rs-target/fpk-zig-amd64 FN_KNOCK_GATEWAY_COMMIT=748c97e03f6fb9087ac0b3c90064611dc2c6cf66 CARGO_BUILD_JOBS=2 CARGO_PROFILE_RELEASE_LTO=fat CARGO_PROFILE_RELEASE_CODEGEN_UNITS=1 CARGO_PROFILE_RELEASE_OPT_LEVEL=3 cargo zigbuild --locked --release --manifest-path /private/tmp/fn-knock-auth-candidate3-20260923/apps/server-admin-rs/Cargo.toml --bin server-admin-rs --target x86_64-unknown-linux-gnu",
+      "log": "/private/tmp/fn-knock-auth-artifacts3-params-20260923/compiler-3/build.log",
+      "elapsed_seconds": 702.4889172920001,
+      "exit_code": 0,
+      "finished_utc": "2026-09-23T07:22:45.810208+00:00",
+      "artifact": "/private/tmp/fn-knock-auth-artifacts3-params-20260923/compiler-3/server-admin-rs",
+      "sha256": "797db966a565bb34708512c632bea2107c52ebeee731044a103b2bd42d430fef",
+      "size_bytes": 56838144,
+      "free_bytes_after": 16889495552
+    }
+  ],
+  "finished_utc": "2026-09-23T07:22:45.973306+00:00"
+}

@@ -9,6 +9,7 @@
 | 初始 c64 短测 | 实验工具隐式设置 bridge capacity=32，造成预期外 503 | 删除正常实验中的该覆盖；base/base c64 control 通过。显式 capacity=32 仅作为独立饱和/恢复用例 |
 | `accounts1000-c16-v3` | Go 构建遗漏运行时 `version.Commit` 注入，Rust bundle 身份校验拒绝启动 | 保留失败制品及记录；正确注入后使用新目录 `accounts1000-c16-v3b`。失败启动不计为性能退化 |
 | Rust `c65503d6` 与 `formal-v3-main` | IP owner 候选直接 raw→LoginSession 解析，与旧列表 raw→Value→LoginSession 不同。重复字段或 RawValue 包装可能少算 owner，使原本两个 owner 的拒绝变成唯一 owner 选择 | 在 2026-09-23 07:25 UTC 左右终止实验，保留已完成的 12 个 trial（6 个单对目标场景）；三个保护场景尚未完成。恢复列表解析语义并保留最终权威重读后，冻结新源码重新跑正式矩阵 |
+| Go `748c97e` / `0978d6b` 普通 Cookie 快速路径 | 大量空 Cookie 分段会触发 Go 上游的 cookie 数量上限；非空分段边缘的 Unicode 空白也可能令原本可识别的普通 cookie 被丢弃。这些输入在旧 helper 中先经过清理 | `0978d6b` 恢复空分段清理，`4d15fa3` 恢复非 HTTP OWS 边缘空白清理；常规 Cookie 保持快路径，最终基准改为原始 `92d4c0c` 直接对比 `4d15fa3` |
 
 `c65503d6` 的 12 个已完成正式 trial 均通过响应和采样质量检查，但这不覆盖后来发现的特殊 JSON 兼容缺陷，因此它们仍然被排除。已编译完成的该检查点 `z/s/2/3` 制品亦不用于最终编译参数结论。
 

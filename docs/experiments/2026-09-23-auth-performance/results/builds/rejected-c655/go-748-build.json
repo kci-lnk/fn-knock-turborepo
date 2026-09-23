@@ -1,0 +1,12 @@
+{
+  "source_commit": "748c97e03f6fb9087ac0b3c90064611dc2c6cf66",
+  "source_dir": "/private/tmp/fn-knock-go-candidate3-20260923",
+  "source_clean": true,
+  "toolchain": "go1.26.7",
+  "target": "linux/amd64/v1",
+  "cgo": false,
+  "command": "cd /private/tmp/fn-knock-go-candidate3-20260923\nCGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -buildvcs=true -trimpath -ldflags '-X go-reauth-proxy/pkg/version.Commit=748c97e03f6fb9087ac0b3c90064611dc2c6cf66' -o /tmp/fn-knock-auth-artifacts3-20260923/go/go-reauth-proxy ./cmd/server\n",
+  "sha256": "46928b641f2b8ba2c8d67ee3baec78d2bb3cd26baecd01b7ecbf1bf81953a6aa",
+  "size_bytes": 39530020,
+  "note": "Go package version.Commit is explicitly injected for Rust bundle validation. The failed first build lacking this flag is preserved separately and excluded from timing evidence."
+}

@@ -19,6 +19,7 @@ Cache/renewal inherit unspecified workload fields from primary_matrix.
 Renewal uses ordinary_grants and a finite renewal_tokens_per_phase batch;
 measurement_deadline_seconds limits request starts, not sustained-load duration.
 Uses existing comparison gates unchanged. Prints JSON; exits 1 on rejection.
+Optional plan artifact_sha256 pins must match the recorded binary identities.
 Inputs are never changed. This checks recorded evidence, not live binaries.`;
 
 function expectedPhase(plan, phase) {
@@ -212,6 +213,18 @@ export function checkPerformancePlan({ plan, results, manifest, phase }) {
           /^[a-f0-9]{64}$/.test(matches[0].sha256 ?? ""),
           `${role}/${component} missing binary SHA256`,
         );
+        const pinnedHash = plan[role].artifact_sha256?.[component];
+        if (pinnedHash !== undefined) {
+          check(
+            /^[a-f0-9]{64}$/.test(pinnedHash),
+            `${role}/${component} invalid plan artifact SHA256`,
+          );
+          equal(
+            matches[0].sha256,
+            pinnedHash,
+            `${role}/${component} pinned artifact SHA256`,
+          );
+        }
       }
     }
 

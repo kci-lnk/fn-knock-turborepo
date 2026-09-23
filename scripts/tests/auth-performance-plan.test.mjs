@@ -244,6 +244,25 @@ test("fresh-process evidence rejects reused identities and restarts", () => {
   rejected(input, /missing process identity/);
 });
 
+test("optional artifact pins reject different binaries with identical source metadata", () => {
+  const input = fixture();
+  for (const role of ["baseline", "candidate"])
+    input.plan[role].artifact_sha256 = {
+      go: "e".repeat(64),
+      rust: "e".repeat(64),
+    };
+  assert.equal(checkPerformancePlan(input).passed, true);
+  const changed = input.manifest.identities.find(
+    (identity) =>
+      identity.variant === "candidate4" && identity.component === "go",
+  );
+  changed.sha256 = "f".repeat(64);
+  rejected(input, /candidate\/go pinned artifact SHA256/);
+  changed.sha256 = "e".repeat(64);
+  input.plan.baseline.artifact_sha256.rust = "not-a-sha256";
+  rejected(input, /baseline\/rust invalid plan artifact SHA256/);
+});
+
 test("manifest and actual trial workload must match inherited phase parameters", () => {
   for (const [mutate, pattern] of [
     [

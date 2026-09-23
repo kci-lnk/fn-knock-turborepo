@@ -1875,6 +1875,125 @@ async fn batched_ip_candidates_drop_nonmatching_snapshots_before_authority_reads
     );
 }
 
+#[tokio::test]
+async fn ip_owner_confirmation_preserves_legacy_json_and_unique_owner_semantics() {
+    let target_ip = "203.0.113.42";
+    let other_ip = "203.0.113.99";
+    for (case, original_ip, final_ip, wrapped) in [
+        ("duplicate-same", target_ip, target_ip, false),
+        ("duplicate-last-matches", other_ip, target_ip, false),
+        ("duplicate-last-differs", target_ip, other_ip, false),
+        ("raw-value-wrapper", target_ip, target_ip, true),
+    ] {
+        let (_directory, state) = mobility_test_state(case).await;
+        let mut config = state.storage.store.get_config().await.unwrap();
+        config["auth_credential_settings"]["session_ip_mobility_enabled"] = json!(false);
+        state.storage.store.save_config(&config).await.unwrap();
+        let settings = AuthCredentialSettings::from_config(&config);
+        let normal = test_browser_session(target_ip);
+        state
+            .storage
+            .store
+            .add_session("a-normal", &normal, 3600)
+            .await
+            .unwrap();
+        let mut compatible = normal.clone();
+        compatible.ip = original_ip.to_string();
+        let mut raw = serde_json::to_string(&compatible).unwrap();
+        if wrapped {
+            raw = json!({"$serde_json::private::RawValue": raw}).to_string();
+        } else {
+            assert_eq!(raw.pop(), Some('}'));
+            raw.push_str(&format!(",\"ip\":{}}}", json!(final_ip)));
+        }
+        // Legacy IP owner lists parse through Value. Direct session decoding
+        // deliberately has different duplicate-field/RawValue semantics.
+        assert!(
+            serde_json::from_str::<LoginSession>(&raw).is_err(),
+            "{case}"
+        );
+        let legacy =
+            serde_json::from_value::<LoginSession>(serde_json::from_str::<Value>(&raw).unwrap())
+                .unwrap();
+        assert_eq!(legacy.ip, final_ip, "{case}");
+        state
+            .storage
+            .store
+            .set_string_value_with_optional_ttl("fn_knock:session:b-compatible", &raw, Some(3600))
+            .await
+            .unwrap();
+
+        let expected_ids = if final_ip == target_ip {
+            vec!["a-normal", "b-compatible"]
+        } else {
+            vec!["a-normal"]
+        };
+        for owners in [
+            list_active_sessions_by_ip(&state, target_ip).await.unwrap(),
+            list_stream_access_sessions_by_ip(&state, target_ip)
+                .await
+                .unwrap(),
+        ] {
+            assert_eq!(
+                owners.iter().map(|(id, _)| id.as_str()).collect::<Vec<_>>(),
+                expected_ids,
+                "{case}"
+            );
+        }
+        let owner = restore::resolve_bootstrap_owner(&state, target_ip)
+            .await
+            .unwrap();
+        assert_eq!(
+            owner.as_ref().map(|(id, _)| id.as_str()),
+            (final_ip != target_ip).then_some("a-normal"),
+            "{case}: a second compatible owner must keep bootstrap ambiguous"
+        );
+        let confirmed = restore::confirm_session_ip_candidate(
+            &state,
+            "b-compatible",
+            final_ip,
+            &settings,
+            false,
+        )
+        .await
+        .unwrap()
+        .unwrap();
+        assert_eq!(
+            serde_json::to_value(confirmed).unwrap(),
+            serde_json::to_value(legacy).unwrap(),
+            "{case}: final authority must use the same list decoding"
+        );
+
+        state
+            .storage
+            .store
+            .delete_session("b-compatible")
+            .await
+            .unwrap();
+        assert!(
+            restore::confirm_session_ip_candidate(
+                &state,
+                "b-compatible",
+                final_ip,
+                &settings,
+                false,
+            )
+            .await
+            .unwrap()
+            .is_none(),
+            "{case}: compatible parsing must not bypass revocation"
+        );
+        assert_eq!(
+            restore::resolve_bootstrap_owner(&state, target_ip)
+                .await
+                .unwrap()
+                .unwrap()
+                .0,
+            "a-normal"
+        );
+    }
+}
+
 async fn mobility_test_state(name: &str) -> (tempfile::TempDir, AppState) {
     let directory = tempfile::tempdir().expect("temporary auth database");
     let mut settings = {

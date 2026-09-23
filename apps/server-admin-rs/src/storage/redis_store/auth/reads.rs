@@ -82,7 +82,11 @@ impl Store {
                 let mut sessions = Vec::new();
                 for row in rows {
                     let (id, raw) = row?;
-                    if let Ok(session) = serde_json::from_str::<LoginSession>(&raw) {
+                    // Match list_login_sessions: Value decoding keeps the last
+                    // duplicate field and serde_json's RawValue map semantics.
+                    if let Ok(value) = serde_json::from_str::<Value>(&raw)
+                        && let Ok(session) = serde_json::from_value::<LoginSession>(value)
+                    {
                         sessions.push((id, session, Vec::new()));
                     }
                 }

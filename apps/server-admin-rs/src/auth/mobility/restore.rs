@@ -522,7 +522,13 @@ pub(super) async fn confirm_session_ip_candidate(
 ) -> anyhow::Result<Option<LoginSession>> {
     // Do not authorize from a candidate snapshot: logout, expiry and drift can
     // invalidate it while other candidates are being inspected.
-    let Some(session) = state.storage.store.get_session(session_id).await? else {
+    let Some(value) = state.storage.store.get_session_value(session_id).await? else {
+        return Ok(None);
+    };
+    // Re-read KV authority and preserve the list path's Value normalization.
+    // Direct get_session decoding rejects duplicate fields/RawValue wrappers
+    // and can incorrectly reduce two legacy owners to one bootstrap owner.
+    let Ok(session) = serde_json::from_value::<LoginSession>(value) else {
         return Ok(None);
     };
     if crate::auth::login_session_has_expired(&session) {

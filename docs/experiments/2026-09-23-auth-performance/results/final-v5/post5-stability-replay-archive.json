@@ -1,0 +1,9 @@
+{
+  "archive": "post5-stability-replay.tar.gz",
+  "sha256": "e171dfaa40cbfb9163ab256d63417af7568a4d5b66c64a581911994e4471dee7",
+  "bytes": 50067,
+  "files": 16,
+  "trials": 3,
+  "archive_extracted_replay": "Markdown and JSON byte-identical",
+  "privacy": "20 free-text strings redacted in recovery aggregate; source and collected hashes preserved. Frozen credential-kind fields contain only the category label totp."
+}

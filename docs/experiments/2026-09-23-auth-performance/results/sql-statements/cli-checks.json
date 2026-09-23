@@ -1,0 +1,42 @@
+[
+  {
+    "command": [
+      "/Users/edgeware/Local/fn-knock-turborepo/scripts/auth-sql-diagnostic.py",
+      "prepare",
+      "--repo",
+      ".",
+      "--output",
+      "/tmp/unused-sql-diagnostic-check"
+    ],
+    "exit_code": 2,
+    "stderr": "usage: auth-sql-diagnostic.py prepare [-h] --repo REPO --output OUTPUT\n                                      [--baseline-commit BASELINE_COMMIT]\n                                      --candidate-commit CANDIDATE_COMMIT\nauth-sql-diagnostic.py prepare: error: the following arguments are required: --candidate-commit\n"
+  },
+  {
+    "command": [
+      "/Users/edgeware/Local/fn-knock-turborepo/scripts/auth-sql-diagnostic.py",
+      "prepare",
+      "--repo",
+      ".",
+      "--output",
+      "/tmp/unused-sql-diagnostic-check",
+      "--candidate-commit",
+      "c655"
+    ],
+    "exit_code": 2,
+    "stderr": "usage: auth-sql-diagnostic.py prepare [-h] --repo REPO --output OUTPUT\n                                      [--baseline-commit BASELINE_COMMIT]\n                                      --candidate-commit CANDIDATE_COMMIT\nauth-sql-diagnostic.py prepare: error: argument --candidate-commit: expected a lowercase full 40-character commit SHA\n"
+  },
+  {
+    "command": [
+      "/Users/edgeware/Local/fn-knock-turborepo/scripts/auth-sql-diagnostic.py",
+      "run",
+      "--output",
+      "/tmp/unused-sql-diagnostic-check",
+      "--target",
+      "/tmp/unused-sql-target-check",
+      "--jobs",
+      "0"
+    ],
+    "exit_code": 2,
+    "stderr": "usage: auth-sql-diagnostic.py [-h] {prepare,run} ...\nauth-sql-diagnostic.py: error: --jobs must be positive\n"
+  }
+]

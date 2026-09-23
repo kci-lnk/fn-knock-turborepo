@@ -1,0 +1,92 @@
+{
+  "schema_version": 1,
+  "prepared_at": "2026-09-23T07:47:04.598660+00:00",
+  "status": "failed",
+  "driver_sha256": "4c065123a4cc620d4879edb511ba5a13147077f4063ab8b1c36cab4c708aa6fc",
+  "overlay_sha256": {
+    "operations_overlay.rs": "50c71ec17165865ba858293feca6563b4f6478aaebde710df467fba3602f2624",
+    "trace_overlay.rs": "c1c1bcbebc3685f2253e10c8acbcbdc0f2b14df87bfc8decb3ce2b40ca59fd4d"
+  },
+  "scope": "method-level SQL statement executions after warmup; not HTTP/RPC SQL per request",
+  "auth_readers": 1,
+  "test": "auth::routes::sql_statement_diagnostic::operation_statement_counts",
+  "variants": [
+    {
+      "label": "baseline",
+      "source_commit": "d4f8805f39d9f4480bf83f4382ba59e5f49e7dc4",
+      "source": "/private/tmp/fn-knock-sql-diagnostic-final-v3-20260923/sources/baseline",
+      "archive_sha256": "324e4a5f2effa471038f0e6c95bf847a8e0620416e1f57d2f62b94cb851e93a0",
+      "archive_bytes": 31631360,
+      "request_context_scope": false,
+      "modified_files": {
+        "apps/server-admin-rs/src/storage/redis_compat.rs": "e107236e7ba8d7ef14d6ead16754752cc788ddb341d4b760f5070c7752821b6c",
+        "apps/server-admin-rs/src/storage/redis_compat/connection.rs": "3a7b479507061272a56eebd1ba05bb1fd4ec9e3791423fde9c58cd2cdcfea3c8",
+        "apps/server-admin-rs/src/auth/routes.rs": "f19f3d83c8a1dad872e9a559b140685158600fefa70f3265b7415efeaba634a8",
+        "apps/server-admin-rs/src/auth/mobility.rs": "17294f6c77c7e8597e73f3755cd06fe85f9b4371f2ec6f022233394bf35e7731",
+        "apps/server-admin-rs/src/storage/redis_compat/sql_statement_diagnostic.rs": "c1c1bcbebc3685f2253e10c8acbcbdc0f2b14df87bfc8decb3ce2b40ca59fd4d",
+        "apps/server-admin-rs/src/auth/routes/sql_statement_diagnostic.rs": "50c71ec17165865ba858293feca6563b4f6478aaebde710df467fba3602f2624"
+      },
+      "overlaid_tree_sha256": "f354bc2d0ae36aadcbcd5bb88ada6181e6cc0594554d83ed8f439810626122cb",
+      "cargo_lock_sha256": "f1267cf91fafb62deacea2d7eb25ed06b158e3918a6a32d048a3d9e1686e5a21",
+      "free_bytes_before": {
+        "target": 14179864576,
+        "output": 14179864576
+      },
+      "build_command": [
+        "cargo",
+        "test",
+        "--locked",
+        "--manifest-path",
+        "/private/tmp/fn-knock-sql-diagnostic-final-v3-20260923/sources/baseline/apps/server-admin-rs/Cargo.toml",
+        "--lib",
+        "--no-run",
+        "--message-format=json"
+      ],
+      "build_environment": {
+        "CARGO_TARGET_DIR": "/Users/edgeware/Local/fn-knock-turborepo/apps/server-admin-rs/target",
+        "CARGO_BUILD_JOBS": "2",
+        "FN_KNOCK_SQLITE_AUTH_READERS": "1"
+      },
+      "build_seconds": 97.788730625,
+      "binary_sha256": "6ebba65d08e39d8e3e8e332ad366ab5d07a38971db4d5a24b53d2bd7fe8e32f1",
+      "binary_bytes": 236753856,
+      "test_command": [
+        "/private/tmp/fn-knock-sql-diagnostic-final-v3-20260923/baseline/server-admin-rs-sql-diagnostic.test",
+        "auth::routes::sql_statement_diagnostic::operation_statement_counts",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "test_environment": {
+        "FN_KNOCK_SQLITE_AUTH_READERS": "1",
+        "FN_KNOCK_SQL_DIAGNOSTIC_OUT": "/private/tmp/fn-knock-sql-diagnostic-final-v3-20260923/baseline/statements.json",
+        "FN_KNOCK_SQL_DIAGNOSTIC_SOURCE": "d4f8805f39d9f4480bf83f4382ba59e5f49e7dc4"
+      }
+    },
+    {
+      "label": "candidate",
+      "source_commit": "5fddf896eaf9b1cf3eb300c08315320498c943b8",
+      "source": "/private/tmp/fn-knock-sql-diagnostic-final-v3-20260923/sources/candidate",
+      "archive_sha256": "95557c4fec9811596f3b5c72643386fa1a651305373954cbc0895fd3c1c8d0c8",
+      "archive_bytes": 33443840,
+      "request_context_scope": true,
+      "modified_files": {
+        "apps/server-admin-rs/src/storage/redis_compat.rs": "93702fea0983068400eae59050621a448201d20d8dbe16a7f4aa49e18dbe5bc0",
+        "apps/server-admin-rs/src/storage/redis_compat/connection.rs": "d528a02bc20d7db1c85c25d903d168afee1eb24b90018087b598ff4f72c18e26",
+        "apps/server-admin-rs/src/auth/routes.rs": "f19f3d83c8a1dad872e9a559b140685158600fefa70f3265b7415efeaba634a8",
+        "apps/server-admin-rs/src/auth/mobility.rs": "e95e58cd749f154ad6511a0c14a570815d7d67d1202809adc60c9d65319e0ceb",
+        "apps/server-admin-rs/src/storage/redis_compat/sql_statement_diagnostic.rs": "c1c1bcbebc3685f2253e10c8acbcbdc0f2b14df87bfc8decb3ce2b40ca59fd4d",
+        "apps/server-admin-rs/src/auth/routes/sql_statement_diagnostic.rs": "bb01e9ebba8c8ed370cbb5cc3fd46ea9daf44231d6716077695d892302e61d71"
+      },
+      "overlaid_tree_sha256": "ea94248f5dcd12c4ab1ca61317d341a74664f53deb04515fa99f7eaad362c667",
+      "cargo_lock_sha256": "f1267cf91fafb62deacea2d7eb25ed06b158e3918a6a32d048a3d9e1686e5a21"
+    }
+  ],
+  "toolchain": {
+    "cargo": "cargo 1.96.0 (30a34c682 2026-05-25)",
+    "rustc": "rustc 1.96.0 (ac68faa20 2026-05-25)\nbinary: rustc\ncommit-hash: ac68faa20c58cbccd01ee7208bf3b6e93a7d7f96\ncommit-date: 2026-05-25\nhost: aarch64-apple-darwin\nrelease: 1.96.0\nLLVM version: 22.1.2"
+  },
+  "target": "/Users/edgeware/Local/fn-knock-turborepo/apps/server-admin-rs/target",
+  "jobs": 2,
+  "error": "Command '['/private/tmp/fn-knock-sql-diagnostic-final-v3-20260923/baseline/server-admin-rs-sql-diagnostic.test', 'auth::routes::sql_statement_diagnostic::operation_statement_counts', '--exact', '--nocapture', '--test-threads=1']' returned non-zero exit status 101."
+}

@@ -1,0 +1,199 @@
+[
+  {
+    "reason": "compiler-message",
+    "package_id": "path+file:///private/tmp/fn-knock-sql-diagnostic-final-20260923/sources/baseline/apps/server-admin-rs#2.4.15",
+    "manifest_path": "/private/tmp/fn-knock-sql-diagnostic-final-20260923/sources/baseline/apps/server-admin-rs/Cargo.toml",
+    "target": {
+      "kind": [
+        "lib"
+      ],
+      "crate_types": [
+        "lib"
+      ],
+      "name": "server_admin_rs",
+      "src_path": "/private/tmp/fn-knock-sql-diagnostic-final-20260923/sources/baseline/apps/server-admin-rs/src/lib.rs",
+      "edition": "2024",
+      "doc": true,
+      "doctest": true,
+      "test": true
+    },
+    "message": {
+      "rendered": "error[E0425]: cannot find function `list_active_sessions_by_ip` in module `auth_mobility`\n   --> src/auth/routes/sql_statement_diagnostic.rs:145:45\n    |\n145 |                 let owners = auth_mobility::list_active_sessions_by_ip(state, CLIENT_IP).await?;\n    |                                             ^^^^^^^^^^^^^^^^^^^^^^^^^^ not found in `auth_mobility`\n    |\nnote: function `crate::auth_mobility::restore::list_active_sessions_by_ip` exists but is inaccessible\n   --> src/auth/mobility/restore.rs:396:1\n    |\n396 | / pub async fn list_active_sessions_by_ip(\n397 | |     state: &AppState,\n398 | |     client_ip: &str,\n399 | | ) -> anyhow::Result<Vec<(String, LoginSession)>> {\n...   |\n412 | |     Ok(owners)\n413 | | }\n    | |_^ not accessible\n\n",
+      "$message_type": "diagnostic",
+      "children": [
+        {
+          "children": [],
+          "code": null,
+          "level": "note",
+          "message": "function `crate::auth_mobility::restore::list_active_sessions_by_ip` exists but is inaccessible",
+          "rendered": null,
+          "spans": [
+            {
+              "byte_end": 12631,
+              "byte_start": 11967,
+              "column_end": 2,
+              "column_start": 1,
+              "expansion": null,
+              "file_name": "src/auth/mobility/restore.rs",
+              "is_primary": true,
+              "label": "not accessible",
+              "line_end": 413,
+              "line_start": 396,
+              "suggested_replacement": null,
+              "suggestion_applicability": null,
+              "text": [
+                {
+                  "highlight_end": 41,
+                  "highlight_start": 1,
+                  "text": "pub async fn list_active_sessions_by_ip("
+                },
+                {
+                  "highlight_end": 22,
+                  "highlight_start": 1,
+                  "text": "    state: &AppState,"
+                },
+                {
+                  "highlight_end": 21,
+                  "highlight_start": 1,
+                  "text": "    client_ip: &str,"
+                },
+                {
+                  "highlight_end": 51,
+                  "highlight_start": 1,
+                  "text": ") -> anyhow::Result<Vec<(String, LoginSession)>> {"
+                },
+                {
+                  "highlight_end": 61,
+                  "highlight_start": 1,
+                  "text": "    let normalized_ip = normalized_or_trimmed_ip(client_ip);"
+                },
+                {
+                  "highlight_end": 34,
+                  "highlight_start": 1,
+                  "text": "    if normalized_ip.is_empty() {"
+                },
+                {
+                  "highlight_end": 31,
+                  "highlight_start": 1,
+                  "text": "        return Ok(Vec::new());"
+                },
+                {
+                  "highlight_end": 6,
+                  "highlight_start": 1,
+                  "text": "    }"
+                },
+                {
+                  "highlight_end": 58,
+                  "highlight_start": 1,
+                  "text": "    let config = state.storage.store.get_config().await?;"
+                },
+                {
+                  "highlight_end": 33,
+                  "highlight_start": 1,
+                  "text": "    let mut owners = Vec::new();"
+                },
+                {
+                  "highlight_end": 84,
+                  "highlight_start": 1,
+                  "text": "    for (session_id, session) in state.storage.store.list_login_sessions().await? {"
+                },
+                {
+                  "highlight_end": 87,
+                  "highlight_start": 1,
+                  "text": "        let ips = effective_session_ips(state, &session_id, &session, &config).await?;"
+                },
+                {
+                  "highlight_end": 55,
+                  "highlight_start": 1,
+                  "text": "        if ips.iter().any(|ip| ip == &normalized_ip) {"
+                },
+                {
+                  "highlight_end": 48,
+                  "highlight_start": 1,
+                  "text": "            owners.push((session_id, session));"
+                },
+                {
+                  "highlight_end": 10,
+                  "highlight_start": 1,
+                  "text": "        }"
+                },
+                {
+                  "highlight_end": 6,
+                  "highlight_start": 1,
+                  "text": "    }"
+                },
+                {
+                  "highlight_end": 15,
+                  "highlight_start": 1,
+                  "text": "    Ok(owners)"
+                },
+                {
+                  "highlight_end": 2,
+                  "highlight_start": 1,
+                  "text": "}"
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "level": "error",
+      "message": "cannot find function `list_active_sessions_by_ip` in module `auth_mobility`",
+      "spans": [
+        {
+          "byte_end": 5589,
+          "byte_start": 5563,
+          "column_end": 71,
+          "column_start": 45,
+          "expansion": null,
+          "file_name": "src/auth/routes/sql_statement_diagnostic.rs",
+          "is_primary": true,
+          "label": "not found in `auth_mobility`",
+          "line_end": 145,
+          "line_start": 145,
+          "suggested_replacement": null,
+          "suggestion_applicability": null,
+          "text": [
+            {
+              "highlight_end": 71,
+              "highlight_start": 45,
+              "text": "                let owners = auth_mobility::list_active_sessions_by_ip(state, CLIENT_IP).await?;"
+            }
+          ]
+        }
+      ],
+      "code": {
+        "code": "E0425",
+        "explanation": "An unresolved name was used.\n\nErroneous code examples:\n\n```compile_fail,E0425\nsomething_that_doesnt_exist::foo;\n// error: unresolved name `something_that_doesnt_exist::foo`\n\n// or:\n\ntrait Foo {\n    fn bar() {\n        Self; // error: unresolved name `Self`\n    }\n}\n\n// or:\n\nlet x = unknown_variable;  // error: unresolved name `unknown_variable`\n```\n\nPlease verify that the name wasn't misspelled and ensure that the\nidentifier being referred to is valid for the given situation. Example:\n\n```\nenum something_that_does_exist {\n    Foo,\n}\n```\n\nOr:\n\n```\nmod something_that_does_exist {\n    pub static foo : i32 = 0i32;\n}\n\nsomething_that_does_exist::foo; // ok!\n```\n\nOr:\n\n```\nlet unknown_variable = 12u32;\nlet x = unknown_variable; // ok!\n```\n\nIf the item is not defined in the current module, it must be imported using a\n`use` statement, like so:\n\n```\n# mod foo { pub fn bar() {} }\n# fn main() {\nuse foo::bar;\nbar();\n# }\n```\n\nIf the item you are importing is not defined in some super-module of the\ncurrent module, then it must also be declared as public (e.g., `pub fn`).\n"
+      }
+    }
+  },
+  {
+    "reason": "compiler-message",
+    "package_id": "path+file:///private/tmp/fn-knock-sql-diagnostic-final-20260923/sources/baseline/apps/server-admin-rs#2.4.15",
+    "manifest_path": "/private/tmp/fn-knock-sql-diagnostic-final-20260923/sources/baseline/apps/server-admin-rs/Cargo.toml",
+    "target": {
+      "kind": [
+        "lib"
+      ],
+      "crate_types": [
+        "lib"
+      ],
+      "name": "server_admin_rs",
+      "src_path": "/private/tmp/fn-knock-sql-diagnostic-final-20260923/sources/baseline/apps/server-admin-rs/src/lib.rs",
+      "edition": "2024",
+      "doc": true,
+      "doctest": true,
+      "test": true
+    },
+    "message": {
+      "rendered": "For more information about this error, try `rustc --explain E0425`.\n",
+      "$message_type": "diagnostic",
+      "children": [],
+      "level": "failure-note",
+      "message": "For more information about this error, try `rustc --explain E0425`.",
+      "spans": [],
+      "code": null
+    }
+  }
+]

@@ -1,0 +1,6 @@
+
+running 1 test
+test auth::routes::sql_statement_diagnostic::operation_statement_counts ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 2083 filtered out; finished in 17.49s
+

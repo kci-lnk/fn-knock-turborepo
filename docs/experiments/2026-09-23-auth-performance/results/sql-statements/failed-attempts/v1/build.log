@@ -1,0 +1,4 @@
+   Compiling server-admin-rs v2.4.15 (/private/tmp/fn-knock-sql-diagnostic-final-20260923/sources/baseline/apps/server-admin-rs)
+   Compiling vt100 v0.16.2 (/private/tmp/fn-knock-sql-diagnostic-final-20260923/sources/baseline/third_party/vt100)
+   Compiling fn-knock-wol-protocol v0.1.0 (/private/tmp/fn-knock-sql-diagnostic-final-20260923/sources/baseline/packages/wol-protocol-rs)
+error: could not compile `server-admin-rs` (lib test) due to 1 previous error

@@ -403,6 +403,19 @@ async function trial(
     cache_ttl_seconds: options.cacheTtl,
     started_at: new Date().toISOString(),
   };
+  row.effective_runtime_env = Object.fromEntries(
+    [
+      "FN_KNOCK_RUNTIME_TARGET",
+      "FN_KNOCK_TOKIO_WORKER_THREADS",
+      "FN_KNOCK_AUTH_BRIDGE_MAX_IN_FLIGHT",
+      "GLIBC_TUNABLES",
+      "LD_PRELOAD",
+      "MALLOC_ARENA_MAX",
+      "GOMEMLIMIT",
+      "GOGC",
+      "GOMAXPROCS",
+    ].map((name) => [name, env[name] ?? null]),
+  );
   try {
     start();
     await waitReady([go, rust]);
@@ -688,6 +701,13 @@ async function main() {
     execFileSync("getconf", ["CLK_TCK"], { encoding: "utf8" }),
   );
   const config = JSON.parse(await readFile(options.config, "utf8"));
+  for (const key of ["admin_static", "auth_static"]) {
+    assert.ok(
+      path.isAbsolute(config[key] ?? ""),
+      `${key} must be an absolute asset directory`,
+    );
+    await readdir(config[key]);
+  }
   assert.ok(
     config.baseline &&
       Array.isArray(config.candidates) &&
@@ -757,7 +777,21 @@ async function main() {
               options,
               config,
             );
-            results.push(row);
+            // Raw time-series live in each trial file. Keeping all previous
+            // trials resident would steadily inflate the benchmark client.
+            const {
+              samples,
+              runtime_health,
+              timeout_phase_events,
+              ...summary
+            } = row;
+            summary.raw_result_file = path.join(row.directory, "result.json");
+            summary.observation_counts = {
+              process_samples: samples?.length ?? 0,
+              health_samples: runtime_health?.length ?? 0,
+              timeout_phase_events: timeout_phase_events?.length ?? 0,
+            };
+            results.push(summary);
             await writeFile(
               path.join(options.out, "results.json"),
               JSON.stringify(

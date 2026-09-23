@@ -1,6 +1,20 @@
 use std::{future::Future, task::Poll};
 
 use super::*;
+use crate::runtime_health::operations::{OperationSnapshot, OperationStats};
+
+fn operation<'a>(snapshot: &'a OperationSnapshot, kind: &str, label: &str) -> &'a OperationStats {
+    snapshot
+        .operations
+        .iter()
+        .find(|stats| stats.kind == kind && stats.label == label)
+        .unwrap_or_else(|| panic!("missing captured operation {kind}/{label}"))
+}
+
+fn reader_execution(conn: &mut rusqlite::Connection) -> RedisResult<()> {
+    conn.query_row("SELECT 1", [], |row| row.get::<_, i64>(0))?;
+    Ok(())
+}
 
 #[tokio::test]
 async fn sqlite_operation_capture_observes_actual_primary_and_reader_execution() {
@@ -23,42 +37,56 @@ async fn sqlite_operation_capture_observes_actual_primary_and_reader_execution()
         })
         .await
         .unwrap_err();
-    manager.call_analytics(|_| Ok(())).await.unwrap();
-    manager.call_auth_read(|_| Ok(())).await.unwrap();
+    manager.call_analytics(reader_execution).await.unwrap();
+    manager.call_auth_read(reader_execution).await.unwrap();
     manager.ping().await.unwrap();
     let snapshot = recorder.snapshot();
-    assert_eq!(snapshot.operations.len(), 5);
+    let reader_label = std::any::type_name_of_val(&reader_execution);
+    let executions = [
+        ("sqlite_primary", "test.primary", 0),
+        ("sqlite_primary", "test.failed", 1),
+        ("sqlite_analytics", reader_label, 0),
+        ("sqlite_auth_read", reader_label, 0),
+        ("sqlite_health", "health.ping", 0),
+    ];
+    let admissions = [
+        ("sqlite_primary", 2),
+        ("sqlite_analytics", 1),
+        ("sqlite_auth_read", 1),
+        ("sqlite_health", 1),
+    ];
     assert_eq!(
-        snapshot
-            .operations
-            .iter()
-            .map(|stats| stats.calls)
-            .sum::<u64>(),
-        5
+        snapshot.operations.len(),
+        executions.len() + admissions.len()
     );
-    assert_eq!(
-        snapshot
-            .operations
-            .iter()
-            .map(|stats| stats.failures)
-            .sum::<u64>(),
-        1
-    );
-    for kind in [
-        "sqlite_primary",
-        "sqlite_analytics",
-        "sqlite_auth_read",
-        "sqlite_health",
-    ] {
-        assert!(snapshot.operations.iter().any(|stats| stats.kind == kind));
+    for (kind, label, failures) in executions {
+        let stats = operation(&snapshot, kind, label);
+        assert_eq!(
+            (
+                stats.calls,
+                stats.failures,
+                stats.cancelled,
+                stats.in_flight
+            ),
+            (1, failures, 0, 0)
+        );
+        #[cfg(unix)]
+        assert!(stats.total_cpu_ms.is_some());
     }
-    #[cfg(unix)]
-    assert!(
-        snapshot
-            .operations
-            .iter()
-            .all(|stats| stats.total_cpu_ms.is_some())
-    );
+    for (label, calls) in admissions {
+        let stats = operation(&snapshot, "sqlite_admission", label);
+        assert_eq!(
+            (
+                stats.calls,
+                stats.failures,
+                stats.cancelled,
+                stats.in_flight
+            ),
+            (calls, 0, 0, 0)
+        );
+        // Admission measures async waiting, not CPU on a SQLite execution thread.
+        assert!(stats.total_cpu_ms.is_none());
+    }
 }
 
 #[tokio::test]
@@ -80,9 +108,34 @@ async fn sqlite_operation_capture_excludes_cancelled_admission_waiters() {
         Poll::Ready(())
     })
     .await;
+    let pending = recorder.snapshot();
+    let admission = operation(&pending, "sqlite_admission", "sqlite_primary");
+    assert_eq!(
+        (admission.calls, admission.cancelled, admission.in_flight),
+        (0, 0, 1)
+    );
+    assert_eq!(pending.operations.len(), 1);
     drop(waiting);
     drop(permit);
-    assert!(recorder.snapshot().operations.is_empty());
+    let cancelled = recorder.snapshot();
+    let admission = operation(&cancelled, "sqlite_admission", "sqlite_primary");
+    assert_eq!(
+        (
+            admission.calls,
+            admission.failures,
+            admission.cancelled,
+            admission.in_flight
+        ),
+        (1, 0, 1, 0)
+    );
+    assert!(admission.total_cpu_ms.is_none());
+    assert_eq!(cancelled.operations.len(), 1);
+    assert!(
+        !cancelled
+            .operations
+            .iter()
+            .any(|stats| stats.kind == "sqlite_primary" || stats.label == "never.executed")
+    );
 }
 
 #[tokio::test]
@@ -107,8 +160,13 @@ async fn sqlite_operation_capture_survives_http_cancellation_until_closure_finis
     }
     drop(call);
     let pending = recorder.snapshot();
-    assert_eq!(pending.operations[0].in_flight, 1);
-    assert_eq!(pending.operations[0].calls, 0);
+    let work = operation(&pending, "sqlite_primary", "actual.work");
+    assert_eq!((work.calls, work.cancelled, work.in_flight), (0, 0, 1));
+    let admission = operation(&pending, "sqlite_admission", "sqlite_primary");
+    assert_eq!(
+        (admission.calls, admission.cancelled, admission.in_flight),
+        (1, 0, 0)
+    );
     assert!(
         manager
             .primary_admission
@@ -126,12 +184,26 @@ async fn sqlite_operation_capture_survives_http_cancellation_until_closure_finis
         .await
         .unwrap();
     let done = recorder.snapshot();
-    let work = done
-        .operations
-        .iter()
-        .find(|stats| stats.label == "actual.work")
-        .unwrap();
-    assert_eq!((work.calls, work.cancelled, work.in_flight), (1, 0, 0));
+    let work = operation(&done, "sqlite_primary", "actual.work");
+    assert_eq!(
+        (work.calls, work.failures, work.cancelled, work.in_flight),
+        (1, 0, 0, 0)
+    );
+    let after = operation(&done, "sqlite_primary", "after.work");
+    assert_eq!(
+        (
+            after.calls,
+            after.failures,
+            after.cancelled,
+            after.in_flight
+        ),
+        (1, 0, 0, 0)
+    );
+    let admission = operation(&done, "sqlite_admission", "sqlite_primary");
+    assert_eq!(
+        (admission.calls, admission.cancelled, admission.in_flight),
+        (2, 0, 0)
+    );
 }
 
 #[tokio::test]
@@ -152,7 +224,14 @@ async fn sqlite_operation_capture_keeps_old_execution_out_of_new_generation() {
     }
     recorder.stop(old_generation);
     let stopped = recorder.snapshot();
-    assert_eq!(stopped.operations[0].in_flight, 1);
+    assert_eq!(stopped.generation, old_generation);
+    let work = operation(&stopped, "sqlite_primary", "old.work");
+    assert_eq!((work.calls, work.cancelled, work.in_flight), (0, 0, 1));
+    let admission = operation(&stopped, "sqlite_admission", "sqlite_primary");
+    assert_eq!(
+        (admission.calls, admission.cancelled, admission.in_flight),
+        (1, 0, 0)
+    );
     let generation = recorder.start();
     release_tx.send(()).unwrap();
     call.await.unwrap();
@@ -179,15 +258,25 @@ async fn command_capture_distinguishes_batch_reads_without_recording_keys() {
         .await
         .unwrap();
     let snapshot = recorder.snapshot();
-    assert_eq!(snapshot.operations.len(), 2);
-    for label in ["redis_compat.MGET", "redis_compat.SCAN"] {
-        assert!(
-            snapshot
-                .operations
-                .iter()
-                .any(|op| op.label == label && op.calls == 1)
+    let execution_labels = ["redis_compat.MGET", "redis_compat.SCAN"];
+    assert_eq!(snapshot.operations.len(), execution_labels.len() + 1);
+    for label in execution_labels {
+        let stats = operation(&snapshot, "sqlite_primary", label);
+        assert_eq!(
+            (
+                stats.calls,
+                stats.failures,
+                stats.cancelled,
+                stats.in_flight
+            ),
+            (1, 0, 0, 0)
         );
     }
+    let admission = operation(&snapshot, "sqlite_admission", "sqlite_primary");
+    assert_eq!(
+        (admission.calls, admission.cancelled, admission.in_flight),
+        (2, 0, 0)
+    );
     assert!(
         !serde_json::to_string(&snapshot)
             .unwrap()

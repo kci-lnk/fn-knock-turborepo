@@ -164,47 +164,110 @@ impl Store {
             .await
     }
 
-    pub(crate) async fn get_auth_accounts_for_authorization(
+    pub(crate) async fn get_auth_accounts_raw_for_authorization(
         &self,
-    ) -> crate::storage::StorageResult<Vec<AuthAccount>> {
-        let raw = self
+    ) -> crate::storage::StorageResult<Option<String>> {
+        Ok(self
             .manager
             .get_auth_live_strings(vec!["fn_knock:auth:accounts:v1".into()])
             .await?
             .pop()
-            .flatten();
-        let Some(raw) = raw.filter(|raw| !raw.trim().is_empty()) else {
-            return Ok(Vec::new());
-        };
-        // Account JSON corruption is an error; TOTP JSON has historically
-        // treated corruption as an empty credential collection.
-        Ok(normalize_auth_accounts_value(&serde_json::from_str(&raw)?))
+            .flatten()
+            .filter(|raw| !raw.trim().is_empty()))
     }
 
-    pub(crate) async fn get_totps_for_authorization(
+    pub(crate) async fn get_totps_raw_for_authorization(
         &self,
-    ) -> crate::storage::StorageResult<Vec<TotpCredential>> {
+    ) -> crate::storage::StorageResult<Option<String>> {
         let mut values = self
             .manager
             .get_auth_live_strings(vec!["fn_knock:totps".into(), "fn_knock:totp_secret".into()])
             .await?
             .into_iter();
-        let raw = values.next().flatten();
-        if let Some(raw) = raw {
-            return Ok(normalize_totp_credentials_value(
-                &serde_json::from_str::<Value>(&raw).unwrap_or(Value::Null),
-            ));
+        if let Some(raw) = values.next().flatten() {
+            return Ok(Some(raw));
         }
         if values
             .next()
             .flatten()
             .is_some_and(|secret| !secret.is_empty())
         {
-            // Keep the legacy migration, including passkey associations, in
-            // its existing authoritative write path. It is not a read cache.
-            return self.get_totps().await;
+            // Keep the existing authoritative migration and passkey association
+            // writes. Serialize only this rare migration result, not normal reads.
+            return Ok(Some(serde_json::to_string(&self.get_totps().await?)?));
         }
-        Ok(Vec::new())
+        Ok(None)
+    }
+
+    pub(crate) fn authorization_totp_id(value: &Value) -> Option<String> {
+        let object = value.as_object()?;
+        let id = object
+            .get("id")
+            .map(js_string)
+            .unwrap_or_default()
+            .trim()
+            .to_string();
+        let secret = object.get("secret").map(js_string).unwrap_or_default();
+        (!id.is_empty() && !secret.trim().is_empty()).then_some(id)
+    }
+
+    pub(crate) fn authorization_totp_from_value_at(
+        value: Value,
+        id: Option<&str>,
+        normalized_at: &str,
+    ) -> Option<TotpCredential> {
+        if id.is_some_and(|id| value.get("id").map(js_string).unwrap_or_default().trim() != id) {
+            return None;
+        }
+        let mut credential = normalize_totp_credential_value(&value)?;
+        if value
+            .get("createdAt")
+            .map(js_string)
+            .unwrap_or_default()
+            .trim()
+            .is_empty()
+        {
+            credential.created_at = normalized_at.to_string();
+        }
+        Some(credential)
+    }
+
+    pub(crate) fn authorization_account_from_value_at(
+        value: Value,
+        id: Option<&str>,
+        normalized_at: &str,
+    ) -> Option<AuthAccount> {
+        if id.is_some_and(|id| value.get("id").and_then(Value::as_str).map(str::trim) != Some(id)) {
+            return None;
+        }
+        let mut account = serde_json::from_value::<AuthAccount>(value).ok()?;
+        if account.created_at.trim().is_empty() {
+            account.created_at = normalized_at.to_string();
+        }
+        let account = normalize_auth_account(account);
+        (!account.id.is_empty() && !account.username.is_empty()).then_some(account)
+    }
+
+    #[cfg(test)]
+    pub(crate) async fn get_auth_accounts_for_authorization(
+        &self,
+    ) -> crate::storage::StorageResult<Vec<AuthAccount>> {
+        let Some(raw) = self.get_auth_accounts_raw_for_authorization().await? else {
+            return Ok(Vec::new());
+        };
+        Ok(normalize_auth_accounts_value(&serde_json::from_str(&raw)?))
+    }
+
+    #[cfg(test)]
+    pub(crate) async fn get_totps_for_authorization(
+        &self,
+    ) -> crate::storage::StorageResult<Vec<TotpCredential>> {
+        let Some(raw) = self.get_totps_raw_for_authorization().await? else {
+            return Ok(Vec::new());
+        };
+        Ok(normalize_totp_credentials_value(
+            &serde_json::from_str(&raw).unwrap_or(Value::Null),
+        ))
     }
 
     pub(crate) async fn get_auth_mobility_binding_for_authorization(

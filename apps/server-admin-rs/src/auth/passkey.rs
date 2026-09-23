@@ -1134,11 +1134,20 @@ pub(crate) async fn public_passkey_status(
     headers: &HeaderMap,
     config: &Value,
 ) -> Value {
-    let passkey_count = match (
-        state.storage.store.get_passkeys_for_authorization().await,
-        crate::auth::request_context::totps(state).await,
-    ) {
-        (Ok(passkeys), Ok(totps)) => valid_linked_passkey_count(&passkeys, &totps),
+    let passkeys = state.storage.store.get_passkeys_for_authorization().await;
+    let requested_ids = passkeys
+        .as_ref()
+        .ok()
+        .into_iter()
+        .flatten()
+        .filter_map(|passkey| passkey.get("totpId").and_then(Value::as_str))
+        .map(ToString::to_string)
+        .collect::<HashSet<_>>();
+    let matching_ids = crate::auth::request_context::matching_totp_ids(state, &requested_ids).await;
+    let passkey_count = match (passkeys, matching_ids) {
+        (Ok(passkeys), Ok(ids)) => {
+            valid_linked_passkey_count_with_id_lookup(&passkeys, |id| ids.contains(id))
+        }
         _ => 0,
     };
     let passkey_login_enabled = state
@@ -1216,13 +1225,20 @@ fn valid_linked_passkey_count(passkeys: &[Value], totps: &[crate::store::TotpCre
         .iter()
         .map(|credential| credential.id.as_str())
         .collect::<HashSet<_>>();
+    valid_linked_passkey_count_with_id_lookup(passkeys, |id| totp_ids.contains(id))
+}
+
+fn valid_linked_passkey_count_with_id_lookup(
+    passkeys: &[Value],
+    contains_id: impl Fn(&str) -> bool,
+) -> usize {
     passkeys
         .iter()
         .filter(|passkey| {
             passkey
                 .get("totpId")
                 .and_then(Value::as_str)
-                .is_some_and(|id| totp_ids.contains(id))
+                .is_some_and(&contains_id)
         })
         .filter(|passkey| stored_passkey(passkey).is_some())
         .count()

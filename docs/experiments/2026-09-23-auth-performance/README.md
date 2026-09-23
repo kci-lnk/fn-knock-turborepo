@@ -175,7 +175,7 @@ runtime-health的storage队列字段（`queue_depth`、`queue_depth_peak`、`que
 
 两项 TTL 均写入合成配置的 `subdomain_mode`，在 Rust 完成启动同步后使用 gRPC `GetAuthConfig → SetAuthConfig → GetAuthConfig` 设定并读回，结束时只读再次确认。关闭缓存必须提供 `control_binary`。只读生成的 config.json 不足以证实 live runtime 状态（零值有省略序列化行为）。
 
-`grant_renewal` 是**有限 token 批次**：`--renewals` 默认为4096，每个load token只用一次，不循环伪装成持续续期。预检使用第三份独立token，warm使用独立token池；warm池用完后用普通grant复用请求继续预热到设定时长。load必须在`--seconds`上限内完成所有token，报告真实elapsed；未完成则试验无效。它的req/s不能与固定时长的grant复用负载混比。普通grant_hit长期运行中自然产生的滑动续期属于该路由真实行为。
+`grant_renewal` 是**有限 token 批次**：`--renewals` 默认为4096，每个load token只用一次，不循环伪装成持续续期。预检使用第三份独立token，warm使用独立token池；warm池用完后用普通grant复用请求继续预热到设定时长。`--seconds` 是发起请求的截止值；截止前已发起的请求可以在截止后返回。所有token必须成功消耗，报告包含末批完成时间的真实elapsed；未完成则试验无效。它的req/s不能与固定时长的grant复用负载混比。普通grant_hit长期运行中自然产生的滑动续期属于该路由真实行为。
 
 ## 指标、判读和限制
 

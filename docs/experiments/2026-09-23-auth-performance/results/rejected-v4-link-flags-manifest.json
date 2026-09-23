@@ -1,0 +1,97 @@
+{
+  "schema_version": 1,
+  "archived_at_utc": "2026-09-23T08:15:32.053661+00:00",
+  "status": "rejected_incomplete_checkpoint",
+  "stop_reason": "The v4 Go binaries used unmatched linker flags: baseline used -s -w plus Version and Commit metadata; candidate4 used Commit metadata without -s -w. These runs cannot isolate source-code performance gains. Root interrupted the harness with SIGTERM (driver exit 143); v5 will rerun with matched build flags, using unchanged Rust and Go product source commits.",
+  "candidate_source_commits": {
+    "rust": "5fddf896eaf9b1cf3eb300c08315320498c943b8",
+    "go": "4d15fa32764e26df58b16930d0e2503a90880002"
+  },
+  "go_artifacts_v4": {
+    "baseline": {
+      "source_commit": "92d4c0cb5495d57801d52893a8f0e8496a1c9182",
+      "size_bytes": 27660450,
+      "sha256": "88a6ef9a80bab166eaf49ba96a620e98dced25a527d0dc5ad653ff7ac15139eb"
+    },
+    "candidate4": {
+      "size_bytes": 39531080,
+      "sha256": "64845106df1d923b771454e4c763bf2de4dac46950844b3b72ea07f6044b1b39"
+    }
+  },
+  "remote_source_root": "/tmp/fn-knock-auth-performance-20260923",
+  "remote_collection_directory": "/tmp/fn-knock-auth-performance-20260923/rejected-v4-link-flags-collection",
+  "remote_plan": "/tmp/fn-knock-auth-performance-20260923/rejected-v4-link-flags-collection-plan.json",
+  "collector": {
+    "path": "scripts4/auth-performance-suite.mjs",
+    "sha256": "e729ae8f87733c1fe5885f3221faa5d960e1ca86199ebcd5ead3136481fe7d31",
+    "policy": "JSON metrics/manifest/outcome allowlist only. No DB, key files, configs, logs, assets or binaries. Named secret values redacted; hashes record source and collected bytes."
+  },
+  "archive": {
+    "file": "rejected-v4-link-flags-evidence.tar.gz",
+    "size_bytes": 465401,
+    "sha256": "495a462953447b6e56144dcc079f1d1052c929413bbea2e57aba144ff6ab843c",
+    "evidence_json_files": 66,
+    "total_json_members": 67,
+    "all_collected_member_hashes_verified": true
+  },
+  "batches": {
+    "accounts1000-c16-v4": {
+      "completed_trials": 6,
+      "valid_trials": 6,
+      "raw_trial_results": 6,
+      "completed_pair_indices": [
+        0
+      ],
+      "load_failures": 0,
+      "warmup_failures": 0
+    },
+    "smoke-v4-c1": {
+      "completed_trials": 20,
+      "valid_trials": 20,
+      "raw_trial_results": 20,
+      "completed_pair_indices": [
+        0
+      ],
+      "load_failures": 0,
+      "warmup_failures": 0
+    },
+    "smoke-v4-c64": {
+      "completed_trials": 10,
+      "valid_trials": 10,
+      "raw_trial_results": 10,
+      "completed_pair_indices": [
+        0
+      ],
+      "load_failures": 0,
+      "warmup_failures": 0
+    },
+    "password-v4-c16": {
+      "completed_trials": 8,
+      "valid_trials": 8,
+      "raw_trial_results": 8,
+      "completed_pair_indices": [
+        0
+      ],
+      "load_failures": 0,
+      "warmup_failures": 0
+    },
+    "formal-v4-main": {
+      "completed_trials": 12,
+      "valid_trials": 12,
+      "raw_trial_results": 12,
+      "completed_pair_indices": [
+        0
+      ],
+      "load_failures": 0,
+      "warmup_failures": 0
+    }
+  },
+  "driver_log": {
+    "source": "/tmp/fn-knock-auth-final-remote-run4.log",
+    "file": "rejected-v4-link-flags-driver.log",
+    "size_bytes": 27174,
+    "sha256": "c9429434abb0ba41d5866d77ab32dbb7c1154ef95a23ba8816609f2f30a3f5cd",
+    "complete_copy": true
+  },
+  "interpretation": "44 completed short-test trials and 12 completed formal trials passed their workload checks. This is rejected build-configuration evidence, not six-pair performance acceptance. The incomplete challenge baseline listed at the end of the driver log has no completed trial result. No outcome JSON existed for these manually launched harness jobs. Original remote directories remain intact; no database, credentials, configs, assets or binaries are included in the tar archive."
+}

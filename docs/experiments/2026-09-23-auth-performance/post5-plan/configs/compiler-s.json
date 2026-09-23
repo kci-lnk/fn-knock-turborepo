@@ -1,0 +1,59 @@
+{
+  "admin_static": "/tmp/fn-knock-auth-performance-20260923/assets/admin",
+  "auth_static": "/tmp/fn-knock-auth-performance-20260923/assets/auth",
+  "control_binary": "/tmp/fn-knock-auth-performance-20260923/authperf-control",
+  "baseline": {
+    "name": "candidate5-z-reader1",
+    "go": "/tmp/fn-knock-auth-performance-20260923/candidate5/go-reauth-proxy",
+    "rust": "/tmp/fn-knock-auth-performance-20260923/candidate5/server-admin-rs",
+    "env": {
+      "FN_KNOCK_TOKIO_WORKER_THREADS": "2",
+      "FN_KNOCK_SQLITE_AUTH_READERS": "1"
+    },
+    "metadata": {
+      "rust_toolchain": "rustc 1.96.0 (ac68faa20 2026-05-25)\nbinary: rustc\ncommit-hash: ac68faa20c58cbccd01ee7208bf3b6e93a7d7f96\ncommit-date: 2026-05-25\nhost: aarch64-apple-darwin\nrelease: 1.96.0\nLLVM version: 22.1.2",
+      "cargo_zigbuild": "cargo-zigbuild 0.23.0",
+      "zig": "0.16.0",
+      "go_toolchain": "go version go1.26.7 darwin/arm64",
+      "rust_profile": "release",
+      "opt_level": "z",
+      "lto": "fat",
+      "codegen_units": 1,
+      "target": "x86_64-unknown-linux-gnu",
+      "main_commit": "5fddf896eaf9b1cf3eb300c08315320498c943b8",
+      "go_commit": "4d15fa32764e26df58b16930d0e2503a90880002",
+      "rust_opt_level": "z",
+      "bridge_capacity": "variable absent; Go default1024, Rust runtime linux default64 on4CPUs, verified with startup log",
+      "go_buildvcs": false,
+      "go_ldflags": "-s -w -X go-reauth-proxy/pkg/version.Version=2.4.15 -X go-reauth-proxy/pkg/version.Commit=4d15fa32764e26df58b16930d0e2503a90880002"
+    }
+  },
+  "candidates": [
+    {
+      "name": "candidate5-s-reader1",
+      "go": "/tmp/fn-knock-auth-performance-20260923/candidate5/go-reauth-proxy",
+      "rust": "/tmp/fn-knock-auth-performance-20260923/compiler5-s/server-admin-rs",
+      "env": {
+        "FN_KNOCK_TOKIO_WORKER_THREADS": "2",
+        "FN_KNOCK_SQLITE_AUTH_READERS": "1"
+      },
+      "metadata": {
+        "rust_toolchain": "rustc 1.96.0 (ac68faa20 2026-05-25)\nbinary: rustc\ncommit-hash: ac68faa20c58cbccd01ee7208bf3b6e93a7d7f96\ncommit-date: 2026-05-25\nhost: aarch64-apple-darwin\nrelease: 1.96.0\nLLVM version: 22.1.2",
+        "cargo_zigbuild": "cargo-zigbuild 0.23.0",
+        "zig": "0.16.0",
+        "go_toolchain": "go version go1.26.7 darwin/arm64",
+        "rust_profile": "release",
+        "opt_level": "s",
+        "lto": "fat",
+        "codegen_units": 1,
+        "target": "x86_64-unknown-linux-gnu",
+        "main_commit": "5fddf896eaf9b1cf3eb300c08315320498c943b8",
+        "go_commit": "4d15fa32764e26df58b16930d0e2503a90880002",
+        "rust_opt_level": "s",
+        "bridge_capacity": "variable absent; Go default1024, Rust runtime linux default64 on4CPUs, verified with startup log",
+        "go_buildvcs": false,
+        "go_ldflags": "-s -w -X go-reauth-proxy/pkg/version.Version=2.4.15 -X go-reauth-proxy/pkg/version.Commit=4d15fa32764e26df58b16930d0e2503a90880002"
+      }
+    }
+  ]
+}

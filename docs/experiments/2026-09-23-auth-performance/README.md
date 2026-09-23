@@ -8,6 +8,15 @@
 
 提供基线和候选的 Linux Go/Rust 二进制，以及同一份管理/鉴权前端 dist。各组 Go 版本身份必须满足对应 Rust 的 bundle 校验。使用相同工具链、依赖锁和构建设置做代码 A/B；编译参数实验则仅改变指定参数。二进制自动记录 SHA256。
 
+Go 的运行时 `version.Commit` 必须显式注入；仅有 Git build info 或 `-buildvcs=true` 不会设置该变量。在对应清洁 Go checkout 内执行，并把同一完整 SHA 传给 Rust 构建器的 `--gateway-commit`：
+
+```sh
+AUTH_PERF_GO_COMMIT=$(git rev-parse HEAD)
+CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -buildvcs=true -trimpath \
+  -ldflags "-X go-reauth-proxy/pkg/version.Commit=$AUTH_PERF_GO_COMMIT" \
+  -o /tmp/auth-artifacts/go-reauth-proxy ./cmd/server
+```
+
 从相邻 Go 仓库编译实验控制工具（仅此独立文件，不修改产品源码）：
 
 ```sh
@@ -135,6 +144,10 @@ profile默认关闭，不能用启用profile的吞吐替代无额外观测开销
 
 `operation_profile`将`sqlite_admission` scope的calls/total_wall_ms识别为executor入场等待，将`sqlite_primary`及`sqlite_auth_read`的calls/total_wall_ms/total_cpu_ms识别为executor执行统计，同时提供每成功请求归一化和idle executor调用/秒。这是**进程范围executor job计数，不是SQL语句条数，也不是逐请求跟踪**：一个closure可能包含多条SQL，背景操作和采样请求也在窗口内；保留idle参照，不自动扣减背景值。旧baseline缺少新增admission埋点时对应归一化字段为null，不报告为零等待。丢弃的operation label数量、unfinished scope和原始label明细一并保留。
 
+原有overall字段保持兼容：executor合计primary与auth reader，admission合计全部入场label。新增`operation_profile.auth_reader`聚合共享recorder中的全部auth reader slot：执行只取`kind=sqlite_auth_read`，入场只取`kind=sqlite_admission`且`label=sqlite_auth_read`，提供calls、wall、CPU、每成功请求归一化、idle调用/秒及unfinished scope。未观测到对应埋点时归一化字段为null；旧结果没有该对象时报告显示n/a。这里没有逐slot分布，并行scope累计wall可以超过捕获时长。auth reader入场scope在取得pool lease后结束，执行scope在SQLite closure内开始；**中间的checkpoint gate等待不在这两者内**，提交到worker实际开始间的调度延迟也未计入。
+
+runtime-health的storage队列字段（`queue_depth`、`queue_depth_peak`、`queue_wait_ms`、`queue_wait_peak_ms`、`active_operation_ms`、`canceled_operations`）及debug capture的queue样本仅属于**primary executor**，不是auth reader首个slot或全池指标。auth pool饱和时这些字段仍可能为零；reader 1/2/4参数比较应使用上述auth reader共享recorder统计，不能从primary队列推断auth reader等待。`storage.latency_ms`则来自独立health reader的ping，也不代表auth pool延迟。
+
 每对实验顺序交替为 AB/BA。每个 route 和样本启动独立的新进程/数据库。先启动初始化 schema，停止实验子进程，再写入合成 typed+legacy 一致种子后重新启动。种子文件要求 harness 所建目录标记；读写的只是该目录下 `state.sqlite3`。模板包含 TOTP 身份、有效 session、匹配当前 advanced-auth policy 的 grant、自动 IP 白名单及 owner session。
 
 ## 路由和真实工作检查
@@ -189,7 +202,7 @@ collector只收集`results.json`、`manifest.json`、每trial的`result.json`及
 
 - `manifest.json`：二进制SHA、路径、variant metadata、环境参数、内核与Node版本。
 - `results.json`及每trial `result.json`：真实elapsed、成功/失败请求、状态码、P50/P95/P99、稀疏1ms延迟直方图、Go/Rust/client/fixture CPU秒及每1000次成功请求CPU成本、RSS/FD/thread采样和峰值。
-- 每200ms读`/proc`，每秒采样runtime-health中的storage队列、bridge数据；值不存在明确为null，不能用0代替。队列计数是进程累计值，不是每路由的独立事件分布。
+- 每200ms读`/proc`，每秒采样runtime-health中的storage primary队列、bridge数据；值不存在明确为null，不能用0代替。队列计数是进程累计值，不是每路由的独立事件分布，也不反映auth reader池。
 - `timeout_phase_events`及保留的`runtime/logs`包含现有phase诊断。**phase只在超时事件中可读，不是所有成功请求的阶段耗时直方图。** 未触发超时不能由空数组推断SQLite等待为0。
 - Worker延迟直方图先求和后计算分位数，不平均各worker的P99。计量包含客户端错误，且任何错误响应/语义不符会使样本无效。P99只精确到1ms，60秒以上归入溢出桶并报告。
 - 客户端启动延迟>100ms、事件循环最大延迟>100ms、OS采样间隔>1s、时长过冲>5%（最低容忍500ms）均使trial无效并保留证据；不静默重试。失败会停止当前批，避免把错误路由测成高吞吐。

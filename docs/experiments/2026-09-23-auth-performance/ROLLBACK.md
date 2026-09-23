@@ -2,7 +2,7 @@
 
 本页只记录可审阅的回滚单元、依赖和验证要求，未执行 revert、切换分支、替换服务或修改运行配置。历史提交并非都能在当前树上直接无冲突 revert；应按功能处理依赖，再以回滚后的完整源码验证。不要把中间实验版本当作已验收的部署目标。
 
-原始基线为主仓 `d4f8805f39d9f4480bf83f4382ba59e5f49e7dc4`、相邻 Go 仓 `92d4c0cb5495d57801d52893a8f0e8496a1c9182`。下一轮冻结的 Rust 候选产品源码为 `5fddf896eaf9b1cf3eb300c08315320498c943b8`，已通过完整库测试及 Clippy；配套最终 Go `4d15fa32764e26df58b16930d0e2503a90880002` 已通过完整测试、proxy race、vet、17-case Cookie 三态回归及原始→最终六对本机 benchmark，见 [最终 Go 报告](/Users/edgeware/Local/Go-Reauth-Proxy/docs/experiments/auth-final-20260923/README.md)。本机验证不替代匹配 Linux 制品的正式长测。此前 Rust `c65503d6`/Go `748c97e0` 组合的正式实验已停止并保留为 [拒绝候选证据](REJECTED_CANDIDATES.md)，不能继续标为最终制品。实际采用哪组制品，以构建 manifest 和二进制哈希为准；工具或文档提交不会改变已构建二进制的源码身份。
+原始基线为主仓 `d4f8805f39d9f4480bf83f4382ba59e5f49e7dc4`、相邻 Go 仓 `92d4c0cb5495d57801d52893a8f0e8496a1c9182`。最终冻结的 Rust 候选产品源码为 `5fddf896eaf9b1cf3eb300c08315320498c943b8`，已通过完整库测试及 Clippy；配套最终 Go `4d15fa32764e26df58b16930d0e2503a90880002` 已通过完整测试、proxy race、vet、17-case Cookie 三态回归及原始→最终六对本机 benchmark，见 [最终 Go 报告](/Users/edgeware/Local/Go-Reauth-Proxy/docs/experiments/auth-final-20260923/README.md)。匹配 Linux 制品的正式 A/B 与持续负载结果另见 [RESULTS](RESULTS.md)，不由本机 benchmark 推断。此前 Rust `c65503d6`/Go `748c97e0` 组合的正式实验已停止并保留为 [拒绝候选证据](REJECTED_CANDIDATES.md)，不能继续标为最终制品。实际采用哪组制品，以构建 manifest 和二进制哈希为准；工具或文档提交不会改变已构建二进制的源码身份。
 
 ## 先恢复 reader 默认值
 

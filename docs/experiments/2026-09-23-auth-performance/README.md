@@ -1,5 +1,7 @@
 # 可重复的鉴权性能实验
 
+本轮实现、实测结果和限制见 [RESULTS](RESULTS.md)，正确性证据见 [CORRECTNESS](CORRECTNESS.md)，回滚依赖见 [ROLLBACK](ROLLBACK.md)。本页说明实验工具与复跑协议。
+
 本工具只运行在**新的 Linux 网络命名空间**中，使用新数据库、固定实验端口、合成凭证和独立 Go/Rust 子进程。拒绝宿主网络命名空间；不替换服务、不复制生产数据库、不修改防火墙或宿主 DNS。结果目录必须不存在，失败数据保留。默认基线主仓 `d4f8805f39d9f4480bf83f4382ba59e5f49e7dc4`，Go `92d4c0c`；每次仍须记录完整源提交、dirty patch、工具链和构建参数。
 
 ## 准备
@@ -243,4 +245,4 @@ node --test scripts/tests/auth-performance.test.mjs scripts/tests/auth-performan
 node --check scripts/auth-performance.mjs
 ```
 
-该目录只存工具说明；测量结果必须在实际运行后另行记录，不能把旧实验数字当作此次改动收益。
+本目录的结果文件均绑定其实际源码、制品、配置和运行批次；不能把历史或被排除的实验数字当作当前组合的收益。最终交付索引见 [RESULTS](RESULTS.md)。

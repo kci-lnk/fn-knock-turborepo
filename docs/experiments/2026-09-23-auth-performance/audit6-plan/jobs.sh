@@ -1,9 +1,0 @@
-#!/usr/bin/env bash
-# Fixed serial sequence. Sourced only after frozen target preflight and lock.
-run_all() {
-  run_case smoke primary validity --routes bootstrap,session_api,session_hit,grant_hit,auto_ip_hit,auto_ip_miss,challenge,session_miss,grant_miss --pairs 1 --warmup 1 --seconds 3 --concurrency 16 --clients 2 --accounts 1000 --sessions 1000 --grants 100 --credential-kind totp --cache-ttl 0 --renewals 64 --timeout-ms 10000 --candidates candidate6 --profile 0 --profile-idle 5 --recovery-probe 0 --roles baseline,candidate
-  run_case session-ttl0 primary six_pair_nonregression --routes session_hit --pairs 6 --warmup 20 --seconds 60 --concurrency 16 --clients 2 --accounts 1000 --sessions 1000 --grants 100 --credential-kind totp --cache-ttl 0 --renewals 64 --timeout-ms 10000 --candidates candidate6 --profile 0 --profile-idle 5 --recovery-probe 0 --roles baseline,candidate
-  run_case session-ttl1 primary six_pair_nonregression --routes session_hit --pairs 6 --warmup 20 --seconds 60 --concurrency 16 --clients 2 --accounts 1000 --sessions 1000 --grants 100 --credential-kind totp --cache-ttl 1 --renewals 64 --timeout-ms 10000 --candidates candidate6 --profile 0 --profile-idle 5 --recovery-probe 0 --roles baseline,candidate
-  run_case soak-ttl1 primary soak --routes session_hit --pairs 1 --warmup 20 --seconds 1800 --concurrency 16 --clients 2 --accounts 1000 --sessions 1000 --grants 100 --credential-kind totp --cache-ttl 1 --renewals 64 --timeout-ms 10000 --candidates candidate6 --profile 0 --profile-idle 5 --recovery-probe 0 --roles candidate
-  run_case recovery recovery recovery --routes auto_ip_hit --pairs 1 --warmup 1 --seconds 3 --concurrency 16 --clients 2 --accounts 1000 --sessions 1000 --grants 100 --credential-kind totp --cache-ttl 0 --renewals 64 --timeout-ms 10000 --candidates candidate6 --profile 0 --profile-idle 5 --recovery-probe 1 --roles baseline,candidate
-}

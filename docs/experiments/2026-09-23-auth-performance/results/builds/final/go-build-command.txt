@@ -1,1 +1,0 @@
-CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -buildvcs=false -trimpath -ldflags '-s -w -X go-reauth-proxy/pkg/version.Version=2.4.15 -X go-reauth-proxy/pkg/version.Commit=4d15fa32764e26df58b16930d0e2503a90880002' -o /tmp/fn-knock-auth-go-matched5-20260923/candidate/go-reauth-proxy ./cmd/server

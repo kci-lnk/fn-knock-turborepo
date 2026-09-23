@@ -1,4 +1,0 @@
-   Compiling vt100 v0.16.2 (/private/tmp/fn-knock-sql-diagnostic-final-v2-20260923/sources/baseline/third_party/vt100)
-   Compiling server-admin-rs v2.4.15 (/private/tmp/fn-knock-sql-diagnostic-final-v2-20260923/sources/baseline/apps/server-admin-rs)
-   Compiling fn-knock-wol-protocol v0.1.0 (/private/tmp/fn-knock-sql-diagnostic-final-v2-20260923/sources/baseline/packages/wol-protocol-rs)
-    Finished `test` profile [unoptimized + debuginfo] target(s) in 1m 44s

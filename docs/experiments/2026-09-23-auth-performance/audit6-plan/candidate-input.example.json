@@ -1,9 +1,0 @@
-{
-  "go_commit": "PENDING_40_HEX",
-  "go_build_manifest": "PENDING_ABSOLUTE_BUILD_JSON",
-  "rust_build_manifest": "PENDING_ABSOLUTE_COMPILER_BUILD_MANIFEST_JSON",
-  "go_binary": "PENDING_ABSOLUTE_BINARY",
-  "rust_binary": "PENDING_ABSOLUTE_BINARY",
-  "go_sha256": "PENDING_64_HEX",
-  "rust_sha256": "PENDING_64_HEX"
-}

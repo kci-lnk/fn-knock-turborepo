@@ -1,7 +1,0 @@
-{
-  "file": "ttl1-replay.tar.gz",
-  "sha256": "e061648b48d0bc7038f869c33ecb66b1224d9a7477a35b2c6eb6121d68a7cd65",
-  "bytes": 103402,
-  "files": 44,
-  "scope": "Only completed TTL1 six pairs; no completed soak/recovery claim."
-}

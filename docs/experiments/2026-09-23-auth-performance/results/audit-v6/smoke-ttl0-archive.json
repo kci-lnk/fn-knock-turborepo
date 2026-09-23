@@ -1,8 +1,0 @@
-{
-  "archive": "smoke-ttl0-replay.tar.gz",
-  "sha256": "d8d7094fddcffbe71a3eccdd5481ac3978fffbf2709b841d709098f6d005002e",
-  "bytes": 116220,
-  "files": 58,
-  "scope": "smoke18 + session-ttl0 six pairs12 only; no v5 pooling",
-  "source": "Independent read-only pulls and offline exact contract/frozen gate review; aggregate/metadata input only, full raw will be in the separate 45-trial collection."
-}

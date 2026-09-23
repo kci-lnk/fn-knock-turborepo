@@ -1,9 +1,0 @@
-{
-  "go_commit": "66998225a2d0d78e40390c179681b6a48b5e5635",
-  "go_build_manifest": "/tmp/fn-knock-auth-go-audit6-20260923/build.json",
-  "rust_build_manifest": "/tmp/fn-knock-auth-artifacts6-20260923/compiler-build-manifest.json",
-  "go_binary": "/tmp/fn-knock-auth-go-audit6-20260923/go-reauth-proxy",
-  "rust_binary": "/private/tmp/fn-knock-auth-artifacts6-20260923/compiler-z/server-admin-rs",
-  "go_sha256": "ded7a323b3cd5491d1cb08c344f35917c14c9d14a542d1db0ff209448934b1d4",
-  "rust_sha256": "697b0d8e6c85f62a0f240468e25795b0b6d92484ea55d77c2143c669c6973545"
-}

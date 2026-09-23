@@ -1,0 +1,125 @@
+{
+  "schema_version": 1,
+  "status": "prepared_not_executed",
+  "created_at_utc": "2026-09-23T09:24:23.396586+00:00",
+  "purpose": "Supplementary same-scale concurrency exploration; earlier c1/N1 and c64/N100 cannot form a curve with formal c16/N1000. Include c16 again with identical short protocol.",
+  "performance_acceptance": false,
+  "default_change_allowed": false,
+  "trial_count": 24,
+  "group_order": [
+    1,
+    16,
+    64
+  ],
+  "remote_bundle": "/tmp/fn-knock-auth-performance-20260923/concurrency5-plan",
+  "remote_tools": "/tmp/fn-knock-auth-performance-20260923/scripts5",
+  "shared_lock": "/tmp/fn-knock-auth-post-experiment.lock",
+  "input_config": "/tmp/fn-knock-auth-variants5-20260923.json",
+  "input_config_sha256": "95b41efe37dfb7bc13ec380961c768ec832200fe541a37f0413158e1a8e9a28b",
+  "preparation_repo_commit": "c554d167fe4d0e164acf84272ae1ad739da5c86e",
+  "product_sources": {
+    "baseline": {
+      "rust": "d4f8805f39d9f4480bf83f4382ba59e5f49e7dc4",
+      "go": "92d4c0cb5495d57801d52893a8f0e8496a1c9182"
+    },
+    "candidate": {
+      "rust": "5fddf896eaf9b1cf3eb300c08315320498c943b8",
+      "go": "4d15fa32764e26df58b16930d0e2503a90880002"
+    }
+  },
+  "artifacts": {
+    "/tmp/fn-knock-auth-performance-20260923/base5/go-reauth-proxy": {
+      "sha256": "88a6ef9a80bab166eaf49ba96a620e98dced25a527d0dc5ad653ff7ac15139eb",
+      "bytes": 27660450,
+      "local_source": "/tmp/fn-knock-auth-go-matched5-20260923/baseline/go-reauth-proxy"
+    },
+    "/tmp/fn-knock-auth-performance-20260923/base5/server-admin-rs": {
+      "sha256": "6aee890974e6caa7f961e4c6778fdca00c23886880fb00286d7ccc1c8256bfa2",
+      "bytes": 38393248,
+      "local_source": "/tmp/fn-knock-auth-baseline5-20260923/compiler-z/server-admin-rs"
+    },
+    "/tmp/fn-knock-auth-performance-20260923/candidate5/go-reauth-proxy": {
+      "sha256": "603188b385a10abb7bf1d6a6f8798c2234e0beafcc692e5abda0e7112a48eab6",
+      "bytes": 27668642,
+      "local_source": "/tmp/fn-knock-auth-go-matched5-20260923/candidate/go-reauth-proxy"
+    },
+    "/tmp/fn-knock-auth-performance-20260923/candidate5/server-admin-rs": {
+      "sha256": "08bdd768e0e239d5fad08ac7c987ff9fbc5f1c1d26fbbbeb1d6bc6e3f56b3bd9",
+      "bytes": 38536480,
+      "local_source": "/tmp/fn-knock-auth-artifacts4-20260923/compiler-z/server-admin-rs"
+    }
+  },
+  "tools": {
+    "source_commit": "714edd52f93c6f313e5837c79c504a543b6a1e62",
+    "files": {
+      "run-auth-performance-isolated.sh": "3ec736aa7c11491f7a001b95d8950b0efd807f1f4bbf724187cc359d6bf9b497",
+      "auth-performance.mjs": "cd3d4e2d520a80ac1509a3486b89d0e26fea7b1d16556806b9b1b1823751930b",
+      "auth-performance-lib.mjs": "3af4d7d887d7d948a20eb356ba30f21dd45dd0c5d526f83e3ede232af749f816",
+      "auth-performance-worker.mjs": "e0b6ba055d6880f72eb14a85534582bf5e4febee03e2975204479bc7e33a03e1",
+      "auth-performance-seed.py": "41fa8d436d9473ea53d76fc037b70913d05cef1e2d5aab525929b1d55caee1d7",
+      "auth-performance-profile.mjs": "37e9e84a1baacc47532ffee52293164e4970410b30fcc8b45a193b48eb1b0e66",
+      "auth-performance-recovery.mjs": "cabb463a9b404522591e1f0f4a6d82668e5edcaac17566d068254b66cc129e7c",
+      "auth-performance-soak.mjs": "d60f312010a4fc3a4023e24cd551892db4d6270fa62820387bc48c4302518c79",
+      "auth-performance-suite.mjs": "e729ae8f87733c1fe5885f3221faa5d960e1ca86199ebcd5ead3136481fe7d31",
+      "check-auth-performance.mjs": "c195883de932e60d7d5369813f82e3ead2ce5bed02aefcff0ba043a56a72272e",
+      "report-auth-performance.mjs": "c2081275a52c0e7cd95147db449ccee52f6f41444582e2aaf91346de11bd093b",
+      "check-auth-performance-plan.mjs": "87443f8e5c039b94f034329a8e105bb66355e4c653a569bed60651deccc4ddec"
+    }
+  },
+  "provenance_reference": {
+    "path": "/Users/edgeware/Local/fn-knock-turborepo/docs/experiments/2026-09-23-auth-performance/post5-plan/bundle-manifest.json",
+    "sha256": "3b62ed3b2874d869a0314c4e9b301ae7527f0ed3d902266ee5eb672ac7268676",
+    "note": "The original frozen post5 plan is unchanged; this supplement references its verified four primary artifacts."
+  },
+  "options": {
+    "routes": [
+      "bootstrap",
+      "session_hit",
+      "grant_hit",
+      "auto_ip_hit"
+    ],
+    "pairs": 1,
+    "warmup": 5,
+    "seconds": 15,
+    "clients": 2,
+    "accounts": 1000,
+    "sessions": 1000,
+    "grants": 100,
+    "credentialKind": "totp",
+    "renewals": 64,
+    "cacheTtl": 0,
+    "selected": [
+      "candidate5"
+    ],
+    "profile": false,
+    "recoveryProbe": false,
+    "roles": [
+      "baseline",
+      "candidate"
+    ]
+  },
+  "fixture": {
+    "session_ip_mobility_enabled": false,
+    "tokio_workers": 2,
+    "candidate_auth_readers": 1,
+    "rust_opt_level": "z",
+    "bridge_capacity_override": null,
+    "normal_capacity_semantics": "Go default1024, Rust Linux default64 on four-CPU test host",
+    "effective_client_workers": {
+      "1": 1,
+      "16": 2,
+      "64": 2
+    }
+  },
+  "validation": "Exact8rows/group identity and workload contract, existing non-strict check-auth-performance. No six-pair/improvement/RSS regression gates. Stop at first failure; no retries.",
+  "files": {
+    "run-concurrency5.sh": "f49463aad8e84b2986c7dca84c9a7041f68277af2cf8663329a70e8809081345",
+    "README.md": "dd7b60dc48fea859d21376004dafe184f21d266f9a0a46157de9d40bee1a22c8",
+    "variants5.json": "95b41efe37dfb7bc13ec380961c768ec832200fe541a37f0413158e1a8e9a28b"
+  },
+  "control_binary": {
+    "path": "/tmp/fn-knock-auth-performance-20260923/authperf-control",
+    "sha256": "897cfef2a9f4b1fdf7330e66acbe7b4449945875fa2ac99ac9ab63632fc2d398",
+    "provenance": "Existing frozen scripts5/control identity supplied by root review; actual target content is rechecked by preflight."
+  }
+}

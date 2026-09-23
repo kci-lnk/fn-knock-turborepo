@@ -1,0 +1,65 @@
+{
+  "scope": "Read-only retrospective audit; repository experiment docs and shallow /tmp/fn-knock* scripts/logs/artifact directories. No build, remote access, cache scan, or binary execution.",
+  "baseline_artifact": {
+    "path": "/tmp/fn-knock-auth-artifacts-20260923/base/server-admin-rs",
+    "sha256": "98826bc8ee3f214d78d379888a20b6d795477c3deace56e4bc7bbea29ce141ea",
+    "size_bytes": 38393376,
+    "elf_comment": [
+      "Homebrew clang version 21.1.8",
+      "rustc version 1.96.0 (ac68faa20 2026-05-25)",
+      "Linker: Homebrew LLD 21.1.8"
+    ],
+    "contains_baseline_source_directory": true,
+    "contains_gateway_commit": true
+  },
+  "candidate_artifact": {
+    "path": "/tmp/fn-knock-auth-artifacts4-20260923/compiler-z/server-admin-rs",
+    "sha256": "08bdd768e0e239d5fad08ac7c987ff9fbc5f1c1d26fbbbeb1d6bc6e3f56b3bd9",
+    "size_bytes": 38536480,
+    "elf_comment": [
+      "Homebrew clang version 21.1.8",
+      "rustc version 1.96.0 (ac68faa20 2026-05-25)",
+      "Linker: Homebrew LLD 21.1.8"
+    ]
+  },
+  "checkout": {
+    "path": "/tmp/fn-knock-auth-baseline-20260923",
+    "head": "d4f8805f39d9f4480bf83f4382ba59e5f49e7dc4",
+    "status_porcelain_now": "",
+    "reflog": "d4f8805f HEAD@{2026-09-23 13:40:51 +0800}:"
+  },
+  "declared_release_profile": "opt-level = \"z\"\nlto = \"fat\"\ncodegen-units = 1\npanic = \"abort\"\nstrip = \"symbols\"\ndebug = 0\nincremental = false",
+  "cargo_lock_sha256": "f1267cf91fafb62deacea2d7eb25ed06b158e3918a6a32d048a3d9e1686e5a21",
+  "source_dependency_diff": "",
+  "earlier_recorded_metadata_file": "/tmp/fn-knock-auth-artifacts-20260923/variants.json",
+  "earlier_recorded_metadata": {
+    "rust_toolchain": "rustc 1.96.0 (ac68faa20 2026-05-25)\nbinary: rustc\ncommit-hash: ac68faa20c58cbccd01ee7208bf3b6e93a7d7f96\ncommit-date: 2026-05-25\nhost: aarch64-apple-darwin\nrelease: 1.96.0\nLLVM version: 22.1.2",
+    "cargo_zigbuild": "cargo-zigbuild 0.23.0",
+    "zig": "0.16.0",
+    "go_toolchain": "go version go1.26.7 darwin/arm64",
+    "rust_profile": "release",
+    "opt_level": "z",
+    "lto": "fat",
+    "codegen_units": 1,
+    "target": "x86_64-unknown-linux-gnu",
+    "main_commit": "d4f8805f39d9f4480bf83f4382ba59e5f49e7dc4",
+    "go_commit": "92d4c0cb5495d57801d52893a8f0e8496a1c9182"
+  },
+  "candidate_build_manifest": "/tmp/fn-knock-auth-artifacts4-20260923/compiler-build-manifest.json",
+  "directly_verified": [
+    "Both ELF .comment sections identify rustc 1.96.0 ac68faa20, Homebrew clang 21.1.8 and Homebrew LLD 21.1.8.",
+    "Current detached baseline worktree is clean at d4 and its source path is present in binary. This supports, but does not cryptographically prove, complete source provenance.",
+    "Source release defaults are z/fat/1, panic abort, stripped symbols, no debug or incremental.",
+    "Baseline/final Cargo.lock SHA is identical; Cargo manifests and complete two path-dependency trees have no git diff."
+  ],
+  "not_proven_by_recovered_files": [
+    "Exact original baseline cargo argv (including --locked) and actual build environment were not found within the bounded search.",
+    "No baseline build-specific verbose rustc command proves absence of profile/RUSTFLAGS/cargo-config overrides.",
+    "Contemporaneous clean status and immediate binary copy/hash were not found; current clean status and reflog are retrospective evidence.",
+    "Zig and cargo-zigbuild versions are recorded metadata, not independently embedded in the ELF.",
+    "Identical lockfiles and path-dependency trees prove declared dependency equality, not independent attestation of every actual linked dependency feature or build environment."
+  ],
+  "do_not_misattribute": "/tmp/fn-knock-deploy-fast-d4f8805f.log belongs to earlier main-checkout deployment and does not prove this baseline worktree build. Later compiler manifests belong to candidates, not baseline.",
+  "exact_original_command": null,
+  "recommendation": "If full auditability is mandatory, rebuild baseline from the already clean frozen d4 worktree with the current serial builder, explicit z/fat/1 and --locked, then compare binary SHA and preserve complete build manifest. No rebuild was performed by this audit."
+}

@@ -1,0 +1,32 @@
+{
+  "captured_utc": "2026-09-23T06:53:00.772979+00:00",
+  "kernel": {
+    "system": "Linux",
+    "node": "OTN",
+    "release": "6.18.18.c1032-trim",
+    "version": "#1032 SMP PREEMPT_DYNAMIC Fri Aug 21 01:49:29 UTC 2026",
+    "machine": "x86_64",
+    "processor": ""
+  },
+  "cpu_model": [
+    "AMD Ryzen 7 8745HS w/ Radeon 780M Graphics"
+  ],
+  "cpu_count": 4,
+  "available_cpus": [
+    0,
+    1,
+    2,
+    3
+  ],
+  "memory": [
+    "MemTotal:        3977416 kB",
+    "SwapTotal:       4194300 kB"
+  ],
+  "cpu_governors": {},
+  "production_processes_before_final": {
+    "7257": "go-reauth-proxy",
+    "7676": "server-admin-rs",
+    "761442": "go-reauth-proxy",
+    "761490": "server-admin-rs"
+  }
+}

@@ -1,4 +1,4 @@
-/tmp/fn-knock-auth-go-matched5-20260923/candidate/go-reauth-proxy: go1.26.7
+/tmp/fn-knock-auth-artifacts4-20260923/go/go-reauth-proxy: go1.26.7
 	path	go-reauth-proxy/cmd/server
 	mod	go-reauth-proxy	(devel)	
 	dep	github.com/aymerick/douceur	v0.2.0	h1:Mv+mAeH1Q+n9Fr+oyamOlAkUNPWPlA8PPGR0QAaYuPk=

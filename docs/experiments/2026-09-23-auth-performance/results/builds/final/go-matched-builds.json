@@ -1,0 +1,55 @@
+{
+  "source_repository": "/Users/edgeware/Local/Go-Reauth-Proxy",
+  "build_environment": {
+    "CGO_ENABLED": "0",
+    "GOOS": "linux",
+    "GOARCH": "amd64"
+  },
+  "roles": [
+    {
+      "role": "baseline",
+      "source_commit": "92d4c0cb5495d57801d52893a8f0e8496a1c9182",
+      "archive_sha256": "7622563f77e72dadbbbde448476aea69641f01f24e423bd5c32f15e399881d2e",
+      "toolchain": "go version go1.26.7 darwin/arm64",
+      "command_argv": [
+        "go",
+        "build",
+        "-buildvcs=false",
+        "-trimpath",
+        "-ldflags",
+        "-s -w -X go-reauth-proxy/pkg/version.Version=2.4.15 -X go-reauth-proxy/pkg/version.Commit=92d4c0cb5495d57801d52893a8f0e8496a1c9182",
+        "-o",
+        "/tmp/fn-knock-auth-go-matched5-20260923/baseline/go-reauth-proxy",
+        "./cmd/server"
+      ],
+      "source_dir": "/tmp/fn-knock-auth-go-matched5-20260923/baseline/source",
+      "binary": "/tmp/fn-knock-auth-go-matched5-20260923/baseline/go-reauth-proxy",
+      "sha256": "88a6ef9a80bab166eaf49ba96a620e98dced25a527d0dc5ad653ff7ac15139eb",
+      "size_bytes": 27660450,
+      "elapsed_seconds": 1.18994875
+    },
+    {
+      "role": "candidate",
+      "source_commit": "4d15fa32764e26df58b16930d0e2503a90880002",
+      "archive_sha256": "cb2ea2087bcfaa114dc33a2886a436524c0d85fa130274c671c368e195fcd671",
+      "toolchain": "go version go1.26.7 darwin/arm64",
+      "command_argv": [
+        "go",
+        "build",
+        "-buildvcs=false",
+        "-trimpath",
+        "-ldflags",
+        "-s -w -X go-reauth-proxy/pkg/version.Version=2.4.15 -X go-reauth-proxy/pkg/version.Commit=4d15fa32764e26df58b16930d0e2503a90880002",
+        "-o",
+        "/tmp/fn-knock-auth-go-matched5-20260923/candidate/go-reauth-proxy",
+        "./cmd/server"
+      ],
+      "source_dir": "/tmp/fn-knock-auth-go-matched5-20260923/candidate/source",
+      "binary": "/tmp/fn-knock-auth-go-matched5-20260923/candidate/go-reauth-proxy",
+      "sha256": "603188b385a10abb7bf1d6a6f8798c2234e0beafcc692e5abda0e7112a48eab6",
+      "size_bytes": 27668642,
+      "elapsed_seconds": 0.6244270829999998
+    }
+  ],
+  "baseline_matches_previous_artifact": true
+}

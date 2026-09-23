@@ -1,0 +1,11 @@
+{
+  "checked_utc": "2026-09-23T08:18:18.599061+00:00",
+  "binaries": {
+    "baseline_go": "88a6ef9a80bab166eaf49ba96a620e98dced25a527d0dc5ad653ff7ac15139eb",
+    "baseline_rust": "6aee890974e6caa7f961e4c6778fdca00c23886880fb00286d7ccc1c8256bfa2",
+    "candidate_go": "603188b385a10abb7bf1d6a6f8798c2234e0beafcc692e5abda0e7112a48eab6",
+    "candidate_rust": "08bdd768e0e239d5fad08ac7c987ff9fbc5f1c1d26fbbbeb1d6bc6e3f56b3bd9"
+  },
+  "runtime_tools_matched": 12,
+  "parameter_binaries_matched": 3
+}

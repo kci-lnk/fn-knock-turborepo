@@ -1,7 +1,11 @@
 {
   "baseline": {
     "rust": "d4f8805f39d9f4480bf83f4382ba59e5f49e7dc4",
-    "go": "92d4c0cb5495d57801d52893a8f0e8496a1c9182"
+    "go": "92d4c0cb5495d57801d52893a8f0e8496a1c9182",
+    "artifact_sha256": {
+      "go": "88a6ef9a80bab166eaf49ba96a620e98dced25a527d0dc5ad653ff7ac15139eb",
+      "rust": "6aee890974e6caa7f961e4c6778fdca00c23886880fb00286d7ccc1c8256bfa2"
+    }
   },
   "candidate": {
     "rust": "5fddf896eaf9b1cf3eb300c08315320498c943b8",
@@ -9,7 +13,11 @@
     "opt_level": "z",
     "lto": "fat",
     "codegen_units": 1,
-    "auth_readers": 1
+    "auth_readers": 1,
+    "artifact_sha256": {
+      "go": "603188b385a10abb7bf1d6a6f8798c2234e0beafcc692e5abda0e7112a48eab6",
+      "rust": "08bdd768e0e239d5fad08ac7c987ff9fbc5f1c1d26fbbbeb1d6bc6e3f56b3bd9"
+    }
   },
   "primary_matrix": {
     "pairs": 6,
@@ -118,6 +126,12 @@
         "go": "748c97e03f6fb9087ac0b3c90064611dc2c6cf66"
       },
       "reason": "Restore legacy IP owner JSON normalization and ordinary Cookie empty-segment/Unicode-edge normalization. Discard interrupted c655 performance acceptance; rerun the complete matrix from fresh processes.",
+      "thresholds_and_workload_unchanged": true
+    },
+    {
+      "date_utc": "2026-09-23",
+      "superseded_go_artifact_sha256": "64845106df1d923b771454e4c763bf2de4dac46950844b3b72ea07f6044b1b39",
+      "reason": "Unify Go release linking flags (-s -w, explicit Version/Commit) for both archived source revisions. Rebuilt baseline is byte-identical to the original. Product sources, the candidate Rust artifact, thresholds and workloads are unchanged. Exclude interrupted formal-v4-main and rerun full v5 matrix with pinned binary hashes. Rebuild clean d4 Rust with the same recorded builder to replace incomplete original command/environment provenance; archive the new baseline build manifest and binary hash.",
       "thresholds_and_workload_unchanged": true
     }
   ]

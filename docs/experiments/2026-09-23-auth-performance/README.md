@@ -12,8 +12,8 @@ Go 的运行时 `version.Commit` 必须显式注入；仅有 Git build info 或 
 
 ```sh
 AUTH_PERF_GO_COMMIT=$(git rev-parse HEAD)
-CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -buildvcs=true -trimpath \
-  -ldflags "-X go-reauth-proxy/pkg/version.Commit=$AUTH_PERF_GO_COMMIT" \
+CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -buildvcs=false -trimpath \
+  -ldflags "-s -w -X go-reauth-proxy/pkg/version.Version=2.4.15 -X go-reauth-proxy/pkg/version.Commit=$AUTH_PERF_GO_COMMIT" \
   -o /tmp/auth-artifacts/go-reauth-proxy ./cmd/server
 ```
 

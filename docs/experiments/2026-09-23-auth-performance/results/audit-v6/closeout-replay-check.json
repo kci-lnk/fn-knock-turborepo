@@ -1,0 +1,103 @@
+{
+  "schema_version": 1,
+  "completed_scope_replay_passed": true,
+  "full_batch_completed": false,
+  "interruption_exit_code": 143,
+  "frozen_manifest_sha256": "87e69d8e1dedce80e7ddb6ea574fa1145975123cdca60b3b662f0637a78002ce",
+  "completed_trials": 42,
+  "original_planned_trials": 45,
+  "unique_product_processes": 84,
+  "measurement_expected_responses": 10472765,
+  "warmup_expected_responses": 3301397,
+  "cases": [
+    {
+      "name": "smoke",
+      "trials": 18,
+      "contract_equal": true,
+      "gate_replayed": true,
+      "soak_summary_equal": null,
+      "report_equal": true
+    },
+    {
+      "name": "session-ttl0",
+      "trials": 12,
+      "contract_equal": true,
+      "gate_replayed": true,
+      "soak_summary_equal": null,
+      "report_equal": true
+    },
+    {
+      "name": "session-ttl1",
+      "trials": 12,
+      "contract_equal": true,
+      "gate_replayed": true,
+      "soak_summary_equal": null,
+      "report_equal": true
+    }
+  ],
+  "stages": [
+    {
+      "name": "collector-integrity",
+      "exit_code": 0
+    },
+    {
+      "name": "frozen-plan",
+      "exit_code": 0
+    },
+    {
+      "name": "smoke-contract",
+      "exit_code": 0
+    },
+    {
+      "name": "smoke-gate",
+      "exit_code": 0
+    },
+    {
+      "name": "smoke-report",
+      "exit_code": 0
+    },
+    {
+      "name": "session-ttl0-contract",
+      "exit_code": 0
+    },
+    {
+      "name": "session-ttl0-gate",
+      "exit_code": 0
+    },
+    {
+      "name": "session-ttl0-report",
+      "exit_code": 0
+    },
+    {
+      "name": "session-ttl1-contract",
+      "exit_code": 0
+    },
+    {
+      "name": "session-ttl1-gate",
+      "exit_code": 0
+    },
+    {
+      "name": "session-ttl1-report",
+      "exit_code": 0
+    }
+  ],
+  "excluded_log_content": [
+    {
+      "source": "/tmp/fn-knock-auth-performance-20260923/audit6-final/smoke.run.log",
+      "reason": "Excluded logs; source SHA retained only, content not independently replayed."
+    },
+    {
+      "source": "/tmp/fn-knock-auth-performance-20260923/audit6-final/session-ttl0.run.log",
+      "reason": "Excluded logs; source SHA retained only, content not independently replayed."
+    },
+    {
+      "source": "/tmp/fn-knock-auth-performance-20260923/audit6-final/session-ttl1.run.log",
+      "reason": "Excluded logs; source SHA retained only, content not independently replayed."
+    }
+  ],
+  "notes": [
+    "This is offline replay, not new benchmark data.",
+    "Earlier 273 v5 trials are not pooled.",
+    "User requested prompt closeout. Soak interrupted before completion; recovery not executed. No passing claim for either."
+  ]
+}

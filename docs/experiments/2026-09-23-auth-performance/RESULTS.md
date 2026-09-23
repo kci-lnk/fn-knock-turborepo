@@ -1,6 +1,6 @@
 # 鉴权优化实现与验收结果
 
-**状态：优化 v5 的 273 次远端试验已完成并通过冻结门槛；追加审计发现的 Go 缓存失效竞态已在 `66998225` 修复，完整测试与本机两组六对 A/B 通过，独立 45 次 Linux 复测正在执行。** 本页区分原始→v5 的优化收益与 v5→audit6 的修复代价，不混合样本或相乘百分比；此前检查点及中止批次见 [排除记录](REJECTED_CANDIDATES.md)。
+**状态：已按“尽快收尾”要求结束。** v5 优化的 273 次远端试验已完成；Go `66998225` 缓存失效修复、完整测试及本机两组六对 A/B 通过。修复后的 Linux 已完成 42 个有效试次，其中 TTL0/TTL1 各六对通过非回退门槛；新一轮 30 分钟 soak 已主动中止、恢复测试未执行，不宣称 45 项全部验收。本页分别记录原始→v5 收益与 v5→audit6 修复代价，不混合样本或相乘百分比；此前检查点及中止批次见 [排除记录](REJECTED_CANDIDATES.md)。
 
 ## 实现与边界
 
@@ -152,9 +152,15 @@ Go `66998225` 修复原基线已有的失效竞态：注销/配置清空后，�
 
 本机单独比较 `4d15fa3→66998225` 的六对结果：AuthOff 配对耗时 −0.147%（95%区间 −3.320%～+1.404%）；CacheHit +0.870%（−0.024%～+1.343%），B/op 6094.5→6109.5、配对 +0.262%，66 次分配不变。命中时间区间跨零，不能称确定退化，也不能称零开销。上面的原始→修复后表来自另一组直接六对；两组百分比不相乘。
 
-Linux 独立复测固定相同 Rust `5fddf896` 源码、reader1/z、两客户端/c16、N1000账户/session与100 grant、mobility=false；baseline 使用 v5 原制品，candidate 使用新 Go 和嵌入对应 gateway commit 后重新构建的 Rust。两端 Rust 二进制不同，源码相同。[构建记录](results/builds/audit-v6) 和 [冻结 45-trial 协议](audit6-plan/README.md) 包括精确 SHA、配置与退出规则。18 项 smoke、TTL0/TTL1 各六对、TTL1 30分钟 soak、一次独立饱和恢复串行执行；稳定 session 负载不主动注销，不能替代并发回归。六对只检验原吞吐/P99/RSS非回退门槛，不要求正确性修复另产生性能收益。目前 smoke 18 项和 TTL0 六对已通过；TTL1、soak 与恢复仍在执行，本批尚未整体完成。
+Linux 独立复测固定相同 Rust `5fddf896` 源码、reader1/z、两客户端/c16、N1000账户/session与100 grant、mobility=false；baseline 使用 v5 原制品，candidate 使用新 Go 和嵌入对应 gateway commit 后重新构建的 Rust。两端 Rust 二进制不同，源码相同。[构建记录](results/builds/audit-v6) 和 [冻结 45-trial 协议](audit6-plan/README.md) 包括精确 SHA、配置与退出规则。原计划依次执行18项 smoke、TTL0/TTL1 各六对、TTL1 30分钟 soak和一次独立饱和恢复；稳定 session 负载不主动注销，不能替代并发回归。六对只检验原吞吐/P99/RSS非回退门槛，不要求正确性修复另产生性能收益。smoke 18 项、TTL0 和 TTL1 各六对已通过。用户随后要求尽快收尾，已于 15:27:24 UTC 向唯一实验 runner 发送 SIGTERM；原始 batch/soak outcome 保留 `passed=false / exit_code=143`。soak 未达到30分钟，恢复测试尚未开始，均不纳入通过结论；此前 v5 的30分钟结果不能替代 Go669 的稳定性验收。
 
 TTL0 六对的增量变化为：吞吐 +0.4008%（95%区间 −0.9508%～+1.1559%），P99 +1.1905%（−1.1628%～+2.3810%），合计峰值 RSS +0.5518%，全部原非回退门槛通过。吞吐与 P99 区间跨零，不声称加速。356,342 次测量响应、117,776 次预热响应均符合预期；客户端最大事件循环延迟 20.218ms、最大采样间隔 214.185ms。原合同与冻结 gate 已独立离线复算一致，详见 [smoke/TTL0 审阅](results/audit-v6/smoke-ttl0-review.md) 和 [便携重放包](results/audit-v6/smoke-ttl0-replay.tar.gz)。
+
+TTL1 六对增量吞吐 +0.8386%（95%区间 −0.3589%～+2.9860%），P99 变化 0%（−10%～0%），合计采样峰值 RSS +1.4293%，全部原非回退门槛通过。两角色吞吐中位数 13848.50→14010.67 req/s，P99 4→4ms，合计 RSS 77.39→78.56MiB；吞吐区间跨零，不声称新增加速。10,050,318 次测量响应和 3,161,841 次预热响应零错误；冻结 gate 已独立复算一致，详见 [TTL1 审阅](results/audit-v6/ttl1-review.md) 与 [离线重放包](results/audit-v6/ttl1-replay.tar.gz)。
+
+最终按已完成范围收集42份 raw trial 和对应 manifest/gate/outcome，共70个白名单源文件；10,472,765 次测量响应、3,301,397 次预热响应符合预期。三个已完成 case 的原合同、冻结 gate 和报告已从完整归档离线重跑，报告逐字节一致，42个独立trial/84个产品进程身份核对通过。[完整归档与说明](results/audit-v6/closeout-evidence-README.md)、[原始证据包](results/audit-v6/closeout-evidence-replay.tar.gz) 和 [解压重放核对](results/audit-v6/closeout-extracted-replay-check.json) 保留明确的 `full_batch_completed=false` 及中止证据。两阶段合计315个已完成远端trial，统计仍分组，不据合计数量增加显著性。
+
+[最终进程检查](results/audit-v6/production-after-closeout.json) 确认四个生产 PID 与启动时间保持不变，实验进程已清理。未替换或重启生产服务；reader/编译默认值仍为1/z。
 
 ## 功能验证与交付索引
 

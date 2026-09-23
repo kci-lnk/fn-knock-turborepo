@@ -1,0 +1,12 @@
+{
+  "archive": "closeout-evidence-replay.tar.gz",
+  "sha256": "75f3f851f53b6490b2b13e6b0acee2c201232e3f4177611b99cfb4743bf439b2",
+  "bytes": 622941,
+  "payload_files": 111,
+  "remote_source_files": 70,
+  "completed_trials": 42,
+  "original_planned_trials": 45,
+  "full_batch_completed": false,
+  "scope_replay_passed": true,
+  "reason": "User requested prompt wrap-up; retain interrupted soak exit143, recovery not executed."
+}

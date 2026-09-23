@@ -1,0 +1,8 @@
+{
+  "extracted_archive_replay_equal": true,
+  "archive_sha256": "75f3f851f53b6490b2b13e6b0acee2c201232e3f4177611b99cfb4743bf439b2",
+  "completed_trials": 42,
+  "full_batch_completed": false,
+  "measurement_expected_responses": 10472765,
+  "warmup_expected_responses": 3301397
+}

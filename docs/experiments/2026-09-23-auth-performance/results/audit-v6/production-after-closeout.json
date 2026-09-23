@@ -1,0 +1,28 @@
+{
+  "checked_utc": "2026-09-23T15:27:50.128288+00:00",
+  "production_pids_and_start_times_unchanged": true,
+  "production": [
+    {
+      "pid": 7257,
+      "start_time_host_local": "Sat Sep 12 14:46:53 2026",
+      "program": "go-reauth-proxy"
+    },
+    {
+      "pid": 7676,
+      "start_time_host_local": "Sat Sep 12 14:46:54 2026",
+      "program": "server-admin-rs"
+    },
+    {
+      "pid": 761442,
+      "start_time_host_local": "Mon Sep 21 19:48:11 2026",
+      "program": "go-reauth-proxy"
+    },
+    {
+      "pid": 761490,
+      "start_time_host_local": "Mon Sep 21 19:48:12 2026",
+      "program": "server-admin-rs"
+    }
+  ],
+  "remaining_experiment_processes": [],
+  "scope": "Read-only process evidence. The harness uses anonymous unshare --net namespaces; no persistent named network namespace is created."
+}

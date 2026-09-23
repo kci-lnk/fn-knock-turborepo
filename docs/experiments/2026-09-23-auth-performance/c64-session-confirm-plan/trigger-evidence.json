@@ -1,0 +1,98 @@
+{
+  "schema_version": 1,
+  "reason": "Existing single-pair c64 session_hit combined Go+Rust peak RSS increased by 6.583779478784124%; confirm with a separate six-pair protocol. Not a change to the completed 261-trial experiment.",
+  "original_protocol": {
+    "pairs": 1,
+    "warmup": 5,
+    "seconds": 15,
+    "concurrency": 64,
+    "accounts": 1000,
+    "sessions": 1000,
+    "grants": 100,
+    "credential_kind": "totp",
+    "cache_ttl_seconds": 0
+  },
+  "collection_index": {
+    "path": "/tmp/fn-knock-auth-final5-evidence-collection/collection.json",
+    "sha256": "e8df3491622ce6f992ce59dfe6c0dcadd33ca518ff091d7823ec352ae5082aee"
+  },
+  "aggregate_inputs": {
+    "results.json": {
+      "source": "/tmp/fn-knock-auth-performance-20260923/concurrency-v5-supplement-final/c64/results.json",
+      "relative": "concurrency5-c64/results.json",
+      "source_sha256": "5aaaf83ca6d8f3d079ddaeed97c23b90809d4a36d1992b03ebdf95a5462f58ea",
+      "collected_sha256": "2c644333a8e9aafdd0926ce0a5eef369f5ec1083c5a144eb89f939cb0da37683",
+      "source_bytes": 195056,
+      "collected_bytes": 195057,
+      "redacted_strings": 0
+    },
+    "manifest.json": {
+      "source": "/tmp/fn-knock-auth-performance-20260923/concurrency-v5-supplement-final/c64/manifest.json",
+      "relative": "concurrency5-c64/manifest.json",
+      "source_sha256": "e066bef64cee7813328cdc8168fbeb0160af78619a9e44f53f33c536dc74b770",
+      "collected_sha256": "0ae6ea47411a7f078b5d5b55b9caad88bbd94db5438e21c366274ac45c7cdf31",
+      "source_bytes": 6115,
+      "collected_bytes": 6116,
+      "redacted_strings": 0
+    },
+    "contract.json": {
+      "source": "/tmp/fn-knock-auth-performance-20260923/concurrency-v5-supplement-final/c64.contract.json",
+      "relative": "concurrency5-c64/contract.json",
+      "source_sha256": "601f85ddf873d452b507ca408d7f048b6395f0ef3e6212e288cf04849a42afc4",
+      "collected_sha256": "601f85ddf873d452b507ca408d7f048b6395f0ef3e6212e288cf04849a42afc4",
+      "source_bytes": 119,
+      "collected_bytes": 119,
+      "redacted_strings": 0
+    },
+    "validity.json": {
+      "source": "/tmp/fn-knock-auth-performance-20260923/concurrency-v5-supplement-final/c64.validity.json",
+      "relative": "concurrency5-c64/validity.json",
+      "source_sha256": "538baf15ba378ef4346db8665316251d3b943e49f15f04c392453fca2469fe0f",
+      "collected_sha256": "538baf15ba378ef4346db8665316251d3b943e49f15f04c392453fca2469fe0f",
+      "source_bytes": 4035,
+      "collected_bytes": 4035,
+      "redacted_strings": 0
+    }
+  },
+  "trials": [
+    {
+      "role": "baseline",
+      "scenario": "session_hit",
+      "pair": 0,
+      "source_raw": {
+        "source": "/tmp/fn-knock-auth-performance-20260923/concurrency-v5-supplement-final/c64/candidate5-1-baseline-session_hit/result.json",
+        "relative": "concurrency5-c64/candidate5-1-baseline-session_hit/result.json",
+        "source_sha256": "e919c700be35212bcaafdad89f992b12e3768236183563f6a291a9a1b72ae74b",
+        "collected_sha256": "48359fc99fdce2b12c46fe0197488f666df0d6d009bfe5eafcc1c99d4e253d56",
+        "source_bytes": 121375,
+        "collected_bytes": 121376,
+        "redacted_strings": 0
+      },
+      "go_peak_rss_bytes": 45813760,
+      "rust_peak_rss_bytes": 46759936,
+      "load_elapsed_ms": 15073.977294921875,
+      "validation_passed": true,
+      "combined_peak_rss_bytes": 92573696
+    },
+    {
+      "role": "candidate",
+      "scenario": "session_hit",
+      "pair": 0,
+      "source_raw": {
+        "source": "/tmp/fn-knock-auth-performance-20260923/concurrency-v5-supplement-final/c64/candidate5-1-candidate-session_hit/result.json",
+        "relative": "concurrency5-c64/candidate5-1-candidate-session_hit/result.json",
+        "source_sha256": "ff31ff2558df62df6fcf274a20bcc8baec6c7f8271ad2c31c504ea5544b8c1e9",
+        "collected_sha256": "e759fd47b840df7d97379b2073caf3813fc922d78c79695207b8d7379fef5c44",
+        "source_bytes": 118758,
+        "collected_bytes": 118759,
+        "redacted_strings": 0
+      },
+      "go_peak_rss_bytes": 48033792,
+      "rust_peak_rss_bytes": 50634752,
+      "load_elapsed_ms": 15040.3388671875,
+      "validation_passed": true,
+      "combined_peak_rss_bytes": 98668544
+    }
+  ],
+  "observed_combined_peak_rss_change": 0.06583779478784124
+}

@@ -1,0 +1,212 @@
+{
+  "schema_version": 1,
+  "purpose": "completed same-scale single-pair concurrency exploration only",
+  "source_analysis_directory": "/tmp/fn-knock-auth-concurrency5-analysis",
+  "source_corrected_report": "final-report-corrected",
+  "source_failed_report": "final-report",
+  "trial_count": 24,
+  "measurement_valid_trials": 24,
+  "warmup_warning_count": 1,
+  "formal_performance_acceptance": false,
+  "default_change_allowed": false,
+  "new_c64_confirmation_included": false,
+  "c64_session_rss_single_pair_change": 0.06583779478784124,
+  "source_inputs_unchanged_between_failed_and_corrected_reports": true,
+  "correction": "Remove analyzer-only warmup upper-duration hard gate; preserve actual duration_ok=false as warning under frozen protocol. No measurement input changed or rerun.",
+  "archive": {
+    "file": "concurrency-replay.tar.gz",
+    "sha256": "ab7deb191cf085ebf07c57f26b2c2c413ec13e21002b34c88f5e53d4b0ced56d",
+    "bytes": 121047
+  },
+  "replay_verification": {
+    "passed": true,
+    "input_checksums_verified": true,
+    "analysis_equal_except_local_input_paths": true,
+    "markdown_byte_identical": true,
+    "trial_count": 24,
+    "warning_count": 1,
+    "normalized_analysis_sha256": "0a060a857121bd4a85c861c61889637d525a52f27ffa97faba1a554403599f94",
+    "markdown_sha256": "889c603ebbc76734e735139ace400f9889f31de6094f2a95efdb41e3dcda65ee",
+    "analyzer_sha256": "7744f5825f0a1cf3d6097a7587482ad8f55e0358be2c5fb08be0e8f137f8a901"
+  },
+  "extracted_archive_replay_verified": true,
+  "frozen_plan_manifest_sha256": "0616fe8895470b17f51a33594116dc43a0e6ba4f936cdb266cc9176a424bc0e5",
+  "input_source_and_collected_sha256": [
+    {
+      "bundle_file": "inputs/concurrency5-c1/results.json",
+      "source": "/tmp/fn-knock-auth-performance-20260923/concurrency-v5-supplement-final/c1/results.json",
+      "relative": "concurrency5-c1/results.json",
+      "source_sha256": "3e04f7119b0fb61b2ba61e981d30fec50d1129fbe8e9c8120954969d9578f6d9",
+      "collected_sha256": "3a47002876aa7bca2c7b0edc60dd93e1009f06249dc6ac8b0110810eb03dd374",
+      "source_bytes": 109123,
+      "collected_bytes": 109124,
+      "redacted_strings": 0
+    },
+    {
+      "bundle_file": "inputs/concurrency5-c1/manifest.json",
+      "source": "/tmp/fn-knock-auth-performance-20260923/concurrency-v5-supplement-final/c1/manifest.json",
+      "relative": "concurrency5-c1/manifest.json",
+      "source_sha256": "90726b3b47cdc1b61ac43fa24d68cb391a1ef14b5de82150fa863c3e32d14212",
+      "collected_sha256": "266093342df23f075eeec322eddff552ea2243a0499fcf340ffa3e8083577956",
+      "source_bytes": 6113,
+      "collected_bytes": 6114,
+      "redacted_strings": 0
+    },
+    {
+      "bundle_file": "inputs/concurrency5-c1/contract.json",
+      "source": "/tmp/fn-knock-auth-performance-20260923/concurrency-v5-supplement-final/c1.contract.json",
+      "relative": "concurrency5-c1/contract.json",
+      "source_sha256": "0783e2514ef7ec0cc9a5dc8ee8f2fc23e06df165959c84bef1bb4f76ffb1b1fb",
+      "collected_sha256": "0783e2514ef7ec0cc9a5dc8ee8f2fc23e06df165959c84bef1bb4f76ffb1b1fb",
+      "source_bytes": 118,
+      "collected_bytes": 118,
+      "redacted_strings": 0
+    },
+    {
+      "bundle_file": "inputs/concurrency5-c1/validity.json",
+      "source": "/tmp/fn-knock-auth-performance-20260923/concurrency-v5-supplement-final/c1.validity.json",
+      "relative": "concurrency5-c1/validity.json",
+      "source_sha256": "5c42cdc8385c945bc637a73628c13b6d33b5c6bc75a1aa18e5b4665122a2597b",
+      "collected_sha256": "5c42cdc8385c945bc637a73628c13b6d33b5c6bc75a1aa18e5b4665122a2597b",
+      "source_bytes": 4045,
+      "collected_bytes": 4045,
+      "redacted_strings": 0
+    },
+    {
+      "bundle_file": "inputs/concurrency5-c16/results.json",
+      "source": "/tmp/fn-knock-auth-performance-20260923/concurrency-v5-supplement-final/c16/results.json",
+      "relative": "concurrency5-c16/results.json",
+      "source_sha256": "af64b3629f7aa7da5824015ea4c324eaf4868afe632dac3b13291d0268d61751",
+      "collected_sha256": "4521742ce6083cb03556ee76a156fac37b8bbb75b8b1ba37a2ea72c9f09cedda",
+      "source_bytes": 144178,
+      "collected_bytes": 144179,
+      "redacted_strings": 0
+    },
+    {
+      "bundle_file": "inputs/concurrency5-c16/manifest.json",
+      "source": "/tmp/fn-knock-auth-performance-20260923/concurrency-v5-supplement-final/c16/manifest.json",
+      "relative": "concurrency5-c16/manifest.json",
+      "source_sha256": "c3a563e84162beb2a4b183f4236f2f9291c0f0c9a66c711571013952a85d14fe",
+      "collected_sha256": "4a2c127da23e3a84549be1f79e53bebefae177e7cc2f0c65d07f68a5c0282ae4",
+      "source_bytes": 6115,
+      "collected_bytes": 6116,
+      "redacted_strings": 0
+    },
+    {
+      "bundle_file": "inputs/concurrency5-c16/contract.json",
+      "source": "/tmp/fn-knock-auth-performance-20260923/concurrency-v5-supplement-final/c16.contract.json",
+      "relative": "concurrency5-c16/contract.json",
+      "source_sha256": "a5473a3fbf176a90b9795aae34dd5bb49a5e1bcbcc8a217bf49b58fb55f1fc42",
+      "collected_sha256": "a5473a3fbf176a90b9795aae34dd5bb49a5e1bcbcc8a217bf49b58fb55f1fc42",
+      "source_bytes": 119,
+      "collected_bytes": 119,
+      "redacted_strings": 0
+    },
+    {
+      "bundle_file": "inputs/concurrency5-c16/validity.json",
+      "source": "/tmp/fn-knock-auth-performance-20260923/concurrency-v5-supplement-final/c16.validity.json",
+      "relative": "concurrency5-c16/validity.json",
+      "source_sha256": "1c69fbdaff9651b761dbc0c618d2f31d7e1aa743328c91b16fb5fa6a06a739b4",
+      "collected_sha256": "1c69fbdaff9651b761dbc0c618d2f31d7e1aa743328c91b16fb5fa6a06a739b4",
+      "source_bytes": 4029,
+      "collected_bytes": 4029,
+      "redacted_strings": 0
+    },
+    {
+      "bundle_file": "inputs/concurrency5-c64/results.json",
+      "source": "/tmp/fn-knock-auth-performance-20260923/concurrency-v5-supplement-final/c64/results.json",
+      "relative": "concurrency5-c64/results.json",
+      "source_sha256": "5aaaf83ca6d8f3d079ddaeed97c23b90809d4a36d1992b03ebdf95a5462f58ea",
+      "collected_sha256": "2c644333a8e9aafdd0926ce0a5eef369f5ec1083c5a144eb89f939cb0da37683",
+      "source_bytes": 195056,
+      "collected_bytes": 195057,
+      "redacted_strings": 0
+    },
+    {
+      "bundle_file": "inputs/concurrency5-c64/manifest.json",
+      "source": "/tmp/fn-knock-auth-performance-20260923/concurrency-v5-supplement-final/c64/manifest.json",
+      "relative": "concurrency5-c64/manifest.json",
+      "source_sha256": "e066bef64cee7813328cdc8168fbeb0160af78619a9e44f53f33c536dc74b770",
+      "collected_sha256": "0ae6ea47411a7f078b5d5b55b9caad88bbd94db5438e21c366274ac45c7cdf31",
+      "source_bytes": 6115,
+      "collected_bytes": 6116,
+      "redacted_strings": 0
+    },
+    {
+      "bundle_file": "inputs/concurrency5-c64/contract.json",
+      "source": "/tmp/fn-knock-auth-performance-20260923/concurrency-v5-supplement-final/c64.contract.json",
+      "relative": "concurrency5-c64/contract.json",
+      "source_sha256": "601f85ddf873d452b507ca408d7f048b6395f0ef3e6212e288cf04849a42afc4",
+      "collected_sha256": "601f85ddf873d452b507ca408d7f048b6395f0ef3e6212e288cf04849a42afc4",
+      "source_bytes": 119,
+      "collected_bytes": 119,
+      "redacted_strings": 0
+    },
+    {
+      "bundle_file": "inputs/concurrency5-c64/validity.json",
+      "source": "/tmp/fn-knock-auth-performance-20260923/concurrency-v5-supplement-final/c64.validity.json",
+      "relative": "concurrency5-c64/validity.json",
+      "source_sha256": "538baf15ba378ef4346db8665316251d3b943e49f15f04c392453fca2469fe0f",
+      "collected_sha256": "538baf15ba378ef4346db8665316251d3b943e49f15f04c392453fca2469fe0f",
+      "source_bytes": 4035,
+      "collected_bytes": 4035,
+      "redacted_strings": 0
+    }
+  ],
+  "original_reports": {
+    "final-report": {
+      "analysis.md": {
+        "sha256": "fae8607b18868c4480e8377b9907e26716e49d8fd14555e4fd605467cdb12236",
+        "bytes": 6555
+      },
+      "analysis.json": {
+        "sha256": "322df49549d6b90a922e3d2442ccf9d954d9a87ec42a748dde2af4f1b7421caf",
+        "bytes": 137583
+      },
+      "OUTPUT-SHA256.json": {
+        "sha256": "9bf4bdc4992d4c4bbf5fbe9bfa2806260b33d2a4779da7f35ba1a908a36bff41",
+        "bytes": 175
+      }
+    },
+    "final-report-corrected": {
+      "analysis.md": {
+        "sha256": "889c603ebbc76734e735139ace400f9889f31de6094f2a95efdb41e3dcda65ee",
+        "bytes": 6907
+      },
+      "analysis.json": {
+        "sha256": "d64edebb6889973d9f3bfeeb4b0866a4200af9c113d6dab80c055721edd04210",
+        "bytes": 149022
+      },
+      "OUTPUT-SHA256.json": {
+        "sha256": "d1e6ce2c9091bda0fc34b17cca86cf07703b4fb48fe284a7c974332dce9716c2",
+        "bytes": 175
+      }
+    }
+  },
+  "delivered_files": {
+    "concurrency-analysis.md": {
+      "sha256": "2f6625bd0dbe2cf53ddeb69a4554227eba6d3a58bcb2f3821a15745d6f67c603",
+      "bytes": 7472
+    },
+    "concurrency-analysis.json": {
+      "sha256": "d64edebb6889973d9f3bfeeb4b0866a4200af9c113d6dab80c055721edd04210",
+      "bytes": 149022
+    },
+    "concurrency-original-failed-analysis.md": {
+      "sha256": "fae8607b18868c4480e8377b9907e26716e49d8fd14555e4fd605467cdb12236",
+      "bytes": 6555
+    },
+    "concurrency-original-failed-analysis.json": {
+      "sha256": "322df49549d6b90a922e3d2442ccf9d954d9a87ec42a748dde2af4f1b7421caf",
+      "bytes": 137583
+    },
+    "concurrency-replay.tar.gz": {
+      "sha256": "ab7deb191cf085ebf07c57f26b2c2c413ec13e21002b34c88f5e53d4b0ced56d",
+      "bytes": 121047
+    },
+    "concurrency-replay-README.md": {
+      "sha256": "428cd0afebff82f90dbe37af1d684492a4799a732cada53be0970faeee8d0ccc",
+      "bytes": 3286
+    }
+  }
+}

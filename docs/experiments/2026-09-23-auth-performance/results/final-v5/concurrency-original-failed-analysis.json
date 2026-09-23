@@ -1,0 +1,3804 @@
+{
+  "schema_version": 1,
+  "mode": "exploratory_single_pair_only",
+  "performance_acceptance": false,
+  "default_change_allowed": false,
+  "checks_passed": false,
+  "expected_trials": 24,
+  "observed_trials": 24,
+  "routes": [
+    "bootstrap",
+    "session_hit",
+    "grant_hit",
+    "auto_ip_hit"
+  ],
+  "fixed_protocol": {
+    "routes": [
+      "bootstrap",
+      "session_hit",
+      "grant_hit",
+      "auto_ip_hit"
+    ],
+    "pairs": 1,
+    "warmup": 5,
+    "seconds": 15,
+    "clients": 2,
+    "accounts": 1000,
+    "sessions": 1000,
+    "grants": 100,
+    "credentialKind": "totp",
+    "renewals": 64,
+    "cacheTtl": 0,
+    "selected": [
+      "candidate5"
+    ],
+    "profile": false,
+    "recoveryProbe": false,
+    "roles": [
+      "baseline",
+      "candidate"
+    ]
+  },
+  "product_sources": {
+    "baseline": {
+      "rust": "d4f8805f39d9f4480bf83f4382ba59e5f49e7dc4",
+      "go": "92d4c0cb5495d57801d52893a8f0e8496a1c9182"
+    },
+    "candidate": {
+      "rust": "5fddf896eaf9b1cf3eb300c08315320498c943b8",
+      "go": "4d15fa32764e26df58b16930d0e2503a90880002"
+    }
+  },
+  "artifact_sha256": {
+    "/tmp/fn-knock-auth-performance-20260923/base5/go-reauth-proxy": "88a6ef9a80bab166eaf49ba96a620e98dced25a527d0dc5ad653ff7ac15139eb",
+    "/tmp/fn-knock-auth-performance-20260923/base5/server-admin-rs": "6aee890974e6caa7f961e4c6778fdca00c23886880fb00286d7ccc1c8256bfa2",
+    "/tmp/fn-knock-auth-performance-20260923/candidate5/go-reauth-proxy": "603188b385a10abb7bf1d6a6f8798c2234e0beafcc692e5abda0e7112a48eab6",
+    "/tmp/fn-knock-auth-performance-20260923/candidate5/server-admin-rs": "08bdd768e0e239d5fad08ac7c987ff9fbc5f1c1d26fbbbeb1d6bc6e3f56b3bd9"
+  },
+  "inputs": [
+    {
+      "path": "/tmp/fn-knock-auth-concurrency5-prep/manifest.json",
+      "sha256": "0616fe8895470b17f51a33594116dc43a0e6ba4f936cdb266cc9176a424bc0e5",
+      "bytes": 5685
+    },
+    {
+      "path": "/tmp/fn-knock-auth-concurrency5-prep/variants5.json",
+      "sha256": "95b41efe37dfb7bc13ec380961c768ec832200fe541a37f0413158e1a8e9a28b",
+      "bytes": 2747
+    },
+    {
+      "path": "/tmp/fn-knock-auth-final5-evidence-collection/concurrency5-c1/results.json",
+      "sha256": "3a47002876aa7bca2c7b0edc60dd93e1009f06249dc6ac8b0110810eb03dd374",
+      "bytes": 109124
+    },
+    {
+      "path": "/tmp/fn-knock-auth-final5-evidence-collection/concurrency5-c1/manifest.json",
+      "sha256": "266093342df23f075eeec322eddff552ea2243a0499fcf340ffa3e8083577956",
+      "bytes": 6114
+    },
+    {
+      "path": "/tmp/fn-knock-auth-final5-evidence-collection/concurrency5-c1/contract.json",
+      "sha256": "0783e2514ef7ec0cc9a5dc8ee8f2fc23e06df165959c84bef1bb4f76ffb1b1fb",
+      "bytes": 118
+    },
+    {
+      "path": "/tmp/fn-knock-auth-final5-evidence-collection/concurrency5-c1/validity.json",
+      "sha256": "5c42cdc8385c945bc637a73628c13b6d33b5c6bc75a1aa18e5b4665122a2597b",
+      "bytes": 4045
+    },
+    {
+      "path": "/tmp/fn-knock-auth-final5-evidence-collection/concurrency5-c16/results.json",
+      "sha256": "4521742ce6083cb03556ee76a156fac37b8bbb75b8b1ba37a2ea72c9f09cedda",
+      "bytes": 144179
+    },
+    {
+      "path": "/tmp/fn-knock-auth-final5-evidence-collection/concurrency5-c16/manifest.json",
+      "sha256": "4a2c127da23e3a84549be1f79e53bebefae177e7cc2f0c65d07f68a5c0282ae4",
+      "bytes": 6116
+    },
+    {
+      "path": "/tmp/fn-knock-auth-final5-evidence-collection/concurrency5-c16/contract.json",
+      "sha256": "a5473a3fbf176a90b9795aae34dd5bb49a5e1bcbcc8a217bf49b58fb55f1fc42",
+      "bytes": 119
+    },
+    {
+      "path": "/tmp/fn-knock-auth-final5-evidence-collection/concurrency5-c16/validity.json",
+      "sha256": "1c69fbdaff9651b761dbc0c618d2f31d7e1aa743328c91b16fb5fa6a06a739b4",
+      "bytes": 4029
+    },
+    {
+      "path": "/tmp/fn-knock-auth-final5-evidence-collection/concurrency5-c64/results.json",
+      "sha256": "2c644333a8e9aafdd0926ce0a5eef369f5ec1083c5a144eb89f939cb0da37683",
+      "bytes": 195057
+    },
+    {
+      "path": "/tmp/fn-knock-auth-final5-evidence-collection/concurrency5-c64/manifest.json",
+      "sha256": "0ae6ea47411a7f078b5d5b55b9caad88bbd94db5438e21c366274ac45c7cdf31",
+      "bytes": 6116
+    },
+    {
+      "path": "/tmp/fn-knock-auth-final5-evidence-collection/concurrency5-c64/contract.json",
+      "sha256": "601f85ddf873d452b507ca408d7f048b6395f0ef3e6212e288cf04849a42afc4",
+      "bytes": 119
+    },
+    {
+      "path": "/tmp/fn-knock-auth-final5-evidence-collection/concurrency5-c64/validity.json",
+      "sha256": "538baf15ba378ef4346db8665316251d3b943e49f15f04c392453fca2469fe0f",
+      "bytes": 4035
+    }
+  ],
+  "groups": [
+    {
+      "concurrency": 1,
+      "checks_passed": true,
+      "observed_trials": 8,
+      "expected_trials": 8,
+      "errors": [],
+      "warnings": [],
+      "host": {
+        "kernel": "Linux OTN 6.18.18.c1032-trim #1032 SMP PREEMPT_DYNAMIC Fri Aug 21 01:49:29 UTC 2026 x86_64 GNU/Linux",
+        "node": "v22.23.1"
+      },
+      "trials": [
+        {
+          "scenario": "bootstrap",
+          "role": "baseline",
+          "concurrency": 1,
+          "successful_requests": 1971,
+          "failures": 0,
+          "elapsed_ms": 15007.843505859375,
+          "warmup_elapsed_ms": 5005.452880859375,
+          "rps": 131.33132679791606,
+          "p50_ms": 8,
+          "p95_ms": 11,
+          "p99_ms": 13,
+          "processes": {
+            "go": {
+              "cpu_seconds": 1.3,
+              "average_cpu_cores": 0.08662137231724551,
+              "cpu_ms_per_1000_success": 659.5636732623034,
+              "peak_rss_bytes": 38182912,
+              "peak_rss_mib": 36.4140625,
+              "end_rss_bytes": 38182912,
+              "peak_fds": 18,
+              "peak_threads": 9
+            },
+            "rust": {
+              "cpu_seconds": 12.189999999999998,
+              "average_cpu_cores": 0.8122419450363251,
+              "cpu_ms_per_1000_success": 6184.677828513444,
+              "peak_rss_bytes": 39493632,
+              "peak_rss_mib": 37.6640625,
+              "end_rss_bytes": 39493632,
+              "peak_fds": 27,
+              "peak_threads": 9
+            },
+            "client": {
+              "cpu_seconds": 1.2800000000000002,
+              "average_cpu_cores": 0.08528873582005712,
+              "cpu_ms_per_1000_success": 649.4165398274988,
+              "peak_rss_bytes": 119115776,
+              "peak_rss_mib": 113.59765625,
+              "end_rss_bytes": 115679232,
+              "peak_fds": 49,
+              "peak_threads": 12
+            },
+            "fixture": {
+              "cpu_seconds": 0,
+              "average_cpu_cores": 0.0,
+              "cpu_ms_per_1000_success": 0,
+              "peak_rss_bytes": 57442304,
+              "peak_rss_mib": 54.78125,
+              "end_rss_bytes": 57442304,
+              "peak_fds": 22,
+              "peak_threads": 7
+            }
+          },
+          "go_rust_peak_rss_sum_bytes": 77676544,
+          "go_rust_peak_rss_sum_mib": 74.078125,
+          "effective_client_workers": 1,
+          "client_event_loop_delay_max_ms": 14.450687,
+          "client_start_delay_max_ms": 1.065673828125,
+          "max_sampling_gap_ms": 204.400390625,
+          "observation_counts": {
+            "process_samples": 75,
+            "health_samples": 15,
+            "timeout_phase_events": 0
+          },
+          "quality": {
+            "sampling_ok": true,
+            "health_ok": true,
+            "client_ok": true,
+            "duration_ok": true
+          },
+          "warnings": []
+        },
+        {
+          "scenario": "bootstrap",
+          "role": "candidate",
+          "concurrency": 1,
+          "successful_requests": 3549,
+          "failures": 0,
+          "elapsed_ms": 15000.255615234375,
+          "warmup_elapsed_ms": 5001.707763671875,
+          "rps": 236.5959681644097,
+          "p50_ms": 4,
+          "p95_ms": 7,
+          "p99_ms": 9,
+          "processes": {
+            "go": {
+              "cpu_seconds": 1.8499999999999996,
+              "average_cpu_cores": 0.1233312316438878,
+              "cpu_ms_per_1000_success": 521.273598196675,
+              "peak_rss_bytes": 38694912,
+              "peak_rss_mib": 36.90234375,
+              "end_rss_bytes": 38338560,
+              "peak_fds": 18,
+              "peak_threads": 10
+            },
+            "rust": {
+              "cpu_seconds": 11.620000000000001,
+              "average_cpu_cores": 0.7746534657848524,
+              "cpu_ms_per_1000_success": 3274.161735700198,
+              "peak_rss_bytes": 36950016,
+              "peak_rss_mib": 35.23828125,
+              "end_rss_bytes": 36769792,
+              "peak_fds": 28,
+              "peak_threads": 9
+            },
+            "client": {
+              "cpu_seconds": 1.4600000000000004,
+              "average_cpu_cores": 0.09733167470274395,
+              "cpu_ms_per_1000_success": 411.38348830656537,
+              "peak_rss_bytes": 134881280,
+              "peak_rss_mib": 128.6328125,
+              "end_rss_bytes": 134881280,
+              "peak_fds": 50,
+              "peak_threads": 12
+            },
+            "fixture": {
+              "cpu_seconds": 0,
+              "average_cpu_cores": 0.0,
+              "cpu_ms_per_1000_success": 0,
+              "peak_rss_bytes": 57442304,
+              "peak_rss_mib": 54.78125,
+              "end_rss_bytes": 57442304,
+              "peak_fds": 22,
+              "peak_threads": 7
+            }
+          },
+          "go_rust_peak_rss_sum_bytes": 75644928,
+          "go_rust_peak_rss_sum_mib": 72.140625,
+          "effective_client_workers": 1,
+          "client_event_loop_delay_max_ms": 12.664831,
+          "client_start_delay_max_ms": 0.853271484375,
+          "max_sampling_gap_ms": 204.4716796875,
+          "observation_counts": {
+            "process_samples": 75,
+            "health_samples": 15,
+            "timeout_phase_events": 0
+          },
+          "quality": {
+            "sampling_ok": true,
+            "health_ok": true,
+            "client_ok": true,
+            "duration_ok": true
+          },
+          "warnings": []
+        },
+        {
+          "scenario": "session_hit",
+          "role": "baseline",
+          "concurrency": 1,
+          "successful_requests": 2313,
+          "failures": 0,
+          "elapsed_ms": 15002.1513671875,
+          "warmup_elapsed_ms": 5001.667236328125,
+          "rps": 154.17788711684125,
+          "p50_ms": 7,
+          "p95_ms": 9,
+          "p99_ms": 11,
+          "processes": {
+            "go": {
+              "cpu_seconds": 2.16,
+              "average_cpu_cores": 0.1439793498367389,
+              "cpu_ms_per_1000_success": 933.852140077821,
+              "peak_rss_bytes": 40865792,
+              "peak_rss_mib": 38.97265625,
+              "end_rss_bytes": 40865792,
+              "peak_fds": 19,
+              "peak_threads": 10
+            },
+            "rust": {
+              "cpu_seconds": 11.01,
+              "average_cpu_cores": 0.7338947415289331,
+              "cpu_ms_per_1000_success": 4760.0518806744485,
+              "peak_rss_bytes": 39174144,
+              "peak_rss_mib": 37.359375,
+              "end_rss_bytes": 39174144,
+              "peak_fds": 28,
+              "peak_threads": 9
+            },
+            "client": {
+              "cpu_seconds": 1.3099999999999996,
+              "average_cpu_cores": 0.08732080939172589,
+              "cpu_ms_per_1000_success": 566.3640293990486,
+              "peak_rss_bytes": 137576448,
+              "peak_rss_mib": 131.203125,
+              "end_rss_bytes": 130506752,
+              "peak_fds": 50,
+              "peak_threads": 12
+            },
+            "fixture": {
+              "cpu_seconds": 0.7500000000000001,
+              "average_cpu_cores": 0.04999282980442324,
+              "cpu_ms_per_1000_success": 324.254215304799,
+              "peak_rss_bytes": 69648384,
+              "peak_rss_mib": 66.421875,
+              "end_rss_bytes": 68255744,
+              "peak_fds": 23,
+              "peak_threads": 7
+            }
+          },
+          "go_rust_peak_rss_sum_bytes": 80039936,
+          "go_rust_peak_rss_sum_mib": 76.33203125,
+          "effective_client_workers": 1,
+          "client_event_loop_delay_max_ms": 13.975551,
+          "client_start_delay_max_ms": 0.71337890625,
+          "max_sampling_gap_ms": 206.1201171875,
+          "observation_counts": {
+            "process_samples": 74,
+            "health_samples": 15,
+            "timeout_phase_events": 0
+          },
+          "quality": {
+            "sampling_ok": true,
+            "health_ok": true,
+            "client_ok": true,
+            "duration_ok": true
+          },
+          "warnings": []
+        },
+        {
+          "scenario": "session_hit",
+          "role": "candidate",
+          "concurrency": 1,
+          "successful_requests": 3484,
+          "failures": 0,
+          "elapsed_ms": 15010.1455078125,
+          "warmup_elapsed_ms": 5000.125732421875,
+          "rps": 232.10967529839354,
+          "p50_ms": 5,
+          "p95_ms": 7,
+          "p99_ms": 8,
+          "processes": {
+            "go": {
+              "cpu_seconds": 2.87,
+              "average_cpu_cores": 0.1912040092153816,
+              "cpu_ms_per_1000_success": 823.7657864523536,
+              "peak_rss_bytes": 40878080,
+              "peak_rss_mib": 38.984375,
+              "end_rss_bytes": 40878080,
+              "peak_fds": 19,
+              "peak_threads": 9
+            },
+            "rust": {
+              "cpu_seconds": 10.28,
+              "average_cpu_cores": 0.6848701096634574,
+              "cpu_ms_per_1000_success": 2950.631458094145,
+              "peak_rss_bytes": 36302848,
+              "peak_rss_mib": 34.62109375,
+              "end_rss_bytes": 36003840,
+              "peak_fds": 28,
+              "peak_threads": 8
+            },
+            "client": {
+              "cpu_seconds": 1.38,
+              "average_cpu_cores": 0.0919378162777793,
+              "cpu_ms_per_1000_success": 396.09644087256027,
+              "peak_rss_bytes": 143364096,
+              "peak_rss_mib": 136.72265625,
+              "end_rss_bytes": 143364096,
+              "peak_fds": 49,
+              "peak_threads": 12
+            },
+            "fixture": {
+              "cpu_seconds": 0.6700000000000002,
+              "average_cpu_cores": 0.044636476018921845,
+              "cpu_ms_per_1000_success": 192.30769230769235,
+              "peak_rss_bytes": 69578752,
+              "peak_rss_mib": 66.35546875,
+              "end_rss_bytes": 69038080,
+              "peak_fds": 23,
+              "peak_threads": 7
+            }
+          },
+          "go_rust_peak_rss_sum_bytes": 77180928,
+          "go_rust_peak_rss_sum_mib": 73.60546875,
+          "effective_client_workers": 1,
+          "client_event_loop_delay_max_ms": 12.550143,
+          "client_start_delay_max_ms": 0.7041015625,
+          "max_sampling_gap_ms": 205.97021484375,
+          "observation_counts": {
+            "process_samples": 75,
+            "health_samples": 15,
+            "timeout_phase_events": 0
+          },
+          "quality": {
+            "sampling_ok": true,
+            "health_ok": true,
+            "client_ok": true,
+            "duration_ok": true
+          },
+          "warnings": []
+        },
+        {
+          "scenario": "grant_hit",
+          "role": "baseline",
+          "concurrency": 1,
+          "successful_requests": 2897,
+          "failures": 0,
+          "elapsed_ms": 15007.510009765625,
+          "warmup_elapsed_ms": 5000.7509765625,
+          "rps": 193.03668617344758,
+          "p50_ms": 5,
+          "p95_ms": 8,
+          "p99_ms": 9,
+          "processes": {
+            "go": {
+              "cpu_seconds": 2.56,
+              "average_cpu_cores": 0.17058126220366784,
+              "cpu_ms_per_1000_success": 883.6727649292371,
+              "peak_rss_bytes": 40361984,
+              "peak_rss_mib": 38.4921875,
+              "end_rss_bytes": 40361984,
+              "peak_fds": 19,
+              "peak_threads": 10
+            },
+            "rust": {
+              "cpu_seconds": 11.1,
+              "average_cpu_cores": 0.739629691586216,
+              "cpu_ms_per_1000_success": 3831.5498791853643,
+              "peak_rss_bytes": 37244928,
+              "peak_rss_mib": 35.51953125,
+              "end_rss_bytes": 37244928,
+              "peak_fds": 28,
+              "peak_threads": 8
+            },
+            "client": {
+              "cpu_seconds": 1.3499999999999996,
+              "average_cpu_cores": 0.08995496249021544,
+              "cpu_ms_per_1000_success": 465.99930963065225,
+              "peak_rss_bytes": 145731584,
+              "peak_rss_mib": 138.98046875,
+              "end_rss_bytes": 145108992,
+              "peak_fds": 49,
+              "peak_threads": 12
+            },
+            "fixture": {
+              "cpu_seconds": 0.5899999999999999,
+              "average_cpu_cores": 0.03931365027350157,
+              "cpu_ms_per_1000_success": 203.6589575422851,
+              "peak_rss_bytes": 69132288,
+              "peak_rss_mib": 65.9296875,
+              "end_rss_bytes": 69132288,
+              "peak_fds": 23,
+              "peak_threads": 7
+            }
+          },
+          "go_rust_peak_rss_sum_bytes": 77606912,
+          "go_rust_peak_rss_sum_mib": 74.01171875,
+          "effective_client_workers": 1,
+          "client_event_loop_delay_max_ms": 17.055743,
+          "client_start_delay_max_ms": 0.9208984375,
+          "max_sampling_gap_ms": 206.2978515625,
+          "observation_counts": {
+            "process_samples": 75,
+            "health_samples": 15,
+            "timeout_phase_events": 0
+          },
+          "quality": {
+            "sampling_ok": true,
+            "health_ok": true,
+            "client_ok": true,
+            "duration_ok": true
+          },
+          "warnings": []
+        },
+        {
+          "scenario": "grant_hit",
+          "role": "candidate",
+          "concurrency": 1,
+          "successful_requests": 6930,
+          "failures": 0,
+          "elapsed_ms": 15001.718994140625,
+          "warmup_elapsed_ms": 5002.0419921875,
+          "rps": 461.9470610472521,
+          "p50_ms": 3,
+          "p95_ms": 4,
+          "p99_ms": 5,
+          "processes": {
+            "go": {
+              "cpu_seconds": 5.2700000000000005,
+              "average_cpu_cores": 0.3512930752841297,
+              "cpu_ms_per_1000_success": 760.4617604617605,
+              "peak_rss_bytes": 40722432,
+              "peak_rss_mib": 38.8359375,
+              "end_rss_bytes": 40517632,
+              "peak_fds": 19,
+              "peak_threads": 9
+            },
+            "rust": {
+              "cpu_seconds": 8.370000000000001,
+              "average_cpu_cores": 0.5579360607453825,
+              "cpu_ms_per_1000_success": 1207.7922077922078,
+              "peak_rss_bytes": 36429824,
+              "peak_rss_mib": 34.7421875,
+              "end_rss_bytes": 36429824,
+              "peak_fds": 28,
+              "peak_threads": 8
+            },
+            "client": {
+              "cpu_seconds": 1.9100000000000001,
+              "average_cpu_cores": 0.12731874265515894,
+              "cpu_ms_per_1000_success": 275.6132756132756,
+              "peak_rss_bytes": 145727488,
+              "peak_rss_mib": 138.9765625,
+              "end_rss_bytes": 145727488,
+              "peak_fds": 49,
+              "peak_threads": 12
+            },
+            "fixture": {
+              "cpu_seconds": 0.9700000000000002,
+              "average_cpu_cores": 0.06465925674110168,
+              "cpu_ms_per_1000_success": 139.97113997114,
+              "peak_rss_bytes": 69578752,
+              "peak_rss_mib": 66.35546875,
+              "end_rss_bytes": 69578752,
+              "peak_fds": 23,
+              "peak_threads": 7
+            }
+          },
+          "go_rust_peak_rss_sum_bytes": 77152256,
+          "go_rust_peak_rss_sum_mib": 73.578125,
+          "effective_client_workers": 1,
+          "client_event_loop_delay_max_ms": 13.959167,
+          "client_start_delay_max_ms": 1.1201171875,
+          "max_sampling_gap_ms": 208.009765625,
+          "observation_counts": {
+            "process_samples": 75,
+            "health_samples": 15,
+            "timeout_phase_events": 0
+          },
+          "quality": {
+            "sampling_ok": true,
+            "health_ok": true,
+            "client_ok": true,
+            "duration_ok": true
+          },
+          "warnings": []
+        },
+        {
+          "scenario": "auto_ip_hit",
+          "role": "baseline",
+          "concurrency": 1,
+          "successful_requests": 1249,
+          "failures": 0,
+          "elapsed_ms": 15007.3037109375,
+          "warmup_elapsed_ms": 5002.168212890625,
+          "rps": 83.22614268742453,
+          "p50_ms": 12,
+          "p95_ms": 16,
+          "p99_ms": 18,
+          "processes": {
+            "go": {
+              "cpu_seconds": 1.38,
+              "average_cpu_cores": 0.09195522570748267,
+              "cpu_ms_per_1000_success": 1104.8839071257005,
+              "peak_rss_bytes": 40407040,
+              "peak_rss_mib": 38.53515625,
+              "end_rss_bytes": 40108032,
+              "peak_fds": 19,
+              "peak_threads": 10
+            },
+            "rust": {
+              "cpu_seconds": 12.86,
+              "average_cpu_cores": 0.8569160888392949,
+              "cpu_ms_per_1000_success": 10296.236989591673,
+              "peak_rss_bytes": 39923712,
+              "peak_rss_mib": 38.07421875,
+              "end_rss_bytes": 39641088,
+              "peak_fds": 27,
+              "peak_threads": 8
+            },
+            "client": {
+              "cpu_seconds": 0.9900000000000002,
+              "average_cpu_cores": 0.06596787931188976,
+              "cpu_ms_per_1000_success": 792.6341072858288,
+              "peak_rss_bytes": 146784256,
+              "peak_rss_mib": 139.984375,
+              "end_rss_bytes": 138514432,
+              "peak_fds": 49,
+              "peak_threads": 12
+            },
+            "fixture": {
+              "cpu_seconds": 0.33000000000000007,
+              "average_cpu_cores": 0.02198929310396325,
+              "cpu_ms_per_1000_success": 264.21136909527627,
+              "peak_rss_bytes": 69578752,
+              "peak_rss_mib": 66.35546875,
+              "end_rss_bytes": 69578752,
+              "peak_fds": 23,
+              "peak_threads": 7
+            }
+          },
+          "go_rust_peak_rss_sum_bytes": 80330752,
+          "go_rust_peak_rss_sum_mib": 76.609375,
+          "effective_client_workers": 1,
+          "client_event_loop_delay_max_ms": 17.743871,
+          "client_start_delay_max_ms": 0.94921875,
+          "max_sampling_gap_ms": 206.4521484375,
+          "observation_counts": {
+            "process_samples": 75,
+            "health_samples": 15,
+            "timeout_phase_events": 0
+          },
+          "quality": {
+            "sampling_ok": true,
+            "health_ok": true,
+            "client_ok": true,
+            "duration_ok": true
+          },
+          "warnings": []
+        },
+        {
+          "scenario": "auto_ip_hit",
+          "role": "candidate",
+          "concurrency": 1,
+          "successful_requests": 2024,
+          "failures": 0,
+          "elapsed_ms": 15002.04931640625,
+          "warmup_elapsed_ms": 5004.29296875,
+          "rps": 134.91490111198024,
+          "p50_ms": 8,
+          "p95_ms": 10,
+          "p99_ms": 11,
+          "processes": {
+            "go": {
+              "cpu_seconds": 1.97,
+              "average_cpu_cores": 0.13131539288073177,
+              "cpu_ms_per_1000_success": 973.3201581027668,
+              "peak_rss_bytes": 40116224,
+              "peak_rss_mib": 38.2578125,
+              "end_rss_bytes": 40062976,
+              "peak_fds": 19,
+              "peak_threads": 10
+            },
+            "rust": {
+              "cpu_seconds": 12.02,
+              "average_cpu_cores": 0.8012238692519775,
+              "cpu_ms_per_1000_success": 5938.735177865613,
+              "peak_rss_bytes": 38854656,
+              "peak_rss_mib": 37.0546875,
+              "end_rss_bytes": 38854656,
+              "peak_fds": 28,
+              "peak_threads": 11
+            },
+            "client": {
+              "cpu_seconds": 1.1899999999999977,
+              "average_cpu_cores": 0.07932249620714238,
+              "cpu_ms_per_1000_success": 587.9446640316194,
+              "peak_rss_bytes": 147828736,
+              "peak_rss_mib": 140.98046875,
+              "end_rss_bytes": 147578880,
+              "peak_fds": 49,
+              "peak_threads": 12
+            },
+            "fixture": {
+              "cpu_seconds": 0.45999999999999996,
+              "average_cpu_cores": 0.030662477525450052,
+              "cpu_ms_per_1000_success": 227.27272727272725,
+              "peak_rss_bytes": 69578752,
+              "peak_rss_mib": 66.35546875,
+              "end_rss_bytes": 69578752,
+              "peak_fds": 23,
+              "peak_threads": 7
+            }
+          },
+          "go_rust_peak_rss_sum_bytes": 78970880,
+          "go_rust_peak_rss_sum_mib": 75.3125,
+          "effective_client_workers": 1,
+          "client_event_loop_delay_max_ms": 14.303231,
+          "client_start_delay_max_ms": 0.704345703125,
+          "max_sampling_gap_ms": 208.9677734375,
+          "observation_counts": {
+            "process_samples": 74,
+            "health_samples": 15,
+            "timeout_phase_events": 0
+          },
+          "quality": {
+            "sampling_ok": true,
+            "health_ok": true,
+            "client_ok": true,
+            "duration_ok": true
+          },
+          "warnings": []
+        }
+      ],
+      "comparisons": [
+        {
+          "scenario": "bootstrap",
+          "concurrency": 1,
+          "baseline": {
+            "scenario": "bootstrap",
+            "role": "baseline",
+            "concurrency": 1,
+            "successful_requests": 1971,
+            "failures": 0,
+            "elapsed_ms": 15007.843505859375,
+            "warmup_elapsed_ms": 5005.452880859375,
+            "rps": 131.33132679791606,
+            "p50_ms": 8,
+            "p95_ms": 11,
+            "p99_ms": 13,
+            "processes": {
+              "go": {
+                "cpu_seconds": 1.3,
+                "average_cpu_cores": 0.08662137231724551,
+                "cpu_ms_per_1000_success": 659.5636732623034,
+                "peak_rss_bytes": 38182912,
+                "peak_rss_mib": 36.4140625,
+                "end_rss_bytes": 38182912,
+                "peak_fds": 18,
+                "peak_threads": 9
+              },
+              "rust": {
+                "cpu_seconds": 12.189999999999998,
+                "average_cpu_cores": 0.8122419450363251,
+                "cpu_ms_per_1000_success": 6184.677828513444,
+                "peak_rss_bytes": 39493632,
+                "peak_rss_mib": 37.6640625,
+                "end_rss_bytes": 39493632,
+                "peak_fds": 27,
+                "peak_threads": 9
+              },
+              "client": {
+                "cpu_seconds": 1.2800000000000002,
+                "average_cpu_cores": 0.08528873582005712,
+                "cpu_ms_per_1000_success": 649.4165398274988,
+                "peak_rss_bytes": 119115776,
+                "peak_rss_mib": 113.59765625,
+                "end_rss_bytes": 115679232,
+                "peak_fds": 49,
+                "peak_threads": 12
+              },
+              "fixture": {
+                "cpu_seconds": 0,
+                "average_cpu_cores": 0.0,
+                "cpu_ms_per_1000_success": 0,
+                "peak_rss_bytes": 57442304,
+                "peak_rss_mib": 54.78125,
+                "end_rss_bytes": 57442304,
+                "peak_fds": 22,
+                "peak_threads": 7
+              }
+            },
+            "go_rust_peak_rss_sum_bytes": 77676544,
+            "go_rust_peak_rss_sum_mib": 74.078125,
+            "effective_client_workers": 1,
+            "client_event_loop_delay_max_ms": 14.450687,
+            "client_start_delay_max_ms": 1.065673828125,
+            "max_sampling_gap_ms": 204.400390625,
+            "observation_counts": {
+              "process_samples": 75,
+              "health_samples": 15,
+              "timeout_phase_events": 0
+            },
+            "quality": {
+              "sampling_ok": true,
+              "health_ok": true,
+              "client_ok": true,
+              "duration_ok": true
+            },
+            "warnings": []
+          },
+          "candidate": {
+            "scenario": "bootstrap",
+            "role": "candidate",
+            "concurrency": 1,
+            "successful_requests": 3549,
+            "failures": 0,
+            "elapsed_ms": 15000.255615234375,
+            "warmup_elapsed_ms": 5001.707763671875,
+            "rps": 236.5959681644097,
+            "p50_ms": 4,
+            "p95_ms": 7,
+            "p99_ms": 9,
+            "processes": {
+              "go": {
+                "cpu_seconds": 1.8499999999999996,
+                "average_cpu_cores": 0.1233312316438878,
+                "cpu_ms_per_1000_success": 521.273598196675,
+                "peak_rss_bytes": 38694912,
+                "peak_rss_mib": 36.90234375,
+                "end_rss_bytes": 38338560,
+                "peak_fds": 18,
+                "peak_threads": 10
+              },
+              "rust": {
+                "cpu_seconds": 11.620000000000001,
+                "average_cpu_cores": 0.7746534657848524,
+                "cpu_ms_per_1000_success": 3274.161735700198,
+                "peak_rss_bytes": 36950016,
+                "peak_rss_mib": 35.23828125,
+                "end_rss_bytes": 36769792,
+                "peak_fds": 28,
+                "peak_threads": 9
+              },
+              "client": {
+                "cpu_seconds": 1.4600000000000004,
+                "average_cpu_cores": 0.09733167470274395,
+                "cpu_ms_per_1000_success": 411.38348830656537,
+                "peak_rss_bytes": 134881280,
+                "peak_rss_mib": 128.6328125,
+                "end_rss_bytes": 134881280,
+                "peak_fds": 50,
+                "peak_threads": 12
+              },
+              "fixture": {
+                "cpu_seconds": 0,
+                "average_cpu_cores": 0.0,
+                "cpu_ms_per_1000_success": 0,
+                "peak_rss_bytes": 57442304,
+                "peak_rss_mib": 54.78125,
+                "end_rss_bytes": 57442304,
+                "peak_fds": 22,
+                "peak_threads": 7
+              }
+            },
+            "go_rust_peak_rss_sum_bytes": 75644928,
+            "go_rust_peak_rss_sum_mib": 72.140625,
+            "effective_client_workers": 1,
+            "client_event_loop_delay_max_ms": 12.664831,
+            "client_start_delay_max_ms": 0.853271484375,
+            "max_sampling_gap_ms": 204.4716796875,
+            "observation_counts": {
+              "process_samples": 75,
+              "health_samples": 15,
+              "timeout_phase_events": 0
+            },
+            "quality": {
+              "sampling_ok": true,
+              "health_ok": true,
+              "client_ok": true,
+              "duration_ok": true
+            },
+            "warnings": []
+          },
+          "observed_single_pair_changes": {
+            "rps": 0.8015196673408156,
+            "p99": -0.3076923076923077,
+            "peak_rss_sum": -0.02615481965829991
+          }
+        },
+        {
+          "scenario": "session_hit",
+          "concurrency": 1,
+          "baseline": {
+            "scenario": "session_hit",
+            "role": "baseline",
+            "concurrency": 1,
+            "successful_requests": 2313,
+            "failures": 0,
+            "elapsed_ms": 15002.1513671875,
+            "warmup_elapsed_ms": 5001.667236328125,
+            "rps": 154.17788711684125,
+            "p50_ms": 7,
+            "p95_ms": 9,
+            "p99_ms": 11,
+            "processes": {
+              "go": {
+                "cpu_seconds": 2.16,
+                "average_cpu_cores": 0.1439793498367389,
+                "cpu_ms_per_1000_success": 933.852140077821,
+                "peak_rss_bytes": 40865792,
+                "peak_rss_mib": 38.97265625,
+                "end_rss_bytes": 40865792,
+                "peak_fds": 19,
+                "peak_threads": 10
+              },
+              "rust": {
+                "cpu_seconds": 11.01,
+                "average_cpu_cores": 0.7338947415289331,
+                "cpu_ms_per_1000_success": 4760.0518806744485,
+                "peak_rss_bytes": 39174144,
+                "peak_rss_mib": 37.359375,
+                "end_rss_bytes": 39174144,
+                "peak_fds": 28,
+                "peak_threads": 9
+              },
+              "client": {
+                "cpu_seconds": 1.3099999999999996,
+                "average_cpu_cores": 0.08732080939172589,
+                "cpu_ms_per_1000_success": 566.3640293990486,
+                "peak_rss_bytes": 137576448,
+                "peak_rss_mib": 131.203125,
+                "end_rss_bytes": 130506752,
+                "peak_fds": 50,
+                "peak_threads": 12
+              },
+              "fixture": {
+                "cpu_seconds": 0.7500000000000001,
+                "average_cpu_cores": 0.04999282980442324,
+                "cpu_ms_per_1000_success": 324.254215304799,
+                "peak_rss_bytes": 69648384,
+                "peak_rss_mib": 66.421875,
+                "end_rss_bytes": 68255744,
+                "peak_fds": 23,
+                "peak_threads": 7
+              }
+            },
+            "go_rust_peak_rss_sum_bytes": 80039936,
+            "go_rust_peak_rss_sum_mib": 76.33203125,
+            "effective_client_workers": 1,
+            "client_event_loop_delay_max_ms": 13.975551,
+            "client_start_delay_max_ms": 0.71337890625,
+            "max_sampling_gap_ms": 206.1201171875,
+            "observation_counts": {
+              "process_samples": 74,
+              "health_samples": 15,
+              "timeout_phase_events": 0
+            },
+            "quality": {
+              "sampling_ok": true,
+              "health_ok": true,
+              "client_ok": true,
+              "duration_ok": true
+            },
+            "warnings": []
+          },
+          "candidate": {
+            "scenario": "session_hit",
+            "role": "candidate",
+            "concurrency": 1,
+            "successful_requests": 3484,
+            "failures": 0,
+            "elapsed_ms": 15010.1455078125,
+            "warmup_elapsed_ms": 5000.125732421875,
+            "rps": 232.10967529839354,
+            "p50_ms": 5,
+            "p95_ms": 7,
+            "p99_ms": 8,
+            "processes": {
+              "go": {
+                "cpu_seconds": 2.87,
+                "average_cpu_cores": 0.1912040092153816,
+                "cpu_ms_per_1000_success": 823.7657864523536,
+                "peak_rss_bytes": 40878080,
+                "peak_rss_mib": 38.984375,
+                "end_rss_bytes": 40878080,
+                "peak_fds": 19,
+                "peak_threads": 9
+              },
+              "rust": {
+                "cpu_seconds": 10.28,
+                "average_cpu_cores": 0.6848701096634574,
+                "cpu_ms_per_1000_success": 2950.631458094145,
+                "peak_rss_bytes": 36302848,
+                "peak_rss_mib": 34.62109375,
+                "end_rss_bytes": 36003840,
+                "peak_fds": 28,
+                "peak_threads": 8
+              },
+              "client": {
+                "cpu_seconds": 1.38,
+                "average_cpu_cores": 0.0919378162777793,
+                "cpu_ms_per_1000_success": 396.09644087256027,
+                "peak_rss_bytes": 143364096,
+                "peak_rss_mib": 136.72265625,
+                "end_rss_bytes": 143364096,
+                "peak_fds": 49,
+                "peak_threads": 12
+              },
+              "fixture": {
+                "cpu_seconds": 0.6700000000000002,
+                "average_cpu_cores": 0.044636476018921845,
+                "cpu_ms_per_1000_success": 192.30769230769235,
+                "peak_rss_bytes": 69578752,
+                "peak_rss_mib": 66.35546875,
+                "end_rss_bytes": 69038080,
+                "peak_fds": 23,
+                "peak_threads": 7
+              }
+            },
+            "go_rust_peak_rss_sum_bytes": 77180928,
+            "go_rust_peak_rss_sum_mib": 73.60546875,
+            "effective_client_workers": 1,
+            "client_event_loop_delay_max_ms": 12.550143,
+            "client_start_delay_max_ms": 0.7041015625,
+            "max_sampling_gap_ms": 205.97021484375,
+            "observation_counts": {
+              "process_samples": 75,
+              "health_samples": 15,
+              "timeout_phase_events": 0
+            },
+            "quality": {
+              "sampling_ok": true,
+              "health_ok": true,
+              "client_ok": true,
+              "duration_ok": true
+            },
+            "warnings": []
+          },
+          "observed_single_pair_changes": {
+            "rps": 0.5054667023844537,
+            "p99": -0.2727272727272727,
+            "peak_rss_sum": -0.0357197686914692
+          }
+        },
+        {
+          "scenario": "grant_hit",
+          "concurrency": 1,
+          "baseline": {
+            "scenario": "grant_hit",
+            "role": "baseline",
+            "concurrency": 1,
+            "successful_requests": 2897,
+            "failures": 0,
+            "elapsed_ms": 15007.510009765625,
+            "warmup_elapsed_ms": 5000.7509765625,
+            "rps": 193.03668617344758,
+            "p50_ms": 5,
+            "p95_ms": 8,
+            "p99_ms": 9,
+            "processes": {
+              "go": {
+                "cpu_seconds": 2.56,
+                "average_cpu_cores": 0.17058126220366784,
+                "cpu_ms_per_1000_success": 883.6727649292371,
+                "peak_rss_bytes": 40361984,
+                "peak_rss_mib": 38.4921875,
+                "end_rss_bytes": 40361984,
+                "peak_fds": 19,
+                "peak_threads": 10
+              },
+              "rust": {
+                "cpu_seconds": 11.1,
+                "average_cpu_cores": 0.739629691586216,
+                "cpu_ms_per_1000_success": 3831.5498791853643,
+                "peak_rss_bytes": 37244928,
+                "peak_rss_mib": 35.51953125,
+                "end_rss_bytes": 37244928,
+                "peak_fds": 28,
+                "peak_threads": 8
+              },
+              "client": {
+                "cpu_seconds": 1.3499999999999996,
+                "average_cpu_cores": 0.08995496249021544,
+                "cpu_ms_per_1000_success": 465.99930963065225,
+                "peak_rss_bytes": 145731584,
+                "peak_rss_mib": 138.98046875,
+                "end_rss_bytes": 145108992,
+                "peak_fds": 49,
+                "peak_threads": 12
+              },
+              "fixture": {
+                "cpu_seconds": 0.5899999999999999,
+                "average_cpu_cores": 0.03931365027350157,
+                "cpu_ms_per_1000_success": 203.6589575422851,
+                "peak_rss_bytes": 69132288,
+                "peak_rss_mib": 65.9296875,
+                "end_rss_bytes": 69132288,
+                "peak_fds": 23,
+                "peak_threads": 7
+              }
+            },
+            "go_rust_peak_rss_sum_bytes": 77606912,
+            "go_rust_peak_rss_sum_mib": 74.01171875,
+            "effective_client_workers": 1,
+            "client_event_loop_delay_max_ms": 17.055743,
+            "client_start_delay_max_ms": 0.9208984375,
+            "max_sampling_gap_ms": 206.2978515625,
+            "observation_counts": {
+              "process_samples": 75,
+              "health_samples": 15,
+              "timeout_phase_events": 0
+            },
+            "quality": {
+              "sampling_ok": true,
+              "health_ok": true,
+              "client_ok": true,
+              "duration_ok": true
+            },
+            "warnings": []
+          },
+          "candidate": {
+            "scenario": "grant_hit",
+            "role": "candidate",
+            "concurrency": 1,
+            "successful_requests": 6930,
+            "failures": 0,
+            "elapsed_ms": 15001.718994140625,
+            "warmup_elapsed_ms": 5002.0419921875,
+            "rps": 461.9470610472521,
+            "p50_ms": 3,
+            "p95_ms": 4,
+            "p99_ms": 5,
+            "processes": {
+              "go": {
+                "cpu_seconds": 5.2700000000000005,
+                "average_cpu_cores": 0.3512930752841297,
+                "cpu_ms_per_1000_success": 760.4617604617605,
+                "peak_rss_bytes": 40722432,
+                "peak_rss_mib": 38.8359375,
+                "end_rss_bytes": 40517632,
+                "peak_fds": 19,
+                "peak_threads": 9
+              },
+              "rust": {
+                "cpu_seconds": 8.370000000000001,
+                "average_cpu_cores": 0.5579360607453825,
+                "cpu_ms_per_1000_success": 1207.7922077922078,
+                "peak_rss_bytes": 36429824,
+                "peak_rss_mib": 34.7421875,
+                "end_rss_bytes": 36429824,
+                "peak_fds": 28,
+                "peak_threads": 8
+              },
+              "client": {
+                "cpu_seconds": 1.9100000000000001,
+                "average_cpu_cores": 0.12731874265515894,
+                "cpu_ms_per_1000_success": 275.6132756132756,
+                "peak_rss_bytes": 145727488,
+                "peak_rss_mib": 138.9765625,
+                "end_rss_bytes": 145727488,
+                "peak_fds": 49,
+                "peak_threads": 12
+              },
+              "fixture": {
+                "cpu_seconds": 0.9700000000000002,
+                "average_cpu_cores": 0.06465925674110168,
+                "cpu_ms_per_1000_success": 139.97113997114,
+                "peak_rss_bytes": 69578752,
+                "peak_rss_mib": 66.35546875,
+                "end_rss_bytes": 69578752,
+                "peak_fds": 23,
+                "peak_threads": 7
+              }
+            },
+            "go_rust_peak_rss_sum_bytes": 77152256,
+            "go_rust_peak_rss_sum_mib": 73.578125,
+            "effective_client_workers": 1,
+            "client_event_loop_delay_max_ms": 13.959167,
+            "client_start_delay_max_ms": 1.1201171875,
+            "max_sampling_gap_ms": 208.009765625,
+            "observation_counts": {
+              "process_samples": 75,
+              "health_samples": 15,
+              "timeout_phase_events": 0
+            },
+            "quality": {
+              "sampling_ok": true,
+              "health_ok": true,
+              "client_ok": true,
+              "duration_ok": true
+            },
+            "warnings": []
+          },
+          "observed_single_pair_changes": {
+            "rps": 1.3930532076798232,
+            "p99": -0.4444444444444444,
+            "peak_rss_sum": -0.00585844724758533
+          }
+        },
+        {
+          "scenario": "auto_ip_hit",
+          "concurrency": 1,
+          "baseline": {
+            "scenario": "auto_ip_hit",
+            "role": "baseline",
+            "concurrency": 1,
+            "successful_requests": 1249,
+            "failures": 0,
+            "elapsed_ms": 15007.3037109375,
+            "warmup_elapsed_ms": 5002.168212890625,
+            "rps": 83.22614268742453,
+            "p50_ms": 12,
+            "p95_ms": 16,
+            "p99_ms": 18,
+            "processes": {
+              "go": {
+                "cpu_seconds": 1.38,
+                "average_cpu_cores": 0.09195522570748267,
+                "cpu_ms_per_1000_success": 1104.8839071257005,
+                "peak_rss_bytes": 40407040,
+                "peak_rss_mib": 38.53515625,
+                "end_rss_bytes": 40108032,
+                "peak_fds": 19,
+                "peak_threads": 10
+              },
+              "rust": {
+                "cpu_seconds": 12.86,
+                "average_cpu_cores": 0.8569160888392949,
+                "cpu_ms_per_1000_success": 10296.236989591673,
+                "peak_rss_bytes": 39923712,
+                "peak_rss_mib": 38.07421875,
+                "end_rss_bytes": 39641088,
+                "peak_fds": 27,
+                "peak_threads": 8
+              },
+              "client": {
+                "cpu_seconds": 0.9900000000000002,
+                "average_cpu_cores": 0.06596787931188976,
+                "cpu_ms_per_1000_success": 792.6341072858288,
+                "peak_rss_bytes": 146784256,
+                "peak_rss_mib": 139.984375,
+                "end_rss_bytes": 138514432,
+                "peak_fds": 49,
+                "peak_threads": 12
+              },
+              "fixture": {
+                "cpu_seconds": 0.33000000000000007,
+                "average_cpu_cores": 0.02198929310396325,
+                "cpu_ms_per_1000_success": 264.21136909527627,
+                "peak_rss_bytes": 69578752,
+                "peak_rss_mib": 66.35546875,
+                "end_rss_bytes": 69578752,
+                "peak_fds": 23,
+                "peak_threads": 7
+              }
+            },
+            "go_rust_peak_rss_sum_bytes": 80330752,
+            "go_rust_peak_rss_sum_mib": 76.609375,
+            "effective_client_workers": 1,
+            "client_event_loop_delay_max_ms": 17.743871,
+            "client_start_delay_max_ms": 0.94921875,
+            "max_sampling_gap_ms": 206.4521484375,
+            "observation_counts": {
+              "process_samples": 75,
+              "health_samples": 15,
+              "timeout_phase_events": 0
+            },
+            "quality": {
+              "sampling_ok": true,
+              "health_ok": true,
+              "client_ok": true,
+              "duration_ok": true
+            },
+            "warnings": []
+          },
+          "candidate": {
+            "scenario": "auto_ip_hit",
+            "role": "candidate",
+            "concurrency": 1,
+            "successful_requests": 2024,
+            "failures": 0,
+            "elapsed_ms": 15002.04931640625,
+            "warmup_elapsed_ms": 5004.29296875,
+            "rps": 134.91490111198024,
+            "p50_ms": 8,
+            "p95_ms": 10,
+            "p99_ms": 11,
+            "processes": {
+              "go": {
+                "cpu_seconds": 1.97,
+                "average_cpu_cores": 0.13131539288073177,
+                "cpu_ms_per_1000_success": 973.3201581027668,
+                "peak_rss_bytes": 40116224,
+                "peak_rss_mib": 38.2578125,
+                "end_rss_bytes": 40062976,
+                "peak_fds": 19,
+                "peak_threads": 10
+              },
+              "rust": {
+                "cpu_seconds": 12.02,
+                "average_cpu_cores": 0.8012238692519775,
+                "cpu_ms_per_1000_success": 5938.735177865613,
+                "peak_rss_bytes": 38854656,
+                "peak_rss_mib": 37.0546875,
+                "end_rss_bytes": 38854656,
+                "peak_fds": 28,
+                "peak_threads": 11
+              },
+              "client": {
+                "cpu_seconds": 1.1899999999999977,
+                "average_cpu_cores": 0.07932249620714238,
+                "cpu_ms_per_1000_success": 587.9446640316194,
+                "peak_rss_bytes": 147828736,
+                "peak_rss_mib": 140.98046875,
+                "end_rss_bytes": 147578880,
+                "peak_fds": 49,
+                "peak_threads": 12
+              },
+              "fixture": {
+                "cpu_seconds": 0.45999999999999996,
+                "average_cpu_cores": 0.030662477525450052,
+                "cpu_ms_per_1000_success": 227.27272727272725,
+                "peak_rss_bytes": 69578752,
+                "peak_rss_mib": 66.35546875,
+                "end_rss_bytes": 69578752,
+                "peak_fds": 23,
+                "peak_threads": 7
+              }
+            },
+            "go_rust_peak_rss_sum_bytes": 78970880,
+            "go_rust_peak_rss_sum_mib": 75.3125,
+            "effective_client_workers": 1,
+            "client_event_loop_delay_max_ms": 14.303231,
+            "client_start_delay_max_ms": 0.704345703125,
+            "max_sampling_gap_ms": 208.9677734375,
+            "observation_counts": {
+              "process_samples": 74,
+              "health_samples": 15,
+              "timeout_phase_events": 0
+            },
+            "quality": {
+              "sampling_ok": true,
+              "health_ok": true,
+              "client_ok": true,
+              "duration_ok": true
+            },
+            "warnings": []
+          },
+          "observed_single_pair_changes": {
+            "rps": 0.6210639680693251,
+            "p99": -0.38888888888888884,
+            "peak_rss_sum": -0.016928411176830527
+          }
+        }
+      ]
+    },
+    {
+      "concurrency": 16,
+      "checks_passed": true,
+      "observed_trials": 8,
+      "expected_trials": 8,
+      "errors": [],
+      "warnings": [],
+      "host": {
+        "kernel": "Linux OTN 6.18.18.c1032-trim #1032 SMP PREEMPT_DYNAMIC Fri Aug 21 01:49:29 UTC 2026 x86_64 GNU/Linux",
+        "node": "v22.23.1"
+      },
+      "trials": [
+        {
+          "scenario": "bootstrap",
+          "role": "baseline",
+          "concurrency": 16,
+          "successful_requests": 2220,
+          "failures": 0,
+          "elapsed_ms": 15063.136474609375,
+          "warmup_elapsed_ms": 5062.93310546875,
+          "rps": 147.37966450360864,
+          "p50_ms": 109,
+          "p95_ms": 124,
+          "p99_ms": 132,
+          "processes": {
+            "go": {
+              "cpu_seconds": 1.05,
+              "average_cpu_cores": 0.06970659807603112,
+              "cpu_ms_per_1000_success": 472.97297297297297,
+              "peak_rss_bytes": 41041920,
+              "peak_rss_mib": 39.140625,
+              "end_rss_bytes": 41041920,
+              "peak_fds": 48,
+              "peak_threads": 10
+            },
+            "rust": {
+              "cpu_seconds": 19.74,
+              "average_cpu_cores": 1.310484043829385,
+              "cpu_ms_per_1000_success": 8891.891891891892,
+              "peak_rss_bytes": 43618304,
+              "peak_rss_mib": 41.59765625,
+              "end_rss_bytes": 42725376,
+              "peak_fds": 42,
+              "peak_threads": 8
+            },
+            "client": {
+              "cpu_seconds": 1.4,
+              "average_cpu_cores": 0.09294213076804149,
+              "cpu_ms_per_1000_success": 630.6306306306307,
+              "peak_rss_bytes": 142086144,
+              "peak_rss_mib": 135.50390625,
+              "end_rss_bytes": 137302016,
+              "peak_fds": 70,
+              "peak_threads": 13
+            },
+            "fixture": {
+              "cpu_seconds": 0,
+              "average_cpu_cores": 0.0,
+              "cpu_ms_per_1000_success": 0,
+              "peak_rss_bytes": 57421824,
+              "peak_rss_mib": 54.76171875,
+              "end_rss_bytes": 57421824,
+              "peak_fds": 22,
+              "peak_threads": 7
+            }
+          },
+          "go_rust_peak_rss_sum_bytes": 84660224,
+          "go_rust_peak_rss_sum_mib": 80.73828125,
+          "effective_client_workers": 2,
+          "client_event_loop_delay_max_ms": 13.877247,
+          "client_start_delay_max_ms": 1.240966796875,
+          "max_sampling_gap_ms": 207.5986328125,
+          "observation_counts": {
+            "process_samples": 75,
+            "health_samples": 15,
+            "timeout_phase_events": 0
+          },
+          "quality": {
+            "sampling_ok": true,
+            "health_ok": true,
+            "client_ok": true,
+            "duration_ok": true
+          },
+          "warnings": []
+        },
+        {
+          "scenario": "bootstrap",
+          "role": "candidate",
+          "concurrency": 16,
+          "successful_requests": 5869,
+          "failures": 0,
+          "elapsed_ms": 15027.30322265625,
+          "warmup_elapsed_ms": 5033.3359375,
+          "rps": 390.55577125451697,
+          "p50_ms": 41,
+          "p95_ms": 50,
+          "p99_ms": 56,
+          "processes": {
+            "go": {
+              "cpu_seconds": 2.42,
+              "average_cpu_cores": 0.16104020556073115,
+              "cpu_ms_per_1000_success": 412.33600272618844,
+              "peak_rss_bytes": 42790912,
+              "peak_rss_mib": 40.80859375,
+              "end_rss_bytes": 42229760,
+              "peak_fds": 48,
+              "peak_threads": 10
+            },
+            "rust": {
+              "cpu_seconds": 18.68,
+              "average_cpu_cores": 1.2430706776340734,
+              "cpu_ms_per_1000_success": 3182.8250127790084,
+              "peak_rss_bytes": 38338560,
+              "peak_rss_mib": 36.5625,
+              "end_rss_bytes": 37781504,
+              "peak_fds": 43,
+              "peak_threads": 8
+            },
+            "client": {
+              "cpu_seconds": 2.34,
+              "average_cpu_cores": 0.1557165624016987,
+              "cpu_ms_per_1000_success": 398.7050604873062,
+              "peak_rss_bytes": 158605312,
+              "peak_rss_mib": 151.2578125,
+              "end_rss_bytes": 158605312,
+              "peak_fds": 71,
+              "peak_threads": 13
+            },
+            "fixture": {
+              "cpu_seconds": 0,
+              "average_cpu_cores": 0.0,
+              "cpu_ms_per_1000_success": 0,
+              "peak_rss_bytes": 57421824,
+              "peak_rss_mib": 54.76171875,
+              "end_rss_bytes": 57421824,
+              "peak_fds": 22,
+              "peak_threads": 7
+            }
+          },
+          "go_rust_peak_rss_sum_bytes": 81129472,
+          "go_rust_peak_rss_sum_mib": 77.37109375,
+          "effective_client_workers": 2,
+          "client_event_loop_delay_max_ms": 17.137663,
+          "client_start_delay_max_ms": 0.768310546875,
+          "max_sampling_gap_ms": 204.81884765625,
+          "observation_counts": {
+            "process_samples": 75,
+            "health_samples": 15,
+            "timeout_phase_events": 0
+          },
+          "quality": {
+            "sampling_ok": true,
+            "health_ok": true,
+            "client_ok": true,
+            "duration_ok": true
+          },
+          "warnings": []
+        },
+        {
+          "scenario": "session_hit",
+          "role": "baseline",
+          "concurrency": 16,
+          "successful_requests": 2798,
+          "failures": 0,
+          "elapsed_ms": 15023.04248046875,
+          "warmup_elapsed_ms": 5037.796630859375,
+          "rps": 186.24722679428226,
+          "p50_ms": 86,
+          "p95_ms": 101,
+          "p99_ms": 114,
+          "processes": {
+            "go": {
+              "cpu_seconds": 1.6099999999999999,
+              "average_cpu_cores": 0.10716870448134182,
+              "cpu_ms_per_1000_success": 575.411007862759,
+              "peak_rss_bytes": 43012096,
+              "peak_rss_mib": 41.01953125,
+              "end_rss_bytes": 42332160,
+              "peak_fds": 46,
+              "peak_threads": 10
+            },
+            "rust": {
+              "cpu_seconds": 23.450000000000003,
+              "average_cpu_cores": 1.5609354783151965,
+              "cpu_ms_per_1000_success": 8380.986418870623,
+              "peak_rss_bytes": 44113920,
+              "peak_rss_mib": 42.0703125,
+              "end_rss_bytes": 43536384,
+              "peak_fds": 28,
+              "peak_threads": 8
+            },
+            "client": {
+              "cpu_seconds": 1.3999999999999995,
+              "average_cpu_cores": 0.09319017780986243,
+              "cpu_ms_per_1000_success": 500.3573981415295,
+              "peak_rss_bytes": 157945856,
+              "peak_rss_mib": 150.62890625,
+              "end_rss_bytes": 153370624,
+              "peak_fds": 70,
+              "peak_threads": 13
+            },
+            "fixture": {
+              "cpu_seconds": 0.63,
+              "average_cpu_cores": 0.04193558001443811,
+              "cpu_ms_per_1000_success": 225.16082916368836,
+              "peak_rss_bytes": 70090752,
+              "peak_rss_mib": 66.84375,
+              "end_rss_bytes": 69095424,
+              "peak_fds": 35,
+              "peak_threads": 7
+            }
+          },
+          "go_rust_peak_rss_sum_bytes": 87126016,
+          "go_rust_peak_rss_sum_mib": 83.08984375,
+          "effective_client_workers": 2,
+          "client_event_loop_delay_max_ms": 16.097279,
+          "client_start_delay_max_ms": 0.828125,
+          "max_sampling_gap_ms": 209.862060546875,
+          "observation_counts": {
+            "process_samples": 75,
+            "health_samples": 15,
+            "timeout_phase_events": 0
+          },
+          "quality": {
+            "sampling_ok": true,
+            "health_ok": true,
+            "client_ok": true,
+            "duration_ok": true
+          },
+          "warnings": []
+        },
+        {
+          "scenario": "session_hit",
+          "role": "candidate",
+          "concurrency": 16,
+          "successful_requests": 7305,
+          "failures": 0,
+          "elapsed_ms": 15016.57275390625,
+          "warmup_elapsed_ms": 5032.022216796875,
+          "rps": 486.46253174511844,
+          "p50_ms": 33,
+          "p95_ms": 40,
+          "p99_ms": 44,
+          "processes": {
+            "go": {
+              "cpu_seconds": 3.38,
+              "average_cpu_cores": 0.2250846485008214,
+              "cpu_ms_per_1000_success": 462.69678302532515,
+              "peak_rss_bytes": 44249088,
+              "peak_rss_mib": 42.19921875,
+              "end_rss_bytes": 43954176,
+              "peak_fds": 43,
+              "peak_threads": 11
+            },
+            "rust": {
+              "cpu_seconds": 21.14,
+              "average_cpu_cores": 1.4077779494992202,
+              "cpu_ms_per_1000_success": 2893.908281998631,
+              "peak_rss_bytes": 39788544,
+              "peak_rss_mib": 37.9453125,
+              "end_rss_bytes": 36708352,
+              "peak_fds": 28,
+              "peak_threads": 9
+            },
+            "client": {
+              "cpu_seconds": 2.24,
+              "average_cpu_cores": 0.1491685244502485,
+              "cpu_ms_per_1000_success": 306.63928815879535,
+              "peak_rss_bytes": 166916096,
+              "peak_rss_mib": 159.18359375,
+              "end_rss_bytes": 166916096,
+              "peak_fds": 70,
+              "peak_threads": 13
+            },
+            "fixture": {
+              "cpu_seconds": 0.7799999999999998,
+              "average_cpu_cores": 0.05194261119249723,
+              "cpu_ms_per_1000_success": 106.77618069815192,
+              "peak_rss_bytes": 69627904,
+              "peak_rss_mib": 66.40234375,
+              "end_rss_bytes": 69627904,
+              "peak_fds": 32,
+              "peak_threads": 7
+            }
+          },
+          "go_rust_peak_rss_sum_bytes": 84037632,
+          "go_rust_peak_rss_sum_mib": 80.14453125,
+          "effective_client_workers": 2,
+          "client_event_loop_delay_max_ms": 15.032319,
+          "client_start_delay_max_ms": 1.201171875,
+          "max_sampling_gap_ms": 207.539306640625,
+          "observation_counts": {
+            "process_samples": 75,
+            "health_samples": 15,
+            "timeout_phase_events": 0
+          },
+          "quality": {
+            "sampling_ok": true,
+            "health_ok": true,
+            "client_ok": true,
+            "duration_ok": true
+          },
+          "warnings": []
+        },
+        {
+          "scenario": "grant_hit",
+          "role": "baseline",
+          "concurrency": 16,
+          "successful_requests": 4161,
+          "failures": 0,
+          "elapsed_ms": 15021.149169921875,
+          "warmup_elapsed_ms": 5047.338623046875,
+          "rps": 277.0094320301355,
+          "p50_ms": 58,
+          "p95_ms": 65,
+          "p99_ms": 71,
+          "processes": {
+            "go": {
+              "cpu_seconds": 2.26,
+              "average_cpu_cores": 0.15045453409952084,
+              "cpu_ms_per_1000_success": 543.1386685892815,
+              "peak_rss_bytes": 43757568,
+              "peak_rss_mib": 41.73046875,
+              "end_rss_bytes": 43757568,
+              "peak_fds": 44,
+              "peak_threads": 10
+            },
+            "rust": {
+              "cpu_seconds": 14.759999999999998,
+              "average_cpu_cores": 0.9826145678358086,
+              "cpu_ms_per_1000_success": 3547.224224945926,
+              "peak_rss_bytes": 37658624,
+              "peak_rss_mib": 35.9140625,
+              "end_rss_bytes": 37658624,
+              "peak_fds": 28,
+              "peak_threads": 8
+            },
+            "client": {
+              "cpu_seconds": 1.7799999999999994,
+              "average_cpu_cores": 0.11849958880404735,
+              "cpu_ms_per_1000_success": 427.7817832251861,
+              "peak_rss_bytes": 170598400,
+              "peak_rss_mib": 162.6953125,
+              "end_rss_bytes": 160722944,
+              "peak_fds": 70,
+              "peak_threads": 13
+            },
+            "fixture": {
+              "cpu_seconds": 0.4700000000000002,
+              "average_cpu_cores": 0.03128921726848444,
+              "cpu_ms_per_1000_success": 112.95361691900989,
+              "peak_rss_bytes": 70795264,
+              "peak_rss_mib": 67.515625,
+              "end_rss_bytes": 69623808,
+              "peak_fds": 33,
+              "peak_threads": 7
+            }
+          },
+          "go_rust_peak_rss_sum_bytes": 81416192,
+          "go_rust_peak_rss_sum_mib": 77.64453125,
+          "effective_client_workers": 2,
+          "client_event_loop_delay_max_ms": 13.254655,
+          "client_start_delay_max_ms": 0.787353515625,
+          "max_sampling_gap_ms": 207.02783203125,
+          "observation_counts": {
+            "process_samples": 75,
+            "health_samples": 15,
+            "timeout_phase_events": 0
+          },
+          "quality": {
+            "sampling_ok": true,
+            "health_ok": true,
+            "client_ok": true,
+            "duration_ok": true
+          },
+          "warnings": []
+        },
+        {
+          "scenario": "grant_hit",
+          "role": "candidate",
+          "concurrency": 16,
+          "successful_requests": 15492,
+          "failures": 0,
+          "elapsed_ms": 15011.27734375,
+          "warmup_elapsed_ms": 5012.60009765625,
+          "rps": 1032.0241006305937,
+          "p50_ms": 16,
+          "p95_ms": 19,
+          "p99_ms": 23,
+          "processes": {
+            "go": {
+              "cpu_seconds": 8.34,
+              "average_cpu_cores": 0.5555823004943939,
+              "cpu_ms_per_1000_success": 538.3423702556158,
+              "peak_rss_bytes": 42434560,
+              "peak_rss_mib": 40.46875,
+              "end_rss_bytes": 42000384,
+              "peak_fds": 39,
+              "peak_threads": 10
+            },
+            "rust": {
+              "cpu_seconds": 15.73,
+              "average_cpu_cores": 1.0478788473353498,
+              "cpu_ms_per_1000_success": 1015.3627678801962,
+              "peak_rss_bytes": 36925440,
+              "peak_rss_mib": 35.21484375,
+              "end_rss_bytes": 36892672,
+              "peak_fds": 28,
+              "peak_threads": 8
+            },
+            "client": {
+              "cpu_seconds": 3.2200000000000006,
+              "average_cpu_cores": 0.21450539659375883,
+              "cpu_ms_per_1000_success": 207.84921249677257,
+              "peak_rss_bytes": 171827200,
+              "peak_rss_mib": 163.8671875,
+              "end_rss_bytes": 171827200,
+              "peak_fds": 71,
+              "peak_threads": 13
+            },
+            "fixture": {
+              "cpu_seconds": 1.5900000000000003,
+              "average_cpu_cores": 0.10592036664101756,
+              "cpu_ms_per_1000_success": 102.6336173508908,
+              "peak_rss_bytes": 69660672,
+              "peak_rss_mib": 66.43359375,
+              "end_rss_bytes": 69660672,
+              "peak_fds": 28,
+              "peak_threads": 7
+            }
+          },
+          "go_rust_peak_rss_sum_bytes": 79360000,
+          "go_rust_peak_rss_sum_mib": 75.68359375,
+          "effective_client_workers": 2,
+          "client_event_loop_delay_max_ms": 12.574719,
+          "client_start_delay_max_ms": 0.923828125,
+          "max_sampling_gap_ms": 207.672607421875,
+          "observation_counts": {
+            "process_samples": 75,
+            "health_samples": 15,
+            "timeout_phase_events": 0
+          },
+          "quality": {
+            "sampling_ok": true,
+            "health_ok": true,
+            "client_ok": true,
+            "duration_ok": true
+          },
+          "warnings": []
+        },
+        {
+          "scenario": "auto_ip_hit",
+          "role": "baseline",
+          "concurrency": 16,
+          "successful_requests": 1260,
+          "failures": 0,
+          "elapsed_ms": 15155.61669921875,
+          "warmup_elapsed_ms": 5096.6142578125,
+          "rps": 83.1374945016227,
+          "p50_ms": 192,
+          "p95_ms": 214,
+          "p99_ms": 225,
+          "processes": {
+            "go": {
+              "cpu_seconds": 1.0099999999999998,
+              "average_cpu_cores": 0.06664195987828485,
+              "cpu_ms_per_1000_success": 801.5873015873015,
+              "peak_rss_bytes": 41082880,
+              "peak_rss_mib": 39.1796875,
+              "end_rss_bytes": 41082880,
+              "peak_fds": 36,
+              "peak_threads": 10
+            },
+            "rust": {
+              "cpu_seconds": 25.25,
+              "average_cpu_cores": 1.6660489969571215,
+              "cpu_ms_per_1000_success": 20039.68253968254,
+              "peak_rss_bytes": 44490752,
+              "peak_rss_mib": 42.4296875,
+              "end_rss_bytes": 43454464,
+              "peak_fds": 27,
+              "peak_threads": 9
+            },
+            "client": {
+              "cpu_seconds": 1.1000000000000014,
+              "average_cpu_cores": 0.07258035234268657,
+              "cpu_ms_per_1000_success": 873.0158730158741,
+              "peak_rss_bytes": 167952384,
+              "peak_rss_mib": 160.171875,
+              "end_rss_bytes": 161865728,
+              "peak_fds": 70,
+              "peak_threads": 13
+            },
+            "fixture": {
+              "cpu_seconds": 0.2699999999999996,
+              "average_cpu_cores": 0.017815177393204835,
+              "cpu_ms_per_1000_success": 214.28571428571396,
+              "peak_rss_bytes": 69668864,
+              "peak_rss_mib": 66.44140625,
+              "end_rss_bytes": 69668864,
+              "peak_fds": 25,
+              "peak_threads": 7
+            }
+          },
+          "go_rust_peak_rss_sum_bytes": 85573632,
+          "go_rust_peak_rss_sum_mib": 81.609375,
+          "effective_client_workers": 2,
+          "client_event_loop_delay_max_ms": 14.196735,
+          "client_start_delay_max_ms": 0.958740234375,
+          "max_sampling_gap_ms": 209.672119140625,
+          "observation_counts": {
+            "process_samples": 75,
+            "health_samples": 13,
+            "timeout_phase_events": 0
+          },
+          "quality": {
+            "sampling_ok": true,
+            "health_ok": true,
+            "client_ok": true,
+            "duration_ok": true
+          },
+          "warnings": []
+        },
+        {
+          "scenario": "auto_ip_hit",
+          "role": "candidate",
+          "concurrency": 16,
+          "successful_requests": 2688,
+          "failures": 0,
+          "elapsed_ms": 15048.056884765625,
+          "warmup_elapsed_ms": 5040.79443359375,
+          "rps": 178.62771390246948,
+          "p50_ms": 90,
+          "p95_ms": 98,
+          "p99_ms": 103,
+          "processes": {
+            "go": {
+              "cpu_seconds": 1.24,
+              "average_cpu_cores": 0.08240266563953205,
+              "cpu_ms_per_1000_success": 461.3095238095238,
+              "peak_rss_bytes": 41861120,
+              "peak_rss_mib": 39.921875,
+              "end_rss_bytes": 41730048,
+              "peak_fds": 40,
+              "peak_threads": 10
+            },
+            "rust": {
+              "cpu_seconds": 16.669999999999998,
+              "average_cpu_cores": 1.1077842227508055,
+              "cpu_ms_per_1000_success": 6201.636904761904,
+              "peak_rss_bytes": 39460864,
+              "peak_rss_mib": 37.6328125,
+              "end_rss_bytes": 38735872,
+              "peak_fds": 28,
+              "peak_threads": 8
+            },
+            "client": {
+              "cpu_seconds": 1.3099999999999987,
+              "average_cpu_cores": 0.08705442902240876,
+              "cpu_ms_per_1000_success": 487.35119047619,
+              "peak_rss_bytes": 176025600,
+              "peak_rss_mib": 167.87109375,
+              "end_rss_bytes": 164773888,
+              "peak_fds": 71,
+              "peak_threads": 13
+            },
+            "fixture": {
+              "cpu_seconds": 0.28000000000000025,
+              "average_cpu_cores": 0.01860705353150725,
+              "cpu_ms_per_1000_success": 104.16666666666676,
+              "peak_rss_bytes": 70709248,
+              "peak_rss_mib": 67.43359375,
+              "end_rss_bytes": 70709248,
+              "peak_fds": 29,
+              "peak_threads": 7
+            }
+          },
+          "go_rust_peak_rss_sum_bytes": 81321984,
+          "go_rust_peak_rss_sum_mib": 77.5546875,
+          "effective_client_workers": 2,
+          "client_event_loop_delay_max_ms": 17.350655,
+          "client_start_delay_max_ms": 2.489990234375,
+          "max_sampling_gap_ms": 209.44970703125,
+          "observation_counts": {
+            "process_samples": 75,
+            "health_samples": 15,
+            "timeout_phase_events": 0
+          },
+          "quality": {
+            "sampling_ok": true,
+            "health_ok": true,
+            "client_ok": true,
+            "duration_ok": true
+          },
+          "warnings": []
+        }
+      ],
+      "comparisons": [
+        {
+          "scenario": "bootstrap",
+          "concurrency": 16,
+          "baseline": {
+            "scenario": "bootstrap",
+            "role": "baseline",
+            "concurrency": 16,
+            "successful_requests": 2220,
+            "failures": 0,
+            "elapsed_ms": 15063.136474609375,
+            "warmup_elapsed_ms": 5062.93310546875,
+            "rps": 147.37966450360864,
+            "p50_ms": 109,
+            "p95_ms": 124,
+            "p99_ms": 132,
+            "processes": {
+              "go": {
+                "cpu_seconds": 1.05,
+                "average_cpu_cores": 0.06970659807603112,
+                "cpu_ms_per_1000_success": 472.97297297297297,
+                "peak_rss_bytes": 41041920,
+                "peak_rss_mib": 39.140625,
+                "end_rss_bytes": 41041920,
+                "peak_fds": 48,
+                "peak_threads": 10
+              },
+              "rust": {
+                "cpu_seconds": 19.74,
+                "average_cpu_cores": 1.310484043829385,
+                "cpu_ms_per_1000_success": 8891.891891891892,
+                "peak_rss_bytes": 43618304,
+                "peak_rss_mib": 41.59765625,
+                "end_rss_bytes": 42725376,
+                "peak_fds": 42,
+                "peak_threads": 8
+              },
+              "client": {
+                "cpu_seconds": 1.4,
+                "average_cpu_cores": 0.09294213076804149,
+                "cpu_ms_per_1000_success": 630.6306306306307,
+                "peak_rss_bytes": 142086144,
+                "peak_rss_mib": 135.50390625,
+                "end_rss_bytes": 137302016,
+                "peak_fds": 70,
+                "peak_threads": 13
+              },
+              "fixture": {
+                "cpu_seconds": 0,
+                "average_cpu_cores": 0.0,
+                "cpu_ms_per_1000_success": 0,
+                "peak_rss_bytes": 57421824,
+                "peak_rss_mib": 54.76171875,
+                "end_rss_bytes": 57421824,
+                "peak_fds": 22,
+                "peak_threads": 7
+              }
+            },
+            "go_rust_peak_rss_sum_bytes": 84660224,
+            "go_rust_peak_rss_sum_mib": 80.73828125,
+            "effective_client_workers": 2,
+            "client_event_loop_delay_max_ms": 13.877247,
+            "client_start_delay_max_ms": 1.240966796875,
+            "max_sampling_gap_ms": 207.5986328125,
+            "observation_counts": {
+              "process_samples": 75,
+              "health_samples": 15,
+              "timeout_phase_events": 0
+            },
+            "quality": {
+              "sampling_ok": true,
+              "health_ok": true,
+              "client_ok": true,
+              "duration_ok": true
+            },
+            "warnings": []
+          },
+          "candidate": {
+            "scenario": "bootstrap",
+            "role": "candidate",
+            "concurrency": 16,
+            "successful_requests": 5869,
+            "failures": 0,
+            "elapsed_ms": 15027.30322265625,
+            "warmup_elapsed_ms": 5033.3359375,
+            "rps": 390.55577125451697,
+            "p50_ms": 41,
+            "p95_ms": 50,
+            "p99_ms": 56,
+            "processes": {
+              "go": {
+                "cpu_seconds": 2.42,
+                "average_cpu_cores": 0.16104020556073115,
+                "cpu_ms_per_1000_success": 412.33600272618844,
+                "peak_rss_bytes": 42790912,
+                "peak_rss_mib": 40.80859375,
+                "end_rss_bytes": 42229760,
+                "peak_fds": 48,
+                "peak_threads": 10
+              },
+              "rust": {
+                "cpu_seconds": 18.68,
+                "average_cpu_cores": 1.2430706776340734,
+                "cpu_ms_per_1000_success": 3182.8250127790084,
+                "peak_rss_bytes": 38338560,
+                "peak_rss_mib": 36.5625,
+                "end_rss_bytes": 37781504,
+                "peak_fds": 43,
+                "peak_threads": 8
+              },
+              "client": {
+                "cpu_seconds": 2.34,
+                "average_cpu_cores": 0.1557165624016987,
+                "cpu_ms_per_1000_success": 398.7050604873062,
+                "peak_rss_bytes": 158605312,
+                "peak_rss_mib": 151.2578125,
+                "end_rss_bytes": 158605312,
+                "peak_fds": 71,
+                "peak_threads": 13
+              },
+              "fixture": {
+                "cpu_seconds": 0,
+                "average_cpu_cores": 0.0,
+                "cpu_ms_per_1000_success": 0,
+                "peak_rss_bytes": 57421824,
+                "peak_rss_mib": 54.76171875,
+                "end_rss_bytes": 57421824,
+                "peak_fds": 22,
+                "peak_threads": 7
+              }
+            },
+            "go_rust_peak_rss_sum_bytes": 81129472,
+            "go_rust_peak_rss_sum_mib": 77.37109375,
+            "effective_client_workers": 2,
+            "client_event_loop_delay_max_ms": 17.137663,
+            "client_start_delay_max_ms": 0.768310546875,
+            "max_sampling_gap_ms": 204.81884765625,
+            "observation_counts": {
+              "process_samples": 75,
+              "health_samples": 15,
+              "timeout_phase_events": 0
+            },
+            "quality": {
+              "sampling_ok": true,
+              "health_ok": true,
+              "client_ok": true,
+              "duration_ok": true
+            },
+            "warnings": []
+          },
+          "observed_single_pair_changes": {
+            "rps": 1.649997695204104,
+            "p99": -0.5757575757575757,
+            "peak_rss_sum": -0.04170496879384589
+          }
+        },
+        {
+          "scenario": "session_hit",
+          "concurrency": 16,
+          "baseline": {
+            "scenario": "session_hit",
+            "role": "baseline",
+            "concurrency": 16,
+            "successful_requests": 2798,
+            "failures": 0,
+            "elapsed_ms": 15023.04248046875,
+            "warmup_elapsed_ms": 5037.796630859375,
+            "rps": 186.24722679428226,
+            "p50_ms": 86,
+            "p95_ms": 101,
+            "p99_ms": 114,
+            "processes": {
+              "go": {
+                "cpu_seconds": 1.6099999999999999,
+                "average_cpu_cores": 0.10716870448134182,
+                "cpu_ms_per_1000_success": 575.411007862759,
+                "peak_rss_bytes": 43012096,
+                "peak_rss_mib": 41.01953125,
+                "end_rss_bytes": 42332160,
+                "peak_fds": 46,
+                "peak_threads": 10
+              },
+              "rust": {
+                "cpu_seconds": 23.450000000000003,
+                "average_cpu_cores": 1.5609354783151965,
+                "cpu_ms_per_1000_success": 8380.986418870623,
+                "peak_rss_bytes": 44113920,
+                "peak_rss_mib": 42.0703125,
+                "end_rss_bytes": 43536384,
+                "peak_fds": 28,
+                "peak_threads": 8
+              },
+              "client": {
+                "cpu_seconds": 1.3999999999999995,
+                "average_cpu_cores": 0.09319017780986243,
+                "cpu_ms_per_1000_success": 500.3573981415295,
+                "peak_rss_bytes": 157945856,
+                "peak_rss_mib": 150.62890625,
+                "end_rss_bytes": 153370624,
+                "peak_fds": 70,
+                "peak_threads": 13
+              },
+              "fixture": {
+                "cpu_seconds": 0.63,
+                "average_cpu_cores": 0.04193558001443811,
+                "cpu_ms_per_1000_success": 225.16082916368836,
+                "peak_rss_bytes": 70090752,
+                "peak_rss_mib": 66.84375,
+                "end_rss_bytes": 69095424,
+                "peak_fds": 35,
+                "peak_threads": 7
+              }
+            },
+            "go_rust_peak_rss_sum_bytes": 87126016,
+            "go_rust_peak_rss_sum_mib": 83.08984375,
+            "effective_client_workers": 2,
+            "client_event_loop_delay_max_ms": 16.097279,
+            "client_start_delay_max_ms": 0.828125,
+            "max_sampling_gap_ms": 209.862060546875,
+            "observation_counts": {
+              "process_samples": 75,
+              "health_samples": 15,
+              "timeout_phase_events": 0
+            },
+            "quality": {
+              "sampling_ok": true,
+              "health_ok": true,
+              "client_ok": true,
+              "duration_ok": true
+            },
+            "warnings": []
+          },
+          "candidate": {
+            "scenario": "session_hit",
+            "role": "candidate",
+            "concurrency": 16,
+            "successful_requests": 7305,
+            "failures": 0,
+            "elapsed_ms": 15016.57275390625,
+            "warmup_elapsed_ms": 5032.022216796875,
+            "rps": 486.46253174511844,
+            "p50_ms": 33,
+            "p95_ms": 40,
+            "p99_ms": 44,
+            "processes": {
+              "go": {
+                "cpu_seconds": 3.38,
+                "average_cpu_cores": 0.2250846485008214,
+                "cpu_ms_per_1000_success": 462.69678302532515,
+                "peak_rss_bytes": 44249088,
+                "peak_rss_mib": 42.19921875,
+                "end_rss_bytes": 43954176,
+                "peak_fds": 43,
+                "peak_threads": 11
+              },
+              "rust": {
+                "cpu_seconds": 21.14,
+                "average_cpu_cores": 1.4077779494992202,
+                "cpu_ms_per_1000_success": 2893.908281998631,
+                "peak_rss_bytes": 39788544,
+                "peak_rss_mib": 37.9453125,
+                "end_rss_bytes": 36708352,
+                "peak_fds": 28,
+                "peak_threads": 9
+              },
+              "client": {
+                "cpu_seconds": 2.24,
+                "average_cpu_cores": 0.1491685244502485,
+                "cpu_ms_per_1000_success": 306.63928815879535,
+                "peak_rss_bytes": 166916096,
+                "peak_rss_mib": 159.18359375,
+                "end_rss_bytes": 166916096,
+                "peak_fds": 70,
+                "peak_threads": 13
+              },
+              "fixture": {
+                "cpu_seconds": 0.7799999999999998,
+                "average_cpu_cores": 0.05194261119249723,
+                "cpu_ms_per_1000_success": 106.77618069815192,
+                "peak_rss_bytes": 69627904,
+                "peak_rss_mib": 66.40234375,
+                "end_rss_bytes": 69627904,
+                "peak_fds": 32,
+                "peak_threads": 7
+              }
+            },
+            "go_rust_peak_rss_sum_bytes": 84037632,
+            "go_rust_peak_rss_sum_mib": 80.14453125,
+            "effective_client_workers": 2,
+            "client_event_loop_delay_max_ms": 15.032319,
+            "client_start_delay_max_ms": 1.201171875,
+            "max_sampling_gap_ms": 207.539306640625,
+            "observation_counts": {
+              "process_samples": 75,
+              "health_samples": 15,
+              "timeout_phase_events": 0
+            },
+            "quality": {
+              "sampling_ok": true,
+              "health_ok": true,
+              "client_ok": true,
+              "duration_ok": true
+            },
+            "warnings": []
+          },
+          "observed_single_pair_changes": {
+            "rps": 1.6119182557409908,
+            "p99": -0.6140350877192983,
+            "peak_rss_sum": -0.03544732264585582
+          }
+        },
+        {
+          "scenario": "grant_hit",
+          "concurrency": 16,
+          "baseline": {
+            "scenario": "grant_hit",
+            "role": "baseline",
+            "concurrency": 16,
+            "successful_requests": 4161,
+            "failures": 0,
+            "elapsed_ms": 15021.149169921875,
+            "warmup_elapsed_ms": 5047.338623046875,
+            "rps": 277.0094320301355,
+            "p50_ms": 58,
+            "p95_ms": 65,
+            "p99_ms": 71,
+            "processes": {
+              "go": {
+                "cpu_seconds": 2.26,
+                "average_cpu_cores": 0.15045453409952084,
+                "cpu_ms_per_1000_success": 543.1386685892815,
+                "peak_rss_bytes": 43757568,
+                "peak_rss_mib": 41.73046875,
+                "end_rss_bytes": 43757568,
+                "peak_fds": 44,
+                "peak_threads": 10
+              },
+              "rust": {
+                "cpu_seconds": 14.759999999999998,
+                "average_cpu_cores": 0.9826145678358086,
+                "cpu_ms_per_1000_success": 3547.224224945926,
+                "peak_rss_bytes": 37658624,
+                "peak_rss_mib": 35.9140625,
+                "end_rss_bytes": 37658624,
+                "peak_fds": 28,
+                "peak_threads": 8
+              },
+              "client": {
+                "cpu_seconds": 1.7799999999999994,
+                "average_cpu_cores": 0.11849958880404735,
+                "cpu_ms_per_1000_success": 427.7817832251861,
+                "peak_rss_bytes": 170598400,
+                "peak_rss_mib": 162.6953125,
+                "end_rss_bytes": 160722944,
+                "peak_fds": 70,
+                "peak_threads": 13
+              },
+              "fixture": {
+                "cpu_seconds": 0.4700000000000002,
+                "average_cpu_cores": 0.03128921726848444,
+                "cpu_ms_per_1000_success": 112.95361691900989,
+                "peak_rss_bytes": 70795264,
+                "peak_rss_mib": 67.515625,
+                "end_rss_bytes": 69623808,
+                "peak_fds": 33,
+                "peak_threads": 7
+              }
+            },
+            "go_rust_peak_rss_sum_bytes": 81416192,
+            "go_rust_peak_rss_sum_mib": 77.64453125,
+            "effective_client_workers": 2,
+            "client_event_loop_delay_max_ms": 13.254655,
+            "client_start_delay_max_ms": 0.787353515625,
+            "max_sampling_gap_ms": 207.02783203125,
+            "observation_counts": {
+              "process_samples": 75,
+              "health_samples": 15,
+              "timeout_phase_events": 0
+            },
+            "quality": {
+              "sampling_ok": true,
+              "health_ok": true,
+              "client_ok": true,
+              "duration_ok": true
+            },
+            "warnings": []
+          },
+          "candidate": {
+            "scenario": "grant_hit",
+            "role": "candidate",
+            "concurrency": 16,
+            "successful_requests": 15492,
+            "failures": 0,
+            "elapsed_ms": 15011.27734375,
+            "warmup_elapsed_ms": 5012.60009765625,
+            "rps": 1032.0241006305937,
+            "p50_ms": 16,
+            "p95_ms": 19,
+            "p99_ms": 23,
+            "processes": {
+              "go": {
+                "cpu_seconds": 8.34,
+                "average_cpu_cores": 0.5555823004943939,
+                "cpu_ms_per_1000_success": 538.3423702556158,
+                "peak_rss_bytes": 42434560,
+                "peak_rss_mib": 40.46875,
+                "end_rss_bytes": 42000384,
+                "peak_fds": 39,
+                "peak_threads": 10
+              },
+              "rust": {
+                "cpu_seconds": 15.73,
+                "average_cpu_cores": 1.0478788473353498,
+                "cpu_ms_per_1000_success": 1015.3627678801962,
+                "peak_rss_bytes": 36925440,
+                "peak_rss_mib": 35.21484375,
+                "end_rss_bytes": 36892672,
+                "peak_fds": 28,
+                "peak_threads": 8
+              },
+              "client": {
+                "cpu_seconds": 3.2200000000000006,
+                "average_cpu_cores": 0.21450539659375883,
+                "cpu_ms_per_1000_success": 207.84921249677257,
+                "peak_rss_bytes": 171827200,
+                "peak_rss_mib": 163.8671875,
+                "end_rss_bytes": 171827200,
+                "peak_fds": 71,
+                "peak_threads": 13
+              },
+              "fixture": {
+                "cpu_seconds": 1.5900000000000003,
+                "average_cpu_cores": 0.10592036664101756,
+                "cpu_ms_per_1000_success": 102.6336173508908,
+                "peak_rss_bytes": 69660672,
+                "peak_rss_mib": 66.43359375,
+                "end_rss_bytes": 69660672,
+                "peak_fds": 28,
+                "peak_threads": 7
+              }
+            },
+            "go_rust_peak_rss_sum_bytes": 79360000,
+            "go_rust_peak_rss_sum_mib": 75.68359375,
+            "effective_client_workers": 2,
+            "client_event_loop_delay_max_ms": 12.574719,
+            "client_start_delay_max_ms": 0.923828125,
+            "max_sampling_gap_ms": 207.672607421875,
+            "observation_counts": {
+              "process_samples": 75,
+              "health_samples": 15,
+              "timeout_phase_events": 0
+            },
+            "quality": {
+              "sampling_ok": true,
+              "health_ok": true,
+              "client_ok": true,
+              "duration_ok": true
+            },
+            "warnings": []
+          },
+          "observed_single_pair_changes": {
+            "rps": 2.7255919160121636,
+            "p99": -0.676056338028169,
+            "peak_rss_sum": -0.025255320219348953
+          }
+        },
+        {
+          "scenario": "auto_ip_hit",
+          "concurrency": 16,
+          "baseline": {
+            "scenario": "auto_ip_hit",
+            "role": "baseline",
+            "concurrency": 16,
+            "successful_requests": 1260,
+            "failures": 0,
+            "elapsed_ms": 15155.61669921875,
+            "warmup_elapsed_ms": 5096.6142578125,
+            "rps": 83.1374945016227,
+            "p50_ms": 192,
+            "p95_ms": 214,
+            "p99_ms": 225,
+            "processes": {
+              "go": {
+                "cpu_seconds": 1.0099999999999998,
+                "average_cpu_cores": 0.06664195987828485,
+                "cpu_ms_per_1000_success": 801.5873015873015,
+                "peak_rss_bytes": 41082880,
+                "peak_rss_mib": 39.1796875,
+                "end_rss_bytes": 41082880,
+                "peak_fds": 36,
+                "peak_threads": 10
+              },
+              "rust": {
+                "cpu_seconds": 25.25,
+                "average_cpu_cores": 1.6660489969571215,
+                "cpu_ms_per_1000_success": 20039.68253968254,
+                "peak_rss_bytes": 44490752,
+                "peak_rss_mib": 42.4296875,
+                "end_rss_bytes": 43454464,
+                "peak_fds": 27,
+                "peak_threads": 9
+              },
+              "client": {
+                "cpu_seconds": 1.1000000000000014,
+                "average_cpu_cores": 0.07258035234268657,
+                "cpu_ms_per_1000_success": 873.0158730158741,
+                "peak_rss_bytes": 167952384,
+                "peak_rss_mib": 160.171875,
+                "end_rss_bytes": 161865728,
+                "peak_fds": 70,
+                "peak_threads": 13
+              },
+              "fixture": {
+                "cpu_seconds": 0.2699999999999996,
+                "average_cpu_cores": 0.017815177393204835,
+                "cpu_ms_per_1000_success": 214.28571428571396,
+                "peak_rss_bytes": 69668864,
+                "peak_rss_mib": 66.44140625,
+                "end_rss_bytes": 69668864,
+                "peak_fds": 25,
+                "peak_threads": 7
+              }
+            },
+            "go_rust_peak_rss_sum_bytes": 85573632,
+            "go_rust_peak_rss_sum_mib": 81.609375,
+            "effective_client_workers": 2,
+            "client_event_loop_delay_max_ms": 14.196735,
+            "client_start_delay_max_ms": 0.958740234375,
+            "max_sampling_gap_ms": 209.672119140625,
+            "observation_counts": {
+              "process_samples": 75,
+              "health_samples": 13,
+              "timeout_phase_events": 0
+            },
+            "quality": {
+              "sampling_ok": true,
+              "health_ok": true,
+              "client_ok": true,
+              "duration_ok": true
+            },
+            "warnings": []
+          },
+          "candidate": {
+            "scenario": "auto_ip_hit",
+            "role": "candidate",
+            "concurrency": 16,
+            "successful_requests": 2688,
+            "failures": 0,
+            "elapsed_ms": 15048.056884765625,
+            "warmup_elapsed_ms": 5040.79443359375,
+            "rps": 178.62771390246948,
+            "p50_ms": 90,
+            "p95_ms": 98,
+            "p99_ms": 103,
+            "processes": {
+              "go": {
+                "cpu_seconds": 1.24,
+                "average_cpu_cores": 0.08240266563953205,
+                "cpu_ms_per_1000_success": 461.3095238095238,
+                "peak_rss_bytes": 41861120,
+                "peak_rss_mib": 39.921875,
+                "end_rss_bytes": 41730048,
+                "peak_fds": 40,
+                "peak_threads": 10
+              },
+              "rust": {
+                "cpu_seconds": 16.669999999999998,
+                "average_cpu_cores": 1.1077842227508055,
+                "cpu_ms_per_1000_success": 6201.636904761904,
+                "peak_rss_bytes": 39460864,
+                "peak_rss_mib": 37.6328125,
+                "end_rss_bytes": 38735872,
+                "peak_fds": 28,
+                "peak_threads": 8
+              },
+              "client": {
+                "cpu_seconds": 1.3099999999999987,
+                "average_cpu_cores": 0.08705442902240876,
+                "cpu_ms_per_1000_success": 487.35119047619,
+                "peak_rss_bytes": 176025600,
+                "peak_rss_mib": 167.87109375,
+                "end_rss_bytes": 164773888,
+                "peak_fds": 71,
+                "peak_threads": 13
+              },
+              "fixture": {
+                "cpu_seconds": 0.28000000000000025,
+                "average_cpu_cores": 0.01860705353150725,
+                "cpu_ms_per_1000_success": 104.16666666666676,
+                "peak_rss_bytes": 70709248,
+                "peak_rss_mib": 67.43359375,
+                "end_rss_bytes": 70709248,
+                "peak_fds": 29,
+                "peak_threads": 7
+              }
+            },
+            "go_rust_peak_rss_sum_bytes": 81321984,
+            "go_rust_peak_rss_sum_mib": 77.5546875,
+            "effective_client_workers": 2,
+            "client_event_loop_delay_max_ms": 17.350655,
+            "client_start_delay_max_ms": 2.489990234375,
+            "max_sampling_gap_ms": 209.44970703125,
+            "observation_counts": {
+              "process_samples": 75,
+              "health_samples": 15,
+              "timeout_phase_events": 0
+            },
+            "quality": {
+              "sampling_ok": true,
+              "health_ok": true,
+              "client_ok": true,
+              "duration_ok": true
+            },
+            "warnings": []
+          },
+          "observed_single_pair_changes": {
+            "rps": 1.1485818760028064,
+            "p99": -0.5422222222222222,
+            "peak_rss_sum": -0.049684089603676096
+          }
+        }
+      ]
+    },
+    {
+      "concurrency": 64,
+      "checks_passed": false,
+      "observed_trials": 8,
+      "expected_trials": 8,
+      "errors": [
+        "auto_ip_hit/baseline：warmup actual elapsed 不在协议范围"
+      ],
+      "warnings": [],
+      "host": {
+        "kernel": "Linux OTN 6.18.18.c1032-trim #1032 SMP PREEMPT_DYNAMIC Fri Aug 21 01:49:29 UTC 2026 x86_64 GNU/Linux",
+        "node": "v22.23.1"
+      },
+      "trials": [
+        {
+          "scenario": "bootstrap",
+          "role": "baseline",
+          "concurrency": 64,
+          "successful_requests": 2111,
+          "failures": 0,
+          "elapsed_ms": 15378.364013671875,
+          "warmup_elapsed_ms": 5215.24462890625,
+          "rps": 137.27077848614138,
+          "p50_ms": 466,
+          "p95_ms": 494,
+          "p99_ms": 515,
+          "processes": {
+            "go": {
+              "cpu_seconds": 0.7100000000000001,
+              "average_cpu_cores": 0.046168760172979814,
+              "cpu_ms_per_1000_success": 336.3334912363809,
+              "peak_rss_bytes": 47390720,
+              "peak_rss_mib": 45.1953125,
+              "end_rss_bytes": 47390720,
+              "peak_fds": 145,
+              "peak_threads": 10
+            },
+            "rust": {
+              "cpu_seconds": 20.43,
+              "average_cpu_cores": 1.3284898173717994,
+              "cpu_ms_per_1000_success": 9677.877783041213,
+              "peak_rss_bytes": 46067712,
+              "peak_rss_mib": 43.93359375,
+              "end_rss_bytes": 45682688,
+              "peak_fds": 91,
+              "peak_threads": 9
+            },
+            "client": {
+              "cpu_seconds": 1.13,
+              "average_cpu_cores": 0.07347985774009463,
+              "cpu_ms_per_1000_success": 535.2913311226906,
+              "peak_rss_bytes": 142938112,
+              "peak_rss_mib": 136.31640625,
+              "end_rss_bytes": 137322496,
+              "peak_fds": 118,
+              "peak_threads": 13
+            },
+            "fixture": {
+              "cpu_seconds": 0.010000000000000009,
+              "average_cpu_cores": 0.0006502642277884486,
+              "cpu_ms_per_1000_success": 4.737091425864524,
+              "peak_rss_bytes": 58576896,
+              "peak_rss_mib": 55.86328125,
+              "end_rss_bytes": 57323520,
+              "peak_fds": 22,
+              "peak_threads": 7
+            }
+          },
+          "go_rust_peak_rss_sum_bytes": 93458432,
+          "go_rust_peak_rss_sum_mib": 89.12890625,
+          "effective_client_workers": 2,
+          "client_event_loop_delay_max_ms": 13.680639,
+          "client_start_delay_max_ms": 1.316162109375,
+          "max_sampling_gap_ms": 208.264892578125,
+          "observation_counts": {
+            "process_samples": 76,
+            "health_samples": 14,
+            "timeout_phase_events": 0
+          },
+          "quality": {
+            "sampling_ok": true,
+            "health_ok": true,
+            "client_ok": true,
+            "duration_ok": true
+          },
+          "warnings": []
+        },
+        {
+          "scenario": "bootstrap",
+          "role": "candidate",
+          "concurrency": 64,
+          "successful_requests": 5942,
+          "failures": 0,
+          "elapsed_ms": 15101.979248046875,
+          "warmup_elapsed_ms": 5075.779052734375,
+          "rps": 393.4583608150881,
+          "p50_ms": 163,
+          "p95_ms": 177,
+          "p99_ms": 192,
+          "processes": {
+            "go": {
+              "cpu_seconds": 2.54,
+              "average_cpu_cores": 0.16818987486878556,
+              "cpu_ms_per_1000_success": 427.4654998317065,
+              "peak_rss_bytes": 48115712,
+              "peak_rss_mib": 45.88671875,
+              "end_rss_bytes": 47702016,
+              "peak_fds": 145,
+              "peak_threads": 10
+            },
+            "rust": {
+              "cpu_seconds": 18.98,
+              "average_cpu_cores": 1.2567889074840748,
+              "cpu_ms_per_1000_success": 3194.210703466846,
+              "peak_rss_bytes": 44900352,
+              "peak_rss_mib": 42.8203125,
+              "end_rss_bytes": 40390656,
+              "peak_fds": 92,
+              "peak_threads": 9
+            },
+            "client": {
+              "cpu_seconds": 2.4199999999999995,
+              "average_cpu_cores": 0.16024389652852794,
+              "cpu_ms_per_1000_success": 407.27027936721635,
+              "peak_rss_bytes": 164806656,
+              "peak_rss_mib": 157.171875,
+              "end_rss_bytes": 164806656,
+              "peak_fds": 119,
+              "peak_threads": 13
+            },
+            "fixture": {
+              "cpu_seconds": 0,
+              "average_cpu_cores": 0.0,
+              "cpu_ms_per_1000_success": 0,
+              "peak_rss_bytes": 57323520,
+              "peak_rss_mib": 54.66796875,
+              "end_rss_bytes": 57323520,
+              "peak_fds": 22,
+              "peak_threads": 7
+            }
+          },
+          "go_rust_peak_rss_sum_bytes": 93016064,
+          "go_rust_peak_rss_sum_mib": 88.70703125,
+          "effective_client_workers": 2,
+          "client_event_loop_delay_max_ms": 12.582911,
+          "client_start_delay_max_ms": 1.14892578125,
+          "max_sampling_gap_ms": 206.940673828125,
+          "observation_counts": {
+            "process_samples": 75,
+            "health_samples": 14,
+            "timeout_phase_events": 0
+          },
+          "quality": {
+            "sampling_ok": true,
+            "health_ok": true,
+            "client_ok": true,
+            "duration_ok": true
+          },
+          "warnings": []
+        },
+        {
+          "scenario": "session_hit",
+          "role": "baseline",
+          "concurrency": 64,
+          "successful_requests": 2623,
+          "failures": 0,
+          "elapsed_ms": 15073.977294921875,
+          "warmup_elapsed_ms": 5093.47900390625,
+          "rps": 174.0084881833832,
+          "p50_ms": 369,
+          "p95_ms": 393,
+          "p99_ms": 419,
+          "processes": {
+            "go": {
+              "cpu_seconds": 1.19,
+              "average_cpu_cores": 0.07894399578277775,
+              "cpu_ms_per_1000_success": 453.6789935188715,
+              "peak_rss_bytes": 45813760,
+              "peak_rss_mib": 43.69140625,
+              "end_rss_bytes": 45813760,
+              "peak_fds": 96,
+              "peak_threads": 11
+            },
+            "rust": {
+              "cpu_seconds": 23.39,
+              "average_cpu_cores": 1.5516807238312365,
+              "cpu_ms_per_1000_success": 8917.270301181852,
+              "peak_rss_bytes": 46759936,
+              "peak_rss_mib": 44.59375,
+              "end_rss_bytes": 45326336,
+              "peak_fds": 28,
+              "peak_threads": 9
+            },
+            "client": {
+              "cpu_seconds": 1.2400000000000002,
+              "average_cpu_cores": 0.08226097039549951,
+              "cpu_ms_per_1000_success": 472.7411361036981,
+              "peak_rss_bytes": 160112640,
+              "peak_rss_mib": 152.6953125,
+              "end_rss_bytes": 152641536,
+              "peak_fds": 118,
+              "peak_threads": 13
+            },
+            "fixture": {
+              "cpu_seconds": 0.49000000000000005,
+              "average_cpu_cores": 0.03250635120467319,
+              "cpu_ms_per_1000_success": 186.80899733130005,
+              "peak_rss_bytes": 69611520,
+              "peak_rss_mib": 66.38671875,
+              "end_rss_bytes": 69427200,
+              "peak_fds": 37,
+              "peak_threads": 7
+            }
+          },
+          "go_rust_peak_rss_sum_bytes": 92573696,
+          "go_rust_peak_rss_sum_mib": 88.28515625,
+          "effective_client_workers": 2,
+          "client_event_loop_delay_max_ms": 18.300927,
+          "client_start_delay_max_ms": 1.017822265625,
+          "max_sampling_gap_ms": 209.974853515625,
+          "observation_counts": {
+            "process_samples": 75,
+            "health_samples": 14,
+            "timeout_phase_events": 0
+          },
+          "quality": {
+            "sampling_ok": true,
+            "health_ok": true,
+            "client_ok": true,
+            "duration_ok": true
+          },
+          "warnings": []
+        },
+        {
+          "scenario": "session_hit",
+          "role": "candidate",
+          "concurrency": 64,
+          "successful_requests": 7231,
+          "failures": 0,
+          "elapsed_ms": 15040.3388671875,
+          "warmup_elapsed_ms": 5043.455322265625,
+          "rps": 480.7737421246132,
+          "p50_ms": 134,
+          "p95_ms": 146,
+          "p99_ms": 152,
+          "processes": {
+            "go": {
+              "cpu_seconds": 3.29,
+              "average_cpu_cores": 0.2187450714410147,
+              "cpu_ms_per_1000_success": 454.9854791868345,
+              "peak_rss_bytes": 48033792,
+              "peak_rss_mib": 45.80859375,
+              "end_rss_bytes": 47910912,
+              "peak_fds": 96,
+              "peak_threads": 10
+            },
+            "rust": {
+              "cpu_seconds": 21.17,
+              "average_cpu_cores": 1.4075480736797208,
+              "cpu_ms_per_1000_success": 2927.6725210897525,
+              "peak_rss_bytes": 50634752,
+              "peak_rss_mib": 48.2890625,
+              "end_rss_bytes": 38232064,
+              "peak_fds": 28,
+              "peak_threads": 9
+            },
+            "client": {
+              "cpu_seconds": 2.1799999999999997,
+              "average_cpu_cores": 0.14494354277854468,
+              "cpu_ms_per_1000_success": 301.47974000829754,
+              "peak_rss_bytes": 167448576,
+              "peak_rss_mib": 159.69140625,
+              "end_rss_bytes": 167448576,
+              "peak_fds": 118,
+              "peak_threads": 13
+            },
+            "fixture": {
+              "cpu_seconds": 0.72,
+              "average_cpu_cores": 0.04787126183511568,
+              "cpu_ms_per_1000_success": 99.57129027796985,
+              "peak_rss_bytes": 69435392,
+              "peak_rss_mib": 66.21875,
+              "end_rss_bytes": 69185536,
+              "peak_fds": 37,
+              "peak_threads": 7
+            }
+          },
+          "go_rust_peak_rss_sum_bytes": 98668544,
+          "go_rust_peak_rss_sum_mib": 94.09765625,
+          "effective_client_workers": 2,
+          "client_event_loop_delay_max_ms": 13.025279,
+          "client_start_delay_max_ms": 1.310546875,
+          "max_sampling_gap_ms": 209.996337890625,
+          "observation_counts": {
+            "process_samples": 75,
+            "health_samples": 15,
+            "timeout_phase_events": 0
+          },
+          "quality": {
+            "sampling_ok": true,
+            "health_ok": true,
+            "client_ok": true,
+            "duration_ok": true
+          },
+          "warnings": []
+        },
+        {
+          "scenario": "grant_hit",
+          "role": "baseline",
+          "concurrency": 64,
+          "successful_requests": 4224,
+          "failures": 0,
+          "elapsed_ms": 15123.870361328125,
+          "warmup_elapsed_ms": 5102.879638671875,
+          "rps": 279.2935868321648,
+          "p50_ms": 231,
+          "p95_ms": 251,
+          "p99_ms": 255,
+          "processes": {
+            "go": {
+              "cpu_seconds": 1.65,
+              "average_cpu_cores": 0.10909905735631437,
+              "cpu_ms_per_1000_success": 390.625,
+              "peak_rss_bytes": 47566848,
+              "peak_rss_mib": 45.36328125,
+              "end_rss_bytes": 47210496,
+              "peak_fds": 97,
+              "peak_threads": 10
+            },
+            "rust": {
+              "cpu_seconds": 14.67,
+              "average_cpu_cores": 0.9699898008588678,
+              "cpu_ms_per_1000_success": 3473.0113636363635,
+              "peak_rss_bytes": 39510016,
+              "peak_rss_mib": 37.6796875,
+              "end_rss_bytes": 39231488,
+              "peak_fds": 28,
+              "peak_threads": 8
+            },
+            "client": {
+              "cpu_seconds": 1.4900000000000002,
+              "average_cpu_cores": 0.09851975482479298,
+              "cpu_ms_per_1000_success": 352.7462121212122,
+              "peak_rss_bytes": 169345024,
+              "peak_rss_mib": 161.5,
+              "end_rss_bytes": 165093376,
+              "peak_fds": 119,
+              "peak_threads": 13
+            },
+            "fixture": {
+              "cpu_seconds": 0.3500000000000001,
+              "average_cpu_cores": 0.023142224287703055,
+              "cpu_ms_per_1000_success": 82.85984848484851,
+              "peak_rss_bytes": 69357568,
+              "peak_rss_mib": 66.14453125,
+              "end_rss_bytes": 69271552,
+              "peak_fds": 38,
+              "peak_threads": 7
+            }
+          },
+          "go_rust_peak_rss_sum_bytes": 87076864,
+          "go_rust_peak_rss_sum_mib": 83.04296875,
+          "effective_client_workers": 2,
+          "client_event_loop_delay_max_ms": 13.860863,
+          "client_start_delay_max_ms": 0.5751953125,
+          "max_sampling_gap_ms": 209.43310546875,
+          "observation_counts": {
+            "process_samples": 75,
+            "health_samples": 16,
+            "timeout_phase_events": 0
+          },
+          "quality": {
+            "sampling_ok": true,
+            "health_ok": true,
+            "client_ok": true,
+            "duration_ok": true
+          },
+          "warnings": []
+        },
+        {
+          "scenario": "grant_hit",
+          "role": "candidate",
+          "concurrency": 64,
+          "successful_requests": 15545,
+          "failures": 0,
+          "elapsed_ms": 15049.431640625,
+          "warmup_elapsed_ms": 5042.420654296875,
+          "rps": 1032.9293737603514,
+          "p50_ms": 61,
+          "p95_ms": 73,
+          "p99_ms": 86,
+          "processes": {
+            "go": {
+              "cpu_seconds": 7.4799999999999995,
+              "average_cpu_cores": 0.4970287369396866,
+              "cpu_ms_per_1000_success": 481.18366034094566,
+              "peak_rss_bytes": 48349184,
+              "peak_rss_mib": 46.109375,
+              "end_rss_bytes": 48349184,
+              "peak_fds": 95,
+              "peak_threads": 10
+            },
+            "rust": {
+              "cpu_seconds": 15.559999999999999,
+              "average_cpu_cores": 1.0339260891419149,
+              "cpu_ms_per_1000_success": 1000.964940495336,
+              "peak_rss_bytes": 38551552,
+              "peak_rss_mib": 36.765625,
+              "end_rss_bytes": 38408192,
+              "peak_fds": 28,
+              "peak_threads": 9
+            },
+            "client": {
+              "cpu_seconds": 3.130000000000001,
+              "average_cpu_cores": 0.20798127628625931,
+              "cpu_ms_per_1000_success": 201.35091669347062,
+              "peak_rss_bytes": 185466880,
+              "peak_rss_mib": 176.875,
+              "end_rss_bytes": 185466880,
+              "peak_fds": 119,
+              "peak_threads": 13
+            },
+            "fixture": {
+              "cpu_seconds": 1.5299999999999998,
+              "average_cpu_cores": 0.10166496891948135,
+              "cpu_ms_per_1000_success": 98.42393052428432,
+              "peak_rss_bytes": 70709248,
+              "peak_rss_mib": 67.43359375,
+              "end_rss_bytes": 70709248,
+              "peak_fds": 36,
+              "peak_threads": 7
+            }
+          },
+          "go_rust_peak_rss_sum_bytes": 86900736,
+          "go_rust_peak_rss_sum_mib": 82.875,
+          "effective_client_workers": 2,
+          "client_event_loop_delay_max_ms": 15.810559,
+          "client_start_delay_max_ms": 0.730224609375,
+          "max_sampling_gap_ms": 208.00732421875,
+          "observation_counts": {
+            "process_samples": 75,
+            "health_samples": 15,
+            "timeout_phase_events": 0
+          },
+          "quality": {
+            "sampling_ok": true,
+            "health_ok": true,
+            "client_ok": true,
+            "duration_ok": true
+          },
+          "warnings": []
+        },
+        {
+          "scenario": "auto_ip_hit",
+          "role": "baseline",
+          "concurrency": 64,
+          "successful_requests": 1280,
+          "failures": 0,
+          "elapsed_ms": 15604.21240234375,
+          "warmup_elapsed_ms": 5802.480224609375,
+          "rps": 82.02913206998798,
+          "p50_ms": 781,
+          "p95_ms": 815,
+          "p99_ms": 825,
+          "processes": {
+            "go": {
+              "cpu_seconds": 0.8600000000000001,
+              "average_cpu_cores": 0.05511332310952319,
+              "cpu_ms_per_1000_success": 671.8750000000001,
+              "peak_rss_bytes": 46665728,
+              "peak_rss_mib": 44.50390625,
+              "end_rss_bytes": 46665728,
+              "peak_fds": 90,
+              "peak_threads": 10
+            },
+            "rust": {
+              "cpu_seconds": 26.15,
+              "average_cpu_cores": 1.6758295340860827,
+              "cpu_ms_per_1000_success": 20429.6875,
+              "peak_rss_bytes": 52539392,
+              "peak_rss_mib": 50.10546875,
+              "end_rss_bytes": 51515392,
+              "peak_fds": 27,
+              "peak_threads": 9
+            },
+            "client": {
+              "cpu_seconds": 1.0400000000000027,
+              "average_cpu_cores": 0.06664866980686542,
+              "cpu_ms_per_1000_success": 812.500000000002,
+              "peak_rss_bytes": 170790912,
+              "peak_rss_mib": 162.87890625,
+              "end_rss_bytes": 159719424,
+              "peak_fds": 118,
+              "peak_threads": 13
+            },
+            "fixture": {
+              "cpu_seconds": 0.2400000000000002,
+              "average_cpu_cores": 0.015380462263122762,
+              "cpu_ms_per_1000_success": 187.50000000000017,
+              "peak_rss_bytes": 70737920,
+              "peak_rss_mib": 67.4609375,
+              "end_rss_bytes": 70737920,
+              "peak_fds": 31,
+              "peak_threads": 7
+            }
+          },
+          "go_rust_peak_rss_sum_bytes": 99205120,
+          "go_rust_peak_rss_sum_mib": 94.609375,
+          "effective_client_workers": 2,
+          "client_event_loop_delay_max_ms": 15.761407,
+          "client_start_delay_max_ms": 0.68017578125,
+          "max_sampling_gap_ms": 210.33984375,
+          "observation_counts": {
+            "process_samples": 77,
+            "health_samples": 8,
+            "timeout_phase_events": 0
+          },
+          "quality": {
+            "sampling_ok": true,
+            "health_ok": true,
+            "client_ok": true,
+            "duration_ok": true
+          },
+          "warnings": []
+        },
+        {
+          "scenario": "auto_ip_hit",
+          "role": "candidate",
+          "concurrency": 64,
+          "successful_requests": 2560,
+          "failures": 0,
+          "elapsed_ms": 15253.427734375,
+          "warmup_elapsed_ms": 5251.447509765625,
+          "rps": 167.83112914553658,
+          "p50_ms": 381,
+          "p95_ms": 402,
+          "p99_ms": 406,
+          "processes": {
+            "go": {
+              "cpu_seconds": 1.01,
+              "average_cpu_cores": 0.06621462517069998,
+              "cpu_ms_per_1000_success": 394.53125,
+              "peak_rss_bytes": 46755840,
+              "peak_rss_mib": 44.58984375,
+              "end_rss_bytes": 46755840,
+              "peak_fds": 97,
+              "peak_threads": 10
+            },
+            "rust": {
+              "cpu_seconds": 16.89,
+              "average_cpu_cores": 1.1072920981516066,
+              "cpu_ms_per_1000_success": 6597.65625,
+              "peak_rss_bytes": 40927232,
+              "peak_rss_mib": 39.03125,
+              "end_rss_bytes": 40034304,
+              "peak_fds": 28,
+              "peak_threads": 8
+            },
+            "client": {
+              "cpu_seconds": 1.25,
+              "average_cpu_cores": 0.08194879352809403,
+              "cpu_ms_per_1000_success": 488.28125,
+              "peak_rss_bytes": 171548672,
+              "peak_rss_mib": 163.6015625,
+              "end_rss_bytes": 162680832,
+              "peak_fds": 118,
+              "peak_threads": 13
+            },
+            "fixture": {
+              "cpu_seconds": 0.2400000000000002,
+              "average_cpu_cores": 0.01573416835739407,
+              "cpu_ms_per_1000_success": 93.75000000000009,
+              "peak_rss_bytes": 70799360,
+              "peak_rss_mib": 67.51953125,
+              "end_rss_bytes": 70799360,
+              "peak_fds": 38,
+              "peak_threads": 7
+            }
+          },
+          "go_rust_peak_rss_sum_bytes": 87683072,
+          "go_rust_peak_rss_sum_mib": 83.62109375,
+          "effective_client_workers": 2,
+          "client_event_loop_delay_max_ms": 16.687103,
+          "client_start_delay_max_ms": 0.549560546875,
+          "max_sampling_gap_ms": 210.235595703125,
+          "observation_counts": {
+            "process_samples": 76,
+            "health_samples": 16,
+            "timeout_phase_events": 0
+          },
+          "quality": {
+            "sampling_ok": true,
+            "health_ok": true,
+            "client_ok": true,
+            "duration_ok": true
+          },
+          "warnings": []
+        }
+      ],
+      "comparisons": [
+        {
+          "scenario": "bootstrap",
+          "concurrency": 64,
+          "baseline": {
+            "scenario": "bootstrap",
+            "role": "baseline",
+            "concurrency": 64,
+            "successful_requests": 2111,
+            "failures": 0,
+            "elapsed_ms": 15378.364013671875,
+            "warmup_elapsed_ms": 5215.24462890625,
+            "rps": 137.27077848614138,
+            "p50_ms": 466,
+            "p95_ms": 494,
+            "p99_ms": 515,
+            "processes": {
+              "go": {
+                "cpu_seconds": 0.7100000000000001,
+                "average_cpu_cores": 0.046168760172979814,
+                "cpu_ms_per_1000_success": 336.3334912363809,
+                "peak_rss_bytes": 47390720,
+                "peak_rss_mib": 45.1953125,
+                "end_rss_bytes": 47390720,
+                "peak_fds": 145,
+                "peak_threads": 10
+              },
+              "rust": {
+                "cpu_seconds": 20.43,
+                "average_cpu_cores": 1.3284898173717994,
+                "cpu_ms_per_1000_success": 9677.877783041213,
+                "peak_rss_bytes": 46067712,
+                "peak_rss_mib": 43.93359375,
+                "end_rss_bytes": 45682688,
+                "peak_fds": 91,
+                "peak_threads": 9
+              },
+              "client": {
+                "cpu_seconds": 1.13,
+                "average_cpu_cores": 0.07347985774009463,
+                "cpu_ms_per_1000_success": 535.2913311226906,
+                "peak_rss_bytes": 142938112,
+                "peak_rss_mib": 136.31640625,
+                "end_rss_bytes": 137322496,
+                "peak_fds": 118,
+                "peak_threads": 13
+              },
+              "fixture": {
+                "cpu_seconds": 0.010000000000000009,
+                "average_cpu_cores": 0.0006502642277884486,
+                "cpu_ms_per_1000_success": 4.737091425864524,
+                "peak_rss_bytes": 58576896,
+                "peak_rss_mib": 55.86328125,
+                "end_rss_bytes": 57323520,
+                "peak_fds": 22,
+                "peak_threads": 7
+              }
+            },
+            "go_rust_peak_rss_sum_bytes": 93458432,
+            "go_rust_peak_rss_sum_mib": 89.12890625,
+            "effective_client_workers": 2,
+            "client_event_loop_delay_max_ms": 13.680639,
+            "client_start_delay_max_ms": 1.316162109375,
+            "max_sampling_gap_ms": 208.264892578125,
+            "observation_counts": {
+              "process_samples": 76,
+              "health_samples": 14,
+              "timeout_phase_events": 0
+            },
+            "quality": {
+              "sampling_ok": true,
+              "health_ok": true,
+              "client_ok": true,
+              "duration_ok": true
+            },
+            "warnings": []
+          },
+          "candidate": {
+            "scenario": "bootstrap",
+            "role": "candidate",
+            "concurrency": 64,
+            "successful_requests": 5942,
+            "failures": 0,
+            "elapsed_ms": 15101.979248046875,
+            "warmup_elapsed_ms": 5075.779052734375,
+            "rps": 393.4583608150881,
+            "p50_ms": 163,
+            "p95_ms": 177,
+            "p99_ms": 192,
+            "processes": {
+              "go": {
+                "cpu_seconds": 2.54,
+                "average_cpu_cores": 0.16818987486878556,
+                "cpu_ms_per_1000_success": 427.4654998317065,
+                "peak_rss_bytes": 48115712,
+                "peak_rss_mib": 45.88671875,
+                "end_rss_bytes": 47702016,
+                "peak_fds": 145,
+                "peak_threads": 10
+              },
+              "rust": {
+                "cpu_seconds": 18.98,
+                "average_cpu_cores": 1.2567889074840748,
+                "cpu_ms_per_1000_success": 3194.210703466846,
+                "peak_rss_bytes": 44900352,
+                "peak_rss_mib": 42.8203125,
+                "end_rss_bytes": 40390656,
+                "peak_fds": 92,
+                "peak_threads": 9
+              },
+              "client": {
+                "cpu_seconds": 2.4199999999999995,
+                "average_cpu_cores": 0.16024389652852794,
+                "cpu_ms_per_1000_success": 407.27027936721635,
+                "peak_rss_bytes": 164806656,
+                "peak_rss_mib": 157.171875,
+                "end_rss_bytes": 164806656,
+                "peak_fds": 119,
+                "peak_threads": 13
+              },
+              "fixture": {
+                "cpu_seconds": 0,
+                "average_cpu_cores": 0.0,
+                "cpu_ms_per_1000_success": 0,
+                "peak_rss_bytes": 57323520,
+                "peak_rss_mib": 54.66796875,
+                "end_rss_bytes": 57323520,
+                "peak_fds": 22,
+                "peak_threads": 7
+              }
+            },
+            "go_rust_peak_rss_sum_bytes": 93016064,
+            "go_rust_peak_rss_sum_mib": 88.70703125,
+            "effective_client_workers": 2,
+            "client_event_loop_delay_max_ms": 12.582911,
+            "client_start_delay_max_ms": 1.14892578125,
+            "max_sampling_gap_ms": 206.940673828125,
+            "observation_counts": {
+              "process_samples": 75,
+              "health_samples": 14,
+              "timeout_phase_events": 0
+            },
+            "quality": {
+              "sampling_ok": true,
+              "health_ok": true,
+              "client_ok": true,
+              "duration_ok": true
+            },
+            "warnings": []
+          },
+          "observed_single_pair_changes": {
+            "rps": 1.8662936507991827,
+            "p99": -0.6271844660194175,
+            "peak_rss_sum": -0.004733312880746854
+          }
+        },
+        {
+          "scenario": "session_hit",
+          "concurrency": 64,
+          "baseline": {
+            "scenario": "session_hit",
+            "role": "baseline",
+            "concurrency": 64,
+            "successful_requests": 2623,
+            "failures": 0,
+            "elapsed_ms": 15073.977294921875,
+            "warmup_elapsed_ms": 5093.47900390625,
+            "rps": 174.0084881833832,
+            "p50_ms": 369,
+            "p95_ms": 393,
+            "p99_ms": 419,
+            "processes": {
+              "go": {
+                "cpu_seconds": 1.19,
+                "average_cpu_cores": 0.07894399578277775,
+                "cpu_ms_per_1000_success": 453.6789935188715,
+                "peak_rss_bytes": 45813760,
+                "peak_rss_mib": 43.69140625,
+                "end_rss_bytes": 45813760,
+                "peak_fds": 96,
+                "peak_threads": 11
+              },
+              "rust": {
+                "cpu_seconds": 23.39,
+                "average_cpu_cores": 1.5516807238312365,
+                "cpu_ms_per_1000_success": 8917.270301181852,
+                "peak_rss_bytes": 46759936,
+                "peak_rss_mib": 44.59375,
+                "end_rss_bytes": 45326336,
+                "peak_fds": 28,
+                "peak_threads": 9
+              },
+              "client": {
+                "cpu_seconds": 1.2400000000000002,
+                "average_cpu_cores": 0.08226097039549951,
+                "cpu_ms_per_1000_success": 472.7411361036981,
+                "peak_rss_bytes": 160112640,
+                "peak_rss_mib": 152.6953125,
+                "end_rss_bytes": 152641536,
+                "peak_fds": 118,
+                "peak_threads": 13
+              },
+              "fixture": {
+                "cpu_seconds": 0.49000000000000005,
+                "average_cpu_cores": 0.03250635120467319,
+                "cpu_ms_per_1000_success": 186.80899733130005,
+                "peak_rss_bytes": 69611520,
+                "peak_rss_mib": 66.38671875,
+                "end_rss_bytes": 69427200,
+                "peak_fds": 37,
+                "peak_threads": 7
+              }
+            },
+            "go_rust_peak_rss_sum_bytes": 92573696,
+            "go_rust_peak_rss_sum_mib": 88.28515625,
+            "effective_client_workers": 2,
+            "client_event_loop_delay_max_ms": 18.300927,
+            "client_start_delay_max_ms": 1.017822265625,
+            "max_sampling_gap_ms": 209.974853515625,
+            "observation_counts": {
+              "process_samples": 75,
+              "health_samples": 14,
+              "timeout_phase_events": 0
+            },
+            "quality": {
+              "sampling_ok": true,
+              "health_ok": true,
+              "client_ok": true,
+              "duration_ok": true
+            },
+            "warnings": []
+          },
+          "candidate": {
+            "scenario": "session_hit",
+            "role": "candidate",
+            "concurrency": 64,
+            "successful_requests": 7231,
+            "failures": 0,
+            "elapsed_ms": 15040.3388671875,
+            "warmup_elapsed_ms": 5043.455322265625,
+            "rps": 480.7737421246132,
+            "p50_ms": 134,
+            "p95_ms": 146,
+            "p99_ms": 152,
+            "processes": {
+              "go": {
+                "cpu_seconds": 3.29,
+                "average_cpu_cores": 0.2187450714410147,
+                "cpu_ms_per_1000_success": 454.9854791868345,
+                "peak_rss_bytes": 48033792,
+                "peak_rss_mib": 45.80859375,
+                "end_rss_bytes": 47910912,
+                "peak_fds": 96,
+                "peak_threads": 10
+              },
+              "rust": {
+                "cpu_seconds": 21.17,
+                "average_cpu_cores": 1.4075480736797208,
+                "cpu_ms_per_1000_success": 2927.6725210897525,
+                "peak_rss_bytes": 50634752,
+                "peak_rss_mib": 48.2890625,
+                "end_rss_bytes": 38232064,
+                "peak_fds": 28,
+                "peak_threads": 9
+              },
+              "client": {
+                "cpu_seconds": 2.1799999999999997,
+                "average_cpu_cores": 0.14494354277854468,
+                "cpu_ms_per_1000_success": 301.47974000829754,
+                "peak_rss_bytes": 167448576,
+                "peak_rss_mib": 159.69140625,
+                "end_rss_bytes": 167448576,
+                "peak_fds": 118,
+                "peak_threads": 13
+              },
+              "fixture": {
+                "cpu_seconds": 0.72,
+                "average_cpu_cores": 0.04787126183511568,
+                "cpu_ms_per_1000_success": 99.57129027796985,
+                "peak_rss_bytes": 69435392,
+                "peak_rss_mib": 66.21875,
+                "end_rss_bytes": 69185536,
+                "peak_fds": 37,
+                "peak_threads": 7
+              }
+            },
+            "go_rust_peak_rss_sum_bytes": 98668544,
+            "go_rust_peak_rss_sum_mib": 94.09765625,
+            "effective_client_workers": 2,
+            "client_event_loop_delay_max_ms": 13.025279,
+            "client_start_delay_max_ms": 1.310546875,
+            "max_sampling_gap_ms": 209.996337890625,
+            "observation_counts": {
+              "process_samples": 75,
+              "health_samples": 15,
+              "timeout_phase_events": 0
+            },
+            "quality": {
+              "sampling_ok": true,
+              "health_ok": true,
+              "client_ok": true,
+              "duration_ok": true
+            },
+            "warnings": []
+          },
+          "observed_single_pair_changes": {
+            "rps": 1.7629327002596433,
+            "p99": -0.6372315035799523,
+            "peak_rss_sum": 0.06583779478784124
+          }
+        },
+        {
+          "scenario": "grant_hit",
+          "concurrency": 64,
+          "baseline": {
+            "scenario": "grant_hit",
+            "role": "baseline",
+            "concurrency": 64,
+            "successful_requests": 4224,
+            "failures": 0,
+            "elapsed_ms": 15123.870361328125,
+            "warmup_elapsed_ms": 5102.879638671875,
+            "rps": 279.2935868321648,
+            "p50_ms": 231,
+            "p95_ms": 251,
+            "p99_ms": 255,
+            "processes": {
+              "go": {
+                "cpu_seconds": 1.65,
+                "average_cpu_cores": 0.10909905735631437,
+                "cpu_ms_per_1000_success": 390.625,
+                "peak_rss_bytes": 47566848,
+                "peak_rss_mib": 45.36328125,
+                "end_rss_bytes": 47210496,
+                "peak_fds": 97,
+                "peak_threads": 10
+              },
+              "rust": {
+                "cpu_seconds": 14.67,
+                "average_cpu_cores": 0.9699898008588678,
+                "cpu_ms_per_1000_success": 3473.0113636363635,
+                "peak_rss_bytes": 39510016,
+                "peak_rss_mib": 37.6796875,
+                "end_rss_bytes": 39231488,
+                "peak_fds": 28,
+                "peak_threads": 8
+              },
+              "client": {
+                "cpu_seconds": 1.4900000000000002,
+                "average_cpu_cores": 0.09851975482479298,
+                "cpu_ms_per_1000_success": 352.7462121212122,
+                "peak_rss_bytes": 169345024,
+                "peak_rss_mib": 161.5,
+                "end_rss_bytes": 165093376,
+                "peak_fds": 119,
+                "peak_threads": 13
+              },
+              "fixture": {
+                "cpu_seconds": 0.3500000000000001,
+                "average_cpu_cores": 0.023142224287703055,
+                "cpu_ms_per_1000_success": 82.85984848484851,
+                "peak_rss_bytes": 69357568,
+                "peak_rss_mib": 66.14453125,
+                "end_rss_bytes": 69271552,
+                "peak_fds": 38,
+                "peak_threads": 7
+              }
+            },
+            "go_rust_peak_rss_sum_bytes": 87076864,
+            "go_rust_peak_rss_sum_mib": 83.04296875,
+            "effective_client_workers": 2,
+            "client_event_loop_delay_max_ms": 13.860863,
+            "client_start_delay_max_ms": 0.5751953125,
+            "max_sampling_gap_ms": 209.43310546875,
+            "observation_counts": {
+              "process_samples": 75,
+              "health_samples": 16,
+              "timeout_phase_events": 0
+            },
+            "quality": {
+              "sampling_ok": true,
+              "health_ok": true,
+              "client_ok": true,
+              "duration_ok": true
+            },
+            "warnings": []
+          },
+          "candidate": {
+            "scenario": "grant_hit",
+            "role": "candidate",
+            "concurrency": 64,
+            "successful_requests": 15545,
+            "failures": 0,
+            "elapsed_ms": 15049.431640625,
+            "warmup_elapsed_ms": 5042.420654296875,
+            "rps": 1032.9293737603514,
+            "p50_ms": 61,
+            "p95_ms": 73,
+            "p99_ms": 86,
+            "processes": {
+              "go": {
+                "cpu_seconds": 7.4799999999999995,
+                "average_cpu_cores": 0.4970287369396866,
+                "cpu_ms_per_1000_success": 481.18366034094566,
+                "peak_rss_bytes": 48349184,
+                "peak_rss_mib": 46.109375,
+                "end_rss_bytes": 48349184,
+                "peak_fds": 95,
+                "peak_threads": 10
+              },
+              "rust": {
+                "cpu_seconds": 15.559999999999999,
+                "average_cpu_cores": 1.0339260891419149,
+                "cpu_ms_per_1000_success": 1000.964940495336,
+                "peak_rss_bytes": 38551552,
+                "peak_rss_mib": 36.765625,
+                "end_rss_bytes": 38408192,
+                "peak_fds": 28,
+                "peak_threads": 9
+              },
+              "client": {
+                "cpu_seconds": 3.130000000000001,
+                "average_cpu_cores": 0.20798127628625931,
+                "cpu_ms_per_1000_success": 201.35091669347062,
+                "peak_rss_bytes": 185466880,
+                "peak_rss_mib": 176.875,
+                "end_rss_bytes": 185466880,
+                "peak_fds": 119,
+                "peak_threads": 13
+              },
+              "fixture": {
+                "cpu_seconds": 1.5299999999999998,
+                "average_cpu_cores": 0.10166496891948135,
+                "cpu_ms_per_1000_success": 98.42393052428432,
+                "peak_rss_bytes": 70709248,
+                "peak_rss_mib": 67.43359375,
+                "end_rss_bytes": 70709248,
+                "peak_fds": 36,
+                "peak_threads": 7
+              }
+            },
+            "go_rust_peak_rss_sum_bytes": 86900736,
+            "go_rust_peak_rss_sum_mib": 82.875,
+            "effective_client_workers": 2,
+            "client_event_loop_delay_max_ms": 15.810559,
+            "client_start_delay_max_ms": 0.730224609375,
+            "max_sampling_gap_ms": 208.00732421875,
+            "observation_counts": {
+              "process_samples": 75,
+              "health_samples": 15,
+              "timeout_phase_events": 0
+            },
+            "quality": {
+              "sampling_ok": true,
+              "health_ok": true,
+              "client_ok": true,
+              "duration_ok": true
+            },
+            "warnings": []
+          },
+          "observed_single_pair_changes": {
+            "rps": 2.698364095918418,
+            "p99": -0.6627450980392157,
+            "peak_rss_sum": -0.002022672750364607
+          }
+        },
+        {
+          "scenario": "auto_ip_hit",
+          "concurrency": 64,
+          "baseline": {
+            "scenario": "auto_ip_hit",
+            "role": "baseline",
+            "concurrency": 64,
+            "successful_requests": 1280,
+            "failures": 0,
+            "elapsed_ms": 15604.21240234375,
+            "warmup_elapsed_ms": 5802.480224609375,
+            "rps": 82.02913206998798,
+            "p50_ms": 781,
+            "p95_ms": 815,
+            "p99_ms": 825,
+            "processes": {
+              "go": {
+                "cpu_seconds": 0.8600000000000001,
+                "average_cpu_cores": 0.05511332310952319,
+                "cpu_ms_per_1000_success": 671.8750000000001,
+                "peak_rss_bytes": 46665728,
+                "peak_rss_mib": 44.50390625,
+                "end_rss_bytes": 46665728,
+                "peak_fds": 90,
+                "peak_threads": 10
+              },
+              "rust": {
+                "cpu_seconds": 26.15,
+                "average_cpu_cores": 1.6758295340860827,
+                "cpu_ms_per_1000_success": 20429.6875,
+                "peak_rss_bytes": 52539392,
+                "peak_rss_mib": 50.10546875,
+                "end_rss_bytes": 51515392,
+                "peak_fds": 27,
+                "peak_threads": 9
+              },
+              "client": {
+                "cpu_seconds": 1.0400000000000027,
+                "average_cpu_cores": 0.06664866980686542,
+                "cpu_ms_per_1000_success": 812.500000000002,
+                "peak_rss_bytes": 170790912,
+                "peak_rss_mib": 162.87890625,
+                "end_rss_bytes": 159719424,
+                "peak_fds": 118,
+                "peak_threads": 13
+              },
+              "fixture": {
+                "cpu_seconds": 0.2400000000000002,
+                "average_cpu_cores": 0.015380462263122762,
+                "cpu_ms_per_1000_success": 187.50000000000017,
+                "peak_rss_bytes": 70737920,
+                "peak_rss_mib": 67.4609375,
+                "end_rss_bytes": 70737920,
+                "peak_fds": 31,
+                "peak_threads": 7
+              }
+            },
+            "go_rust_peak_rss_sum_bytes": 99205120,
+            "go_rust_peak_rss_sum_mib": 94.609375,
+            "effective_client_workers": 2,
+            "client_event_loop_delay_max_ms": 15.761407,
+            "client_start_delay_max_ms": 0.68017578125,
+            "max_sampling_gap_ms": 210.33984375,
+            "observation_counts": {
+              "process_samples": 77,
+              "health_samples": 8,
+              "timeout_phase_events": 0
+            },
+            "quality": {
+              "sampling_ok": true,
+              "health_ok": true,
+              "client_ok": true,
+              "duration_ok": true
+            },
+            "warnings": []
+          },
+          "candidate": {
+            "scenario": "auto_ip_hit",
+            "role": "candidate",
+            "concurrency": 64,
+            "successful_requests": 2560,
+            "failures": 0,
+            "elapsed_ms": 15253.427734375,
+            "warmup_elapsed_ms": 5251.447509765625,
+            "rps": 167.83112914553658,
+            "p50_ms": 381,
+            "p95_ms": 402,
+            "p99_ms": 406,
+            "processes": {
+              "go": {
+                "cpu_seconds": 1.01,
+                "average_cpu_cores": 0.06621462517069998,
+                "cpu_ms_per_1000_success": 394.53125,
+                "peak_rss_bytes": 46755840,
+                "peak_rss_mib": 44.58984375,
+                "end_rss_bytes": 46755840,
+                "peak_fds": 97,
+                "peak_threads": 10
+              },
+              "rust": {
+                "cpu_seconds": 16.89,
+                "average_cpu_cores": 1.1072920981516066,
+                "cpu_ms_per_1000_success": 6597.65625,
+                "peak_rss_bytes": 40927232,
+                "peak_rss_mib": 39.03125,
+                "end_rss_bytes": 40034304,
+                "peak_fds": 28,
+                "peak_threads": 8
+              },
+              "client": {
+                "cpu_seconds": 1.25,
+                "average_cpu_cores": 0.08194879352809403,
+                "cpu_ms_per_1000_success": 488.28125,
+                "peak_rss_bytes": 171548672,
+                "peak_rss_mib": 163.6015625,
+                "end_rss_bytes": 162680832,
+                "peak_fds": 118,
+                "peak_threads": 13
+              },
+              "fixture": {
+                "cpu_seconds": 0.2400000000000002,
+                "average_cpu_cores": 0.01573416835739407,
+                "cpu_ms_per_1000_success": 93.75000000000009,
+                "peak_rss_bytes": 70799360,
+                "peak_rss_mib": 67.51953125,
+                "end_rss_bytes": 70799360,
+                "peak_fds": 38,
+                "peak_threads": 7
+              }
+            },
+            "go_rust_peak_rss_sum_bytes": 87683072,
+            "go_rust_peak_rss_sum_mib": 83.62109375,
+            "effective_client_workers": 2,
+            "client_event_loop_delay_max_ms": 16.687103,
+            "client_start_delay_max_ms": 0.549560546875,
+            "max_sampling_gap_ms": 210.235595703125,
+            "observation_counts": {
+              "process_samples": 76,
+              "health_samples": 16,
+              "timeout_phase_events": 0
+            },
+            "quality": {
+              "sampling_ok": true,
+              "health_ok": true,
+              "client_ok": true,
+              "duration_ok": true
+            },
+            "warnings": []
+          },
+          "observed_single_pair_changes": {
+            "rps": 1.0459942085251077,
+            "p99": -0.5078787878787878,
+            "peak_rss_sum": -0.11614368290668864
+          }
+        }
+      ]
+    }
+  ],
+  "errors": [
+    "c64：auto_ip_hit/baseline：warmup actual elapsed 不在协议范围"
+  ],
+  "warnings": [],
+  "limitations": [
+    "单对固定AB，没有CI/显著性/正式收益验收。",
+    "组间串行执行，不能排除时间噪声。",
+    "CPU限制提示是启发式，不是瓶颈归因证据。",
+    "只读汇总与旁侧文件，不反推raw采样的时间曲线。"
+  ]
+}

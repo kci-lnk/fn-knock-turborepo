@@ -216,10 +216,24 @@ collector只收集`results.json`、`manifest.json`、每trial的`result.json`及
 
 本工具是闭环负载，适合路由拆分、热点归因和A/B；不声称给出固定到达率下的SLO。最终方案还应补固定请求率/突发队列实验和授权撤销、策略变化、跨host拒绝等正确性测试。若客户端CPU或Worker延迟接近瓶颈，应增加独立client worker或分离客户端CPU，不能把客户端饱和归咎Rust。`linux`运行目标有意避开fnOS宿主操作，因此不能代替完整版后台任务/分配器的单独验证。
 
+预声明计划的离线验收使用完整 `results.json`，不要先手工筛选成功route：
+
+```sh
+node scripts/check-auth-performance-plan.mjs \
+  --plan docs/experiments/2026-09-23-auth-performance/EXPERIMENT_PLAN.json \
+  --results /absolute/path/to/main/results.json --phase main > acceptance-main.json
+```
+
+cache、renewal分别传对应结果目录及 `--phase cache`、`--phase renewal`。工具读取同目录 `manifest.json`（或结果显式指定的 `manifest_file`），核对两仓源码SHA、candidate编译参数、全部预期route、六对完整AB/BA顺序，以及manifest/实际trial的规模、并发、预热、测量、TTL、凭证和runtime设置；缺场景、旧source、重复pair/role、profile、recovery或single-role结果均拒绝。输出JSON并以非零状态表示失败，不改输入文件。检查的是已记录的身份和测量证据，不重新读取远端二进制。
+
+计划要求独立进程时，工具检查Go/Rust测量前后的PID与启动tick保持一致且不与其他trial重复，同时要求trial目录唯一；目录字段本身不能证明数据库内容全新。二进制SHA256和源码SHA的关联依赖manifest声明，不是从二进制内容反证源码。
+
+cache/renewal未列参数从 `primary_matrix` 继承。main目标route调用现有收益门槛，保护route及cache/renewal调用现有六对回归门槛，统计和阈值均不重写。renewal使用 `ordinary_grants`、独立token批次数及发起请求截止值，检查全部有限token成功消耗并输出真实elapsed，不能解释为持续60秒吞吐；截止前已发起的请求可以在截止后返回。非renewal场景不要求通用CLI的renewals值参与分组，实际seed的续期token池必须为0。
+
 工具单元验证（无需设备、不运行负载）：
 
 ```sh
-node --test scripts/tests/auth-performance.test.mjs scripts/tests/auth-performance-suite.test.mjs
+node --test scripts/tests/auth-performance.test.mjs scripts/tests/auth-performance-suite.test.mjs scripts/tests/auth-performance-plan.test.mjs
 node --check scripts/auth-performance.mjs
 ```
 

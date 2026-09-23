@@ -1,0 +1,14 @@
+{
+  "schema_version": 1,
+  "synthetic_contract_only": true,
+  "contract_positive_cases": 5,
+  "contract_negative_cases": 52,
+  "frozen_gate_boundary_cases": 11,
+  "bash_syntax": "passed",
+  "python_ast": "passed",
+  "pending_preflight": "rejected_before_lock_or_output",
+  "static_review": "passed; recovery object presence and cross-case failure outcome fixed",
+  "product_build_or_edit": false,
+  "remote_access": false,
+  "experiment_executed": false
+}

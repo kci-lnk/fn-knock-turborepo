@@ -1,0 +1,22 @@
+{
+  "role": "candidate",
+  "source_commit": "4d15fa32764e26df58b16930d0e2503a90880002",
+  "archive_sha256": "cb2ea2087bcfaa114dc33a2886a436524c0d85fa130274c671c368e195fcd671",
+  "toolchain": "go version go1.26.7 darwin/arm64",
+  "command_argv": [
+    "go",
+    "build",
+    "-buildvcs=false",
+    "-trimpath",
+    "-ldflags",
+    "-s -w -X go-reauth-proxy/pkg/version.Version=2.4.15 -X go-reauth-proxy/pkg/version.Commit=4d15fa32764e26df58b16930d0e2503a90880002",
+    "-o",
+    "/tmp/fn-knock-auth-go-matched5-20260923/candidate/go-reauth-proxy",
+    "./cmd/server"
+  ],
+  "source_dir": "/tmp/fn-knock-auth-go-matched5-20260923/candidate/source",
+  "binary": "/tmp/fn-knock-auth-go-matched5-20260923/candidate/go-reauth-proxy",
+  "sha256": "603188b385a10abb7bf1d6a6f8798c2234e0beafcc692e5abda0e7112a48eab6",
+  "size_bytes": 27668642,
+  "elapsed_seconds": 0.6244270829999998
+}

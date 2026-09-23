@@ -1,0 +1,77 @@
+{
+  "admin_static": "/tmp/fn-knock-auth-performance-20260923/assets/admin",
+  "auth_static": "/tmp/fn-knock-auth-performance-20260923/assets/auth",
+  "control_binary": "/tmp/fn-knock-auth-performance-20260923/authperf-control",
+  "baseline": {
+    "name": "candidate5",
+    "go": "/tmp/fn-knock-auth-performance-20260923/candidate5/go-reauth-proxy",
+    "rust": "/tmp/fn-knock-auth-performance-20260923/candidate5/server-admin-rs",
+    "env": {
+      "FN_KNOCK_TOKIO_WORKER_THREADS": "2",
+      "FN_KNOCK_SQLITE_AUTH_READERS": "1"
+    },
+    "metadata": {
+      "rust_toolchain": "rustc 1.96.0 (ac68faa20 2026-05-25)\nbinary: rustc\ncommit-hash: ac68faa20c58cbccd01ee7208bf3b6e93a7d7f96\ncommit-date: 2026-05-25\nhost: aarch64-apple-darwin\nrelease: 1.96.0\nLLVM version: 22.1.2",
+      "cargo_zigbuild": "cargo-zigbuild 0.23.0",
+      "zig": "0.16.0",
+      "go_toolchain": "go version go1.26.7 darwin/arm64",
+      "rust_profile": "release",
+      "opt_level": "z",
+      "lto": "fat",
+      "codegen_units": 1,
+      "target": "x86_64-unknown-linux-gnu",
+      "main_commit": "5fddf896eaf9b1cf3eb300c08315320498c943b8",
+      "go_commit": "4d15fa32764e26df58b16930d0e2503a90880002",
+      "rust_opt_level": "z",
+      "bridge_capacity": "variable absent; Go default1024, Rust runtime linux default64 on4CPUs, verified with startup log",
+      "go_buildvcs": false,
+      "go_ldflags": "-s -w -X go-reauth-proxy/pkg/version.Version=2.4.15 -X go-reauth-proxy/pkg/version.Commit=4d15fa32764e26df58b16930d0e2503a90880002",
+      "embedded_gateway_commit": "4d15fa32764e26df58b16930d0e2503a90880002",
+      "go_build_manifest_sha256": "c32fc13f5881c3181d42fe4c97fc110f7af95e8d0175a0cc8509143fe9d524f4",
+      "rust_build_manifest_sha256": "333010d00a5b1688d071787ec74275c4585b4b44358065f0f947868a87bc030b",
+      "go_archive_sha256": "cb2ea2087bcfaa114dc33a2886a436524c0d85fa130274c671c368e195fcd671",
+      "cargo_lock_sha256": "f1267cf91fafb62deacea2d7eb25ed06b158e3918a6a32d048a3d9e1686e5a21",
+      "go_build_environment_recorded": null,
+      "artifact_format_verified": "ELF64 little-endian x86-64"
+    }
+  },
+  "candidates": [
+    {
+      "name": "candidate6",
+      "go": "/tmp/fn-knock-auth-performance-20260923/candidate6/go-reauth-proxy",
+      "rust": "/tmp/fn-knock-auth-performance-20260923/candidate6/server-admin-rs",
+      "env": {
+        "FN_KNOCK_TOKIO_WORKER_THREADS": "2",
+        "FN_KNOCK_SQLITE_AUTH_READERS": "1"
+      },
+      "metadata": {
+        "rust_toolchain": "rustc 1.96.0 (ac68faa20 2026-05-25)\nbinary: rustc\ncommit-hash: ac68faa20c58cbccd01ee7208bf3b6e93a7d7f96\ncommit-date: 2026-05-25\nhost: aarch64-apple-darwin\nrelease: 1.96.0\nLLVM version: 22.1.2",
+        "cargo_zigbuild": "cargo-zigbuild 0.23.0",
+        "zig": "0.16.0",
+        "go_toolchain": "go version go1.26.7 darwin/arm64",
+        "rust_profile": "release",
+        "opt_level": "z",
+        "lto": "fat",
+        "codegen_units": 1,
+        "target": "x86_64-unknown-linux-gnu",
+        "main_commit": "5fddf896eaf9b1cf3eb300c08315320498c943b8",
+        "go_commit": "66998225a2d0d78e40390c179681b6a48b5e5635",
+        "rust_opt_level": "z",
+        "bridge_capacity": "variable absent; Go default1024, Rust runtime linux default64 on4CPUs, verified with startup log",
+        "go_buildvcs": false,
+        "go_ldflags": "-s -w -X go-reauth-proxy/pkg/version.Version=2.4.15 -X go-reauth-proxy/pkg/version.Commit=66998225a2d0d78e40390c179681b6a48b5e5635",
+        "embedded_gateway_commit": "66998225a2d0d78e40390c179681b6a48b5e5635",
+        "go_build_manifest_sha256": "657c556cf19cf94b4551afd3e0f1794dc29e09781ff3e3b4cff6d63b4789f0b6",
+        "rust_build_manifest_sha256": "85d9ca6b50e055315b8b88a99906a68f0485e9a8d3ad0e14784b0bdf9b32c3dc",
+        "go_archive_sha256": "5e4c6ebe565bb88e7d936a920f64d44dd1fb171744cd4fcfe7d45117d87b5a4d",
+        "cargo_lock_sha256": "f1267cf91fafb62deacea2d7eb25ed06b158e3918a6a32d048a3d9e1686e5a21",
+        "go_build_environment_recorded": {
+          "CGO_ENABLED": "0",
+          "GOOS": "linux",
+          "GOARCH": "amd64"
+        },
+        "artifact_format_verified": "ELF64 little-endian x86-64"
+      }
+    }
+  ]
+}

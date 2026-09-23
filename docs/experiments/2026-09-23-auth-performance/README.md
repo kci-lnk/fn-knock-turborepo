@@ -16,6 +16,19 @@ CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build \
   /ABS/fn-knock-turborepo/scripts/auth-performance-control.go
 ```
 
+编译参数矩阵由本机 Python 3 标准库脚本串行构建，需预先提供 Rust、Cargo、Zig 和 `cargo-zigbuild`：
+
+```sh
+python3 scripts/build-auth-performance-variants.py \
+  --source /ABS/frozen-clean-worktree \
+  --expected-source-commit FULL_40_CHARACTER_RUST_COMMIT \
+  --gateway-commit FULL_40_CHARACTER_GO_COMMIT \
+  --target /ABS/exclusive-cargo-cache \
+  --artifacts /tmp/auth-compiler-UNIQUE --jobs 2
+```
+
+默认依次构建 `z s 2 3`，保持同一源码路径、工具链、`Cargo.lock`、`LTO=fat` 和 `codegen-units=1`；可用 `--levels z` 或 `--levels s 2 3` 分批运行。缓存目录不存在时自动创建，运行期间须独占，不与其他 Cargo 构建共用。每级开始前检查源码清洁、工具链和缓存/制品磁盘至少 5 GiB 可用空间；完成后立即复制二进制，记录完整命令、日志、耗时、大小和 SHA256。制品目录可已有 `go/` 等无关内容，但拒绝覆盖 manifest 或同名 compiler 目录。创建 `制品目录/STOP_AFTER_CURRENT` 可在当前级完成后停止；尚未开始时会直接暂停。脚本不续跑已有 manifest，后续级请使用新的制品目录及相同 source/target/commit 参数。
+
 `variants.json` 示例：
 
 ```json

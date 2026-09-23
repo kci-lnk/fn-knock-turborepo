@@ -1,0 +1,14 @@
+{
+  "archive": "final-v5-evidence.tar.gz",
+  "sha256": "8c4f7714173a67534914a675172b2d58b5d5546b23720fe6f81d6b51a2a42788",
+  "bytes": 3743361,
+  "archive_files": 387,
+  "collected_source_files": 361,
+  "trials": 261,
+  "jobs": 22,
+  "complete_and_consistent": true,
+  "archive_content_hashes_verified": true,
+  "source_files_changed_during_collection": [],
+  "coverage": "44 preliminary +108 main +24 cache/renewal +44 size/parameters +14 profile +1 soak +2 recovery +24 concurrency",
+  "collection_index_sha256": "e8df3491622ce6f992ce59dfe6c0dcadd33ca518ff091d7823ec352ae5082aee"
+}

@@ -61,7 +61,13 @@ pub(super) fn ip_location_lock_key(ip: &str) -> String {
 
 impl Store {
     pub async fn scanner_settings_raw(&self) -> crate::storage::StorageResult<Option<Value>> {
-        self.get_json_value(SCANNER_SETTINGS_KEY).await
+        Ok(self
+            .manager
+            .get_auth_live_strings(vec![SCANNER_SETTINGS_KEY.into()])
+            .await?
+            .pop()
+            .flatten()
+            .and_then(|raw| serde_json::from_str(&raw).ok()))
     }
 
     pub async fn save_scanner_settings(&self, value: &Value) -> crate::storage::StorageResult<()> {
@@ -156,9 +162,9 @@ impl Store {
     }
 
     pub async fn scanner_blacklist_exists(&self, ip: &str) -> crate::storage::StorageResult<bool> {
-        let mut conn = self.conn();
-        let exists: i64 = conn.exists(scanner_blacklist_data_key(ip)).await?;
-        Ok(exists == 1)
+        self.manager
+            .auth_live_key_exists(scanner_blacklist_data_key(ip))
+            .await
     }
 
     pub async fn record_scanner_suspicious_hit(
@@ -560,8 +566,12 @@ impl Store {
         ip: &str,
         now: i64,
     ) -> crate::storage::StorageResult<bool> {
-        let mut conn = self.conn();
-        let score: Option<i64> = conn.zscore(RECENT_AUTH_IPS_ZSET_KEY, ip).await.ok();
+        let score = self
+            .manager
+            .get_auth_live_zscore(RECENT_AUTH_IPS_ZSET_KEY.into(), ip.into())
+            .await?;
+        // A queued reader must not extend the scanner exemption past expiry.
+        let now = now.max(crate::time_utils::now_ms() / 1000);
         Ok(score.is_some_and(|expires_at| expires_at > now))
     }
 

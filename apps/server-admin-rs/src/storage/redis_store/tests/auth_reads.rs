@@ -1,3 +1,6 @@
+use super::super::discovery::{
+    RECENT_AUTH_IPS_ZSET_KEY, SCANNER_SETTINGS_KEY, scanner_blacklist_data_key,
+};
 use super::*;
 use std::time::Duration;
 
@@ -352,4 +355,158 @@ async fn batched_ip_candidates_match_legacy_reads_at_multiple_session_counts() {
             );
         }
     }
+}
+
+#[tokio::test]
+async fn scanner_authorization_reads_do_not_wait_for_a_writer_and_observe_changes() {
+    let (directory, store) = open_test_store().await;
+    let ip = "203.0.113.56";
+    let now = crate::time_utils::now_ms() / 1000;
+    store
+        .save_scanner_settings(&json!({"enabled": true}))
+        .await
+        .unwrap();
+    // EXISTS must still deny malformed blacklist records, irrespective of type.
+    store
+        .conn()
+        .hset(scanner_blacklist_data_key(ip), "bad", "record")
+        .await
+        .unwrap();
+    store
+        .conn()
+        .zadd(RECENT_AUTH_IPS_ZSET_KEY, ip, now + 3600)
+        .await
+        .unwrap();
+    let fixture = open_fixture_connection(directory.path().join("fn-knock.sqlite3"));
+    fixture.execute_batch("BEGIN IMMEDIATE").unwrap();
+    let result = tokio::time::timeout(Duration::from_millis(500), async {
+        assert_eq!(
+            store.scanner_settings_raw().await.unwrap(),
+            Some(json!({"enabled": true}))
+        );
+        assert!(store.scanner_blacklist_exists(ip).await.unwrap());
+        assert!(store.is_recent_auth_ip_active(ip, now).await.unwrap());
+        assert!(
+            !store
+                .scanner_blacklist_exists("203.0.113.57")
+                .await
+                .unwrap()
+        );
+    })
+    .await;
+    fixture.execute_batch("ROLLBACK").unwrap();
+    result.expect("scanner authorization must not acquire the SQLite writer lock");
+    store
+        .delete_key(&scanner_blacklist_data_key(ip))
+        .await
+        .unwrap();
+    store
+        .conn()
+        .zrem(RECENT_AUTH_IPS_ZSET_KEY, ip)
+        .await
+        .unwrap();
+    store
+        .save_scanner_settings(&json!({"enabled": false}))
+        .await
+        .unwrap();
+    assert!(!store.scanner_blacklist_exists(ip).await.unwrap());
+    assert!(!store.is_recent_auth_ip_active(ip, now).await.unwrap());
+    assert_eq!(
+        store.scanner_settings_raw().await.unwrap(),
+        Some(json!({"enabled": false}))
+    );
+}
+
+#[tokio::test]
+async fn scanner_authorization_expiry_is_checked_after_reader_admission() {
+    let (directory, store) = open_test_store().await;
+    let ip = "203.0.113.56";
+    let now = crate::time_utils::now_ms() / 1000;
+    store
+        .save_scanner_settings(&json!({"enabled": true}))
+        .await
+        .unwrap();
+    store
+        .set_string_value(&scanner_blacklist_data_key(ip), "malformed")
+        .await
+        .unwrap();
+    store
+        .conn()
+        .zadd(RECENT_AUTH_IPS_ZSET_KEY, ip, now + 3600)
+        .await
+        .unwrap();
+    let manager = store.manager.clone();
+    let (started_tx, started_rx) = tokio::sync::oneshot::channel();
+    let (release_tx, release_rx) = std::sync::mpsc::channel();
+    let blocker = tokio::spawn(async move {
+        manager
+            .call_auth_read(move |_| {
+                let _ = started_tx.send(());
+                release_rx
+                    .recv_timeout(Duration::from_secs(5))
+                    .map_err(|error| crate::storage::storage_error(error.to_string()))?;
+                Ok(())
+            })
+            .await
+            .unwrap();
+    });
+    started_rx.await.unwrap();
+    let reader_store = store.clone();
+    let mut reader = tokio::spawn(async move {
+        tokio::join!(
+            reader_store.scanner_settings_raw(),
+            reader_store.scanner_blacklist_exists(ip),
+            reader_store.is_recent_auth_ip_active(ip, now),
+        )
+    });
+    assert!(
+        tokio::time::timeout(Duration::from_millis(20), &mut reader)
+            .await
+            .is_err()
+    );
+    let fixture = open_fixture_connection(directory.path().join("fn-knock.sqlite3"));
+    fixture
+        .execute(
+            "UPDATE kv_keys SET expires_at_ms = ?1 WHERE key IN (?2, ?3, ?4)",
+            tokio_rusqlite::rusqlite::params![
+                crate::time_utils::now_ms() - 1,
+                SCANNER_SETTINGS_KEY,
+                scanner_blacklist_data_key(ip),
+                RECENT_AUTH_IPS_ZSET_KEY
+            ],
+        )
+        .unwrap();
+    release_tx.send(()).unwrap();
+    blocker.await.unwrap();
+    let (settings, blacklisted, recent) = reader.await.unwrap();
+    assert!(settings.unwrap().is_none());
+    assert!(!blacklisted.unwrap());
+    assert!(!recent.unwrap());
+    let count: i64 = fixture
+        .query_row(
+            "SELECT COUNT(*) FROM kv_keys WHERE key IN (?1, ?2, ?3)",
+            [
+                SCANNER_SETTINGS_KEY,
+                &scanner_blacklist_data_key(ip),
+                RECENT_AUTH_IPS_ZSET_KEY,
+            ],
+            |row| row.get(0),
+        )
+        .unwrap();
+    assert_eq!(
+        count, 3,
+        "authorization reads must not clean up expired keys"
+    );
+    // Member scores are also expiries, independently of the key's TTL.
+    store
+        .conn()
+        .zadd(RECENT_AUTH_IPS_ZSET_KEY, ip, now - 1)
+        .await
+        .unwrap();
+    assert!(
+        !store
+            .is_recent_auth_ip_active(ip, now - 3600)
+            .await
+            .unwrap()
+    );
 }

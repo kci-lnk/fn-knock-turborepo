@@ -8,6 +8,7 @@ async fn temp_manager() -> ConnectionManager {
     manager
 }
 
+mod auth_reads;
 mod collections;
 mod migrations;
 mod operations;

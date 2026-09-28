@@ -71,7 +71,7 @@ async fn sync_browser_session_ip_current(
     client_ip: &str,
     source: &str,
 ) -> anyhow::Result<Option<LoginSession>> {
-    let config = state.storage.store.get_config().await?;
+    let config = state.storage.store.config_snapshot();
     let settings = AuthCredentialSettings::from_config(&config);
     let normalized_client_ip = normalized_or_trimmed_ip(client_ip);
     if normalized_client_ip.is_empty() {
@@ -297,7 +297,7 @@ pub(super) async fn refresh_proxy_session_binding(
         return Ok(());
     }
 
-    let config = state.storage.store.get_config().await?;
+    let config = state.storage.store.config_snapshot();
     let settings = AuthCredentialSettings::from_config(&config);
     if settings.session_ip_mobility_enabled {
         sync_browser_session_ip_current(

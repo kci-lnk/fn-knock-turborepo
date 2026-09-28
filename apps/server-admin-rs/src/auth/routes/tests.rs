@@ -2259,3 +2259,74 @@ fn assert_clear_cookie_scopes(cookies: &[String]) {
             .any(|cookie| cookie.contains("Domain=auth.example.com"))
     );
 }
+
+#[tokio::test]
+async fn scanner_preflight_preserves_denial_while_sqlite_writer_is_locked() {
+    let (directory, state) = auth_route_test_state("scanner-write-lock").await;
+    let ip = "203.0.113.56";
+    for (enabled, blacklisted, recently_authenticated, path, expected_deny) in [
+        (false, false, false, "/unusual-path", false),
+        (true, false, false, "/assets/app.js", false),
+        (true, false, true, "/unusual-path", false),
+        (true, true, true, "/unusual-path", true),
+        (true, true, true, "/assets/app.js", true),
+    ] {
+        if recently_authenticated {
+            state
+                .storage
+                .store
+                .record_recent_auth_ip(ip, time_utils::now_ms() / 1000)
+                .await
+                .unwrap();
+        }
+        state
+            .storage
+            .store
+            .save_scanner_settings(&json!({"enabled": enabled}))
+            .await
+            .unwrap();
+        if blacklisted {
+            state
+                .storage
+                .store
+                .add_scanner_blacklist_record(ip, &json!({"ip": ip}), time_utils::now_ms(), 3600)
+                .await
+                .unwrap();
+        }
+        let fixture =
+            tokio_rusqlite::rusqlite::Connection::open(directory.path().join("fn-knock.sqlite3"))
+                .unwrap();
+        fixture.execute_batch("BEGIN IMMEDIATE").unwrap();
+        let mut headers = forwarded_headers("app.example.com");
+        headers.insert("x-forwarded-path", HeaderValue::from_static(path));
+        let mut response = Response::new(Body::empty());
+        let result = tokio::time::timeout(
+            std::time::Duration::from_millis(500),
+            apply_preflight_behavior_with_normal_access(
+                &state,
+                &headers,
+                &Uri::from_static("/"),
+                &mut response,
+                &json!({"run_type": 1}),
+                ip,
+                RequestedAccessMode::LoginFirst,
+                &PreflightNormalAccess::default(),
+                None,
+                None,
+                None,
+            ),
+        )
+        .await;
+        fixture.execute_batch("ROLLBACK").unwrap();
+        result
+            .expect("read-only preflight must not wait for the SQLite writer")
+            .unwrap();
+        assert_eq!(
+            response
+                .headers()
+                .get("X-Option")
+                .is_some_and(|value| value == "Deny"),
+            expected_deny
+        );
+    }
+}

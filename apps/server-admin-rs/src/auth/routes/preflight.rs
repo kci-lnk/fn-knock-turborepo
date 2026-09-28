@@ -226,14 +226,15 @@ pub(super) async fn apply_preflight_behavior_with_grant_inspection(
             response
                 .headers_mut()
                 .insert("X-Option", HeaderValue::from_static("Deny"));
-        } else if !state
-            .storage
-            .store
-            .is_recent_auth_ip_active(client_ip, time_utils::now_ms() / 1000)
-            .await?
+        } else if !scanner_policy.ip_exempt
             && !share_decision_handled
             && !forwarded_path.is_empty()
             && !scanner::is_common_path_for_preflight(&forwarded_path, config, &scanner_policy)
+            && !state
+                .storage
+                .store
+                .is_recent_auth_ip_active(client_ip, time_utils::now_ms() / 1000)
+                .await?
         {
             let _ = scanner::record_uncommon_path_for_preflight(
                 state,

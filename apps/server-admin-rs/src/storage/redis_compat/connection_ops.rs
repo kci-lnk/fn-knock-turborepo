@@ -85,6 +85,7 @@ impl ConnectionManager {
         Ok(T::from_delete_count(deleted))
     }
 
+    #[cfg(test)]
     pub(crate) async fn exists<K: IntoKey>(&mut self, key: K) -> RedisResult<i64> {
         let key = key.into_key();
         self.call(move |conn| {
@@ -363,28 +364,6 @@ impl ConnectionManager {
         self.call(move |conn| {
             purge_expired(conn, &key)?;
             count_rows(conn, "SELECT COUNT(*) FROM kv_zset WHERE key = ?1", &[&key])
-        })
-        .await
-    }
-
-    pub(crate) async fn zscore<K: IntoKey, M: Display>(
-        &mut self,
-        key: K,
-        member: M,
-    ) -> RedisResult<i64> {
-        let key = key.into_key();
-        let member = member.to_string();
-        self.call(move |conn| {
-            purge_expired(conn, &key)?;
-            let score = conn
-                .query_row(
-                    "SELECT score FROM kv_zset WHERE key = ?1 AND member = ?2",
-                    params![key, member],
-                    |row| row.get::<_, f64>(0),
-                )
-                .optional()?
-                .ok_or_else(|| storage_error("zscore member not found"))?;
-            Ok(score.trunc() as i64)
         })
         .await
     }

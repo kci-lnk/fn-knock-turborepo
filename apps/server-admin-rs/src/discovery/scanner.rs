@@ -280,7 +280,7 @@ pub(crate) struct ScannerPreflightPolicy {
     settings: ScannerSettings,
     path_whitelist: HashSet<String>,
     client_ip: String,
-    ip_exempt: bool,
+    pub(crate) ip_exempt: bool,
 }
 
 #[derive(Clone, Copy)]

@@ -50,4 +50,37 @@ impl ConnectionManager {
         })
         .await
     }
+
+    pub(crate) async fn auth_live_key_exists(&self, key: String) -> RedisResult<bool> {
+        self.call_auth_read(move |conn| {
+            conn.query_row(
+                "SELECT EXISTS(SELECT 1 FROM kv_keys WHERE key = ?1
+                   AND (expires_at_ms IS NULL OR expires_at_ms > ?2))",
+                params![key, crate::time_utils::now_ms()],
+                |row| row.get(0),
+            )
+            .map_err(Into::into)
+        })
+        .await
+    }
+
+    pub(crate) async fn get_auth_live_zscore(
+        &self,
+        key: String,
+        member: String,
+    ) -> RedisResult<Option<i64>> {
+        self.call_auth_read(move |conn| {
+            conn.query_row(
+                "SELECT members.score FROM kv_zset AS members
+                 JOIN kv_keys AS keys ON keys.key = members.key
+                 WHERE members.key = ?1 AND members.member = ?2 AND keys.kind = 'zset'
+                   AND (keys.expires_at_ms IS NULL OR keys.expires_at_ms > ?3)",
+                params![key, member, crate::time_utils::now_ms()],
+                |row| row.get::<_, f64>(0).map(|score| score.trunc() as i64),
+            )
+            .optional()
+            .map_err(Into::into)
+        })
+        .await
+    }
 }

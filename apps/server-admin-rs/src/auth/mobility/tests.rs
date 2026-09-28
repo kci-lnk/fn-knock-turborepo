@@ -1,3 +1,4 @@
+use super::trusted_sync::refresh_proxy_session_binding;
 use super::*;
 
 #[test]
@@ -2028,4 +2029,61 @@ async fn sqlite_data_version(connection: &tokio_rusqlite::Connection) -> i64 {
         })
         .await
         .expect("sqlite data_version")
+}
+
+#[tokio::test]
+async fn unbound_session_refresh_with_mobility_disabled_does_not_need_writer() {
+    let (directory, state) = mobility_test_state("unbound-session-write-lock").await;
+    let mut config = (*state.storage.store.config_snapshot()).clone();
+    config["auth_credential_settings"]["session_ip_mobility_enabled"] = json!(false);
+    state.storage.store.save_config(&config).await.unwrap();
+    let session_id = "unbound-write-lock";
+    let session = test_browser_session("203.0.113.56");
+    state
+        .storage
+        .store
+        .add_session(session_id, &session, 3600)
+        .await
+        .unwrap();
+    let fixture =
+        tokio_rusqlite::rusqlite::Connection::open(directory.path().join("fn-knock.sqlite3"))
+            .unwrap();
+    fixture.execute_batch("BEGIN IMMEDIATE").unwrap();
+    let result = tokio::time::timeout(
+        std::time::Duration::from_millis(500),
+        refresh_proxy_session_binding(&state, session_id, "203.0.113.57"),
+    )
+    .await;
+    fixture.execute_batch("ROLLBACK").unwrap();
+    result
+        .expect("disabled mobility must not need the SQLite writer")
+        .unwrap();
+    assert_eq!(
+        state
+            .storage
+            .store
+            .get_session(session_id)
+            .await
+            .unwrap()
+            .unwrap()
+            .ip,
+        "203.0.113.56"
+    );
+    // A later configuration save must take effect without restarting the server.
+    config["auth_credential_settings"]["session_ip_mobility_enabled"] = json!(true);
+    state.storage.store.save_config(&config).await.unwrap();
+    refresh_proxy_session_binding(&state, session_id, "203.0.113.57")
+        .await
+        .unwrap();
+    assert_eq!(
+        state
+            .storage
+            .store
+            .get_session(session_id)
+            .await
+            .unwrap()
+            .unwrap()
+            .ip,
+        "203.0.113.57"
+    );
 }

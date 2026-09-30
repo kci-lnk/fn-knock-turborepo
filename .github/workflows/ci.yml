@@ -469,7 +469,7 @@ jobs:
           {
             echo '### Runtime performance sample'
             echo '```json'
-            cat "${RUNNER_TEMP}/runtime-performance.json"
+            jq '{schema_version, management_rss_sampling, idle_sample_count, load_sample_count, summary}' "${RUNNER_TEMP}/runtime-performance.json"
             echo '```'
           } >> "${GITHUB_STEP_SUMMARY}"
 

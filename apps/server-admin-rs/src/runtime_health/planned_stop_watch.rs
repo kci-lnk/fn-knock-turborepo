@@ -41,7 +41,7 @@ impl RequestWatch {
         let mut buffer = [0u8; 8192];
         loop {
             let mut ready = self.0.readable().await?;
-            match ready.try_io(|fd| (&*fd.get_ref()).read(&mut buffer)) {
+            match ready.try_io(|fd| fd.get_ref().read(&mut buffer)) {
                 Ok(Ok(0)) => return Err(io::Error::from(io::ErrorKind::UnexpectedEof)),
                 Ok(Ok(count)) => {
                     if request_changed(&buffer[..count])? {

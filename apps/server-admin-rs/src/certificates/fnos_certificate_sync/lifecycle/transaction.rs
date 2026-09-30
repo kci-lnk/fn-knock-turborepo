@@ -1,5 +1,15 @@
 use super::*;
 
+/// Only the first read-only guard can prove that no external mutation was attempted.
+#[derive(Debug)]
+pub(super) struct BeforeMutation;
+impl std::fmt::Display for BeforeMutation {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter.write_str("fnOS certificate preflight failed before any changes")
+    }
+}
+impl std::error::Error for BeforeMutation {}
+
 /// Shared ordering for live mutations and deterministic failure-injection tests.
 pub(super) trait Backend {
     fn guard(&mut self, journal: &Journal, reverse: bool) -> anyhow::Result<()>;
@@ -13,9 +23,17 @@ pub(super) trait Backend {
 pub(super) struct Native<'a> {
     pub data_dir: &'a Path,
     pub selected: &'a [&'a Action],
+    // Recovery must remain possible even if the gateway settings are damaged.
+    pub https_port: Option<u16>,
 }
 impl Backend for Native<'_> {
     fn guard(&mut self, journal: &Journal, reverse: bool) -> anyhow::Result<()> {
+        if !reverse {
+            tls_probe::verify_configured_port(
+                self.https_port
+                    .ok_or_else(|| anyhow!("Missing planned fnOS HTTPS port"))?,
+            )?;
+        }
         let current = snapshot(self.data_dir)?;
         // Old journals must not be restored into a different supported layout.
         current.schema.verify_changes(&journal.rows)?;
@@ -38,11 +56,19 @@ impl Backend for Native<'_> {
         restart_and_verify_services()
     }
     fn verify(&mut self, journal: &Journal) -> anyhow::Result<()> {
-        verify_applied(journal, self.selected, self.data_dir)
+        verify_applied(
+            journal,
+            self.selected,
+            self.data_dir,
+            self.https_port
+                .ok_or_else(|| anyhow!("Missing planned fnOS HTTPS port"))?,
+        )
     }
 }
 pub(super) fn apply(journal: &Journal, backend: &mut impl Backend) -> anyhow::Result<()> {
-    backend.guard(journal, false)?;
+    backend
+        .guard(journal, false)
+        .map_err(|error| error.context(BeforeMutation))?;
     for file in journal
         .files
         .iter()
@@ -99,6 +125,7 @@ mod tests {
         bind_after_refresh: bool,
         bound: bool,
         refreshes: usize,
+        guards: usize,
     }
     impl Fake {
         fn checkpoint(&mut self, name: &str) -> anyhow::Result<()> {
@@ -111,6 +138,10 @@ mod tests {
     }
     impl Backend for Fake {
         fn guard(&mut self, journal: &Journal, reverse: bool) -> anyhow::Result<()> {
+            self.guards += 1;
+            if self.guards == 2 {
+                self.checkpoint("second_guard")?;
+            }
             self.checkpoint("guard")?;
             if self.bound
                 && journal.rows.iter().any(|row| {
@@ -219,6 +250,7 @@ mod tests {
             fail: None,
             bind_after_refresh: false,
             refreshes: 0,
+            guards: 0,
             bound: false,
         };
         (
@@ -259,14 +291,46 @@ mod tests {
     }
 
     #[test]
+    fn first_guard_failure_is_identified_without_touching_files_rows_or_services() {
+        let (journal, mut backend) = fixture("update");
+        let before = backend.files.clone();
+        let row = backend.row.clone();
+        backend.fail = Some("guard");
+        let error = apply(&journal, &mut backend).unwrap_err();
+        assert!(error.is::<BeforeMutation>());
+        assert!(format!("{error:#}").contains("Injected guard failure"));
+        assert_eq!(backend.files, before);
+        assert_eq!(backend.row, row);
+        assert_eq!(backend.refreshes, 0);
+    }
+
+    #[test]
     fn every_failure_stage_restores_create_update_and_delete() {
         for kind in ["create", "update", "delete"] {
-            for phase in ["guard", "file", "database", "index", "refresh", "verify"] {
+            for phase in [
+                "guard",
+                "second_guard",
+                "file",
+                "database",
+                "index",
+                "refresh",
+                "verify",
+            ] {
                 let (journal, mut backend) = fixture(kind);
                 let before = backend.files.clone();
                 let row = backend.row.clone();
                 backend.fail = Some(phase);
-                assert!(apply(&journal, &mut backend).is_err(), "{kind}/{phase}");
+                let error = apply(&journal, &mut backend).unwrap_err();
+                assert_eq!(
+                    error.is::<BeforeMutation>(),
+                    phase == "guard",
+                    "{kind}/{phase}"
+                );
+                // Failed TLS/database/file verification must never publish new ownership.
+                assert_eq!(
+                    backend.files["registry"], before["registry"],
+                    "{kind}/{phase}"
+                );
                 restore(&journal, &mut backend).unwrap();
                 restore(&journal, &mut backend).unwrap();
                 assert_eq!(backend.files, before, "{kind}/{phase}");
@@ -274,6 +338,32 @@ mod tests {
             }
         }
     }
+    #[test]
+    fn verification_failure_rolls_back_and_latches_automation_without_restarting_on_ticks() {
+        let dir = tempfile::tempdir().unwrap();
+        let (journal, mut backend) = fixture("update");
+        let before = backend.files.clone();
+        let row_before = backend.row.clone();
+        backend.fail = Some("verify");
+        let error = automatic::run(dir.path(), true, || {
+            automatic::mark_attempt(dir.path())?;
+            let error = apply(&journal, &mut backend).unwrap_err();
+            assert_eq!(backend.files["registry"], before["registry"]);
+            restore(&journal, &mut backend)?;
+            Err::<(), _>(error)
+        })
+        .unwrap_err();
+        assert!(error.to_string().contains("verify"));
+        assert_eq!(backend.files, before);
+        assert_eq!(backend.row, row_before);
+        assert_eq!(backend.refreshes, 2); // One application and one rollback.
+        assert!(automatic::automatic_paused(dir.path()).unwrap());
+        for _ in 0..3 {
+            assert!(automatic::run(dir.path(), true, || apply(&journal, &mut backend)).is_err());
+        }
+        assert_eq!(backend.refreshes, 2);
+    }
+
     #[test]
     fn a_reference_added_by_refresh_stops_unlinking_and_is_preserved_on_rollback() {
         let (journal, mut backend) = fixture("delete");

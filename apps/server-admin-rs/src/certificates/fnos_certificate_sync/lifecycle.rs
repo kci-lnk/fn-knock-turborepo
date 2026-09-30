@@ -4,6 +4,7 @@ mod automatic;
 #[cfg(test)]
 mod postgres_tests;
 mod schema;
+mod tls_probe;
 mod transaction;
 pub(super) use automatic::automatic_paused;
 use std::collections::{BTreeMap, BTreeSet};
@@ -52,6 +53,7 @@ pub(super) struct Plan {
     snapshot: Snapshot,
     actions: Vec<Action>,
     pub version: String,
+    https_port: u16,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -348,10 +350,19 @@ pub(super) fn plan(data_dir: &Path, config: &Value) -> anyhow::Result<Plan> {
     if pending_recovery(data_dir)? {
         bail!("Unfinished certificate synchronization requires recovery before planning")
     }
+    let https_port = tls_probe::configured_port()?;
     let snapshot = snapshot(data_dir)?;
-    plan_snapshot(snapshot, config)
+    plan_snapshot_with_port(snapshot, config, https_port)
 }
+#[cfg(test)]
 fn plan_snapshot(snapshot: Snapshot, config: &Value) -> anyhow::Result<Plan> {
+    plan_snapshot_with_port(snapshot, config, 443)
+}
+fn plan_snapshot_with_port(
+    snapshot: Snapshot,
+    config: &Value,
+    https_port: u16,
+) -> anyhow::Result<Plan> {
     // Missing or malformed source collections must never be interpreted as an empty library.
     let source = config
         .pointer("/ssl/certificates")
@@ -374,6 +385,7 @@ fn plan_snapshot(snapshot: Snapshot, config: &Value) -> anyhow::Result<Plan> {
         &snapshot.gateway,
         &snapshot.files,
         &snapshot.registry,
+        https_port,
         source,
     ))?;
     let rows = snapshot
@@ -579,6 +591,7 @@ fn plan_snapshot(snapshot: Snapshot, config: &Value) -> anyhow::Result<Plan> {
         snapshot,
         actions,
         version,
+        https_port,
     })
 }
 fn source_action(
@@ -870,6 +883,7 @@ fn rollback(journal: &Journal, data_dir: &Path) -> anyhow::Result<()> {
         &mut transaction::Native {
             data_dir,
             selected: &[],
+            https_port: None,
         },
     )
 }
@@ -1322,10 +1336,19 @@ fn execute_mode(
             &mut transaction::Native {
                 data_dir,
                 selected: &selected,
+                https_port: Some(plan.https_port),
             },
         );
         let mut journal = journal;
         if let Err(error) = result {
+            // A port/schema/reference edit can invalidate the first guard after the
+            // journal was saved. Restoring untouched state would unnecessarily restart
+            // fnOS services and could overwrite concurrent edits.
+            if error.is::<transaction::BeforeMutation>() {
+                journal.completed = true;
+                save_journal(&path, &journal, data_dir)?;
+                bail!("{error:#}; no fnOS changes were applied")
+            }
             match rollback(&journal, data_dir) {
                 Ok(()) => {
                     journal.completed = true;
@@ -1369,7 +1392,13 @@ fn execute_mode(
     let result = automatic::run(data_dir, automatic, &mut work);
     result.map_err(|error| SyncExecutionError::new(error, &attempted))
 }
-fn verify_applied(journal: &Journal, selected: &[&Action], data_dir: &Path) -> anyhow::Result<()> {
+fn verify_applied(
+    journal: &Journal,
+    selected: &[&Action],
+    data_dir: &Path,
+    https_port: u16,
+) -> anyhow::Result<()> {
+    tls_probe::verify_configured_port(https_port)?;
     let snapshot = snapshot(data_dir)?;
     for change in &journal.rows {
         let table = if change.table == "cert" {
@@ -1431,8 +1460,9 @@ fn verify_applied(journal: &Journal, selected: &[&Action], data_dir: &Path) -> a
                     let host = mapping["host"]
                         .as_str()
                         .ok_or_else(|| anyhow!("Invalid gateway mapping"))?;
-                    verify_host(
+                    tls_probe::verify_host(
                         host,
+                        https_port,
                         local
                             .parsed
                             .as_ref()
@@ -1442,41 +1472,8 @@ fn verify_applied(journal: &Journal, selected: &[&Action], data_dir: &Path) -> a
             }
         }
     }
-    Ok(())
-}
-fn verify_host(host: &str, expected: &ParsedCertificate) -> anyhow::Result<()> {
-    let mut args = vec!["8", "openssl", "s_client", "-connect", "127.0.0.1:443"];
-    if host != "fallback" {
-        args.extend(["-servername", host]);
-    }
-    let mut child = Command::new("timeout")
-        .args(args)
-        .stdin(Stdio::piped())
-        .stdout(Stdio::piped())
-        .stderr(Stdio::null())
-        .spawn()?;
-    child
-        .stdin
-        .take()
-        .ok_or_else(|| anyhow!("Missing TLS probe input"))?
-        .write_all(b"Q\n")?;
-    let output = child.wait_with_output()?;
-    if !output.status.success() {
-        bail!("fnOS TLS probe failed for {host}")
-    }
-    let text = String::from_utf8_lossy(&output.stdout);
-    let start = text
-        .find("-----BEGIN CERTIFICATE-----")
-        .ok_or_else(|| anyhow!("TLS probe returned no certificate"))?;
-    let end = start
-        + text[start..]
-            .find("-----END CERTIFICATE-----")
-            .ok_or_else(|| anyhow!("Incomplete TLS certificate"))?
-        + "-----END CERTIFICATE-----".len();
-    if parse_certificate(&text[start..end])?.fingerprint != expected.fingerprint {
-        bail!("fnOS TLS fingerprint mismatch for {host}")
-    }
-    Ok(())
+    // A retry can span a concurrent gateway edit; do not publish ownership for a stale port.
+    tls_probe::verify_configured_port(https_port)
 }
 fn prune_transactions(data_dir: &Path) -> anyhow::Result<()> {
     let mut completed = Vec::new();
@@ -1710,6 +1707,19 @@ mod tests {
         );
         assert_eq!(status(snapshot, &config), "target_invalid");
     }
+    #[test]
+    fn https_port_changes_invalidate_preview_without_changing_managed_content() {
+        let (snapshot, config) = fixture();
+        let original = plan_snapshot_with_port(snapshot.clone(), &config, 443).unwrap();
+        let changed = plan_snapshot_with_port(snapshot, &config, 5667).unwrap();
+        assert_ne!(original.version, changed.version);
+        assert_eq!(changed.https_port, 5667);
+        assert_eq!(
+            target_digest(&original.snapshot, &original.snapshot.rows[0]).unwrap(),
+            target_digest(&changed.snapshot, &changed.snapshot.rows[0]).unwrap(),
+        );
+    }
+
     #[test]
     fn snapshot_versions_track_sources_files_and_usage() {
         let (snapshot, mut config) = fixture();
@@ -1982,7 +1992,8 @@ mod tests {
         assert!(
             transaction::Native {
                 data_dir: second.path(),
-                selected: &[]
+                selected: &[],
+                https_port: None,
             }
             .check(&absent)
             .is_err()
@@ -2123,6 +2134,7 @@ mod live_tests {
                 &mut transaction::Native {
                     data_dir: &data_dir,
                     selected: &selected,
+                    https_port: Some(deletion.https_port),
                 },
             )?;
             anyhow::ensure!(
@@ -2173,7 +2185,11 @@ mod live_tests {
                     .ok_or_else(|| anyhow!("Missing certificate snapshot"))?;
                 let expected =
                     parse_certificate(&String::from_utf8(BASE64_STANDARD.decode(pem)?)?)?;
-                verify_host(mapping["host"].as_str().unwrap_or("fallback"), &expected)?;
+                tls_probe::verify_host(
+                    mapping["host"].as_str().unwrap_or("fallback"),
+                    tls_probe::configured_port()?,
+                    &expected,
+                )?;
             }
             Ok(())
         })();

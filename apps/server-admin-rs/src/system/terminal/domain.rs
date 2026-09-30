@@ -17,9 +17,15 @@ pub struct TrustedHostKey {
     pub fingerprint: String,
 }
 
+pub(super) fn default_persistent() -> bool {
+    true
+}
+
 #[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct TargetRecord {
+    #[serde(default = "default_persistent")]
+    pub persistent: bool,
     pub id: String,
     pub name: String,
     pub host: String,
@@ -36,6 +42,7 @@ pub struct TargetRecord {
 #[derive(Clone, Debug, Serialize, ToSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct TerminalTarget {
+    pub persistent: bool,
     pub id: String,
     pub name: String,
     pub host: String,
@@ -78,6 +85,7 @@ pub struct PassphraseMutation {
 #[derive(Clone, Debug, Deserialize, ToSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct TargetCreateInput {
+    pub persistent: Option<bool>,
     pub name: String,
     pub host: String,
     pub port: u16,
@@ -94,6 +102,7 @@ pub struct TargetCreateInput {
 #[derive(Clone, Debug, Deserialize, ToSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct TargetUpdateInput {
+    pub persistent: Option<bool>,
     pub name: String,
     pub host: String,
     pub port: u16,

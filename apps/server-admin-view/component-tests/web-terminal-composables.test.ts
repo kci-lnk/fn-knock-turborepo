@@ -82,6 +82,7 @@ const attachment = (
 const target = (
   overrides: Partial<TerminalTargetRecord> = {},
 ): TerminalTargetRecord => ({
+  persistent: true,
   id: "target-1",
   name: "Production",
   host: "server.example.com",
@@ -506,6 +507,36 @@ describe("SSH terminal collection and editor behavior", () => {
       id: "target-1",
       kind: "ssh",
     });
+    controller.dispose();
+  });
+
+  it("does not restore stale connection settings after saving persistence", async () => {
+    terminalApi.getLocalStatus.mockResolvedValue(localStatus());
+    terminalApi.listTargets.mockResolvedValue([target()]);
+    const controller = useTerminalTargets();
+    await controller.loadTargets();
+    let finish!: (targets: TerminalTargetRecord[]) => void;
+    terminalApi.listTargets.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          finish = resolve;
+        }),
+    );
+    const loading = controller.loadTargets();
+    terminalApi.updateTarget.mockResolvedValue(
+      target({ persistent: false, revision: 2 }),
+    );
+    await controller.updateTarget("target-1", {
+      ...target(),
+      persistent: false,
+      credential: { action: "keep" },
+      passphrase: { action: "keep" },
+    });
+    finish([target()]);
+    await loading;
+    expect(
+      controller.targets.value.find((t) => t.id === "target-1"),
+    ).toMatchObject({ persistent: false, revision: 2 });
     controller.dispose();
   });
 

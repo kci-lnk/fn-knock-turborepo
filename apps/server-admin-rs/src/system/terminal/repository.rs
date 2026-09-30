@@ -201,6 +201,7 @@ mod tests {
 
     fn record(id: String) -> TargetRecord {
         TargetRecord {
+            persistent: true,
             id,
             name: "target".to_string(),
             host: "localhost".to_string(),
@@ -213,6 +214,18 @@ mod tests {
             created_at: "now".to_string(),
             updated_at: "now".to_string(),
         }
+    }
+
+    #[test]
+    fn legacy_target_defaults_to_persistent_and_false_roundtrips() {
+        let mut value = serde_json::to_value(record(Uuid::new_v4().to_string())).unwrap();
+        value.as_object_mut().unwrap().remove("persistent");
+        let mut target: TargetRecord = serde_json::from_value(value).unwrap();
+        assert!(target.persistent);
+        target.persistent = false;
+        let restored: TargetRecord =
+            serde_json::from_value(serde_json::to_value(target).unwrap()).unwrap();
+        assert!(!restored.persistent);
     }
 
     #[test]

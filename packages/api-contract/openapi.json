@@ -24060,6 +24060,12 @@
           "passphrase": {
             "$ref": "#/components/schemas/PassphraseMutation"
           },
+          "persistent": {
+            "type": [
+              "boolean",
+              "null"
+            ]
+          },
           "port": {
             "format": "int32",
             "minimum": 0,
@@ -24148,6 +24154,12 @@
           },
           "passphrase": {
             "$ref": "#/components/schemas/PassphraseMutation"
+          },
+          "persistent": {
+            "type": [
+              "boolean",
+              "null"
+            ]
           },
           "port": {
             "format": "int32",
@@ -24678,6 +24690,9 @@
           "passphraseConfigured": {
             "type": "boolean"
           },
+          "persistent": {
+            "type": "boolean"
+          },
           "port": {
             "format": "int32",
             "minimum": 0,
@@ -24706,6 +24721,7 @@
           }
         },
         "required": [
+          "persistent",
           "id",
           "name",
           "host",

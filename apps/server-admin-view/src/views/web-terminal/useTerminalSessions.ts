@@ -178,7 +178,7 @@ export const useTerminalSessions = ({
         throw new DOMException("Aborted", "AbortError");
       const session = await TerminalAPI.createSession(
         targetId,
-        { ...dimensions, persistent: true, ...(pageId ? { pageId } : {}) },
+        { ...dimensions, ...(pageId ? { pageId } : {}) },
         operation.signal,
       );
       if (!isCurrent(createOperation, operation.generation)) {
@@ -204,18 +204,25 @@ export const useTerminalSessions = ({
     }
   };
 
-  const renameSession = async (
-    sessionId: string,
-    title: string,
-    persistent?: boolean,
-  ) => {
+  const applyTargetPersistence = (targetId: string, persistent: boolean) => {
+    loadGeneration += 1;
+    loadController?.abort();
+    loading.value = false;
+    sessions.value = sessions.value.map((session) =>
+      session.targetId === targetId && !terminalPhases.has(session.phase)
+        ? { ...session, persistent }
+        : session,
+    );
+  };
+
+  const renameSession = async (sessionId: string, title: string) => {
     const operation = beginOperation(renameOperation);
     error.value = "";
     errorCode.value = null;
     try {
       const updated = await TerminalAPI.updateSession(
         sessionId,
-        { title, ...(persistent === undefined ? {} : { persistent }) },
+        { title },
         operation.signal,
       );
       if (!isCurrent(renameOperation, operation.generation)) {
@@ -227,7 +234,7 @@ export const useTerminalSessions = ({
       loading.value = false;
       sessions.value = sessions.value.map((session) =>
         session.id === updated.id
-          ? { ...session, title: updated.title, persistent: updated.persistent }
+          ? { ...session, title: updated.title }
           : session,
       );
       return updated;
@@ -314,6 +321,7 @@ export const useTerminalSessions = ({
 
   return {
     activeSessionCount,
+    applyTargetPersistence,
     createSession,
     creating,
     cancelMutations,

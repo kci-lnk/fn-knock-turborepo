@@ -36,6 +36,7 @@ import type {
   TerminalAuthMethod,
   TerminalTargetRecord,
 } from "@/lib/api/terminal";
+import TerminalPersistenceField from "./TerminalPersistenceField.vue";
 import type { useTerminalTargetEditor } from "./useTerminalTargetEditor";
 
 const props = defineProps<{
@@ -360,6 +361,11 @@ const deleteEditingTarget = async () => {
           </div>
         </div>
 
+        <TerminalPersistenceField
+          v-model="editor.draft.persistent"
+          :disabled="editor.saving.value"
+        />
+
         <Alert v-if="editor.error.value" variant="destructive">
           <TriangleAlert class="h-4 w-4" />
           <AlertTitle>{{
@@ -448,10 +454,7 @@ const deleteEditingTarget = async () => {
               <PlugZap v-else class="mr-1.5 h-4 w-4" />
               {{
                 editor.tested.value
-                  ? t(
-                      "admin.webTerminal.connectionTested",
-                      "Connection tested",
-                    )
+                  ? t("admin.webTerminal.connectionTested", "Connection tested")
                   : t("admin.wol.ssh.testConnection")
               }}
             </Button>

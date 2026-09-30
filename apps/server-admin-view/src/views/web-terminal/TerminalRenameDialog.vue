@@ -3,7 +3,6 @@ import { useId } from "vue";
 import { useI18n } from "vue-i18n";
 import { LoaderCircle } from "lucide-vue-next";
 import { Button } from "@/components/ui/button";
-import { Checkbox } from "@/components/ui/checkbox";
 import {
   Dialog,
   DialogContent,
@@ -19,15 +18,12 @@ defineProps<{
   open: boolean;
   renaming: boolean;
   value: string;
-  persistent: boolean;
-  persistenceDisabled: boolean;
 }>();
 
 const emit = defineEmits<{
   submit: [];
   "update:open": [value: boolean];
   "update:value": [value: string];
-  "update:persistent": [value: boolean];
 }>();
 
 const { t } = useI18n();
@@ -57,29 +53,6 @@ const fieldId = useId();
             :disabled="renaming"
             @update:model-value="emit('update:value', String($event))"
           />
-        </div>
-
-        <div class="flex items-start gap-3">
-          <Checkbox
-            :id="`${fieldId}-persistent`"
-            class="mt-0.5 shrink-0"
-            :model-value="persistent"
-            :disabled="renaming || persistenceDisabled"
-            :aria-describedby="`${fieldId}-help`"
-            @update:model-value="emit('update:persistent', $event === true)"
-          />
-          <div class="min-w-0 space-y-2">
-            <Label :for="`${fieldId}-persistent`">{{
-              t("admin.webTerminal.persistentConnection")
-            }}</Label>
-            <div
-              :id="`${fieldId}-help`"
-              class="space-y-1 text-xs leading-relaxed text-muted-foreground"
-            >
-              <p>{{ t("admin.webTerminal.persistenceDescription") }}</p>
-              <p>{{ t("admin.webTerminal.persistenceLeaseDescription") }}</p>
-            </div>
-          </div>
         </div>
 
         <DialogFooter>

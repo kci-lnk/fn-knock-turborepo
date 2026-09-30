@@ -5081,6 +5081,7 @@ export const enAdmin = {
     },
   },
   webTerminal: {
+    persistenceConnectionScope: "This setting applies to existing and new terminal sessions for this connection.",
     persistentConnection: "Persistent connection",
     persistenceDescription:
       "Persistence keeps the terminal process running. When enabled, it continues after you close the browser and you can reconnect. When disabled, refreshing, closing, or leaving the terminal page ends the process. Sessions do not survive a terminal service restart.",
@@ -5263,8 +5264,8 @@ export const enAdmin = {
     switchFailed: "Failed to switch session",
     switchFailedDescription:
       "Could not switch to the selected terminal session",
-    renameFailed: "Failed to save session",
-    renameFailedDescription: "Could not update the session settings",
+    renameFailed: "Rename failed",
+    renameFailedDescription: "Could not update the session name",
     sendFailed: "Send failed",
     sendFailedDescription: "Could not send content to the terminal",
     notReady: "Terminal view is not ready yet",
@@ -5278,7 +5279,7 @@ export const enAdmin = {
     endFailedDescription: "Could not end terminal session",
     newSession: "New session",
     newSessionAria: "Create terminal session",
-    renameSession: "Edit session",
+    renameSession: "Rename session",
     reconnect: "Reconnect",
     reconnectAria: "Reconnect terminal",
     send: "Send",
@@ -5296,7 +5297,8 @@ export const enAdmin = {
     sendDialogDescription:
       "Enter content to paste into the current terminal. It will be written to the session as-is.",
     sendDialogPlaceholder: "Enter content to send to the terminal",
-    renameDialogDescription: "Edit this session’s name and process persistence. Changes take effect when saved.",
+    renameDialogDescription:
+      "Set a name that makes the current terminal session easier to recognize.",
     renameDialogPlaceholder: "Enter session name",
   },
   wafLogs: {

@@ -207,6 +207,10 @@ export const useTerminalTargets = () => {
       if (!isCurrent(updateOperation, operation.generation)) {
         throw new DOMException("Aborted", "AbortError");
       }
+      // A list started before the save must not restore the old connection settings.
+      loadGeneration += 1;
+      loadController?.abort();
+      loading.value = false;
       sshTargets.value = sshTargets.value.map((target) =>
         target.id === updated.id ? { ...updated, kind: "ssh" } : target,
       );

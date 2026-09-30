@@ -14,6 +14,7 @@ async fn busybox_dropbear_metrics_keep_interactive_shell_usable() {
         .unwrap();
     let probe = ssh::probe_host_key("127.0.0.1", port).await.unwrap();
     let target = TargetRecord {
+        persistent: true,
         id: "metrics-fixture".into(),
         name: "metrics-fixture".into(),
         host: "127.0.0.1".into(),

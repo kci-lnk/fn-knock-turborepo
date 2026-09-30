@@ -29,7 +29,6 @@ export const useTerminalInteractions = ({
   renameSession: (
     sessionId: string,
     title: string,
-    persistent?: boolean,
   ) => Promise<TerminalSessionRecord>;
   selectedSession: ComputedRef<TerminalSessionRecord | null>;
   sessions: Ref<TerminalSessionRecord[]>;

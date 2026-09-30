@@ -14,6 +14,7 @@ import { extractTerminalError } from "./terminal-errors";
 
 export interface TerminalTargetDraft {
   name: string;
+  persistent: boolean;
   host: string;
   port: number;
   username: string;
@@ -27,6 +28,7 @@ export interface TerminalTargetDraft {
 
 const emptyDraft = (): TerminalTargetDraft => ({
   name: "",
+  persistent: true,
   host: "",
   port: 22,
   username: "",
@@ -213,6 +215,7 @@ export const useTerminalTargetEditor = ({
     editingTarget.value = target;
     copyDraft(draft, {
       name: target.name,
+      persistent: target.persistent ?? true,
       host: target.host,
       port: target.port,
       username: target.username,
@@ -290,6 +293,7 @@ export const useTerminalTargetEditor = ({
 
   const buildPayloadFields = () => ({
     name: draft.name.trim(),
+    persistent: draft.persistent,
     host: draft.host.trim(),
     port: draft.port,
     username: draft.username.trim(),
@@ -398,7 +402,7 @@ export const useTerminalTargetEditor = ({
   };
 
   const save = async (force = false) => {
-    if (!canSave.value) return null;
+    if (!canSave.value || saving.value) return null;
     const generation = ++operationGeneration;
     operationController?.abort();
     operationController = null;

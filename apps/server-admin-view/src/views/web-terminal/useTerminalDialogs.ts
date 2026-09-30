@@ -36,7 +36,6 @@ export const useTerminalDialogs = ({
   updateSessionTitle: (
     sessionId: string,
     title: string,
-    persistent?: boolean,
   ) => Promise<TerminalSessionRecord>;
 }) => {
   const sendDialogOpen = ref(false);
@@ -45,19 +44,10 @@ export const useTerminalDialogs = ({
   const renameDialogOpen = ref(false);
   const renameDialogValue = ref("");
   const isRenamingSession = ref(false);
-  const renameDialogPersistent = ref(true);
   const editingSessionId = ref("");
-  let initialPersistent = true;
   let editGeneration = 0;
   const editingSession = computed(() =>
     sessions.value.find((session) => session.id === editingSessionId.value),
-  );
-  const renameDialogPersistenceDisabled = computed(
-    () =>
-      !editingSession.value ||
-      ["closing", "closed", "exited", "lost", "failed"].includes(
-        editingSession.value.phase,
-      ),
   );
 
   watch(
@@ -121,8 +111,6 @@ export const useTerminalDialogs = ({
     editGeneration += 1;
     editingSessionId.value = selectedSession.value.id;
     renameDialogValue.value = selectedSession.value.title;
-    initialPersistent = selectedSession.value.persistent;
-    renameDialogPersistent.value = initialPersistent;
     renameDialogOpen.value = true;
   };
 
@@ -137,15 +125,10 @@ export const useTerminalDialogs = ({
     )
       return;
     const generation = editGeneration;
-    const persistent =
-      !renameDialogPersistenceDisabled.value &&
-      renameDialogPersistent.value !== initialPersistent
-        ? renameDialogPersistent.value
-        : undefined;
 
     isRenamingSession.value = true;
     try {
-      await updateSessionTitle(targetSession.id, nextTitle, persistent);
+      await updateSessionTitle(targetSession.id, nextTitle);
       if (generation !== editGeneration || !renameDialogOpen.value) return;
       renameDialogOpen.value = false;
       focusTerminal();
@@ -194,8 +177,6 @@ export const useTerminalDialogs = ({
     openSendDialog,
     renameDialogOpen,
     renameDialogValue,
-    renameDialogPersistent,
-    renameDialogPersistenceDisabled,
     sendDialogOpen,
     sendDialogPayload,
     submitRenameDialog,

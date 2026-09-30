@@ -29,8 +29,6 @@ const {
   isSendingDialogPayload,
   renameDialogOpen,
   renameDialogValue,
-  renameDialogPersistent,
-  renameDialogPersistenceDisabled,
   selectedTargetActiveSessionCount,
   sendDialogOpen,
   sendDialogPayload,
@@ -66,8 +64,6 @@ const {
   <TerminalRenameDialog
     v-model:open="renameDialogOpen"
     v-model:value="renameDialogValue"
-    v-model:persistent="renameDialogPersistent"
-    :persistence-disabled="renameDialogPersistenceDisabled"
     :renaming="isRenamingSession"
     @submit="submitRenameDialog"
   />

@@ -347,6 +347,38 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn connection_setting_controls_existing_processes_on_last_page_release() {
+        let runtime = TerminalRuntime::new();
+        let page = runtime.register_page().await.unwrap();
+        let (first, first_closed) = running(&runtime).await;
+        let (second, second_closed) = running(&runtime).await;
+        for session in [&first, &second] {
+            runtime
+                .create_page_attachment(&session.id, None, None, Some(&page.id))
+                .await
+                .unwrap();
+        }
+        runtime.set_target_persistence("ssh-target", false).await;
+        runtime.expire_attachments().await;
+        assert_eq!(first_closed.load(Ordering::SeqCst), 0);
+        assert_eq!(second_closed.load(Ordering::SeqCst), 0);
+        runtime.set_target_persistence("ssh-target", true).await;
+        runtime.release_page(&page.id).await;
+        assert_eq!(first_closed.load(Ordering::SeqCst), 0);
+        let page = runtime.register_page().await.unwrap();
+        for session in [&first, &second] {
+            runtime
+                .create_page_attachment(&session.id, None, None, Some(&page.id))
+                .await
+                .unwrap();
+        }
+        runtime.set_target_persistence("ssh-target", false).await;
+        runtime.release_page(&page.id).await;
+        assert_eq!(first_closed.load(Ordering::SeqCst), 1);
+        assert_eq!(second_closed.load(Ordering::SeqCst), 1);
+    }
+
+    #[tokio::test]
     async fn switching_sessions_keeps_both_until_last_page_releases() {
         let runtime = TerminalRuntime::new();
         let a = runtime.register_page().await.unwrap();

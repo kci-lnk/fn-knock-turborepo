@@ -192,6 +192,7 @@ export const useWebTerminalPage = () => {
         force,
         confirmationToken,
       );
+      sessionsController.applyTargetPersistence(targetId, updated.persistent);
       if (force) {
         const attachedSession = sessionsController.sessions.value.find(
           (session) => session.id === attachmentController.sessionId.value,

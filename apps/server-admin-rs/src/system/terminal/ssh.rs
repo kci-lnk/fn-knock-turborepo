@@ -979,6 +979,7 @@ bQP0o+gL5aKK8cQgiIlXeDbRjqhc4+h4EF6lY=\n\
             let _ = server.run_on_socket(config, &listener).await;
         });
         let target = TargetRecord {
+            persistent: true,
             id: "target-a".to_string(),
             name: "test".to_string(),
             host: endpoint.ip().to_string(),

@@ -741,6 +741,29 @@ impl TerminalRuntime {
         Ok(snapshot)
     }
 
+    /// Called under the target operation lock, which also serializes creation.
+    /// Use the same session lock as lease cleanup so it rechecks the saved flag.
+    pub async fn set_target_persistence(&self, target_id: &str, persistent: bool) {
+        let sessions = self
+            .sessions
+            .read()
+            .await
+            .values()
+            .cloned()
+            .collect::<Vec<_>>();
+        for session in sessions {
+            if session.state.lock().await.session.target_id != target_id {
+                continue;
+            }
+            let _guard = session.api_operation.lock().await;
+            let mut state = session.state.lock().await;
+            if state.session.target_id == target_id && state.session.phase.is_active() {
+                state.session.persistent = persistent;
+                state.session.updated_at = now_iso();
+            }
+        }
+    }
+
     pub async fn update_session(
         &self,
         id: &str,
@@ -3021,6 +3044,7 @@ mod unit {
             .await
             .unwrap();
         let target = TargetRecord {
+            persistent: true,
             id: "target-a".to_string(),
             name: "mock".to_string(),
             host: "127.0.0.1".to_string(),

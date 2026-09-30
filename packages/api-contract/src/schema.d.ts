@@ -13452,6 +13452,7 @@ export interface components {
             host: string;
             name: string;
             passphrase: components["schemas"]["PassphraseMutation"];
+            persistent?: boolean | null;
             /** Format: int32 */
             port: number;
             trustedHostKey?: null | components["schemas"]["TrustedHostKey"];
@@ -13476,6 +13477,7 @@ export interface components {
             host: string;
             name: string;
             passphrase: components["schemas"]["PassphraseMutation"];
+            persistent?: boolean | null;
             /** Format: int32 */
             port: number;
             /** Format: int64 */
@@ -13600,6 +13602,7 @@ export interface components {
             lastVerifiedAt?: string | null;
             name: string;
             passphraseConfigured: boolean;
+            persistent: boolean;
             /** Format: int32 */
             port: number;
             /** Format: int64 */

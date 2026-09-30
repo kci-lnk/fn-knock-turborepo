@@ -52,6 +52,7 @@ pub async fn create_target(
     let id = Uuid::new_v4().to_string();
     let now = now_iso();
     let record = TargetRecord {
+        persistent: input.persistent.unwrap_or(true),
         id: id.clone(),
         name: input.name.trim().to_string(),
         host: input.host.trim().to_string(),
@@ -158,6 +159,7 @@ pub async fn update_target(
         existing.trusted_host_key != input.trusted_host_key && input.trusted_host_key.is_some();
     let now = now_iso();
     let mut record = TargetRecord {
+        persistent: input.persistent.unwrap_or(existing.persistent),
         id: id.to_string(),
         name: input.name.trim().to_string(),
         host: input.host.trim().to_string(),
@@ -218,6 +220,12 @@ pub async fn update_target(
     if let Err(error) = repository.replace(record.clone()).await {
         snapshot.restore(&secrets, id);
         return Err(error);
+    }
+    if input.persistent.is_some() {
+        state
+            .terminal
+            .set_target_persistence(id, record.persistent)
+            .await;
     }
     audit_event(
         state,
@@ -364,6 +372,7 @@ pub async fn test_connection(
             validate_target_fields("draft", &draft.host, draft.port, &draft.username)?;
             validate_trusted_key(draft.trusted_host_key.as_ref())?;
             TargetRecord {
+                persistent: true,
                 id: saved
                     .as_ref()
                     .map(|target| target.id.clone())
@@ -629,6 +638,7 @@ pub async fn create_session(
         .ok_or_else(target_not_found)?;
     let credential = stored_credential(&TerminalSecretStore::from_state(state), &target)?;
     let target_revision = target.revision;
+    let persistent = input.persistent.unwrap_or(target.persistent);
     let cols = input.cols.unwrap_or(120).clamp(40, 400);
     let rows = input.rows.unwrap_or(32).clamp(12, 200);
     let title = match input.title {
@@ -651,7 +661,7 @@ pub async fn create_session(
                 target_guard,
                 audit_state: Some(state.clone()),
             },
-            input.persistent.unwrap_or(true),
+            persistent,
             input.page_id.as_deref(),
         )
         .await?;
@@ -808,6 +818,7 @@ fn decorate_target(
     let bundle_matches_target =
         bundle.auth_method == Some(record.auth_method) && bundle.target_revision == record.revision;
     Ok(TerminalTarget {
+        persistent: record.persistent,
         id: record.id.clone(),
         name: record.name,
         host: record.host,
@@ -1236,6 +1247,96 @@ mod tests {
         }
     }
 
+    #[tokio::test]
+    async fn connection_persistence_updates_live_sessions_and_is_inherited_by_new_sessions() {
+        let (_directory, state) = test_state().await;
+        let input: TargetCreateInput = serde_json::from_value(serde_json::json!({
+            "name": "host", "host": "127.0.0.1", "port": 9, "username": "user",
+            "authMethod": "password", "credential": { "action": "replace", "secret": "test" },
+            "passphrase": { "action": "keep" }
+        }))
+        .unwrap();
+        let saved = create_target(&state, input.clone()).await.unwrap();
+        assert!(saved.persistent);
+        let mut second_input = input;
+        second_input.persistent = Some(false);
+        let other = create_target(&state, second_input).await.unwrap();
+        assert!(!other.persistent);
+        state
+            .terminal
+            .reserve_active_test_session(&saved.id)
+            .await
+            .unwrap();
+        state
+            .terminal
+            .reserve_active_test_session(&other.id)
+            .await
+            .unwrap();
+        let update: TargetUpdateInput = serde_json::from_value(serde_json::json!({
+            "name": "renamed", "host": "127.0.0.1", "port": 9, "username": "user",
+            "authMethod": "password", "credential": { "action": "keep" },
+            "passphrase": { "action": "keep" }, "revision": saved.revision,
+            "persistent": false
+        }))
+        .unwrap();
+        let updated = update_target(&state, &saved.id, update.clone(), false, None)
+            .await
+            .unwrap();
+        assert!(!updated.persistent);
+        assert!(updated.credential_configured);
+        let live = state.terminal.list().await.sessions;
+        assert!(
+            !live
+                .iter()
+                .find(|s| s.target_id == saved.id)
+                .unwrap()
+                .persistent
+        );
+        assert!(
+            live.iter()
+                .find(|s| s.target_id == other.id)
+                .unwrap()
+                .persistent
+        );
+        assert_eq!(state.terminal.active_counts(Some(&saved.id)).await, 1);
+        let mut legacy_update = update.clone();
+        legacy_update.revision = updated.revision;
+        legacy_update.persistent = None;
+        let legacy_saved = update_target(&state, &saved.id, legacy_update, false, None)
+            .await
+            .unwrap();
+        assert!(
+            !legacy_saved.persistent,
+            "old clients must preserve the setting"
+        );
+        let stale = update_target(&state, &saved.id, update.clone(), false, None)
+            .await
+            .unwrap_err();
+        assert_eq!(stale.code, TerminalErrorCode::TargetRevisionConflict);
+        let created = create_session(
+            &state,
+            &saved.id,
+            serde_json::from_value(serde_json::json!({})).unwrap(),
+        )
+        .await
+        .unwrap();
+        assert!(!created.persistent);
+        let mut enabled = update;
+        enabled.revision = legacy_saved.revision;
+        enabled.persistent = Some(true);
+        update_target(&state, &saved.id, enabled, false, None)
+            .await
+            .unwrap();
+        let retained = state.terminal.list().await.sessions;
+        assert!(
+            retained
+                .iter()
+                .filter(|s| s.target_id == saved.id && s.phase.is_active())
+                .all(|s| s.persistent)
+        );
+        state.terminal.shutdown_all().await;
+    }
+
     #[cfg(unix)]
     #[tokio::test]
     async fn local_terminal_defaults_off_and_requires_risk_acknowledgement() {
@@ -1592,6 +1693,7 @@ mod tests {
         )
         .unwrap();
         let metadata = TargetRecord {
+            persistent: true,
             id: "target-a".to_string(),
             name: "target".to_string(),
             host: "127.0.0.1".to_string(),
@@ -1628,6 +1730,7 @@ mod tests {
         let id = Uuid::new_v4().to_string();
         let now = now_iso();
         let existing = TargetRecord {
+            persistent: true,
             id: id.clone(),
             name: "target".to_string(),
             host: "127.0.0.1".to_string(),
@@ -1671,6 +1774,7 @@ mod tests {
         );
         let verification_token = state.terminal.issue_verification(fingerprint).await;
         let input = TargetUpdateInput {
+            persistent: None,
             name: prospective.name.clone(),
             host: prospective.host.clone(),
             port: prospective.port,

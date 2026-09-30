@@ -51,6 +51,7 @@ const session = (
 ): TerminalSessionRecord => ({
   id: "session-1",
   backend: "ssh",
+  persistent: true,
   targetId: "target-1",
   title: "Shell 1",
   phase: "running",

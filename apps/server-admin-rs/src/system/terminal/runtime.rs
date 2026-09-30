@@ -1,3 +1,5 @@
+mod pages;
+
 use std::{
     collections::{HashMap, VecDeque},
     io::{Read, Write},
@@ -55,6 +57,7 @@ const SESSION_SHUTDOWN_TIMEOUT: Duration = Duration::from_secs(3);
 
 pub struct TerminalRuntime {
     pub(super) access: super::access::AccessRuntime,
+    pages: Mutex<HashMap<String, pages::PageLease>>,
     runtime_id: String,
     sessions: Arc<RwLock<HashMap<String, Arc<RuntimeSession>>>>,
     actor_tasks: Mutex<HashMap<String, JoinHandle<()>>>,
@@ -89,6 +92,8 @@ struct RuntimeSession {
 }
 
 struct SessionState {
+    created: Instant,
+    had_owner: bool,
     session: TerminalSession,
     output: OutputBuffer,
     terminal: RuntimeTerminal,
@@ -99,6 +104,7 @@ struct SessionState {
 }
 
 struct AttachmentState {
+    page_id: Option<String>,
     role: AttachmentRole,
     generation: u64,
     expires_at: String,
@@ -203,6 +209,7 @@ impl TerminalRuntime {
     fn with_connector(connector: Arc<dyn SshConnector>) -> Self {
         Self {
             access: super::access::AccessRuntime::default(),
+            pages: Mutex::new(HashMap::new()),
             runtime_id: Uuid::new_v4().to_string(),
             sessions: Arc::new(RwLock::new(HashMap::new())),
             actor_tasks: Mutex::new(HashMap::new()),
@@ -405,6 +412,7 @@ impl TerminalRuntime {
         let now = now_iso();
         let snapshot = TerminalSession {
             id: id.clone(),
+            persistent: true,
             backend: if target_id == LOCAL_TARGET_ID {
                 SessionBackend::Local
             } else {
@@ -426,6 +434,8 @@ impl TerminalRuntime {
             metrics: Mutex::new(None),
             disks: Mutex::new(None),
             state: Mutex::new(SessionState {
+                created: Instant::now(),
+                had_owner: false,
                 session: snapshot.clone(),
                 output: OutputBuffer::new(),
                 terminal: RuntimeTerminal::Live(Box::new(vt100::Parser::new(
@@ -731,21 +741,52 @@ impl TerminalRuntime {
         Ok(snapshot)
     }
 
-    pub async fn rename(&self, id: &str, title: &str) -> TerminalResult<TerminalSession> {
-        let title = sanitize_title(title)?;
+    pub async fn update_session(
+        &self,
+        id: &str,
+        title: Option<&str>,
+        persistent: Option<bool>,
+    ) -> TerminalResult<TerminalSession> {
+        if title.is_none() && persistent.is_none() {
+            return Err(TerminalError::invalid(
+                "no terminal session changes supplied",
+            ));
+        }
+        let title = title.map(sanitize_title).transpose()?;
         let session = self.session(id).await?;
         let _guard = session.api_operation.lock().await;
+        self.session(id).await?;
         let mut state = session.state.lock().await;
-        state.session.title = title;
+        if let Some(persistent) = persistent {
+            if !state.session.phase.is_active() {
+                return Err(session_lost());
+            }
+            state.session.persistent = persistent;
+        }
+        if let Some(title) = title {
+            state.session.title = title;
+        }
         state.session.updated_at = now_iso();
         Ok(state.session.clone())
     }
 
+    #[cfg(test)]
     pub async fn create_attachment(
         &self,
         session_id: &str,
         requested_cols: Option<u32>,
         requested_rows: Option<u32>,
+    ) -> TerminalResult<TerminalAttachment> {
+        self.create_page_attachment(session_id, requested_cols, requested_rows, None)
+            .await
+    }
+
+    async fn create_attachment_inner(
+        &self,
+        session_id: &str,
+        requested_cols: Option<u32>,
+        requested_rows: Option<u32>,
+        page_id: Option<&str>,
     ) -> TerminalResult<TerminalAttachment> {
         if requested_cols.is_some_and(|value| !(40..=400).contains(&value))
             || requested_rows.is_some_and(|value| !(12..=200).contains(&value))
@@ -759,6 +800,7 @@ impl TerminalRuntime {
         // An archive-budget eviction may have won the operation lock after
         // the lookup; do not create an attachment on an evicted session.
         self.session(session_id).await?;
+        let mut page_leases = self.pages.lock().await;
         let mut state = session.state.lock().await;
         state.expire_attachments();
         if state.attachments.len() >= MAX_ATTACHMENTS {
@@ -767,6 +809,7 @@ impl TerminalRuntime {
                 "terminal attachment limit reached",
             ));
         }
+        pages::register_session_owner(&mut page_leases, page_id, session_id)?;
         let id = Uuid::new_v4().to_string();
         let role = if matches!(
             state.session.phase,
@@ -789,9 +832,11 @@ impl TerminalRuntime {
         };
         let generation = state.controller_generation;
         let expires_at = iso_after_seconds(ATTACHMENT_TTL_SECONDS);
+        state.had_owner = true;
         state.attachments.insert(
             id.clone(),
             AttachmentState {
+                page_id: page_id.map(str::to_owned),
                 role,
                 generation,
                 expires_at: expires_at.clone(),
@@ -830,6 +875,7 @@ impl TerminalRuntime {
             None
         };
         drop(state);
+        drop(page_leases);
         if let Some((cols, rows)) = resize {
             let (response, received) = oneshot::channel();
             session
@@ -1061,6 +1107,7 @@ impl TerminalRuntime {
     }
 
     pub async fn shutdown_all(&self) {
+        self.pages.lock().await.clear();
         self.clear_verifications().await;
         let sessions = self
             .sessions
@@ -1086,6 +1133,7 @@ impl TerminalRuntime {
     }
 
     pub async fn expire_attachments(&self) {
+        self.cleanup_pages().await;
         let sessions = self
             .sessions
             .read()

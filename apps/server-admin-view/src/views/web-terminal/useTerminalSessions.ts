@@ -30,9 +30,11 @@ const newOperationSlot = (): OperationSlot => ({
 
 export const useTerminalSessions = ({
   selectedTargetId,
+  getPageId,
   onRuntimeChanged,
 }: {
   selectedTargetId: Ref<string>;
+  getPageId?: () => Promise<string>;
   onRuntimeChanged?: (previousRuntimeId: string, runtimeId: string) => void;
 }) => {
   const sessions = ref<TerminalSessionRecord[]>([]);
@@ -41,6 +43,7 @@ export const useTerminalSessions = ({
   const loading = ref(false);
   const creating = ref(false);
   const ending = ref(false);
+  const savingPersistence = ref(false);
   const error = ref("");
   const errorCode = ref<TerminalErrorCode | null>(null);
   let loadGeneration = 0;
@@ -48,6 +51,7 @@ export const useTerminalSessions = ({
   const createOperation = newOperationSlot();
   const renameOperation = newOperationSlot();
   const endOperation = newOperationSlot();
+  const persistenceOperation = newOperationSlot();
 
   const beginOperation = (slot: OperationSlot) => {
     slot.generation += 1;
@@ -171,9 +175,12 @@ export const useTerminalSessions = ({
     error.value = "";
     errorCode.value = null;
     try {
+      const pageId = await getPageId?.();
+      if (!isCurrent(createOperation, operation.generation))
+        throw new DOMException("Aborted", "AbortError");
       const session = await TerminalAPI.createSession(
         targetId,
-        dimensions,
+        { ...dimensions, persistent: true, ...(pageId ? { pageId } : {}) },
         operation.signal,
       );
       if (!isCurrent(createOperation, operation.generation)) {
@@ -199,6 +206,35 @@ export const useTerminalSessions = ({
     }
   };
 
+  const setSessionPersistence = async (
+    sessionId: string,
+    persistent: boolean,
+  ) => {
+    if (savingPersistence.value) return;
+    const operation = beginOperation(persistenceOperation);
+    savingPersistence.value = true;
+    try {
+      const updated = await TerminalAPI.updateSessionPersistence(
+        sessionId,
+        persistent,
+        operation.signal,
+      );
+      if (!isCurrent(persistenceOperation, operation.generation)) return;
+      // A list request started before the PATCH may contain the old value.
+      loadGeneration += 1;
+      loadController?.abort();
+      loading.value = false;
+      sessions.value = sessions.value.map((session) =>
+        session.id === sessionId
+          ? { ...session, persistent: updated.persistent }
+          : session,
+      );
+    } finally {
+      if (isCurrent(persistenceOperation, operation.generation))
+        savingPersistence.value = false;
+    }
+  };
+
   const renameSession = async (sessionId: string, title: string) => {
     const operation = beginOperation(renameOperation);
     error.value = "";
@@ -213,7 +249,9 @@ export const useTerminalSessions = ({
         throw new DOMException("Aborted", "AbortError");
       }
       sessions.value = sessions.value.map((session) =>
-        session.id === updated.id ? updated : session,
+        session.id === updated.id
+          ? { ...session, title: updated.title }
+          : session,
       );
       return updated;
     } catch (reason) {
@@ -291,6 +329,8 @@ export const useTerminalSessions = ({
   };
 
   const dispose = () => {
+    cancelOperation(persistenceOperation);
+    savingPersistence.value = false;
     loadGeneration += 1;
     loadController?.abort();
     loadController = null;
@@ -298,6 +338,8 @@ export const useTerminalSessions = ({
   };
 
   return {
+    savingPersistence,
+    setSessionPersistence,
     activeSessionCount,
     createSession,
     creating,

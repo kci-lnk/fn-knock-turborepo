@@ -1,5 +1,5 @@
 import type { components as ApiContractComponents } from "@fn-knock/api-contract";
-import { apiClient } from "./client";
+import { adminApiBasePath, apiClient } from "./client";
 
 type TerminalSchemas = ApiContractComponents["schemas"];
 type TerminalWireEvent = TerminalSchemas["TerminalEvent"];
@@ -93,6 +93,45 @@ const attachmentPath = (id: string) =>
   `/terminal/attachments/${encodeURIComponent(id)}`;
 
 export const TerminalAPI = {
+  async registerPage(): Promise<TerminalSchemas["TerminalPage"]> {
+    const response = await apiClient.post("/terminal/pages");
+    return response.data.data;
+  },
+
+  async heartbeatPage(id: string): Promise<TerminalSchemas["TerminalPage"]> {
+    const response = await apiClient.post(
+      `/terminal/pages/${encodeURIComponent(id)}/heartbeat`,
+    );
+    return response.data.data;
+  },
+
+  async releasePage(id: string): Promise<void> {
+    // POST needs no CGI method override. Keep this request alive on navigation
+    // and preserve the same deployment prefix and cookies as apiClient.
+    const response = await fetch(
+      `${adminApiBasePath}/terminal/pages/${encodeURIComponent(id)}/release`,
+      {
+        method: "POST",
+        credentials: "include",
+        keepalive: true,
+      },
+    );
+    if (!response.ok) throw new Error("Terminal page release failed");
+  },
+
+  async updateSessionPersistence(
+    id: string,
+    persistent: boolean,
+    signal?: AbortSignal,
+  ): Promise<TerminalSessionRecord> {
+    const response = await apiClient.patch(
+      sessionPath(id),
+      { persistent },
+      { signal },
+    );
+    return response.data.data;
+  },
+
   async getLocalStatus(signal?: AbortSignal): Promise<TerminalLocalStatus> {
     const response = await apiClient.get("/terminal/local", { signal });
     return response.data.data;

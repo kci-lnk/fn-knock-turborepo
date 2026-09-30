@@ -90,6 +90,9 @@ pub fn routes() -> OpenApiRouter<AppState> {
         .routes(routes!(probe_host_key))
         .routes(routes!(test_connection))
         .routes(routes!(list_sessions))
+        .routes(routes!(register_page))
+        .routes(routes!(heartbeat_page))
+        .routes(routes!(release_page))
         .routes(routes!(create_session))
         .routes(routes!(rename_session, delete_session))
         .routes(routes!(create_attachment))
@@ -257,7 +260,7 @@ async fn create_attachment(
     result(
         state
             .terminal
-            .create_attachment(&id, input.cols, input.rows)
+            .create_page_attachment(&id, input.cols, input.rows, input.page_id.as_deref())
             .await,
     )
 }
@@ -515,4 +518,28 @@ async fn update_feature_settings(
     TerminalJson(input): TerminalJson<WebTerminalSettingsInput>,
 ) -> Response {
     result(access::update(&state, input).await)
+}
+
+#[utoipa::path(post, path = "/api/admin/terminal/pages", tag = "terminal", responses((status = 200, body = TerminalPage)))]
+async fn register_page(_access: TerminalAccess, State(state): State<AppState>) -> Response {
+    result(state.terminal.register_page().await)
+}
+
+#[utoipa::path(post, path = "/api/admin/terminal/pages/{id}/heartbeat", tag = "terminal", params(("id" = String, Path)), responses((status = 200, body = TerminalPage), (status = 409, body = TerminalErrorEnvelope)))]
+async fn heartbeat_page(
+    _access: TerminalAccess,
+    State(state): State<AppState>,
+    TerminalId(id): TerminalId,
+) -> Response {
+    result(state.terminal.heartbeat_page(&id).await)
+}
+
+#[utoipa::path(post, path = "/api/admin/terminal/pages/{id}/release", tag = "terminal", params(("id" = String, Path)), responses((status = 200)))]
+async fn release_page(
+    _access: TerminalAccess,
+    State(state): State<AppState>,
+    TerminalId(id): TerminalId,
+) -> Response {
+    state.terminal.release_page(&id).await;
+    empty(Ok(()))
 }

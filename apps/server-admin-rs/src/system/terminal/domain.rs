@@ -252,6 +252,7 @@ pub struct TerminalSession {
     pub id: String,
     pub target_id: String,
     pub backend: SessionBackend,
+    pub persistent: bool,
     pub title: String,
     pub phase: SessionPhase,
     pub cols: u32,
@@ -273,6 +274,8 @@ pub struct SessionListResult {
 #[derive(Clone, Debug, Deserialize, ToSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct CreateSessionInput {
+    pub persistent: Option<bool>,
+    pub page_id: Option<String>,
     pub title: Option<String>,
     pub cols: Option<u32>,
     pub rows: Option<u32>,
@@ -281,14 +284,23 @@ pub struct CreateSessionInput {
 #[derive(Clone, Debug, Deserialize, ToSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct RenameSessionInput {
-    pub title: String,
+    pub title: Option<String>,
+    pub persistent: Option<bool>,
 }
 
 #[derive(Clone, Debug, Default, Deserialize, ToSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct CreateAttachmentInput {
+    pub page_id: Option<String>,
     pub cols: Option<u32>,
     pub rows: Option<u32>,
+}
+
+#[derive(Clone, Debug, Serialize, ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct TerminalPage {
+    pub id: String,
+    pub expires_at: String,
 }
 
 #[derive(Clone, Copy, Debug, Serialize, ToSchema, PartialEq, Eq)]

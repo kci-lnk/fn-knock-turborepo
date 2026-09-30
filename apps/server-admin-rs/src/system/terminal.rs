@@ -37,8 +37,8 @@ pub fn terminal_routes() -> Router<AppState> {
 }
 
 /// Starts the only terminal background worker. It expires abandoned browser
-/// attachments, but never expires a live shell merely because no browser is
-/// attached.
+/// attachments and page leases, terminating non-persistent shells when their
+/// last page leaves. Persistent shells survive without browser attachments.
 pub fn start_terminal_tasks(state: AppState) {
     let task_state = state.clone();
     state.spawn_background("terminal-runtime-maintenance", async move {

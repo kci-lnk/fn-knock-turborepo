@@ -5027,6 +5027,12 @@ export const jaJPAdmin = {
     },
   },
   webTerminal: {
+    persistentConnection: "接続を維持",
+    persistenceDescription:
+      "維持されるのはターミナルのプロセスです。有効にすると、ブラウザーを閉じても実行が続き、再接続できます。無効にすると、ターミナルページの再読み込み、終了、または移動でプロセスが終了します。ターミナルサービスの再起動後はセッションは保持されません。",
+    persistenceLeaseDescription:
+      "複数のページで同じセッションを使用している場合、最後のページを離れたときに終了します。予期しない切断はタイムアウト後に自動的に処理されます。",
+    persistenceSaveFailed: "接続維持設定の保存に失敗しました",
     metrics: {
       disksTitle: "ディスクとマウントポイント",
       diskAvailable: "空き",

@@ -69,11 +69,13 @@ const wait = (delay: number, signal: AbortSignal) =>
   });
 
 export const useTerminalAttachment = ({
+  getPageId,
   getTerminalSize,
   onOutput,
   onReset,
   onSessionState,
 }: {
+  getPageId?: () => Promise<string>;
   getTerminalSize: () => { cols: number; rows: number };
   onOutput: (event: TerminalOutputEvent) => void;
   onReset: () => void;
@@ -202,9 +204,14 @@ export const useTerminalAttachment = ({
     generation: number,
     signal: AbortSignal,
   ) => {
+    const pageId = await getPageId?.();
+    if (generation !== lifecycleGeneration || signal.aborted) return null;
     const record = await TerminalAPI.createAttachment(
       session.id,
-      normalizeTerminalDimensions(getTerminalSize()),
+      {
+        ...normalizeTerminalDimensions(getTerminalSize()),
+        ...(pageId ? { pageId } : {}),
+      },
       signal,
     );
     if (generation !== lifecycleGeneration || signal.aborted) {

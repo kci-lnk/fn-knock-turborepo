@@ -1,4 +1,5 @@
 use super::*;
+use tokio_util::task::AbortOnDropHandle;
 
 #[tokio::test]
 async fn auth_metadata_reads_keep_snapshot_isolation_in_every_reader_mode() {
@@ -25,7 +26,7 @@ async fn auth_metadata_reads_keep_snapshot_isolation_in_every_reader_mode() {
             let mut reads = Vec::new();
             for _ in 0..16 {
                 let reader = manager.clone();
-                reads.push(tokio::spawn(async move {
+                reads.push(AbortOnDropHandle::new(tokio::spawn(async move {
                     assert_eq!(
                         reader
                             .get_auth_live_strings(vec!["settings".into()])
@@ -46,7 +47,7 @@ async fn auth_metadata_reads_keep_snapshot_isolation_in_every_reader_mode() {
                             .unwrap(),
                         Some(12345)
                     );
-                }));
+                })));
             }
             for read in reads {
                 read.await.unwrap();

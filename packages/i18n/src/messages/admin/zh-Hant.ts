@@ -4597,6 +4597,12 @@ export const zhHantAdmin = {
     },
   },
   webTerminal: {
+    persistentConnection: "持久化連線",
+    persistenceDescription:
+      "持久化的是終端程序。勾選後，關閉瀏覽器仍可繼續執行並重新連線；取消後，重新整理、關閉或離開終端頁面會結束程序。終端服務重新啟動後，工作階段不會保留。",
+    persistenceLeaseDescription:
+      "同一工作階段由多個頁面使用時，最後一個頁面離開才會結束；異常斷線後將於逾時後自動清理。",
+    persistenceSaveFailed: "儲存持久化設定失敗",
     metrics: {
       disksTitle: "磁碟與掛載點",
       diskAvailable: "可用",

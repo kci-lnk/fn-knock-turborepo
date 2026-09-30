@@ -5980,6 +5980,12 @@
               "null"
             ]
           },
+          "pageId": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
           "rows": {
             "format": "int32",
             "minimum": 0,
@@ -5998,6 +6004,18 @@
             "minimum": 0,
             "type": [
               "integer",
+              "null"
+            ]
+          },
+          "pageId": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "persistent": {
+            "type": [
+              "boolean",
               "null"
             ]
           },
@@ -18242,13 +18260,19 @@
       },
       "RenameSessionInput": {
         "properties": {
+          "persistent": {
+            "type": [
+              "boolean",
+              "null"
+            ]
+          },
           "title": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           }
         },
-        "required": [
-          "title"
-        ],
         "type": "object"
       },
       "ResizeRequest": {
@@ -24377,6 +24401,21 @@
         ],
         "type": "object"
       },
+      "TerminalPage": {
+        "properties": {
+          "expiresAt": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "expiresAt"
+        ],
+        "type": "object"
+      },
       "TerminalSession": {
         "properties": {
           "backend": {
@@ -24417,6 +24456,9 @@
           "id": {
             "type": "string"
           },
+          "persistent": {
+            "type": "boolean"
+          },
           "phase": {
             "$ref": "#/components/schemas/SessionPhase"
           },
@@ -24439,6 +24481,7 @@
           "id",
           "targetId",
           "backend",
+          "persistent",
           "title",
           "phase",
           "cols",
@@ -52012,6 +52055,165 @@
           }
         },
         "summary": "提交本机终端会话",
+        "tags": [
+          "terminal"
+        ],
+        "x-fn-knock-contract-source": "utoipa"
+      }
+    },
+    "/api/admin/terminal/pages": {
+      "post": {
+        "description": "管理 Web 终端运行时能力和交互会话。。`POST /api/admin/terminal/pages` 用于提交操作或创建、更新服务状态；执行结果以响应中的数据和消息为准。 该操作不要求 JSON 请求体。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。",
+        "operationId": "register_page",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "properties": {
+                    "data": {
+                      "$ref": "#/components/schemas/TerminalPage"
+                    },
+                    "message": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "success": {
+                      "const": true,
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "success",
+                    "data"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "「提交Web 终端pages」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TerminalErrorEnvelope"
+                }
+              }
+            },
+            "description": "接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。"
+          }
+        },
+        "summary": "提交Web 终端pages",
+        "tags": [
+          "terminal"
+        ],
+        "x-fn-knock-contract-source": "utoipa"
+      }
+    },
+    "/api/admin/terminal/pages/{id}/heartbeat": {
+      "post": {
+        "description": "管理 Web 终端运行时能力和交互会话。。`POST /api/admin/terminal/pages/{id}/heartbeat` 用于提交操作或创建、更新服务状态；执行结果以响应中的数据和消息为准。 该操作不要求 JSON 请求体。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。",
+        "operationId": "heartbeat_page",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "properties": {
+                    "data": {
+                      "$ref": "#/components/schemas/TerminalPage"
+                    },
+                    "message": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "success": {
+                      "const": true,
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "success",
+                    "data"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "「提交Web 终端heartbeat」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TerminalErrorEnvelope"
+                }
+              }
+            },
+            "description": "接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。"
+          }
+        },
+        "summary": "提交Web 终端heartbeat",
+        "tags": [
+          "terminal"
+        ],
+        "x-fn-knock-contract-source": "utoipa"
+      }
+    },
+    "/api/admin/terminal/pages/{id}/release": {
+      "post": {
+        "description": "管理 Web 终端运行时能力和交互会话。。`POST /api/admin/terminal/pages/{id}/release` 用于提交操作或创建、更新服务状态；执行结果以响应中的数据和消息为准。 该操作不要求 JSON 请求体。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。",
+        "operationId": "release_page",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiSuccessEnvelope"
+                }
+              }
+            },
+            "description": "「提交Web 终端release」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TerminalErrorEnvelope"
+                }
+              }
+            },
+            "description": "接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。"
+          }
+        },
+        "summary": "提交Web 终端release",
         "tags": [
           "terminal"
         ],

@@ -641,15 +641,19 @@ pub async fn create_session(
         .await?;
     let session = state
         .terminal
-        .start_session(SessionStartup {
-            pending,
-            backend: SessionStartupBackend::Ssh { target, credential },
-            initial_cols: cols,
-            initial_rows: rows,
-            shutdown: state.shutdown.child_token(),
-            target_guard,
-            audit_state: Some(state.clone()),
-        })
+        .start_page_session(
+            SessionStartup {
+                pending,
+                backend: SessionStartupBackend::Ssh { target, credential },
+                initial_cols: cols,
+                initial_rows: rows,
+                shutdown: state.shutdown.child_token(),
+                target_guard,
+                audit_state: Some(state.clone()),
+            },
+            input.persistent.unwrap_or(true),
+            input.page_id.as_deref(),
+        )
         .await?;
     tracing::info!(target_id, session_id = %session.id, "terminal session creation started");
     audit_event(
@@ -718,15 +722,19 @@ async fn create_local_session_inner(
     let privileged = descriptor.privileged;
     let session = state
         .terminal
-        .start_session(SessionStartup {
-            pending,
-            backend: SessionStartupBackend::Local { descriptor },
-            initial_cols: cols,
-            initial_rows: rows,
-            shutdown: state.shutdown.child_token(),
-            target_guard,
-            audit_state: Some(state.clone()),
-        })
+        .start_page_session(
+            SessionStartup {
+                pending,
+                backend: SessionStartupBackend::Local { descriptor },
+                initial_cols: cols,
+                initial_rows: rows,
+                shutdown: state.shutdown.child_token(),
+                target_guard,
+                audit_state: Some(state.clone()),
+            },
+            input.persistent.unwrap_or(true),
+            input.page_id.as_deref(),
+        )
         .await?;
     tracing::info!(
         target_id = LOCAL_TARGET_ID,
@@ -756,8 +764,11 @@ pub async fn rename_session(
     id: &str,
     input: RenameSessionInput,
 ) -> TerminalResult<TerminalSession> {
-    let session = state.terminal.rename(id, &input.title).await?;
-    tracing::info!(session_id = id, "terminal session renamed");
+    let session = state
+        .terminal
+        .update_session(id, input.title.as_deref(), input.persistent)
+        .await?;
+    tracing::info!(session_id = id, "terminal session updated");
     Ok(session)
 }
 
@@ -1287,11 +1298,96 @@ mod tests {
 
     #[cfg(unix)]
     #[tokio::test]
+    async fn last_page_release_terminates_nonpersistent_local_process() {
+        let (directory, state) = test_state().await;
+        update_local_terminal(
+            &state,
+            LocalTerminalSettingsInput {
+                enabled: true,
+                revision: 0,
+                acknowledge_risk: true,
+            },
+            false,
+            None,
+        )
+        .await
+        .unwrap();
+        let page = state.terminal.register_page().await.unwrap();
+        let session = create_local_session(
+            &state,
+            CreateSessionInput {
+                persistent: Some(false),
+                page_id: Some(page.id.clone()),
+                title: None,
+                cols: Some(80),
+                rows: Some(24),
+            },
+        )
+        .await
+        .unwrap();
+        assert!(!session.persistent);
+        tokio::time::timeout(std::time::Duration::from_secs(10), async {
+            loop {
+                if state.terminal.list().await.sessions.iter().any(|s| {
+                    s.id == session.id && s.phase == super::super::domain::SessionPhase::Running
+                }) {
+                    break;
+                }
+                tokio::time::sleep(std::time::Duration::from_millis(10)).await;
+            }
+        })
+        .await
+        .unwrap();
+        let attachment = state
+            .terminal
+            .create_page_attachment(&session.id, None, None, Some(&page.id))
+            .await
+            .unwrap();
+        let pid_file = directory.path().join("shell.pid");
+        state
+            .terminal
+            .send_input(
+                &attachment.id,
+                attachment.generation,
+                1,
+                format!("echo $$ > '{}'\n", pid_file.display()).into_bytes(),
+            )
+            .await
+            .unwrap();
+        let pid: i32 = tokio::time::timeout(std::time::Duration::from_secs(10), async {
+            loop {
+                if let Ok(content) = std::fs::read_to_string(&pid_file)
+                    && let Ok(pid) = content.trim().parse::<i32>()
+                {
+                    break pid;
+                }
+                tokio::time::sleep(std::time::Duration::from_millis(10)).await;
+            }
+        })
+        .await
+        .unwrap();
+        assert_eq!(unsafe { libc::kill(pid, 0) }, 0);
+        state.terminal.release_page(&page.id).await;
+        assert!(state.terminal.list().await.sessions.is_empty());
+        tokio::time::timeout(std::time::Duration::from_secs(5), async {
+            while unsafe { libc::kill(pid, 0) } == 0 {
+                tokio::time::sleep(std::time::Duration::from_millis(10)).await;
+            }
+        })
+        .await
+        .expect("local shell process must exit after its last page leaves");
+        state.terminal.shutdown_all().await;
+    }
+
+    #[cfg(unix)]
+    #[tokio::test]
     async fn rejected_local_session_creation_is_audited() {
         let (_directory, state) = test_state().await;
         let error = create_local_session(
             &state,
             CreateSessionInput {
+                persistent: None,
+                page_id: None,
                 title: None,
                 cols: None,
                 rows: None,

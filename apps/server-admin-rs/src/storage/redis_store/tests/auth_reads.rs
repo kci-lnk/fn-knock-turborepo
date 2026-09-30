@@ -3,6 +3,7 @@ use super::super::discovery::{
 };
 use super::*;
 use std::time::Duration;
+use tokio_util::task::AbortOnDropHandle;
 
 #[tokio::test]
 async fn authorization_metadata_does_not_queue_behind_primary() {
@@ -155,7 +156,7 @@ async fn authorization_string_and_hash_ttls_are_checked_after_reader_admission()
     let manager = store.manager.clone();
     let (started_tx, started_rx) = tokio::sync::oneshot::channel();
     let (release_tx, release_rx) = std::sync::mpsc::channel();
-    let blocker = tokio::spawn(async move {
+    let blocker = AbortOnDropHandle::new(tokio::spawn(async move {
         manager
             .call_auth_read(move |_| {
                 let _ = started_tx.send(());
@@ -166,15 +167,15 @@ async fn authorization_string_and_hash_ttls_are_checked_after_reader_admission()
             })
             .await
             .unwrap();
-    });
+    }));
     started_rx.await.unwrap();
     let reader_store = store.clone();
-    let mut reader = tokio::spawn(async move {
+    let mut reader = AbortOnDropHandle::new(tokio::spawn(async move {
         tokio::join!(
             reader_store.get_auth_mobility_binding_for_authorization("proxy-session", "s"),
             reader_store.get_auth_mobility_active_ip_detail_for_authorization("s", "192.0.2.1"),
         )
-    });
+    }));
     assert!(
         tokio::time::timeout(Duration::from_millis(20), &mut reader)
             .await
@@ -438,7 +439,7 @@ async fn scanner_authorization_expiry_is_checked_after_reader_admission() {
     let manager = store.manager.clone();
     let (started_tx, started_rx) = tokio::sync::oneshot::channel();
     let (release_tx, release_rx) = std::sync::mpsc::channel();
-    let blocker = tokio::spawn(async move {
+    let blocker = AbortOnDropHandle::new(tokio::spawn(async move {
         manager
             .call_auth_read(move |_| {
                 let _ = started_tx.send(());
@@ -449,16 +450,16 @@ async fn scanner_authorization_expiry_is_checked_after_reader_admission() {
             })
             .await
             .unwrap();
-    });
+    }));
     started_rx.await.unwrap();
     let reader_store = store.clone();
-    let mut reader = tokio::spawn(async move {
+    let mut reader = AbortOnDropHandle::new(tokio::spawn(async move {
         tokio::join!(
             reader_store.scanner_settings_raw(),
             reader_store.scanner_blacklist_exists(ip),
             reader_store.is_recent_auth_ip_active(ip, now),
         )
-    });
+    }));
     assert!(
         tokio::time::timeout(Duration::from_millis(20), &mut reader)
             .await

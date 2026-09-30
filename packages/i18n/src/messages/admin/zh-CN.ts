@@ -4653,6 +4653,12 @@ export const zhCNAdmin = {
     },
   },
   webTerminal: {
+    persistentConnection: "持久化连接",
+    persistenceDescription:
+      "持久化的是终端进程。勾选后，关闭浏览器仍可继续运行并重新连接；取消后，刷新、关闭或离开终端页面会结束进程。终端服务重启后，会话不会保留。",
+    persistenceLeaseDescription:
+      "同一会话被多个页面使用时，最后一个页面离开才结束；异常断线后将在超时后自动清理。",
+    persistenceSaveFailed: "保存持久化设置失败",
     metrics: {
       disksTitle: "磁盘与挂载点",
       diskAvailable: "可用",

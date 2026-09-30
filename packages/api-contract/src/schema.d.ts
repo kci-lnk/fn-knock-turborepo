@@ -6298,6 +6298,66 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/admin/terminal/pages": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * 提交Web 终端pages
+         * @description 管理 Web 终端运行时能力和交互会话。。`POST /api/admin/terminal/pages` 用于提交操作或创建、更新服务状态；执行结果以响应中的数据和消息为准。 该操作不要求 JSON 请求体。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
+         */
+        post: operations["register_page"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/terminal/pages/{id}/heartbeat": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * 提交Web 终端heartbeat
+         * @description 管理 Web 终端运行时能力和交互会话。。`POST /api/admin/terminal/pages/{id}/heartbeat` 用于提交操作或创建、更新服务状态；执行结果以响应中的数据和消息为准。 该操作不要求 JSON 请求体。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
+         */
+        post: operations["heartbeat_page"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/terminal/pages/{id}/release": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * 提交Web 终端release
+         * @description 管理 Web 终端运行时能力和交互会话。。`POST /api/admin/terminal/pages/{id}/release` 用于提交操作或创建、更新服务状态；执行结果以响应中的数据和消息为准。 该操作不要求 JSON 请求体。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
+         */
+        post: operations["release_page"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/admin/terminal/sessions": {
         parameters: {
             query?: never;
@@ -8968,12 +9028,15 @@ export interface components {
         CreateAttachmentInput: {
             /** Format: int32 */
             cols?: number | null;
+            pageId?: string | null;
             /** Format: int32 */
             rows?: number | null;
         };
         CreateSessionInput: {
             /** Format: int32 */
             cols?: number | null;
+            pageId?: string | null;
+            persistent?: boolean | null;
             /** Format: int32 */
             rows?: number | null;
             title?: string | null;
@@ -11939,7 +12002,8 @@ export interface components {
             proxy_protocol_force: boolean;
         };
         RenameSessionInput: {
-            title: string;
+            persistent?: boolean | null;
+            title?: string | null;
         };
         ResizeRequest: {
             /** Format: int32 */
@@ -13458,6 +13522,10 @@ export interface components {
             /** Format: double */
             value?: number | null;
         };
+        TerminalPage: {
+            expiresAt: string;
+            id: string;
+        };
         TerminalSession: {
             backend: components["schemas"]["SessionBackend"];
             /** Format: int32 */
@@ -13468,6 +13536,7 @@ export interface components {
             /** Format: int32 */
             exitCode?: number | null;
             id: string;
+            persistent: boolean;
             phase: components["schemas"]["SessionPhase"];
             /** Format: int32 */
             rows: number;
@@ -29693,6 +29762,111 @@ export interface operations {
                     } & {
                         [key: string]: unknown;
                     };
+                };
+            };
+            /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TerminalErrorEnvelope"];
+                };
+            };
+        };
+    };
+    register_page: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 「提交Web 终端pages」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        data: components["schemas"]["TerminalPage"];
+                        message?: string | null;
+                        /** @constant */
+                        success: true;
+                    } & {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TerminalErrorEnvelope"];
+                };
+            };
+        };
+    };
+    heartbeat_page: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 「提交Web 终端heartbeat」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        data: components["schemas"]["TerminalPage"];
+                        message?: string | null;
+                        /** @constant */
+                        success: true;
+                    } & {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TerminalErrorEnvelope"];
+                };
+            };
+        };
+    };
+    release_page: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 「提交Web 终端release」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiSuccessEnvelope"];
                 };
             };
             /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */

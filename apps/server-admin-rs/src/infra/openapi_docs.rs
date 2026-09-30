@@ -2357,7 +2357,32 @@ pub(crate) fn build_openapi_document() -> Value {
         None,
         None,
     );
+    for path in [
+        "/api/admin/terminal/pages",
+        "/api/admin/terminal/pages/{id}/heartbeat",
+    ] {
+        insert_typed_enveloped_operation(
+            &mut paths,
+            &typed_terminal_runtime,
+            path,
+            "post",
+            "TerminalPage",
+            None,
+            None,
+        );
+    }
+    insert_typed_empty_enveloped_operation(
+        &mut paths,
+        &typed_terminal_runtime,
+        "/api/admin/terminal/pages/{id}/release",
+        "post",
+        None,
+        None,
+    );
     for (method, path) in [
+        ("post", "/api/admin/terminal/pages"),
+        ("post", "/api/admin/terminal/pages/{id}/heartbeat"),
+        ("post", "/api/admin/terminal/pages/{id}/release"),
         ("get", "/api/admin/terminal/settings"),
         ("patch", "/api/admin/terminal/settings"),
         ("get", "/api/admin/terminal/local"),

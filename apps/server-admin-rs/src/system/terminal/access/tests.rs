@@ -223,6 +223,8 @@ async fn disabling_waits_for_inflight_creation_then_ends_every_session() {
     service::create_local_session(
         &state,
         CreateSessionInput {
+            persistent: None,
+            page_id: None,
             cols: Some(80),
             rows: Some(24),
             title: None,
@@ -270,6 +272,8 @@ async fn accepted_disable_finishes_after_the_http_request_is_cancelled() {
     service::create_local_session(
         &state,
         CreateSessionInput {
+            persistent: None,
+            page_id: None,
             cols: Some(80),
             rows: Some(24),
             title: None,

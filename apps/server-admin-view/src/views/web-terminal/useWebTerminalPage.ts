@@ -22,6 +22,7 @@ import { useTerminalResizeQueue } from "./useTerminalResizeQueue";
 import { useTerminalSessionActions } from "./useTerminalSessionActions";
 import { useTerminalSessionConnection } from "./useTerminalSessionConnection";
 import { useTerminalSessionRefresh } from "./useTerminalSessionRefresh";
+import { useTerminalPageLease } from "./useTerminalPageLease";
 import { useTerminalSessions } from "./useTerminalSessions";
 import { useTerminalTargetEditor } from "./useTerminalTargetEditor";
 import { normalizeTerminalDimensions } from "./terminal-dimensions";
@@ -40,11 +41,29 @@ export const useWebTerminalPage = () => {
   let sessionRefreshTimer: number | null = null;
 
   const targetsController = useTerminalTargets();
+  const pageLease = useTerminalPageLease({
+    onSuspend: () => {
+      sessionsController.cancelMutations();
+      void sessionConnection.detach();
+    },
+    onResume: async (isCurrent) => {
+      const applied = await sessionsController.loadSessions();
+      if (disposed || !isCurrent()) return;
+      // Periodic refresh may supersede this request. Keep restoration pending
+      // so its next heartbeat retries instead of leaving the terminal detached.
+      if (!applied)
+        throw new DOMException("Session refresh superseded", "AbortError");
+      const session = sessionsController.selectedSession.value;
+      if (session) await sessionActions.connectToSession(session);
+    },
+  });
 
   const sessionsController = useTerminalSessions({
+    getPageId: pageLease.ensurePageId,
     selectedTargetId: targetsController.selectedTargetId,
     onRuntimeChanged: () => {
       runtimeRestarted.value = true;
+      pageLease.invalidate();
       void sessionConnection.detach();
       toast.info(
         t(
@@ -68,6 +87,7 @@ export const useWebTerminalPage = () => {
   });
 
   const attachmentController = useTerminalAttachment({
+    getPageId: pageLease.ensurePageId,
     getTerminalSize: () =>
       normalizeTerminalDimensions(
         emulator?.getTerminalSize() ?? { cols: 120, rows: 32 },
@@ -322,6 +342,7 @@ export const useWebTerminalPage = () => {
   };
 
   onMounted(async () => {
+    pageLease.start();
     viewport.startViewportTracking();
     fontSize.loadTerminalFontSize();
     await bootstrap();
@@ -368,6 +389,7 @@ export const useWebTerminalPage = () => {
 
   onBeforeUnmount(() => {
     disposed = true;
+    pageLease.dispose();
     targetSelectionGeneration += 1;
     if (sessionRefreshTimer) window.clearInterval(sessionRefreshTimer);
     interactions.stop();
@@ -380,12 +402,28 @@ export const useWebTerminalPage = () => {
     void attachmentController.dispose();
   });
 
+  const setSessionPersistence = async (persistent: boolean) => {
+    const session = sessionsController.selectedSession.value;
+    if (!session) return;
+    try {
+      await sessionsController.setSessionPersistence(session.id, persistent);
+    } catch (reason) {
+      if (disposed) return;
+      toast.error(t("admin.webTerminal.persistenceSaveFailed"), {
+        description: localizedTerminalFailure(reason),
+      });
+      await sessionsController.loadSessions().catch(() => undefined);
+    }
+  };
+
   const setTerminalFrameElement = (element: unknown) =>
     (viewport.terminalFrameRef.value = element as HTMLElement | null);
   const setTerminalMountElement = (element: unknown) =>
     (emulator.terminalMountRef.value = element as HTMLElement | null);
 
   return {
+    setSessionPersistence,
+    isSavingPersistence: sessionsController.savingPersistence,
     ...metricsController,
     ...disksController,
     ...interactions,

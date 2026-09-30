@@ -5041,6 +5041,12 @@ export const enAdmin = {
     },
   },
   webTerminal: {
+    persistentConnection: "Persistent connection",
+    persistenceDescription:
+      "Persistence keeps the terminal process running. When enabled, it continues after you close the browser and you can reconnect. When disabled, refreshing, closing, or leaving the terminal page ends the process. Sessions do not survive a terminal service restart.",
+    persistenceLeaseDescription:
+      "If multiple pages use the same session, it ends only after the last page leaves. Unexpected disconnections are cleaned up after a timeout.",
+    persistenceSaveFailed: "Failed to save persistence setting",
     metrics: {
       disksTitle: "Mounted filesystems",
       diskAvailable: "Available",

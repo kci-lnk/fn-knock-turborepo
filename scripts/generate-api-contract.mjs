@@ -64,6 +64,9 @@ function validateContract(openapiPath) {
       "post /api/admin/terminal/targets/test-connection",
       "TerminalTestConnectionInput",
     ],
+    ["post /api/admin/terminal/pages", null],
+    ["post /api/admin/terminal/pages/{id}/heartbeat", null],
+    ["post /api/admin/terminal/pages/{id}/release", null],
     ["get /api/admin/terminal/sessions", null],
     [
       "post /api/admin/terminal/targets/{id}/sessions",

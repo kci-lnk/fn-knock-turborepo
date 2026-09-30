@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { useId } from "vue";
+import { Checkbox } from "@/components/ui/checkbox";
 import { useI18n } from "vue-i18n";
 import ConfirmDangerPopover from "@admin-shared/components/common/ConfirmDangerPopover.vue";
 import { Button } from "@/components/ui/button";
@@ -31,6 +33,8 @@ defineProps<{
   isCreating: boolean;
   isKilling: boolean;
   isRenamingSession: boolean;
+  isSavingPersistence: boolean;
+  setSessionPersistence: (persistent: boolean) => Promise<void> | void;
   keepTerminalFocused: (event: Event) => void;
   openRenameDialog: () => void;
   openSendDialog: () => void;
@@ -45,164 +49,201 @@ defineProps<{
 }>();
 
 const { t } = useI18n();
+const persistenceId = useId();
 </script>
 
 <template>
-  <div class="shrink-0 flex flex-col gap-2.5 lg:flex-row lg:items-center">
-    <div class="flex min-w-0 flex-nowrap items-center gap-1 sm:gap-2">
-      <Button
-        variant="outline"
-        size="sm"
-        class="min-w-0 flex-1 max-w-[210px] md:hidden"
-        :disabled="isBooting"
-        @click="openTargetDrawer"
-      >
-        <Server class="mr-1.5 h-4 w-4 shrink-0" />
-        <span class="truncate">
-          {{
-            selectedTarget?.kind === "local"
-              ? t("admin.webTerminal.localTarget")
-              : selectedTarget?.name ||
-                t("admin.webTerminal.targets", "Terminal targets")
-          }}
-        </span>
-      </Button>
-
-      <div class="flex shrink-0 items-center gap-1 sm:gap-2 sm:pl-2">
-        <LiveStatusBadge
-          v-if="connectionState === 'connected'"
-          :active="true"
-          :active-label="t('admin.webTerminal.statusConnected')"
-          class="mt-px sm:mr-3"
-        />
-        <span
-          v-else
-          :aria-label="statusTone"
-          :title="statusTone"
-          class="inline-flex h-2 w-2 shrink-0 rounded-full bg-zinc-300 align-middle"
-          role="status"
-        />
-
+  <div class="shrink-0 space-y-2.5">
+    <div class="flex flex-col gap-2.5 lg:flex-row lg:items-center">
+      <div class="flex min-w-0 flex-nowrap items-center gap-1 sm:gap-2">
         <Button
           variant="outline"
-          size="icon-sm"
-          class="rounded-lg border-border/70 bg-background/85 shadow-none"
-          :disabled="isCreating || isBooting"
-          :aria-label="t('admin.webTerminal.newSessionAria')"
-          :title="t('admin.webTerminal.newSession')"
-          @click="createSession"
+          size="sm"
+          class="min-w-0 flex-1 max-w-[210px] md:hidden"
+          :disabled="isBooting"
+          @click="openTargetDrawer"
         >
-          <LoaderCircle v-if="isCreating" class="h-4 w-4 animate-spin" />
-          <Plus v-else class="h-4 w-4" />
-          <span class="sr-only">{{ t("admin.webTerminal.newSession") }}</span>
+          <Server class="mr-1.5 h-4 w-4 shrink-0" />
+          <span class="truncate">
+            {{
+              selectedTarget?.kind === "local"
+                ? t("admin.webTerminal.localTarget")
+                : selectedTarget?.name ||
+                  t("admin.webTerminal.targets", "Terminal targets")
+            }}
+          </span>
         </Button>
-        <Button
-          variant="outline"
-          size="icon-sm"
-          class="rounded-lg border-border/70 bg-background/85 shadow-none"
-          :disabled="!selectedSession || isRenamingSession"
-          :aria-label="t('admin.webTerminal.renameSession')"
-          :title="t('admin.webTerminal.renameSession')"
-          @click="openRenameDialog"
-        >
-          <LoaderCircle v-if="isRenamingSession" class="h-4 w-4 animate-spin" />
-          <Pencil v-else class="h-4 w-4" />
-          <span class="sr-only">{{
-            t("admin.webTerminal.renameSession")
-          }}</span>
-        </Button>
-        <Button
-          variant="outline"
-          size="icon-sm"
-          class="rounded-lg border-border/70 bg-background/85 shadow-none"
-          :disabled="!selectedSession || connectionState === 'connecting'"
-          :aria-label="t('admin.webTerminal.reconnectAria')"
-          :title="t('admin.webTerminal.reconnect')"
-          @pointerdown="keepTerminalFocused"
-          @click="reconnectSession"
-        >
-          <RefreshCcw class="h-4 w-4" />
-          <span class="sr-only">{{ t("admin.webTerminal.reconnect") }}</span>
-        </Button>
-        <Button
-          variant="outline"
-          size="icon-sm"
-          class="rounded-lg border-border/70 bg-background/85 shadow-none"
-          :disabled="toolbarDisabled"
-          :aria-label="t('admin.webTerminal.sendAria')"
-          :title="t('admin.webTerminal.send')"
-          @click="openSendDialog"
-        >
-          <Send class="h-4 w-4" />
-          <span class="sr-only">{{ t("admin.webTerminal.send") }}</span>
-        </Button>
-      </div>
 
-      <Button
-        v-if="canClaimControl && selectedSession"
-        variant="outline"
-        size="sm"
-        :disabled="connectionState !== 'connected'"
-        @click="claimControl"
-      >
-        <MonitorUp class="mr-1.5 h-3.5 w-3.5" />
-        {{ t("admin.webTerminal.takeControl", "Take control") }}
-      </Button>
+        <div class="flex shrink-0 items-center gap-1 sm:gap-2 sm:pl-2">
+          <LiveStatusBadge
+            v-if="connectionState === 'connected'"
+            :active="true"
+            :active-label="t('admin.webTerminal.statusConnected')"
+            class="mt-px sm:mr-3"
+          />
+          <span
+            v-else
+            :aria-label="statusTone"
+            :title="statusTone"
+            class="inline-flex h-2 w-2 shrink-0 rounded-full bg-zinc-300 align-middle"
+            role="status"
+          />
 
-      <div class="h-8 w-px shrink-0 bg-border/70" />
-
-      <ConfirmDangerPopover
-        :title="t('admin.webTerminal.endConfirmTitle')"
-        :description="destroySessionDescription"
-        :confirm-text="t('admin.webTerminal.endSession')"
-        :loading="isKilling"
-        :disabled="!selectedSession || isKilling"
-        :on-confirm="destroySelectedSession"
-        content-class="w-72 text-left"
-      >
-        <template #trigger>
           <Button
-            variant="ghost"
+            variant="outline"
             size="icon-sm"
-            class="rounded-lg text-destructive hover:bg-destructive/10 hover:text-destructive"
-            :disabled="!selectedSession || isKilling"
-            :aria-label="t('admin.webTerminal.endCurrentSession')"
-            :title="t('admin.webTerminal.endSession')"
+            class="rounded-lg border-border/70 bg-background/85 shadow-none"
+            :disabled="isCreating || isBooting"
+            :aria-label="t('admin.webTerminal.newSessionAria')"
+            :title="t('admin.webTerminal.newSession')"
+            @click="createSession"
           >
-            <Trash2 class="h-4 w-4" />
-            <span class="sr-only">{{ t("admin.webTerminal.endSession") }}</span>
+            <LoaderCircle v-if="isCreating" class="h-4 w-4 animate-spin" />
+            <Plus v-else class="h-4 w-4" />
+            <span class="sr-only">{{ t("admin.webTerminal.newSession") }}</span>
           </Button>
-        </template>
-      </ConfirmDangerPopover>
-    </div>
-
-    <div
-      v-if="sessions.length > 1"
-      class="h-px w-full shrink-0 bg-border/70 lg:h-9 lg:w-px"
-    />
-
-    <Tabs
-      v-if="sessions.length > 1"
-      :model-value="selectedSessionId"
-      class="min-w-0 flex-1"
-      @update:model-value="handleSessionTabChange"
-    >
-      <div
-        class="overflow-x-auto pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden lg:pb-0"
-      >
-        <TabsList
-          class="inline-flex h-9 min-w-max items-center gap-1 rounded-lg border border-border/70 bg-background/72 p-1 lg:ml-auto"
-        >
-          <TabsTrigger
-            v-for="session in sessions"
-            :key="session.id"
-            :value="session.id"
-            class="h-7 min-w-[92px] max-w-[148px] rounded-md px-2.5 text-[11px] font-medium sm:min-w-[110px] sm:max-w-[180px] sm:text-xs"
+          <Button
+            variant="outline"
+            size="icon-sm"
+            class="rounded-lg border-border/70 bg-background/85 shadow-none"
+            :disabled="!selectedSession || isRenamingSession"
+            :aria-label="t('admin.webTerminal.renameSession')"
+            :title="t('admin.webTerminal.renameSession')"
+            @click="openRenameDialog"
           >
-            <span class="truncate">{{ session.title }}</span>
-          </TabsTrigger>
-        </TabsList>
+            <LoaderCircle
+              v-if="isRenamingSession"
+              class="h-4 w-4 animate-spin"
+            />
+            <Pencil v-else class="h-4 w-4" />
+            <span class="sr-only">{{
+              t("admin.webTerminal.renameSession")
+            }}</span>
+          </Button>
+          <Button
+            variant="outline"
+            size="icon-sm"
+            class="rounded-lg border-border/70 bg-background/85 shadow-none"
+            :disabled="!selectedSession || connectionState === 'connecting'"
+            :aria-label="t('admin.webTerminal.reconnectAria')"
+            :title="t('admin.webTerminal.reconnect')"
+            @pointerdown="keepTerminalFocused"
+            @click="reconnectSession"
+          >
+            <RefreshCcw class="h-4 w-4" />
+            <span class="sr-only">{{ t("admin.webTerminal.reconnect") }}</span>
+          </Button>
+          <Button
+            variant="outline"
+            size="icon-sm"
+            class="rounded-lg border-border/70 bg-background/85 shadow-none"
+            :disabled="toolbarDisabled"
+            :aria-label="t('admin.webTerminal.sendAria')"
+            :title="t('admin.webTerminal.send')"
+            @click="openSendDialog"
+          >
+            <Send class="h-4 w-4" />
+            <span class="sr-only">{{ t("admin.webTerminal.send") }}</span>
+          </Button>
+        </div>
+
+        <Button
+          v-if="canClaimControl && selectedSession"
+          variant="outline"
+          size="sm"
+          :disabled="connectionState !== 'connected'"
+          @click="claimControl"
+        >
+          <MonitorUp class="mr-1.5 h-3.5 w-3.5" />
+          {{ t("admin.webTerminal.takeControl", "Take control") }}
+        </Button>
+
+        <div class="h-8 w-px shrink-0 bg-border/70" />
+
+        <ConfirmDangerPopover
+          :title="t('admin.webTerminal.endConfirmTitle')"
+          :description="destroySessionDescription"
+          :confirm-text="t('admin.webTerminal.endSession')"
+          :loading="isKilling"
+          :disabled="!selectedSession || isKilling"
+          :on-confirm="destroySelectedSession"
+          content-class="w-72 text-left"
+        >
+          <template #trigger>
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              class="rounded-lg text-destructive hover:bg-destructive/10 hover:text-destructive"
+              :disabled="!selectedSession || isKilling"
+              :aria-label="t('admin.webTerminal.endCurrentSession')"
+              :title="t('admin.webTerminal.endSession')"
+            >
+              <Trash2 class="h-4 w-4" />
+              <span class="sr-only">{{
+                t("admin.webTerminal.endSession")
+              }}</span>
+            </Button>
+          </template>
+        </ConfirmDangerPopover>
       </div>
-    </Tabs>
+
+      <div
+        v-if="sessions.length > 1"
+        class="h-px w-full shrink-0 bg-border/70 lg:h-9 lg:w-px"
+      />
+
+      <Tabs
+        v-if="sessions.length > 1"
+        :model-value="selectedSessionId"
+        class="min-w-0 flex-1"
+        @update:model-value="handleSessionTabChange"
+      >
+        <div
+          class="overflow-x-auto pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden lg:pb-0"
+        >
+          <TabsList
+            class="inline-flex h-9 min-w-max items-center gap-1 rounded-lg border border-border/70 bg-background/72 p-1 lg:ml-auto"
+          >
+            <TabsTrigger
+              v-for="session in sessions"
+              :key="session.id"
+              :value="session.id"
+              class="h-7 min-w-[92px] max-w-[148px] rounded-md px-2.5 text-[11px] font-medium sm:min-w-[110px] sm:max-w-[180px] sm:text-xs"
+            >
+              <span class="truncate">{{ session.title }}</span>
+            </TabsTrigger>
+          </TabsList>
+        </div>
+      </Tabs>
+    </div>
+    <div class="flex items-start gap-2 rounded-lg bg-muted/30 px-3 py-2">
+      <Checkbox
+        :id="persistenceId"
+        class="mt-0.5 shrink-0"
+        :model-value="selectedSession?.persistent ?? true"
+        :disabled="
+          !selectedSession ||
+          isBooting ||
+          isSavingPersistence ||
+          ['closed', 'exited', 'lost', 'failed', 'closing'].includes(
+            selectedSession.phase,
+          )
+        "
+        :aria-describedby="`${persistenceId}-help`"
+        @update:model-value="setSessionPersistence($event === true)"
+      />
+      <div class="min-w-0 space-y-1">
+        <label :for="persistenceId" class="text-sm font-medium">{{
+          t("admin.webTerminal.persistentConnection")
+        }}</label>
+        <div
+          :id="`${persistenceId}-help`"
+          class="text-xs leading-relaxed text-muted-foreground"
+        >
+          <p>{{ t("admin.webTerminal.persistenceDescription") }}</p>
+          <p>{{ t("admin.webTerminal.persistenceLeaseDescription") }}</p>
+        </div>
+      </div>
+    </div>
   </div>
 </template>

@@ -4995,6 +4995,12 @@ export const koKRAdmin = {
     },
   },
   webTerminal: {
+    persistentConnection: "연결 유지",
+    persistenceDescription:
+      "유지되는 것은 터미널 프로세스입니다. 선택하면 브라우저를 닫아도 실행이 계속되며 다시 연결할 수 있습니다. 선택을 해제하면 터미널 페이지를 새로 고치거나 닫거나 떠날 때 프로세스가 종료됩니다. 터미널 서비스가 재시작되면 세션은 유지되지 않습니다.",
+    persistenceLeaseDescription:
+      "여러 페이지에서 같은 세션을 사용하면 마지막 페이지를 떠날 때 종료됩니다. 예기치 않은 연결 끊김은 시간 초과 후 자동 정리됩니다.",
+    persistenceSaveFailed: "연결 유지 설정 저장 실패",
     metrics: {
       disksTitle: "디스크 및 마운트 지점",
       diskAvailable: "사용 가능",

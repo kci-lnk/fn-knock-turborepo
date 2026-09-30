@@ -347,6 +347,13 @@ pub(super) async fn apply_runtime_constraints_on_boot(
         corrected.push("firewall_additional_ports -> normalized".to_string());
     }
 
+    let ranges = configured_firewall_port_ranges(config);
+    if config.get("firewall_additional_port_ranges") != Some(&json!(ranges)) {
+        ensure_config_object(config)
+            .insert("firewall_additional_port_ranges".to_string(), json!(ranges));
+        corrected.push("firewall_additional_port_ranges -> normalized".to_string());
+    }
+
     if !corrected.is_empty() {
         state.storage.store.save_config(config).await?;
     }

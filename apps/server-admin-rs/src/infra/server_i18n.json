@@ -479,7 +479,10 @@
           "portsArrayRequired": "ports 必须是端口数组",
           "portIntegerRequired": "额外放行端口必须是整数",
           "portOutOfRange": "额外放行端口必须在 1 到 65535 之间",
-          "tooManyPorts": "额外放行端口不能超过 128 个"
+          "tooManyPorts": "单端口和范围合计最多 128 条。",
+          "rangesArrayRequired": "ranges 必须是端口范围数组",
+          "rangeOrder": "起始端口必须小于结束端口。",
+          "overlap": "端口范围不能彼此重叠，也不能覆盖手动添加的单端口。"
         }
       }
     },
@@ -3733,7 +3736,10 @@
           "portsArrayRequired": "ports 必須是端口陣列",
           "portIntegerRequired": "額外放行端口必須是整數",
           "portOutOfRange": "額外放行端口必須在 1 到 65535 之間",
-          "tooManyPorts": "額外放行端口不能超過 128 個"
+          "tooManyPorts": "單端口和範圍合計最多 128 條。",
+          "rangesArrayRequired": "ranges 必須是端口範圍陣列",
+          "rangeOrder": "起始端口必須小於結束端口。",
+          "overlap": "端口範圍不能彼此重疊，也不能涵蓋手動新增的單端口。"
         }
       }
     },
@@ -6987,7 +6993,10 @@
           "portsArrayRequired": "ports must be an array of port numbers",
           "portIntegerRequired": "Additional allowed ports must be integers",
           "portOutOfRange": "Additional allowed ports must be between 1 and 65535",
-          "tooManyPorts": "No more than 128 additional allowed ports may be configured"
+          "tooManyPorts": "At most 128 single ports and ranges can be configured in total.",
+          "rangesArrayRequired": "ranges must be an array of port ranges",
+          "rangeOrder": "The start port must be less than the end port.",
+          "overlap": "Port ranges must not overlap each other or manually added single ports."
         }
       }
     },
@@ -10241,7 +10250,10 @@
           "portsArrayRequired": "ports는 포트 번호 배열이어야 합니다",
           "portIntegerRequired": "추가 허용 포트는 정수여야 합니다",
           "portOutOfRange": "추가 허용 포트는 1에서 65535 사이여야 합니다",
-          "tooManyPorts": "추가 허용 포트는 128개를 초과할 수 없습니다"
+          "tooManyPorts": "단일 포트와 범위는 합계 128개까지 설정할 수 있습니다.",
+          "rangesArrayRequired": "ranges는 포트 범위 배열이어야 합니다",
+          "rangeOrder": "시작 포트는 끝 포트보다 작아야 합니다.",
+          "overlap": "포트 범위는 서로 겹치거나 수동으로 추가한 단일 포트와 겹칠 수 없습니다."
         }
       }
     },
@@ -13495,7 +13507,10 @@
           "portsArrayRequired": "ports はポート番号の配列である必要があります",
           "portIntegerRequired": "追加許可ポートは整数である必要があります",
           "portOutOfRange": "追加許可ポートは 1 から 65535 の範囲で指定してください",
-          "tooManyPorts": "追加許可ポートは 128 件を超えて設定できません"
+          "tooManyPorts": "単一ポートと範囲は合計 128 件まで設定できます。",
+          "rangesArrayRequired": "ranges はポート範囲の配列で指定してください",
+          "rangeOrder": "開始ポートは終了ポートより小さくしてください。",
+          "overlap": "ポート範囲同士、または手動追加した単一ポートと重複できません。"
         }
       }
     },

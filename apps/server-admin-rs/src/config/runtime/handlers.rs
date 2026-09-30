@@ -1026,6 +1026,8 @@ fn build_firewall_additional_ports_details(
             .and_then(Value::as_bool)
             == Some(true);
     json!({
+        "additionalRanges": configured_firewall_port_ranges(config),
+        "effectiveRanges": effective_firewall_port_ranges(config, run_type),
         "additionalPorts": normalize_firewall_additional_ports(
             config.get("firewall_additional_ports")
         ),
@@ -1114,15 +1116,33 @@ pub(super) async fn update_firewall_additional_ports(
             );
         }
     };
-    update_firewall_additional_ports_transaction(&state, ports).await
+    let ranges = match parse_firewall_additional_ranges(&body) {
+        Ok(ranges) => ranges,
+        Err(key) => {
+            return response::error(
+                StatusCode::BAD_REQUEST,
+                admin_text(
+                    &translator,
+                    &format!("firewallAdditionalPorts.errors.{key}"),
+                ),
+            );
+        }
+    };
+    update_firewall_additional_ports_transaction(&state, ports, ranges).await
 }
 
 pub(super) async fn update_firewall_additional_ports_transaction(
     state: &AppState,
     ports: Vec<i64>,
+    ranges: Option<Vec<FirewallPortRange>>,
 ) -> Response {
-    update_firewall_additional_ports_transaction_with_reset(state, ports, &RuntimeFirewallReset)
-        .await
+    update_firewall_additional_ports_transaction_with_reset(
+        state,
+        ports,
+        ranges,
+        &RuntimeFirewallReset,
+    )
+    .await
 }
 
 pub(super) type FirewallResetFuture<'a> =
@@ -1143,6 +1163,7 @@ impl FirewallResetOperation for RuntimeFirewallReset {
 pub(super) async fn update_firewall_additional_ports_transaction_with_reset<R>(
     state: &AppState,
     ports: Vec<i64>,
+    ranges: Option<Vec<FirewallPortRange>>,
     reset_firewall: &R,
 ) -> Response
 where
@@ -1181,10 +1202,28 @@ where
         .unwrap_or(3);
     let previous_ports =
         normalize_firewall_additional_ports(previous_config.get("firewall_additional_ports"));
+    let previous_ranges = configured_firewall_port_ranges(&previous_config);
+    let ranges = ranges.unwrap_or_else(|| previous_ranges.clone());
+    if let Err(key) = validate_firewall_port_selection(&ports, &ranges) {
+        return response::error(
+            StatusCode::BAD_REQUEST,
+            admin_text(
+                &translator,
+                &format!("firewallAdditionalPorts.errors.{key}"),
+            ),
+        );
+    }
     let next_config = match state
         .storage
         .store
-        .set_config_top_level_value("firewall_additional_ports", json!(ports))
+        .set_config_top_level_values(
+            [
+                ("firewall_additional_ports".to_string(), json!(ports)),
+                ("firewall_additional_port_ranges".to_string(), json!(ranges)),
+            ]
+            .into_iter()
+            .collect(),
+        )
         .await
     {
         Ok(config) => config,
@@ -1209,7 +1248,20 @@ where
             let rollback_result = match state
                 .storage
                 .store
-                .set_config_top_level_value("firewall_additional_ports", json!(previous_ports))
+                .set_config_top_level_values(
+                    [
+                        (
+                            "firewall_additional_ports".to_string(),
+                            json!(previous_ports),
+                        ),
+                        (
+                            "firewall_additional_port_ranges".to_string(),
+                            json!(previous_ranges),
+                        ),
+                    ]
+                    .into_iter()
+                    .collect(),
+                )
                 .await
             {
                 Ok(_) => reset_firewall

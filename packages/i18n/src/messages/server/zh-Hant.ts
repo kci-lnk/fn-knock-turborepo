@@ -204,10 +204,13 @@ export const zhHantServer = {
       updateFailedRollback:
         "套用額外放行端口失敗：{message}；回滾失敗：{rollbackError}",
       errors: {
+        rangesArrayRequired: "ranges 必須是端口範圍陣列",
+        rangeOrder: "起始端口必須小於結束端口。",
+        overlap: "端口範圍不能彼此重疊，也不能涵蓋手動新增的單端口。",
         portsArrayRequired: "ports 必須是端口陣列",
         portIntegerRequired: "額外放行端口必須是整數",
         portOutOfRange: "額外放行端口必須在 1 到 65535 之間",
-        tooManyPorts: "額外放行端口不能超過 128 個",
+        tooManyPorts: "單端口和範圍合計最多 128 條。",
       },
     },
     protocolMapping: {

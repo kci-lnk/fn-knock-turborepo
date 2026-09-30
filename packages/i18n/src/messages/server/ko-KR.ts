@@ -235,10 +235,15 @@ export const koKRServer = {
       updateFailedRollback:
         "추가 허용 포트를 적용하지 못했습니다: {message}; 롤백 실패: {rollbackError}",
       errors: {
+        rangesArrayRequired: "ranges는 포트 범위 배열이어야 합니다",
+        rangeOrder: "시작 포트는 끝 포트보다 작아야 합니다.",
+        overlap:
+          "포트 범위는 서로 겹치거나 수동으로 추가한 단일 포트와 겹칠 수 없습니다.",
+
         portsArrayRequired: "ports는 포트 번호 배열이어야 합니다",
         portIntegerRequired: "추가 허용 포트는 정수여야 합니다",
         portOutOfRange: "추가 허용 포트는 1에서 65535 사이여야 합니다",
-        tooManyPorts: "추가 허용 포트는 128개를 초과할 수 없습니다",
+        tooManyPorts: "단일 포트와 범위는 합계 128개까지 설정할 수 있습니다.",
       },
     },
     protocolMapping: {

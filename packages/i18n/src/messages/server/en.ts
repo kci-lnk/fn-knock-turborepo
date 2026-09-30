@@ -242,11 +242,15 @@ export const enServer = {
       updateFailedRollback:
         "Failed to apply additional allowed ports: {message}; rollback failed: {rollbackError}",
       errors: {
+        rangesArrayRequired: "ranges must be an array of port ranges",
+        rangeOrder: "The start port must be less than the end port.",
+        overlap:
+          "Port ranges must not overlap each other or manually added single ports.",
         portsArrayRequired: "ports must be an array of port numbers",
         portIntegerRequired: "Additional allowed ports must be integers",
         portOutOfRange: "Additional allowed ports must be between 1 and 65535",
         tooManyPorts:
-          "No more than 128 additional allowed ports may be configured",
+          "At most 128 single ports and ranges can be configured in total.",
       },
     },
     protocolMapping: {

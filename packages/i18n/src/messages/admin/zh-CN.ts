@@ -1472,17 +1472,27 @@ export const zhCNAdmin = {
       automaticDescription:
         "这些端口来自网关、协议映射或智能连接，无需在下方重复添加。",
       noAutomaticPorts: "当前模式不使用受管防火墙端口。",
+      effectiveTitle: "当前有效放行列表",
+      effectiveDescription:
+        "按已保存配置和当前模式计算，包含系统自动放行项；未保存的草稿不影响此列表。",
       customTitle: "用户额外放行",
-      customDescription:
-        "最多添加 {max} 个端口；可直接修改端口号，删除只影响当前草稿。",
+      customDescription: "单端口和范围合计最多 {max} 条；删除只影响当前草稿。",
       portAria: "额外放行端口 {number}",
       portPlaceholder: "例如 5666",
       deletePort: "删除端口 {port}",
       empty: "尚未配置额外放行端口。",
       addPort: "新增端口",
+      addRange: "新增端口范围",
+      rangeStart: "起始端口",
+      rangeEnd: "结束端口",
+      rangeStartAria: "端口范围 {number} 的起始端口",
+      rangeEndAria: "端口范围 {number} 的结束端口",
+      deleteRange: "删除端口范围 {number}",
+      ftpExample:
+        "FTP 示例：新增控制端口（如 21），再添加与 FTP 服务端一致的被动模式端口范围（如 50000–51000，包含两端）。",
       protocolTitle: "同时放行 TCP 与 UDP",
       protocolDescription:
-        "每个端口都会同时添加 TCP 和 UDP 放行规则，请只添加确实需要对外访问的端口。",
+        "每个端口或范围都会同时添加 TCP 和 UDP 放行规则，请只添加确实需要对外访问的端口。",
       saveAndApply: "保存并应用",
       reverseModeName: "内网穿透",
       noPorts: "无",
@@ -1490,18 +1500,20 @@ export const zhCNAdmin = {
       saveFailed: "保存额外放行端口失败",
       saved: "额外放行端口已更新",
       savedAndAppliedDescription:
-        "已保存 {count} 个额外端口，并按{mode}重设防火墙。当前实际放行：{ports}。",
+        "已保存 {count} 条额外放行配置，并按{mode}重设防火墙。当前实际放行：{ports}。",
       savedForLaterDescription:
-        "已保存 {count} 个额外端口。内网穿透模式当前不创建受管防火墙规则，切换模式后会自动纳入。",
+        "已保存 {count} 条额外放行配置。内网穿透模式当前不创建受管防火墙规则，切换模式后会自动纳入。 已保存的端口及范围：{ports}。",
       savedForLaterManualDescription:
-        "已保存 {count} 个额外端口。自动处理系统防火墙已关闭：切换到子域模式后需手动重设防火墙；切换到直连模式时仍会自动应用。",
+        "已保存 {count} 条额外放行配置。自动处理系统防火墙已关闭：切换到子域模式后需手动重设防火墙；切换到直连模式时仍会自动应用。 已保存的端口及范围：{ports}。",
       savedModeNotice: "页面上未保存的模式选择未被应用。",
       errors: {
+        rangeOrder: "起始端口必须小于结束端口。",
+        overlap: "端口范围不能彼此重叠，也不能覆盖手动添加的单端口。",
         required: "端口号不能为空。",
         integer: "端口必须是整数。",
         range: "端口必须在 1 到 65535 之间。",
         duplicate: "额外放行端口不能重复。",
-        tooMany: "最多只能配置 {max} 个额外放行端口。",
+        tooMany: "单端口和范围合计最多 {max} 条。",
       },
     },
     resetFirewallByMode: "按所选模式重设防火墙",

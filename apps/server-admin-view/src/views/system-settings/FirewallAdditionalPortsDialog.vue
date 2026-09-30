@@ -18,7 +18,9 @@ import type { FirewallAdditionalPortsDetails } from "@/types";
 import {
   areFirewallPortListsEqual,
   MAX_FIREWALL_ADDITIONAL_PORTS,
-  validateFirewallAdditionalPortDraft,
+  validateFirewallPortSelection,
+  areFirewallRangeListsEqual,
+  type FirewallPortRange,
 } from "./firewallAdditionalPortsModel";
 
 const props = defineProps<{
@@ -34,7 +36,7 @@ const props = defineProps<{
 
 const emit = defineEmits<{
   retry: [];
-  save: [ports: number[]];
+  save: [ports: number[], ranges: FirewallPortRange[]];
   "update:open": [open: boolean];
 }>();
 
@@ -42,9 +44,16 @@ type PortDraft = { id: number; value: string };
 
 const { t } = useI18n();
 const draft = ref<PortDraft[]>([]);
+const rangeDraft = ref<{ id: number; start: string; end: string }[]>([]);
+const entryCount = computed(() => draft.value.length + rangeDraft.value.length);
 let nextDraftId = 0;
 
 const resetDraft = () => {
+  rangeDraft.value = (props.details?.additionalRanges ?? []).map((range) => ({
+    id: ++nextDraftId,
+    start: String(range.start),
+    end: String(range.end),
+  }));
   draft.value = (props.details?.additionalPorts ?? []).map((port) => ({
     id: ++nextDraftId,
     value: String(port),
@@ -60,7 +69,10 @@ watch(
 );
 
 const validation = computed(() =>
-  validateFirewallAdditionalPortDraft(draft.value.map((item) => item.value)),
+  validateFirewallPortSelection(
+    draft.value.map((item) => item.value),
+    rangeDraft.value,
+  ),
 );
 const validationMessage = computed(() => {
   if (validation.value.valid) return "";
@@ -77,6 +89,10 @@ const unchanged = computed(
     areFirewallPortListsEqual(
       validation.value.ports,
       props.details?.additionalPorts ?? [],
+    ) &&
+    areFirewallRangeListsEqual(
+      validation.value.ranges,
+      props.details?.additionalRanges ?? [],
     ),
 );
 const canSave = computed(
@@ -89,15 +105,22 @@ const canSave = computed(
 );
 
 const addPort = () => {
-  if (draft.value.length >= MAX_FIREWALL_ADDITIONAL_PORTS) return;
+  if (entryCount.value >= MAX_FIREWALL_ADDITIONAL_PORTS) return;
   draft.value.push({ id: ++nextDraftId, value: "" });
+};
+const addRange = () => {
+  if (entryCount.value >= MAX_FIREWALL_ADDITIONAL_PORTS) return;
+  rangeDraft.value.push({ id: ++nextDraftId, start: "", end: "" });
+};
+const removeRange = (id: number) => {
+  rangeDraft.value = rangeDraft.value.filter((item) => item.id !== id);
 };
 const removePort = (id: number) => {
   draft.value = draft.value.filter((item) => item.id !== id);
 };
 const submit = () => {
   if (!canSave.value || !validation.value.valid) return;
-  emit("save", validation.value.ports);
+  emit("save", validation.value.ports, validation.value.ranges);
 };
 </script>
 
@@ -193,6 +216,40 @@ const submit = () => {
           </p>
         </section>
 
+        <section
+          class="space-y-2"
+          :aria-label="t('admin.runModeSettings.additionalPorts.effectiveTitle')"
+        >
+          <h3 class="text-sm font-medium">
+            {{ t("admin.runModeSettings.additionalPorts.effectiveTitle") }}
+          </h3>
+          <p class="text-xs leading-5 text-muted-foreground">
+            {{ t("admin.runModeSettings.additionalPorts.effectiveDescription") }}
+          </p>
+          <div
+            v-if="details.effectivePorts.length || details.effectiveRanges.length"
+            class="flex flex-wrap gap-2"
+          >
+            <Badge
+              v-for="port in details.effectivePorts"
+              :key="`port-${port}`"
+              variant="secondary"
+            >
+              {{ port }}
+            </Badge>
+            <Badge
+              v-for="range in details.effectiveRanges"
+              :key="`range-${range.start}-${range.end}`"
+              variant="secondary"
+            >
+              {{ range.start }}–{{ range.end }}
+            </Badge>
+          </div>
+          <p v-else class="text-sm text-muted-foreground">
+            {{ t("admin.runModeSettings.additionalPorts.noPorts") }}
+          </p>
+        </section>
+
         <section class="space-y-3">
           <div>
             <h3 class="text-sm font-medium">
@@ -243,10 +300,63 @@ const submit = () => {
                 <Trash2 class="h-4 w-4" />
               </Button>
             </div>
+            <div
+              v-for="(item, index) in rangeDraft"
+              :key="item.id"
+              class="flex items-center gap-2"
+            >
+              <Input
+                v-model="item.start"
+                inputmode="numeric"
+                min="1"
+                max="65535"
+                :aria-label="
+                  t('admin.runModeSettings.additionalPorts.rangeStartAria', {
+                    number: index + 1,
+                  })
+                "
+                :placeholder="
+                  t('admin.runModeSettings.additionalPorts.rangeStart')
+                "
+                :disabled="saving"
+              />
+              <span aria-hidden="true">–</span>
+              <Input
+                v-model="item.end"
+                inputmode="numeric"
+                min="1"
+                max="65535"
+                :aria-label="
+                  t('admin.runModeSettings.additionalPorts.rangeEndAria', {
+                    number: index + 1,
+                  })
+                "
+                :placeholder="
+                  t('admin.runModeSettings.additionalPorts.rangeEnd')
+                "
+                :disabled="saving"
+              />
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                :disabled="saving"
+                :aria-label="
+                  t('admin.runModeSettings.additionalPorts.deleteRange', {
+                    number: index + 1,
+                  })
+                "
+                @click="removeRange(item.id)"
+                ><Trash2 class="h-4 w-4"
+              /></Button>
+            </div>
           </div>
 
+          <p class="text-xs leading-5 text-muted-foreground">
+            {{ t("admin.runModeSettings.additionalPorts.ftpExample") }}
+          </p>
           <div
-            v-if="draft.length === 0"
+            v-if="entryCount === 0"
             class="rounded-md border border-dashed px-4 py-8 text-center text-sm text-muted-foreground"
           >
             {{ t("admin.runModeSettings.additionalPorts.empty") }}
@@ -263,11 +373,22 @@ const submit = () => {
           <Button
             type="button"
             variant="outline"
-            :disabled="saving || draft.length >= MAX_FIREWALL_ADDITIONAL_PORTS"
+            :disabled="saving || entryCount >= MAX_FIREWALL_ADDITIONAL_PORTS"
             @click="addPort"
           >
             <Plus class="h-4 w-4" />
             {{ t("admin.runModeSettings.additionalPorts.addPort") }}
+          </Button>
+          <Button
+            type="button"
+            variant="outline"
+            class="ml-2"
+            :disabled="saving || entryCount >= MAX_FIREWALL_ADDITIONAL_PORTS"
+            @click="addRange"
+          >
+            <Plus class="h-4 w-4" />{{
+              t("admin.runModeSettings.additionalPorts.addRange")
+            }}
           </Button>
         </section>
 

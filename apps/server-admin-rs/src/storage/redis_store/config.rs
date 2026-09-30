@@ -208,6 +208,7 @@ pub fn default_config() -> Value {
         "reverse_proxy_submode": "host",
         "auto_manage_firewall": true,
         "firewall_additional_ports": [],
+        "firewall_additional_port_ranges": [],
         "whitelist_ips": [],
         "proxy_mappings": [],
         "host_mappings": [],

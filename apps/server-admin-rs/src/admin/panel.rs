@@ -400,6 +400,7 @@ pub(crate) fn build_safe_app_config(
     let firewall_additional_ports = runtime_config::normalize_firewall_additional_ports(
         config.get("firewall_additional_ports"),
     );
+    let firewall_ranges = runtime_config::configured_firewall_port_ranges(&config);
     let locale = normalize_locale_config(config.get("locale").unwrap_or(&Value::Null));
     let appearance = normalize_appearance_config(config.get("appearance").unwrap_or(&Value::Null));
 
@@ -424,6 +425,10 @@ pub(crate) fn build_safe_app_config(
         object.insert(
             "firewall_additional_ports".to_string(),
             json!(firewall_additional_ports),
+        );
+        object.insert(
+            "firewall_additional_port_ranges".to_string(),
+            json!(firewall_ranges),
         );
         object.insert("locale".to_string(), locale);
         object.insert("appearance".to_string(), appearance);

@@ -20,6 +20,7 @@ use crate::{
     store as app_store, system_assets, time_utils, waf, whitelist,
 };
 
+mod firewall_ports;
 mod fnos_connect_waf;
 mod fnos_network;
 mod handlers;
@@ -29,6 +30,7 @@ mod smart_connect;
 mod store;
 mod utils;
 
+pub(crate) use firewall_ports::*;
 pub(crate) use fnos_connect_waf::start_fnos_connect_waf_reconciler;
 pub(crate) use fnos_connect_waf::{fnos_connect_waf_routes, normalize_fnos_connect_waf};
 use fnos_network::*;

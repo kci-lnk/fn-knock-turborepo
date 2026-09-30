@@ -6,6 +6,9 @@ import { describe, it } from "node:test";
 
 import {
   areFirewallPortListsEqual,
+  areFirewallRangeListsEqual,
+  validateFirewallPortSelection,
+  formatFirewallPortSelection,
   MAX_FIREWALL_ADDITIONAL_PORTS,
   resolveFirewallAdditionalPortsSuccessMessageKey,
   validateFirewallAdditionalPortDraft,
@@ -17,6 +20,8 @@ const details = (
   overrides: Partial<FirewallAdditionalPortsDetails> = {},
 ): FirewallAdditionalPortsDetails => ({
   additionalPorts: [5666],
+  additionalRanges: [],
+  effectiveRanges: [],
   automaticPorts: [7999],
   effectivePorts: [5666, 7999],
   runType: 0,
@@ -107,8 +112,8 @@ describe("firewall additional ports", () => {
   it("keeps state on save failure, blocks closing while saving, and exposes returned ports", async () => {
     let updateAttempts = 0;
     let saveErrors = 0;
-    let resolveUpdate: ((value: FirewallAdditionalPortsDetails) => void) | null =
-      null;
+    let resolveUpdate:
+      ((value: FirewallAdditionalPortsDetails) => void) | null = null;
     let updated: FirewallAdditionalPortsDetails | null = null;
     let saved: {
       result: FirewallAdditionalPortsDetails;
@@ -235,5 +240,82 @@ describe("firewall additional ports", () => {
     assert.match(source, /<DropdownMenu v-if="canManageHostFirewall">/u);
     assert.match(source, /additionalPorts\.menu/u);
     assert.match(source, /FirewallAdditionalPortsDialog/u);
+  });
+});
+
+describe("firewall port ranges", () => {
+  it("validates inclusive endpoints and preserves compact ranges", () => {
+    assert.deepEqual(
+      validateFirewallPortSelection(["21"], [{ start: "50000", end: "65535" }]),
+      {
+        valid: true,
+        ports: [21],
+        ranges: [{ start: 50000, end: 65535 }],
+      },
+    );
+    for (const [start, end] of [
+      ["", "2"],
+      ["1.5", "2"],
+      ["0", "2"],
+      ["1", "65536"],
+      ["2", "2"],
+      ["3", "2"],
+    ]) {
+      assert.equal(
+        validateFirewallPortSelection([], [{ start: start!, end: end! }]).valid,
+        false,
+      );
+    }
+    assert.equal(
+      validateFirewallPortSelection([], [{ start: "1", end: "65535" }]).valid,
+      true,
+    );
+  });
+  it("rejects overlaps but permits adjacent ranges and enforces a combined entry limit", () => {
+    const range = { start: "50000", end: "51000" };
+    for (const port of ["50000", "50500", "51000"])
+      assert.equal(validateFirewallPortSelection([port], [range]).valid, false);
+    assert.equal(
+      validateFirewallPortSelection([], [range, range]).valid,
+      false,
+    );
+    assert.equal(
+      validateFirewallPortSelection(
+        [],
+        [range, { start: "51000", end: "52000" }],
+      ).valid,
+      false,
+    );
+    assert.equal(
+      validateFirewallPortSelection(
+        [],
+        [range, { start: "51001", end: "52000" }],
+      ).valid,
+      true,
+    );
+    const singles = Array.from({ length: 127 }, (_, i) => String(i + 1));
+    assert.equal(validateFirewallPortSelection(singles, [range]).valid, true);
+    assert.equal(
+      validateFirewallPortSelection([...singles, "128"], [range]).valid,
+      false,
+    );
+  });
+  it("compares ranges independently of order and formats the effective selection", () => {
+    const ranges = [
+      { start: 50000, end: 51000 },
+      { start: 60000, end: 61000 },
+    ];
+    assert.equal(
+      areFirewallRangeListsEqual(ranges, [...ranges].reverse()),
+      true,
+    );
+    assert.equal(
+      areFirewallRangeListsEqual(ranges, [{ start: 50000, end: 51001 }]),
+      false,
+    );
+    assert.equal(
+      formatFirewallPortSelection([21], ranges, ", "),
+      "21, 50000–51000, 60000–61000",
+    );
   });
 });

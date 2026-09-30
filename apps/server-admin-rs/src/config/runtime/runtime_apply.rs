@@ -666,6 +666,11 @@ pub(super) fn exempt_ports(
     exempt_port_numbers(config, protocol_mapping_enabled, run_type)
         .into_iter()
         .map(|port| port.to_string())
+        .chain(
+            effective_firewall_port_ranges(config, run_type)
+                .into_iter()
+                .map(|range| format!("{}:{}", range.start, range.end)),
+        )
         .collect()
 }
 

@@ -40,6 +40,7 @@ export interface AppConfig {
   reverse_proxy_submode: ReverseProxySubmode;
   auto_manage_firewall: boolean;
   firewall_additional_ports: number[];
+  firewall_additional_port_ranges: { start: number; end: number }[];
   runtime_profile?: RuntimeProfile;
   capabilities?: RuntimeCapabilities;
   whitelist_ips: string[];

@@ -1610,17 +1610,28 @@ export const enAdmin = {
       automaticDescription:
         "These ports come from the gateway, protocol mappings, or Smart Connect and do not need to be added below.",
       noAutomaticPorts: "The current mode does not use managed firewall ports.",
+      effectiveTitle: "Currently effective allowed ports",
+      effectiveDescription:
+        "Based on the saved configuration and current mode, including automatically allowed ports. Unsaved drafts do not change this list.",
       customTitle: "Additional user-defined ports",
       customDescription:
-        "Add up to {max} ports. Edit port numbers directly; deleting only changes the current draft.",
+        "Add up to {max} single ports and ranges combined. Deleting only changes the current draft.",
       portAria: "Additional allowed port {number}",
       portPlaceholder: "For example, 5666",
       deletePort: "Delete port {port}",
       empty: "No additional allowed ports are configured.",
       addPort: "Add port",
+      addRange: "Add port range",
+      rangeStart: "Start port",
+      rangeEnd: "End port",
+      rangeStartAria: "Start port of range {number}",
+      rangeEndAria: "End port of range {number}",
+      deleteRange: "Delete port range {number}",
+      ftpExample:
+        "FTP example: add the control port (e.g. 21), then the passive port range configured on your FTP server (e.g. 50000–51000, including both endpoints).",
       protocolTitle: "Allows both TCP and UDP",
       protocolDescription:
-        "Each port creates both TCP and UDP allow rules. Add only ports that genuinely need external access.",
+        "Each port or range creates both TCP and UDP allow rules. Add only ports that genuinely need external access.",
       saveAndApply: "Save and apply",
       reverseModeName: "Reverse proxy mode",
       noPorts: "None",
@@ -1628,19 +1639,23 @@ export const enAdmin = {
       saveFailed: "Failed to save additional allowed ports",
       saved: "Additional allowed ports updated",
       savedAndAppliedDescription:
-        "Saved {count} additional ports and reset the firewall for {mode}. Currently allowed ports: {ports}.",
+        "Saved {count} port/range entries and reset the firewall for {mode}. Currently allowed ports: {ports}.",
       savedForLaterDescription:
-        "Saved {count} additional ports. Reverse proxy mode does not currently create managed firewall rules; the ports will be included after switching modes.",
+        "Saved {count} port/range entries. Reverse proxy mode does not currently create managed firewall rules; the ports will be included after switching modes. Saved ports and ranges: {ports}.",
       savedForLaterManualDescription:
-        "Saved {count} additional ports. Automatic firewall management is off: reset the firewall manually after switching to subdomain mode; direct mode still applies the ports automatically.",
+        "Saved {count} port/range entries. Automatic firewall management is off: reset the firewall manually after switching to subdomain mode; direct mode still applies the ports automatically. Saved ports and ranges: {ports}.",
       savedModeNotice:
         "The unsaved mode selection on this page was not applied.",
       errors: {
+        rangeOrder: "The start port must be less than the end port.",
+        overlap:
+          "Port ranges must not overlap each other or manually added single ports.",
         required: "A port number is required.",
         integer: "Ports must be integers.",
         range: "Ports must be between 1 and 65535.",
         duplicate: "Additional allowed ports must be unique.",
-        tooMany: "At most {max} additional allowed ports can be configured.",
+        tooMany:
+          "At most {max} single ports and ranges can be configured in total.",
       },
     },
     resetFirewallByMode: "Reset firewall for selected mode",

@@ -14,6 +14,7 @@ fn default_config_top_level_keys_match_node_default_config() {
         "reverse_proxy_submode",
         "auto_manage_firewall",
         "firewall_additional_ports",
+        "firewall_additional_port_ranges",
         "whitelist_ips",
         "proxy_mappings",
         "host_mappings",

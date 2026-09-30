@@ -204,10 +204,13 @@ export const zhCNServer = {
       updateFailedRollback:
         "应用额外放行端口失败：{message}；回滚失败：{rollbackError}",
       errors: {
+        rangesArrayRequired: "ranges 必须是端口范围数组",
+        rangeOrder: "起始端口必须小于结束端口。",
+        overlap: "端口范围不能彼此重叠，也不能覆盖手动添加的单端口。",
         portsArrayRequired: "ports 必须是端口数组",
         portIntegerRequired: "额外放行端口必须是整数",
         portOutOfRange: "额外放行端口必须在 1 到 65535 之间",
-        tooManyPorts: "额外放行端口不能超过 128 个",
+        tooManyPorts: "单端口和范围合计最多 128 条。",
       },
     },
     protocolMapping: {

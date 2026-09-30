@@ -8,7 +8,11 @@ import {
 import { SystemAPI } from "@/lib/api/system";
 import { useConfigStore } from "@/store/config";
 import type { FirewallAdditionalPortsDetails, RunType } from "@/types";
-import { resolveFirewallAdditionalPortsSuccessMessageKey } from "./firewallAdditionalPortsModel";
+import {
+  resolveFirewallAdditionalPortsSuccessMessageKey,
+  formatFirewallPortSelection,
+  type FirewallPortRange,
+} from "./firewallAdditionalPortsModel";
 
 type UseFirewallAdditionalPortsOptions = {
   canManageHostFirewall: () => boolean;
@@ -25,7 +29,10 @@ type FirewallAdditionalPortsControllerDependencies = {
   onSaveError: (error: unknown) => void;
   onUnsupported: () => void;
   onUpdated: (result: FirewallAdditionalPortsDetails) => void;
-  updatePorts: (ports: number[]) => Promise<FirewallAdditionalPortsDetails>;
+  updatePorts: (
+    ports: number[],
+    ranges?: FirewallPortRange[],
+  ) => Promise<FirewallAdditionalPortsDetails>;
 };
 
 export const createFirewallAdditionalPortsController = (
@@ -69,10 +76,10 @@ export const createFirewallAdditionalPortsController = (
     if (saving.value) return;
     open.value = nextOpen;
   };
-  const save = async (ports: number[]) => {
+  const save = async (ports: number[], ranges?: FirewallPortRange[]) => {
     const showUnsavedModeNotice = hasUnsavedModeChanges();
     await runSave(async () => {
-      const result = await dependencies.updatePorts(ports);
+      const result = await dependencies.updatePorts(ports, ranges);
       details.value = result;
       dependencies.onUpdated(result);
       open.value = false;
@@ -110,10 +117,12 @@ export const useFirewallAdditionalPorts = ({
     }
     return t("admin.runModeSettings.subdomainModeName");
   };
-  const formatPorts = (ports: number[]) =>
-    ports.length
-      ? ports.join(locale.value === "en" ? ", " : "、")
-      : t("admin.runModeSettings.additionalPorts.noPorts");
+  const formatPorts = (ports: number[], ranges: FirewallPortRange[]) =>
+    formatFirewallPortSelection(
+      ports,
+      ranges,
+      locale.value === "en" ? ", " : "、",
+    ) || t("admin.runModeSettings.additionalPorts.noPorts");
   const errorDescription = (error: unknown) =>
     extractErrorMessage(error, t("admin.runModeSettings.operationFailed"));
 
@@ -121,7 +130,8 @@ export const useFirewallAdditionalPorts = ({
     { canManageHostFirewall, hasUnsavedModeChanges },
     {
       getDetails: () => SystemAPI.getFirewallAdditionalPorts(),
-      updatePorts: (ports) => SystemAPI.updateFirewallAdditionalPorts(ports),
+      updatePorts: (ports, ranges) =>
+        SystemAPI.updateFirewallAdditionalPorts(ports, ranges),
       onLoadError: (error) => {
         toast.error(t("admin.runModeSettings.additionalPorts.loadFailed"), {
           description: errorDescription(error),
@@ -138,6 +148,8 @@ export const useFirewallAdditionalPorts = ({
       onUpdated: (result) => {
         if (configStore.config) {
           configStore.config.firewall_additional_ports = result.additionalPorts;
+          configStore.config.firewall_additional_port_ranges =
+            result.additionalRanges;
         }
       },
       onSaved: (result, showUnsavedModeNotice) => {
@@ -148,12 +160,18 @@ export const useFirewallAdditionalPorts = ({
           );
         const baseDescription = result.appliedNow
           ? t(`admin.runModeSettings.additionalPorts.${successMessageKey}`, {
-              count: result.additionalPorts.length,
+              count:
+                result.additionalPorts.length + result.additionalRanges.length,
               mode: modeLabel(result.runType),
-              ports: formatPorts(result.effectivePorts),
+              ports: formatPorts(result.effectivePorts, result.effectiveRanges),
             })
           : t(`admin.runModeSettings.additionalPorts.${successMessageKey}`, {
-              count: result.additionalPorts.length,
+              count:
+                result.additionalPorts.length + result.additionalRanges.length,
+              ports: formatPorts(
+                result.additionalPorts,
+                result.additionalRanges,
+              ),
             });
         toast.success(t("admin.runModeSettings.additionalPorts.saved"), {
           description: showUnsavedModeNotice

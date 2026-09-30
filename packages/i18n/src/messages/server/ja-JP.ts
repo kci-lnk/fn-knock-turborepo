@@ -245,11 +245,15 @@ export const jaJPServer = {
       updateFailedRollback:
         "追加許可ポートを適用できませんでした：{message}；ロールバック失敗：{rollbackError}",
       errors: {
+        rangesArrayRequired: "ranges はポート範囲の配列で指定してください",
+        rangeOrder: "開始ポートは終了ポートより小さくしてください。",
+        overlap:
+          "ポート範囲同士、または手動追加した単一ポートと重複できません。",
         portsArrayRequired: "ports はポート番号の配列である必要があります",
         portIntegerRequired: "追加許可ポートは整数である必要があります",
         portOutOfRange:
           "追加許可ポートは 1 から 65535 の範囲で指定してください",
-        tooManyPorts: "追加許可ポートは 128 件を超えて設定できません",
+        tooManyPorts: "単一ポートと範囲は合計 128 件まで設定できます。",
       },
     },
     protocolMapping: {

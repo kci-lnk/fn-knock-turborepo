@@ -116,13 +116,26 @@ pub(super) struct DefaultTunnelUpdateData {
 }
 
 #[derive(Serialize, ToSchema)]
+pub(super) struct FirewallPortRangeData {
+    #[schema(minimum = 1, maximum = 65535)]
+    start: i64,
+    #[schema(minimum = 1, maximum = 65535)]
+    end: i64,
+}
+
+#[derive(Serialize, ToSchema)]
 pub(super) struct FirewallAdditionalPortsUpdateData {
     ports: Vec<i64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[schema(nullable = false)]
+    ranges: Option<Vec<FirewallPortRangeData>>,
 }
 
 #[derive(Serialize, ToSchema)]
 #[serde(rename_all = "camelCase")]
 pub(super) struct FirewallAdditionalPortsData {
+    additional_ranges: Vec<FirewallPortRangeData>,
+    effective_ranges: Vec<FirewallPortRangeData>,
     additional_ports: Vec<i64>,
     automatic_ports: Vec<i64>,
     effective_ports: Vec<i64>,

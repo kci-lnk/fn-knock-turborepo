@@ -1862,3 +1862,49 @@ fn localizes_runtime_sync_step_labels() {
         "飞牛网络调优"
     );
 }
+
+#[tokio::test]
+async fn backup_restore_round_trips_firewall_port_ranges() {
+    let (_directory, state) = maintenance_test_state().await;
+    state
+        .storage
+        .store
+        .set_config_top_level_values(
+            [
+                ("run_type".to_string(), json!(1)),
+                ("firewall_additional_ports".to_string(), json!([21])),
+                (
+                    "firewall_additional_port_ranges".to_string(),
+                    json!([{ "start": 50000, "end": 51000 }]),
+                ),
+            ]
+            .into_iter()
+            .collect(),
+        )
+        .await
+        .unwrap();
+    let archive = export_backup_archive(&state).await.unwrap();
+    state
+        .storage
+        .store
+        .set_config_top_level_values(
+            [
+                ("firewall_additional_ports".to_string(), json!([])),
+                ("firewall_additional_port_ranges".to_string(), json!([])),
+            ]
+            .into_iter()
+            .collect(),
+        )
+        .await
+        .unwrap();
+    let translator = Translator::from_state(&state).await;
+    import_backup_archive_buffer(&state, archive.buffer.into_bytes(), &translator)
+        .await
+        .unwrap();
+    let config = state.storage.store.get_config().await.unwrap();
+    assert_eq!(config["firewall_additional_ports"], json!([21]));
+    assert_eq!(
+        config["firewall_additional_port_ranges"],
+        json!([{ "start": 50000, "end": 51000 }])
+    );
+}

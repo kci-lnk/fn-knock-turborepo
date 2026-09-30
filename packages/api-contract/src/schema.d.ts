@@ -8117,6 +8117,7 @@ export interface components {
             auto_manage_firewall?: boolean | null;
             capabilities?: unknown;
             default_route?: string | null;
+            firewall_additional_port_ranges?: components["schemas"]["FirewallPortRangeData"][] | null;
             firewall_additional_ports?: number[] | null;
             host_mapping_grouped_view?: boolean | null;
             host_mapping_groups?: components["schemas"]["HostMappingGroupData"][] | null;
@@ -9928,9 +9929,11 @@ export interface components {
         };
         FirewallAdditionalPortsData: {
             additionalPorts: number[];
+            additionalRanges: components["schemas"]["FirewallPortRangeData"][];
             appliedNow: boolean;
             automaticPorts: number[];
             effectivePorts: number[];
+            effectiveRanges: components["schemas"]["FirewallPortRangeData"][];
             /**
              * Format: int64
              * @enum {integer}
@@ -9939,10 +9942,17 @@ export interface components {
         };
         FirewallAdditionalPortsUpdateData: {
             ports: number[];
+            ranges?: components["schemas"]["FirewallPortRangeData"][];
         };
         FirewallClearData: {
             /** Format: int64 */
             gatewayPort: number;
+        };
+        FirewallPortRangeData: {
+            /** Format: int64 */
+            end: number;
+            /** Format: int64 */
+            start: number;
         };
         FirewallResetBodyData: {
             /**

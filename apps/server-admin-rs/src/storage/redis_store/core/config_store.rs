@@ -544,13 +544,25 @@ impl Store {
         key: &str,
         value: Value,
     ) -> crate::storage::StorageResult<Value> {
-        if matches!(
-            key,
-            "host_mappings"
-                | "host_mapping_groups"
-                | "host_mapping_grouped_view"
-                | "visibility_policies"
-        ) {
+        self.set_config_top_level_values([(key.to_string(), value)].into_iter().collect())
+            .await
+    }
+
+    /// Atomically updates ordinary top-level fields from the latest CAS snapshot.
+    /// Use the same catalog restrictions as the single-field helper.
+    pub async fn set_config_top_level_values(
+        &self,
+        values: Map<String, Value>,
+    ) -> crate::storage::StorageResult<Value> {
+        if values.keys().any(|key| {
+            matches!(
+                key.as_str(),
+                "host_mappings"
+                    | "host_mapping_groups"
+                    | "host_mapping_grouped_view"
+                    | "visibility_policies"
+            )
+        }) {
             return Err(crate::storage::storage_error(
                 "host mapping catalog fields require a generation-aware config API",
             ));
@@ -566,7 +578,7 @@ impl Store {
                     "stored config must be a JSON object",
                 ));
             };
-            object.insert(key.to_string(), value.clone());
+            object.extend(values.clone());
 
             let replacement_raw = serde_json::to_string(&current_config)?;
             if let Some(revision) = compare_and_set_config_fence_snapshot(

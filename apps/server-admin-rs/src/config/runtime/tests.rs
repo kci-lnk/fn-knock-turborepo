@@ -997,6 +997,7 @@ async fn firewall_additional_ports_successfully_save_apply_and_clear() {
     config["run_type"] = json!(0);
     config["auto_manage_firewall"] = json!(false);
     config["firewall_additional_ports"] = json!([1234]);
+    config["firewall_additional_port_ranges"] = json!([{ "start": 50000, "end": 51000 }]);
     state
         .storage
         .store
@@ -1007,6 +1008,7 @@ async fn firewall_additional_ports_successfully_save_apply_and_clear() {
     let response = update_firewall_additional_ports_transaction_with_reset(
         &state,
         vec![53, 5666],
+        None,
         &SuccessfulFirewallReset,
     )
     .await;
@@ -1016,6 +1018,14 @@ async fn firewall_additional_ports_successfully_save_apply_and_clear() {
     assert_eq!(
         body.pointer("/data/additionalPorts"),
         Some(&json!([53, 5666]))
+    );
+    assert_eq!(
+        body.pointer("/data/additionalRanges"),
+        Some(&json!([{ "start": 50000, "end": 51000 }]))
+    );
+    assert_eq!(
+        body.pointer("/data/effectiveRanges"),
+        body.pointer("/data/additionalRanges")
     );
     assert_eq!(body.pointer("/data/runType"), Some(&json!(0)));
     assert_eq!(body.pointer("/data/appliedNow"), Some(&json!(true)));
@@ -1040,6 +1050,7 @@ async fn firewall_additional_ports_successfully_save_apply_and_clear() {
     let response = update_firewall_additional_ports_transaction_with_reset(
         &state,
         Vec::new(),
+        Some(Vec::new()),
         &SuccessfulFirewallReset,
     )
     .await;
@@ -1047,6 +1058,7 @@ async fn firewall_additional_ports_successfully_save_apply_and_clear() {
     assert_eq!(response.status(), StatusCode::OK);
     let body = response_json(response).await;
     assert_eq!(body.pointer("/data/additionalPorts"), Some(&json!([])));
+    assert_eq!(body.pointer("/data/additionalRanges"), Some(&json!([])));
     assert_eq!(
         state
             .storage
@@ -1064,6 +1076,7 @@ async fn firewall_additional_ports_failure_restores_rules_without_overwriting_ot
     let (_directory, state) = fpk_lite_runtime_test_state().await;
     let mut config = state.storage.store.get_config().await.expect("load config");
     config["firewall_additional_ports"] = json!([1234]);
+    config["firewall_additional_port_ranges"] = json!([{ "start": 50000, "end": 51000 }]);
     config["default_route"] = json!("/before");
     state
         .storage
@@ -1076,8 +1089,16 @@ async fn firewall_additional_ports_failure_restores_rules_without_overwriting_ot
         attempts: std::sync::atomic::AtomicUsize::new(0),
     };
 
-    let response =
-        update_firewall_additional_ports_transaction_with_reset(&state, vec![5666], &reset).await;
+    let response = update_firewall_additional_ports_transaction_with_reset(
+        &state,
+        vec![5666],
+        Some(vec![FirewallPortRange {
+            start: 60000,
+            end: 61000,
+        }]),
+        &reset,
+    )
+    .await;
 
     assert_eq!(response.status(), StatusCode::BAD_GATEWAY);
     assert_eq!(reset.attempts.load(std::sync::atomic::Ordering::SeqCst), 2);
@@ -1101,6 +1122,16 @@ async fn firewall_additional_ports_failure_restores_rules_without_overwriting_ot
             .get("default_route"),
         Some(&json!("/concurrent"))
     );
+    assert_eq!(
+        state
+            .storage
+            .store
+            .get_config()
+            .await
+            .expect("restored config")
+            .get("firewall_additional_port_ranges"),
+        Some(&json!([{ "start": 50000, "end": 51000 }]))
+    );
     assert!(
         response_json(response)
             .await
@@ -1116,7 +1147,7 @@ async fn firewall_additional_ports_wait_for_the_shared_transaction_lock() {
     let guard = state.gateway.protocol_mapping_update_lock.lock().await;
     let task_state = state.clone();
     let mut task = tokio::spawn(async move {
-        update_firewall_additional_ports_transaction(&task_state, vec![5666]).await
+        update_firewall_additional_ports_transaction(&task_state, vec![5666], None).await
     });
 
     assert!(
@@ -2184,4 +2215,173 @@ fn normalizes_gateway_logging_capacity_for_old_backups_and_runtime_sync() {
         &json!({"max_daily_size_mb": 2048, "max_total_size_mb": 0}),
     ));
     assert_eq!(bounded["max_total_size_mb"], 2048);
+}
+
+#[test]
+fn firewall_ranges_validate_boundaries_overlap_and_capacity() {
+    assert_eq!(parse_firewall_additional_ranges(&json!({})), Ok(None));
+    assert_eq!(
+        parse_firewall_additional_ranges(&json!({"ranges": []})),
+        Ok(Some(vec![]))
+    );
+    for value in [json!(null), json!("50000-51000"), json!({})] {
+        assert_eq!(
+            parse_firewall_additional_ranges(&json!({"ranges": value})),
+            Err("rangesArrayRequired")
+        );
+    }
+    for (range, error) in [
+        (json!({"start": "1", "end": 2}), "portIntegerRequired"),
+        (json!({"start": 1.5, "end": 2}), "portIntegerRequired"),
+        (json!({"start": 1}), "portIntegerRequired"),
+        (json!({"start": 0, "end": 2}), "portOutOfRange"),
+        (json!({"start": 1, "end": 65536}), "portOutOfRange"),
+        (json!({"start": 2, "end": 2}), "rangeOrder"),
+        (json!({"start": 3, "end": 2}), "rangeOrder"),
+    ] {
+        assert_eq!(
+            parse_firewall_additional_ranges(&json!({"ranges": [range]})),
+            Err(error)
+        );
+    }
+    let whole = vec![FirewallPortRange {
+        start: 1,
+        end: 65535,
+    }];
+    assert_eq!(validate_firewall_port_selection(&[], &whole), Ok(()));
+    for port in [1, 100, 65535] {
+        assert_eq!(
+            validate_firewall_port_selection(&[port], &whole),
+            Err("overlap")
+        );
+    }
+    let range = FirewallPortRange {
+        start: 50000,
+        end: 51000,
+    };
+    for other in [
+        range.clone(),
+        FirewallPortRange {
+            start: 49999,
+            end: 50000,
+        },
+        FirewallPortRange {
+            start: 51000,
+            end: 51001,
+        },
+    ] {
+        assert_eq!(
+            validate_firewall_port_selection(&[], &[range.clone(), other]),
+            Err("overlap")
+        );
+    }
+    assert_eq!(
+        validate_firewall_port_selection(
+            &[21],
+            &[
+                range.clone(),
+                FirewallPortRange {
+                    start: 51001,
+                    end: 52000
+                }
+            ]
+        ),
+        Ok(())
+    );
+    assert_eq!(
+        validate_firewall_port_selection(
+            &(1..=127).collect::<Vec<_>>(),
+            std::slice::from_ref(&range)
+        ),
+        Ok(())
+    );
+    assert_eq!(
+        validate_firewall_port_selection(&(1..=128).collect::<Vec<_>>(), &[range]),
+        Err("tooManyPorts")
+    );
+}
+
+#[test]
+fn firewall_ranges_normalize_backup_data_and_apply_without_expanding() {
+    let config = json!({"firewall_additional_ports": [21], "firewall_additional_port_ranges": [
+        {"start": 50000, "end": 51000}, {"start": 50000, "end": 51000},
+        {"start": 50500, "end": 52000}, {"start": 0, "end": 10},
+        {"start": 20, "end": 22}, {"start": 51001, "end": 65535}
+    ]});
+    assert_eq!(
+        configured_firewall_port_ranges(&config),
+        vec![
+            FirewallPortRange {
+                start: 50000,
+                end: 51000
+            },
+            FirewallPortRange {
+                start: 51001,
+                end: 65535
+            }
+        ]
+    );
+    assert!(configured_firewall_port_ranges(&json!({})).is_empty());
+    for run_type in [0, 3] {
+        let ports = exempt_ports(&config, true, run_type);
+        assert_eq!(ports.len(), 4); // gateway, control port, two ranges
+        assert!(ports.contains(&"50000:51000".to_string()));
+        assert!(ports.contains(&"51001:65535".to_string()));
+    }
+    assert!(exempt_ports(&config, true, 1).is_empty());
+    // Automatic ports can be covered by a range.
+    let covering_gateway = json!({"firewall_additional_port_ranges": [{"start": 1, "end": 65535}]});
+    assert_eq!(exempt_ports(&covering_gateway, false, 0).len(), 2);
+}
+
+#[tokio::test]
+async fn firewall_ranges_save_reload_and_validate_omitted_ranges() {
+    let (_directory, state) = fpk_lite_runtime_test_state().await;
+    for run_type in [0, 1, 3] {
+        state
+            .storage
+            .store
+            .set_config_top_level_value("run_type", json!(run_type))
+            .await
+            .unwrap();
+        let range = FirewallPortRange {
+            start: 50000,
+            end: 51000,
+        };
+        let response = update_firewall_additional_ports_transaction_with_reset(
+            &state,
+            vec![21],
+            Some(vec![range.clone()]),
+            &SuccessfulFirewallReset,
+        )
+        .await;
+        assert_eq!(response.status(), StatusCode::OK);
+        let body = response_json(response).await;
+        assert_eq!(
+            body.pointer("/data/additionalRanges"),
+            Some(&json!([range.clone()]))
+        );
+        assert_eq!(
+            body.pointer("/data/effectiveRanges"),
+            Some(&if run_type == 1 {
+                json!([])
+            } else {
+                json!([range])
+            })
+        );
+        let stored = state.storage.store.get_config().await.unwrap();
+        assert_eq!(configured_firewall_port_ranges(&stored).len(), 1);
+        let response = update_firewall_additional_ports_transaction_with_reset(
+            &state,
+            vec![50000],
+            None,
+            &SuccessfulFirewallReset,
+        )
+        .await;
+        assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+        assert_eq!(
+            state.storage.store.get_config().await.unwrap()["firewall_additional_ports"],
+            json!([21])
+        );
+    }
 }

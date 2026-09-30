@@ -1595,17 +1595,28 @@ export const koKRAdmin = {
       automaticDescription:
         "이 포트는 게이트웨이, 프로토콜 매핑 또는 Smart Connect에서 가져오므로 아래에 다시 추가할 필요가 없습니다.",
       noAutomaticPorts: "현재 모드는 관리형 방화벽 포트를 사용하지 않습니다.",
+      effectiveTitle: "현재 유효한 허용 포트",
+      effectiveDescription:
+        "저장된 설정과 현재 모드를 기준으로 하며 자동 허용 포트도 포함합니다. 저장하지 않은 편집 내용은 이 목록에 반영되지 않습니다.",
       customTitle: "사용자 추가 허용",
       customDescription:
-        "최대 {max}개 포트를 추가할 수 있습니다. 포트 번호를 직접 수정할 수 있으며 삭제는 현재 초안에만 반영됩니다.",
+        "단일 포트와 범위를 합쳐 최대 {max}개까지 추가할 수 있습니다. 삭제는 현재 초안에만 반영됩니다.",
       portAria: "추가 허용 포트 {number}",
       portPlaceholder: "예: 5666",
       deletePort: "포트 {port} 삭제",
       empty: "설정된 추가 허용 포트가 없습니다.",
       addPort: "포트 추가",
+      addRange: "포트 범위 추가",
+      rangeStart: "시작 포트",
+      rangeEnd: "끝 포트",
+      rangeStartAria: "범위 {number}의 시작 포트",
+      rangeEndAria: "범위 {number}의 끝 포트",
+      deleteRange: "포트 범위 {number} 삭제",
+      ftpExample:
+        "FTP 예: 제어 포트(예: 21)와 FTP 서버에 설정한 패시브 포트 범위(예: 50000–51000, 양 끝 포함)를 추가하세요.",
       protocolTitle: "TCP와 UDP를 모두 허용",
       protocolDescription:
-        "각 포트에 TCP와 UDP 허용 규칙이 모두 추가됩니다. 외부 접근이 꼭 필요한 포트만 추가하세요.",
+        "각 포트 또는 범위에 TCP와 UDP 허용 규칙이 모두 추가됩니다. 외부 접근이 꼭 필요한 포트만 추가하세요.",
       saveAndApply: "저장 및 적용",
       reverseModeName: "리버스 프록시 모드",
       noPorts: "없음",
@@ -1613,19 +1624,22 @@ export const koKRAdmin = {
       saveFailed: "추가 허용 포트를 저장하지 못했습니다.",
       saved: "추가 허용 포트가 업데이트되었습니다.",
       savedAndAppliedDescription:
-        "추가 포트 {count}개를 저장하고 {mode}에 맞게 방화벽을 재설정했습니다. 현재 실제 허용 포트: {ports}.",
+        "포트 및 범위 설정 {count}개를 저장하고 {mode}에 맞게 방화벽을 재설정했습니다. 현재 실제 허용 포트: {ports}.",
       savedForLaterDescription:
-        "추가 포트 {count}개를 저장했습니다. 리버스 프록시 모드에서는 현재 관리형 방화벽 규칙을 만들지 않으며 모드를 전환하면 자동으로 포함됩니다.",
+        "포트 및 범위 설정 {count}개를 저장했습니다. 리버스 프록시 모드에서는 현재 관리형 방화벽 규칙을 만들지 않으며 모드를 전환하면 자동으로 포함됩니다. 저장된 포트 및 범위: {ports}.",
       savedForLaterManualDescription:
-        "추가 포트 {count}개를 저장했습니다. 자동 방화벽 관리가 꺼져 있으므로 서브도메인 모드로 전환한 뒤 방화벽을 수동으로 재설정해야 하며, 직접 연결 모드에서는 자동으로 적용됩니다.",
+        "포트 및 범위 설정 {count}개를 저장했습니다. 자동 방화벽 관리가 꺼져 있으므로 서브도메인 모드로 전환한 뒤 방화벽을 수동으로 재설정해야 하며, 직접 연결 모드에서는 자동으로 적용됩니다. 저장된 포트 및 범위: {ports}.",
       savedModeNotice:
         "이 페이지에서 저장하지 않은 모드 선택은 적용되지 않았습니다.",
       errors: {
+        rangeOrder: "시작 포트는 끝 포트보다 작아야 합니다.",
+        overlap:
+          "포트 범위는 서로 겹치거나 수동으로 추가한 단일 포트와 겹칠 수 없습니다.",
         required: "포트 번호를 입력해야 합니다.",
         integer: "포트는 정수여야 합니다.",
         range: "포트는 1에서 65535 사이여야 합니다.",
         duplicate: "추가 허용 포트는 중복될 수 없습니다.",
-        tooMany: "추가 허용 포트는 최대 {max}개까지 설정할 수 있습니다.",
+        tooMany: "단일 포트와 범위는 합계 {max}개까지 설정할 수 있습니다.",
       },
     },
     resetFirewallByMode: "선택한 모드의 방화벽 재설정",

@@ -268,6 +268,7 @@ struct ApplicationConfigData {
     reverse_proxy_submode: Option<String>,
     auto_manage_firewall: Option<bool>,
     firewall_additional_ports: Option<Vec<u16>>,
+    firewall_additional_port_ranges: Option<Vec<FirewallPortRangeData>>,
     whitelist_ips: Option<Vec<String>>,
     default_route: Option<String>,
     proxy_mappings: Option<Vec<Value>>,
@@ -830,6 +831,7 @@ struct BackupImportResultData {
     DefaultRouteData,
     DefaultRouteUpdateData,
     DefaultTunnelUpdateData,
+    FirewallPortRangeData,
     FirewallAdditionalPortsUpdateData,
     FirewallAdditionalPortsData,
     FirewallResetBodyData,
@@ -2108,6 +2110,13 @@ pub(super) fn components() -> Map<String, Value> {
         "DefaultTunnelUpdateData",
         "tunnel",
         &["frp", "cloudflared"],
+    );
+    set_property_metadata(
+        &mut schemas,
+        "FirewallAdditionalPortsUpdateData",
+        "ranges",
+        "maxItems",
+        json!(crate::runtime_config::MAX_FIREWALL_ADDITIONAL_PORTS),
     );
     set_property_metadata(
         &mut schemas,

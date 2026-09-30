@@ -1415,17 +1415,27 @@ export const zhHantAdmin = {
       automaticDescription:
         "這些端口來自網關、協議映射或智能連接，無需在下方重複新增。",
       noAutomaticPorts: "目前模式不使用受管防火牆端口。",
+      effectiveTitle: "目前有效放行清單",
+      effectiveDescription:
+        "依已儲存設定與目前模式計算，包含系統自動放行項目；未儲存的草稿不影響此清單。",
       customTitle: "用戶額外放行",
-      customDescription:
-        "最多新增 {max} 個端口；可直接修改端口號，刪除只影響目前草稿。",
+      customDescription: "單端口和範圍合計最多 {max} 條；刪除只影響目前草稿。",
       portAria: "額外放行端口 {number}",
       portPlaceholder: "例如 5666",
       deletePort: "刪除端口 {port}",
       empty: "尚未設定額外放行端口。",
       addPort: "新增端口",
+      addRange: "新增端口範圍",
+      rangeStart: "起始端口",
+      rangeEnd: "結束端口",
+      rangeStartAria: "端口範圍 {number} 的起始端口",
+      rangeEndAria: "端口範圍 {number} 的結束端口",
+      deleteRange: "刪除端口範圍 {number}",
+      ftpExample:
+        "FTP 範例：新增控制端口（如 21），再新增與 FTP 伺服器一致的被動模式端口範圍（如 50000–51000，包含兩端）。",
       protocolTitle: "同時放行 TCP 與 UDP",
       protocolDescription:
-        "每個端口都會同時新增 TCP 和 UDP 放行規則，請只新增確實需要對外訪問的端口。",
+        "每個端口或範圍都會同時新增 TCP 和 UDP 放行規則，請只新增確實需要對外訪問的端口。",
       saveAndApply: "保存並套用",
       reverseModeName: "內網穿透",
       noPorts: "無",
@@ -1433,18 +1443,20 @@ export const zhHantAdmin = {
       saveFailed: "保存額外放行端口失敗",
       saved: "額外放行端口已更新",
       savedAndAppliedDescription:
-        "已保存 {count} 個額外端口，並按{mode}重設防火牆。目前實際放行：{ports}。",
+        "已保存 {count} 條額外放行設定，並按{mode}重設防火牆。目前實際放行：{ports}。",
       savedForLaterDescription:
-        "已保存 {count} 個額外端口。內網穿透模式目前不建立受管防火牆規則，切換模式後會自動納入。",
+        "已保存 {count} 條額外放行設定。內網穿透模式目前不建立受管防火牆規則，切換模式後會自動納入。 已儲存的連接埠及範圍：{ports}。",
       savedForLaterManualDescription:
-        "已保存 {count} 個額外端口。自動處理系統防火牆已關閉：切換到子域模式後需手動重設防火牆；切換到直連模式時仍會自動套用。",
+        "已保存 {count} 條額外放行設定。自動處理系統防火牆已關閉：切換到子域模式後需手動重設防火牆；切換到直連模式時仍會自動套用。 已儲存的連接埠及範圍：{ports}。",
       savedModeNotice: "頁面上未保存的模式選擇未被套用。",
       errors: {
+        rangeOrder: "起始端口必須小於結束端口。",
+        overlap: "端口範圍不能彼此重疊，也不能涵蓋手動新增的單端口。",
         required: "端口號不能為空。",
         integer: "端口必須是整數。",
         range: "端口必須在 1 到 65535 之間。",
         duplicate: "額外放行端口不能重複。",
-        tooMany: "最多只能設定 {max} 個額外放行端口。",
+        tooMany: "單端口和範圍合計最多 {max} 條。",
       },
     },
     resetFirewallByMode: "按所選模式重設防火牆",

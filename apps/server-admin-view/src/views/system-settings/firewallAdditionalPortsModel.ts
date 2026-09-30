@@ -1,5 +1,8 @@
 import type { FirewallAdditionalPortsDetails } from "@/types";
 
+export type FirewallPortRange =
+  FirewallAdditionalPortsDetails["additionalRanges"][number];
+
 export const MAX_FIREWALL_ADDITIONAL_PORTS = 128;
 
 export type FirewallAdditionalPortsSuccessMessageKey =
@@ -67,3 +70,69 @@ export const areFirewallPortListsEqual = (
   const sortedRight = [...right].sort((a, b) => a - b);
   return sortedLeft.every((port, index) => port === sortedRight[index]);
 };
+
+export type FirewallPortRangeDraft = { start: string; end: string };
+export const validateFirewallPortSelection = (
+  values: readonly string[],
+  rangeDrafts: readonly FirewallPortRangeDraft[],
+):
+  | { valid: true; ports: number[]; ranges: FirewallPortRange[] }
+  | {
+      valid: false;
+      code: FirewallAdditionalPortValidationCode | "rangeOrder" | "overlap";
+      index?: number;
+    } => {
+  if (values.length + rangeDrafts.length > MAX_FIREWALL_ADDITIONAL_PORTS) {
+    return { valid: false, code: "tooMany" };
+  }
+  const single = validateFirewallAdditionalPortDraft(values);
+  if (!single.valid) return single;
+  const ranges: FirewallPortRange[] = [];
+  for (const [index, draft] of rangeDrafts.entries()) {
+    const start = validateFirewallAdditionalPortDraft([draft.start]);
+    const end = validateFirewallAdditionalPortDraft([draft.end]);
+    if (!start.valid) return { ...start, index };
+    if (!end.valid) return { ...end, index };
+    if (start.ports[0]! >= end.ports[0]!)
+      return { valid: false, code: "rangeOrder", index };
+    ranges.push({ start: start.ports[0]!, end: end.ports[0]! });
+  }
+  ranges.sort((a, b) => a.start - b.start || a.end - b.end);
+  if (
+    ranges.some(
+      (range, index) =>
+        (index > 0 && range.start <= ranges[index - 1]!.end) ||
+        single.ports.some((port) => port >= range.start && port <= range.end),
+    )
+  ) {
+    return { valid: false, code: "overlap" };
+  }
+  return { valid: true, ports: single.ports, ranges };
+};
+
+export const areFirewallRangeListsEqual = (
+  left: readonly FirewallPortRange[],
+  right: readonly FirewallPortRange[],
+) => {
+  const sort = (ranges: readonly FirewallPortRange[]) =>
+    [...ranges].sort((a, b) => a.start - b.start || a.end - b.end);
+  const sortedRight = sort(right);
+  return (
+    left.length === right.length &&
+    sort(left).every(
+      (range, index) =>
+        range.start === sortedRight[index]!.start &&
+        range.end === sortedRight[index]!.end,
+    )
+  );
+};
+
+export const formatFirewallPortSelection = (
+  ports: number[],
+  ranges: FirewallPortRange[],
+  separator: string,
+) =>
+  [
+    ...ports.map(String),
+    ...ranges.map((range) => `${range.start}–${range.end}`),
+  ].join(separator);

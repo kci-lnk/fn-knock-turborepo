@@ -2105,6 +2105,15 @@
               "null"
             ]
           },
+          "firewall_additional_port_ranges": {
+            "items": {
+              "$ref": "#/components/schemas/FirewallPortRangeData"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          },
           "firewall_additional_ports": {
             "items": {
               "format": "int32",
@@ -9509,6 +9518,12 @@
             },
             "type": "array"
           },
+          "additionalRanges": {
+            "items": {
+              "$ref": "#/components/schemas/FirewallPortRangeData"
+            },
+            "type": "array"
+          },
           "appliedNow": {
             "type": "boolean"
           },
@@ -9526,6 +9541,12 @@
             },
             "type": "array"
           },
+          "effectiveRanges": {
+            "items": {
+              "$ref": "#/components/schemas/FirewallPortRangeData"
+            },
+            "type": "array"
+          },
           "runType": {
             "enum": [
               0,
@@ -9537,6 +9558,8 @@
           }
         },
         "required": [
+          "additionalRanges",
+          "effectiveRanges",
           "additionalPorts",
           "automaticPorts",
           "effectivePorts",
@@ -9557,6 +9580,13 @@
             "maxItems": 128,
             "type": "array",
             "uniqueItems": true
+          },
+          "ranges": {
+            "items": {
+              "$ref": "#/components/schemas/FirewallPortRangeData"
+            },
+            "maxItems": 128,
+            "type": "array"
           }
         },
         "required": [
@@ -9575,6 +9605,27 @@
         },
         "required": [
           "gatewayPort"
+        ],
+        "type": "object"
+      },
+      "FirewallPortRangeData": {
+        "properties": {
+          "end": {
+            "format": "int64",
+            "maximum": 65535,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "start": {
+            "format": "int64",
+            "maximum": 65535,
+            "minimum": 1,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "start",
+          "end"
         ],
         "type": "object"
       },

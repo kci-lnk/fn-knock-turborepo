@@ -110,8 +110,12 @@ export const SystemAPI = {
   },
   async updateFirewallAdditionalPorts(
     ports: number[],
+    ranges?: FirewallAdditionalPortsUpdate["ranges"],
   ): Promise<FirewallAdditionalPortsContract> {
-    const body = { ports } satisfies FirewallAdditionalPortsUpdate;
+    const body = {
+      ports,
+      ...(ranges === undefined ? {} : { ranges }),
+    } satisfies FirewallAdditionalPortsUpdate;
     const res = await apiClient.post("/config/firewall_additional_ports", body);
     return res.data.data;
   },

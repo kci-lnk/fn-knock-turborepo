@@ -128,6 +128,20 @@ describe("runtime settings API contract", () => {
     assert.equal(ports?.uniqueItems, true);
     assert.equal(ports?.items?.minimum, 1);
     assert.equal(ports?.items?.maximum, 65_535);
+    const update = contract.components.schemas.FirewallAdditionalPortsUpdateData;
+    assert.equal(update.required?.includes("ranges"), false);
+    assert.equal(update.properties?.ranges?.type, "array");
+    assert.equal(update.properties?.ranges?.maxItems, 128);
+    const range = contract.components.schemas.FirewallPortRangeData;
+    for (const endpoint of ["start", "end"]) {
+      assert.equal(range.properties?.[endpoint]?.type, "integer");
+      assert.equal(range.properties?.[endpoint]?.minimum, 1);
+      assert.equal(range.properties?.[endpoint]?.maximum, 65_535);
+    }
+    const details = contract.components.schemas.FirewallAdditionalPortsData;
+    for (const field of ["additionalRanges", "effectiveRanges"]) {
+      assert.equal(details.required?.includes(field), true);
+    }
     assert.ok(
       contract.components.schemas.ProtocolMappingFeatureData.required?.includes(
         "availability",

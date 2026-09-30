@@ -891,3 +891,50 @@ async fn backup_prefix_replace_ignores_imported_host_generation_and_sets_trusted
     assert_eq!(**typed.document, restored_config);
     assert_eq!(typed.host_mappings_generation, 2);
 }
+
+#[tokio::test]
+async fn firewall_port_pair_updates_are_atomic_and_survive_reopening() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("fn-knock.sqlite3");
+    let store = Store::connect(&path).await.unwrap();
+    let fields = [
+        ("firewall_additional_ports".to_string(), json!([21])),
+        (
+            "firewall_additional_port_ranges".to_string(),
+            json!([{ "start": 50000, "end": 51000 }]),
+        ),
+    ]
+    .into_iter()
+    .collect();
+    let (pair, unrelated) = tokio::join!(
+        store.set_config_top_level_values(fields),
+        store.set_config_top_level_value("default_route", json!("/concurrent")),
+    );
+    pair.unwrap();
+    unrelated.unwrap();
+    // Opening a fresh store exercises durable configuration, not just the snapshot cache.
+    let reopened = Store::connect(&path).await.unwrap();
+    let config = reopened.get_config().await.unwrap();
+    assert_eq!(config["firewall_additional_ports"], json!([21]));
+    assert_eq!(
+        config["firewall_additional_port_ranges"],
+        json!([{ "start": 50000, "end": 51000 }])
+    );
+    assert_eq!(config["default_route"], json!("/concurrent"));
+    let invalid_fields = [
+        ("firewall_additional_ports".to_string(), json!([22])),
+        ("host_mappings".to_string(), json!([])),
+    ]
+    .into_iter()
+    .collect();
+    assert!(
+        reopened
+            .set_config_top_level_values(invalid_fields)
+            .await
+            .is_err()
+    );
+    assert_eq!(
+        reopened.get_config().await.unwrap()["firewall_additional_ports"],
+        json!([21])
+    );
+}

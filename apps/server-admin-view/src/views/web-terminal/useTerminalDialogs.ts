@@ -1,4 +1,11 @@
-import { nextTick, ref, watch, type ComputedRef, type Ref } from "vue";
+import {
+  computed,
+  nextTick,
+  ref,
+  watch,
+  type ComputedRef,
+  type Ref,
+} from "vue";
 import { toast } from "@admin-shared/utils/toast";
 import type {
   TerminalAttachmentRecord,
@@ -29,6 +36,7 @@ export const useTerminalDialogs = ({
   updateSessionTitle: (
     sessionId: string,
     title: string,
+    persistent?: boolean,
   ) => Promise<TerminalSessionRecord>;
 }) => {
   const sendDialogOpen = ref(false);
@@ -37,11 +45,41 @@ export const useTerminalDialogs = ({
   const renameDialogOpen = ref(false);
   const renameDialogValue = ref("");
   const isRenamingSession = ref(false);
+  const renameDialogPersistent = ref(true);
+  const editingSessionId = ref("");
+  let initialPersistent = true;
+  let editGeneration = 0;
+  const editingSession = computed(() =>
+    sessions.value.find((session) => session.id === editingSessionId.value),
+  );
+  const renameDialogPersistenceDisabled = computed(
+    () =>
+      !editingSession.value ||
+      ["closing", "closed", "exited", "lost", "failed"].includes(
+        editingSession.value.phase,
+      ),
+  );
+
+  watch(
+    () => selectedSession.value?.id,
+    () => {
+      if (renameDialogOpen.value) renameDialogOpen.value = false;
+    },
+    { flush: "sync" },
+  );
+  watch(
+    editingSession,
+    (session) => {
+      if (!session && renameDialogOpen.value) renameDialogOpen.value = false;
+    },
+    { flush: "sync" },
+  );
 
   watch(
     renameDialogOpen,
     (open) => {
       if (open) return;
+      editGeneration += 1;
       cancelRenameSession();
       isRenamingSession.value = false;
     },
@@ -80,28 +118,39 @@ export const useTerminalDialogs = ({
 
   const openRenameDialog = () => {
     if (!selectedSession.value) return;
+    editGeneration += 1;
+    editingSessionId.value = selectedSession.value.id;
     renameDialogValue.value = selectedSession.value.title;
+    initialPersistent = selectedSession.value.persistent;
+    renameDialogPersistent.value = initialPersistent;
     renameDialogOpen.value = true;
   };
 
   const submitRenameDialog = async () => {
-    const targetSession = selectedSession.value;
+    const targetSession = editingSession.value;
     const nextTitle = renameDialogValue.value.trim();
-    if (!targetSession || !nextTitle) return;
+    if (
+      !renameDialogOpen.value ||
+      isRenamingSession.value ||
+      !targetSession ||
+      !nextTitle
+    )
+      return;
+    const generation = editGeneration;
+    const persistent =
+      !renameDialogPersistenceDisabled.value &&
+      renameDialogPersistent.value !== initialPersistent
+        ? renameDialogPersistent.value
+        : undefined;
 
     isRenamingSession.value = true;
     try {
-      const updatedSession = await updateSessionTitle(
-        targetSession.id,
-        nextTitle,
-      );
-      sessions.value = sessions.value.map((session) =>
-        session.id === updatedSession.id ? updatedSession : session,
-      );
+      await updateSessionTitle(targetSession.id, nextTitle, persistent);
+      if (generation !== editGeneration || !renameDialogOpen.value) return;
       renameDialogOpen.value = false;
       focusTerminal();
     } catch (error) {
-      if (!renameDialogOpen.value) return;
+      if (generation !== editGeneration || !renameDialogOpen.value) return;
       toast.error(translate("admin.webTerminal.renameFailed"), {
         description: extractTerminalErrorMessage(
           error,
@@ -109,7 +158,7 @@ export const useTerminalDialogs = ({
         ),
       });
     } finally {
-      isRenamingSession.value = false;
+      if (generation === editGeneration) isRenamingSession.value = false;
     }
   };
 
@@ -145,6 +194,8 @@ export const useTerminalDialogs = ({
     openSendDialog,
     renameDialogOpen,
     renameDialogValue,
+    renameDialogPersistent,
+    renameDialogPersistenceDisabled,
     sendDialogOpen,
     sendDialogPayload,
     submitRenameDialog,

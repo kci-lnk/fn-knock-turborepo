@@ -403,28 +403,12 @@ export const useWebTerminalPage = () => {
     void attachmentController.dispose();
   });
 
-  const setSessionPersistence = async (persistent: boolean) => {
-    const session = sessionsController.selectedSession.value;
-    if (!session) return;
-    try {
-      await sessionsController.setSessionPersistence(session.id, persistent);
-    } catch (reason) {
-      if (disposed) return;
-      toast.error(t("admin.webTerminal.persistenceSaveFailed"), {
-        description: localizedTerminalFailure(reason),
-      });
-      await sessionsController.loadSessions().catch(() => undefined);
-    }
-  };
-
   const setTerminalFrameElement = (element: unknown) =>
     (viewport.terminalFrameRef.value = element as HTMLElement | null);
   const setTerminalMountElement = (element: unknown) =>
     (emulator.terminalMountRef.value = element as HTMLElement | null);
 
   return {
-    setSessionPersistence,
-    isSavingPersistence: sessionsController.savingPersistence,
     ...metricsController,
     ...disksController,
     ...interactions,

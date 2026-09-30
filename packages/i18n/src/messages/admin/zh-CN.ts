@@ -4693,7 +4693,6 @@ export const zhCNAdmin = {
       "持久化的是终端进程。勾选后，关闭浏览器仍可继续运行并重新连接；取消后，刷新、关闭或离开终端页面会结束进程。终端服务重启后，会话不会保留。",
     persistenceLeaseDescription:
       "同一会话被多个页面使用时，最后一个页面离开才结束；异常断线后将在超时后自动清理。",
-    persistenceSaveFailed: "保存持久化设置失败",
     metrics: {
       disksTitle: "磁盘与挂载点",
       diskAvailable: "可用",
@@ -4858,8 +4857,8 @@ export const zhCNAdmin = {
     manualPasteInfo: "浏览器不允许直接读取剪贴板，请在弹窗中粘贴后发送",
     switchFailed: "切换会话失败",
     switchFailedDescription: "无法切换到所选终端会话",
-    renameFailed: "重命名失败",
-    renameFailedDescription: "无法更新会话名称",
+    renameFailed: "保存会话失败",
+    renameFailedDescription: "无法更新会话设置",
     sendFailed: "发送失败",
     sendFailedDescription: "无法将内容发送到终端",
     notReady: "终端视图尚未准备完成",
@@ -4873,7 +4872,7 @@ export const zhCNAdmin = {
     endFailedDescription: "无法结束终端会话",
     newSession: "新建会话",
     newSessionAria: "新建终端会话",
-    renameSession: "重命名会话",
+    renameSession: "编辑会话",
     reconnect: "重连",
     reconnectAria: "重连终端",
     send: "发送",
@@ -4891,7 +4890,7 @@ export const zhCNAdmin = {
     sendDialogDescription:
       "输入要粘贴到当前终端的内容，发送后会按原样写入会话。",
     sendDialogPlaceholder: "输入要发送到终端的内容",
-    renameDialogDescription: "为当前终端会话设置一个更容易识别的名称。",
+    renameDialogDescription: "修改当前会话的名称和进程持久化设置，保存后生效。",
     renameDialogPlaceholder: "输入会话名称",
   },
   wafLogs: {

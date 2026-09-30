@@ -1,7 +1,9 @@
 <script setup lang="ts">
+import { useId } from "vue";
 import { useI18n } from "vue-i18n";
 import { LoaderCircle } from "lucide-vue-next";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   Dialog,
   DialogContent,
@@ -11,25 +13,32 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 
 defineProps<{
   open: boolean;
   renaming: boolean;
   value: string;
+  persistent: boolean;
+  persistenceDisabled: boolean;
 }>();
 
 const emit = defineEmits<{
   submit: [];
   "update:open": [value: boolean];
   "update:value": [value: string];
+  "update:persistent": [value: boolean];
 }>();
 
 const { t } = useI18n();
+const fieldId = useId();
 </script>
 
 <template>
   <Dialog :open="open" @update:open="emit('update:open', $event)">
-    <DialogContent class="sm:max-w-[420px]">
+    <DialogContent
+      class="max-h-[calc(100dvh-2rem)] overflow-y-auto sm:max-w-[480px]"
+    >
       <DialogHeader>
         <DialogTitle>{{ t("admin.webTerminal.renameSession") }}</DialogTitle>
         <DialogDescription>
@@ -37,31 +46,57 @@ const { t } = useI18n();
         </DialogDescription>
       </DialogHeader>
 
-      <Input
-        :aria-label="t('admin.webTerminal.renameDialogPlaceholder')"
-        :model-value="value"
-        :placeholder="t('admin.webTerminal.renameDialogPlaceholder')"
-        :disabled="renaming"
-        @update:model-value="emit('update:value', String($event))"
-        @keydown.enter.prevent="emit('submit')"
-      />
+      <form class="space-y-5" @submit.prevent="emit('submit')">
+        <div class="space-y-2">
+          <Label :for="`${fieldId}-name`">{{ t("common.name") }}</Label>
+          <Input
+            :id="`${fieldId}-name`"
+            :aria-label="t('admin.webTerminal.renameDialogPlaceholder')"
+            :model-value="value"
+            :placeholder="t('admin.webTerminal.renameDialogPlaceholder')"
+            :disabled="renaming"
+            @update:model-value="emit('update:value', String($event))"
+          />
+        </div>
 
-      <DialogFooter>
-        <Button
-          variant="outline"
-          :disabled="renaming"
-          @click="emit('update:open', false)"
-        >
-          {{ t("common.cancel") }}
-        </Button>
-        <Button
-          :disabled="!value.trim().length || renaming"
-          @click="emit('submit')"
-        >
-          <LoaderCircle v-if="renaming" class="mr-1.5 h-4 w-4 animate-spin" />
-          {{ t("common.save") }}
-        </Button>
-      </DialogFooter>
+        <div class="flex items-start gap-3">
+          <Checkbox
+            :id="`${fieldId}-persistent`"
+            class="mt-0.5 shrink-0"
+            :model-value="persistent"
+            :disabled="renaming || persistenceDisabled"
+            :aria-describedby="`${fieldId}-help`"
+            @update:model-value="emit('update:persistent', $event === true)"
+          />
+          <div class="min-w-0 space-y-2">
+            <Label :for="`${fieldId}-persistent`">{{
+              t("admin.webTerminal.persistentConnection")
+            }}</Label>
+            <div
+              :id="`${fieldId}-help`"
+              class="space-y-1 text-xs leading-relaxed text-muted-foreground"
+            >
+              <p>{{ t("admin.webTerminal.persistenceDescription") }}</p>
+              <p>{{ t("admin.webTerminal.persistenceLeaseDescription") }}</p>
+            </div>
+          </div>
+        </div>
+
+        <DialogFooter>
+          <Button
+            type="button"
+            variant="outline"
+            :disabled="renaming"
+            @click="emit('update:open', false)"
+          >
+            {{ t("common.cancel") }}
+          </Button>
+          <Button type="submit" :disabled="!value.trim().length || renaming">
+            <LoaderCircle v-if="renaming" class="mr-1.5 h-4 w-4 animate-spin" />
+            {{ t("common.save") }}
+          </Button>
+        </DialogFooter>
+      </form>
     </DialogContent>
   </Dialog>
 </template>

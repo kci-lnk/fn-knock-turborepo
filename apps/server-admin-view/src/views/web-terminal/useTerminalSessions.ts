@@ -43,7 +43,6 @@ export const useTerminalSessions = ({
   const loading = ref(false);
   const creating = ref(false);
   const ending = ref(false);
-  const savingPersistence = ref(false);
   const error = ref("");
   const errorCode = ref<TerminalErrorCode | null>(null);
   let loadGeneration = 0;
@@ -51,7 +50,6 @@ export const useTerminalSessions = ({
   const createOperation = newOperationSlot();
   const renameOperation = newOperationSlot();
   const endOperation = newOperationSlot();
-  const persistenceOperation = newOperationSlot();
 
   const beginOperation = (slot: OperationSlot) => {
     slot.generation += 1;
@@ -206,51 +204,30 @@ export const useTerminalSessions = ({
     }
   };
 
-  const setSessionPersistence = async (
+  const renameSession = async (
     sessionId: string,
-    persistent: boolean,
+    title: string,
+    persistent?: boolean,
   ) => {
-    if (savingPersistence.value) return;
-    const operation = beginOperation(persistenceOperation);
-    savingPersistence.value = true;
-    try {
-      const updated = await TerminalAPI.updateSessionPersistence(
-        sessionId,
-        persistent,
-        operation.signal,
-      );
-      if (!isCurrent(persistenceOperation, operation.generation)) return;
-      // A list request started before the PATCH may contain the old value.
-      loadGeneration += 1;
-      loadController?.abort();
-      loading.value = false;
-      sessions.value = sessions.value.map((session) =>
-        session.id === sessionId
-          ? { ...session, persistent: updated.persistent }
-          : session,
-      );
-    } finally {
-      if (isCurrent(persistenceOperation, operation.generation))
-        savingPersistence.value = false;
-    }
-  };
-
-  const renameSession = async (sessionId: string, title: string) => {
     const operation = beginOperation(renameOperation);
     error.value = "";
     errorCode.value = null;
     try {
-      const updated = await TerminalAPI.updateSessionTitle(
+      const updated = await TerminalAPI.updateSession(
         sessionId,
-        title,
+        { title, ...(persistent === undefined ? {} : { persistent }) },
         operation.signal,
       );
       if (!isCurrent(renameOperation, operation.generation)) {
         throw new DOMException("Aborted", "AbortError");
       }
+      // Discard list requests started before this save completed.
+      loadGeneration += 1;
+      loadController?.abort();
+      loading.value = false;
       sessions.value = sessions.value.map((session) =>
         session.id === updated.id
-          ? { ...session, title: updated.title }
+          ? { ...session, title: updated.title, persistent: updated.persistent }
           : session,
       );
       return updated;
@@ -329,8 +306,6 @@ export const useTerminalSessions = ({
   };
 
   const dispose = () => {
-    cancelOperation(persistenceOperation);
-    savingPersistence.value = false;
     loadGeneration += 1;
     loadController?.abort();
     loadController = null;
@@ -338,8 +313,6 @@ export const useTerminalSessions = ({
   };
 
   return {
-    savingPersistence,
-    setSessionPersistence,
     activeSessionCount,
     createSession,
     creating,

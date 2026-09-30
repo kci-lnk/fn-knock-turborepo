@@ -119,19 +119,6 @@ export const TerminalAPI = {
     if (!response.ok) throw new Error("Terminal page release failed");
   },
 
-  async updateSessionPersistence(
-    id: string,
-    persistent: boolean,
-    signal?: AbortSignal,
-  ): Promise<TerminalSessionRecord> {
-    const response = await apiClient.patch(
-      sessionPath(id),
-      { persistent },
-      { signal },
-    );
-    return response.data.data;
-  },
-
   async getLocalStatus(signal?: AbortSignal): Promise<TerminalLocalStatus> {
     const response = await apiClient.get("/terminal/local", { signal });
     return response.data.data;
@@ -270,12 +257,11 @@ export const TerminalAPI = {
     return response.data.data;
   },
 
-  async updateSessionTitle(
+  async updateSession(
     id: string,
-    title: string,
+    payload: TerminalRenameSessionInput,
     signal?: AbortSignal,
   ): Promise<TerminalSessionRecord> {
-    const payload: TerminalRenameSessionInput = { title };
     const response = await apiClient.patch(sessionPath(id), payload, {
       signal,
     });

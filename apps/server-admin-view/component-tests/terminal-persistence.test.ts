@@ -1,10 +1,12 @@
-import { ref } from "vue";
+import { effectScope, ref } from "vue";
 import { flushPromises, mount } from "@vue/test-utils";
 import { createI18n } from "vue-i18n";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { TerminalAPI, type TerminalSessionRecord } from "@/lib/api/terminal";
 import { useTerminalPageLease } from "@/views/web-terminal/useTerminalPageLease";
 import { useTerminalSessions } from "@/views/web-terminal/useTerminalSessions";
+import { useTerminalDialogs } from "@/views/web-terminal/useTerminalDialogs";
+import TerminalRenameDialog from "@/views/web-terminal/TerminalRenameDialog.vue";
 import TerminalSessionToolbar from "@/views/web-terminal/TerminalSessionToolbar.vue";
 
 const session = (
@@ -26,6 +28,7 @@ const session = (
   exitCode: null,
 });
 const leases: ReturnType<typeof useTerminalPageLease>[] = [];
+const cleanups: Array<() => void> = [];
 const lease = () => {
   const onSuspend = vi.fn();
   const onResume = vi.fn().mockResolvedValue(undefined);
@@ -48,6 +51,7 @@ beforeEach(() => {
   vi.spyOn(TerminalAPI, "releasePage").mockResolvedValue(undefined);
 });
 afterEach(() => {
+  for (const cleanup of cleanups.splice(0)) cleanup();
   for (const controller of leases.splice(0)) controller.dispose();
   vi.restoreAllMocks();
   vi.unstubAllGlobals();
@@ -284,29 +288,89 @@ describe("session persistence", () => {
     controller.dispose();
   });
 
-  it("saves only the requested session and leaves server state unchanged on failure", async () => {
-    const controller = useTerminalSessions({ selectedTargetId: ref("local") });
-    controller.sessions.value = [session(), session("session-2")];
+  const editor = () => {
+    const scope = effectScope();
+    const result = scope.run(() => {
+      const controller = useTerminalSessions({
+        selectedTargetId: ref("local"),
+      });
+      controller.sessions.value = [session(), session("session-2")];
+      controller.selectSession("session-1");
+      const dialogs = useTerminalDialogs({
+        activeAttachment: ref(null),
+        cancelRenameSession: controller.cancelRename,
+        clearArmedModifier: vi.fn(),
+        focusTerminal: vi.fn(),
+        selectedSession: controller.selectedSession,
+        sendPayloadNow: vi.fn(),
+        sessions: controller.sessions,
+        translate: (key) => key,
+        updateSessionTitle: controller.renameSession,
+      });
+      return { controller, dialogs };
+    })!;
+    cleanups.push(() => {
+      result.controller.dispose();
+      scope.stop();
+    });
+    return result;
+  };
+
+  it("keeps persistence changes in the form until Save and discards Cancel", async () => {
     const update = vi
-      .spyOn(TerminalAPI, "updateSessionPersistence")
+      .spyOn(TerminalAPI, "updateSession")
       .mockResolvedValue(session("session-1", false));
-    await controller.setSessionPersistence("session-1", false);
-    expect(controller.sessions.value.map((item) => item.persistent)).toEqual([
-      false,
-      true,
-    ]);
-    update.mockRejectedValue(new Error("offline"));
-    await expect(
-      controller.setSessionPersistence("session-1", true),
-    ).rejects.toThrow("offline");
-    expect(controller.sessions.value[0]?.persistent).toBe(false);
-    expect(controller.savingPersistence.value).toBe(false);
-    controller.dispose();
+    const { controller, dialogs } = editor();
+    dialogs.openRenameDialog();
+    expect(dialogs.renameDialogPersistent.value).toBe(true);
+    dialogs.renameDialogPersistent.value = false;
+    expect(update).not.toHaveBeenCalled();
+    expect(controller.sessions.value[0]?.persistent).toBe(true);
+    dialogs.renameDialogOpen.value = false;
+    dialogs.openRenameDialog();
+    expect(dialogs.renameDialogPersistent.value).toBe(true);
+    dialogs.renameDialogPersistent.value = false;
+    dialogs.renameDialogValue.value = "New name";
+    update.mockResolvedValue({
+      ...session("session-1", false),
+      title: "New name",
+    });
+    await dialogs.submitRenameDialog();
+    expect(update).toHaveBeenCalledExactlyOnceWith(
+      "session-1",
+      { title: "New name", persistent: false },
+      expect.any(AbortSignal),
+    );
+    expect(controller.sessions.value[0]).toMatchObject({
+      title: "New name",
+      persistent: false,
+    });
+    expect(controller.sessions.value[1]?.persistent).toBe(true);
+    expect(dialogs.renameDialogOpen.value).toBe(false);
   });
 
-  it("disables further saves while pending and ignores older list responses", async () => {
+  it("keeps a failed save open and preserves the server state and editable draft", async () => {
+    vi.spyOn(TerminalAPI, "updateSession").mockRejectedValue(
+      new Error("offline"),
+    );
+    const { controller, dialogs } = editor();
+    dialogs.openRenameDialog();
+    dialogs.renameDialogPersistent.value = false;
+    dialogs.renameDialogValue.value = "Changed";
+    await dialogs.submitRenameDialog();
+    expect(dialogs.renameDialogOpen.value).toBe(true);
+    expect(dialogs.renameDialogPersistent.value).toBe(false);
+    expect(dialogs.renameDialogValue.value).toBe("Changed");
+    expect(dialogs.isRenamingSession.value).toBe(false);
+    expect(controller.sessions.value[0]).toMatchObject({
+      title: "session-1",
+      persistent: true,
+    });
+  });
+
+  it("prevents duplicate saves and ignores list responses older than the edit", async () => {
     let finish!: (value: TerminalSessionRecord) => void;
-    vi.spyOn(TerminalAPI, "updateSessionPersistence").mockImplementation(
+    const update = vi.spyOn(TerminalAPI, "updateSession").mockImplementation(
       () =>
         new Promise((resolve) => {
           finish = resolve;
@@ -322,23 +386,68 @@ describe("session persistence", () => {
           finishList = resolve;
         }),
     );
-    const controller = useTerminalSessions({ selectedTargetId: ref("local") });
-    controller.sessions.value = [session()];
+    const { controller, dialogs } = editor();
     const loading = controller.loadSessions();
-    const saving = controller.setSessionPersistence("session-1", false);
-    expect(controller.savingPersistence.value).toBe(true);
-    await controller.setSessionPersistence("session-1", true);
-    expect(TerminalAPI.updateSessionPersistence).toHaveBeenCalledTimes(1);
+    dialogs.openRenameDialog();
+    dialogs.renameDialogPersistent.value = false;
+    const saving = dialogs.submitRenameDialog();
+    expect(dialogs.isRenamingSession.value).toBe(true);
+    await dialogs.submitRenameDialog();
+    expect(update).toHaveBeenCalledTimes(1);
     finish(session("session-1", false));
     await saving;
     finishList({ runtimeId: "runtime", sessions: [session()] });
     await loading;
     expect(controller.sessions.value[0]?.persistent).toBe(false);
-    controller.dispose();
   });
 
-  it("shows a checked, accessible control with visible guidance and disables ended sessions", async () => {
-    const change = vi.fn();
+  it("does not apply an old save to another session's newly opened form", async () => {
+    let finish!: (value: TerminalSessionRecord) => void;
+    vi.spyOn(TerminalAPI, "updateSession").mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          finish = resolve;
+        }),
+    );
+    const { controller, dialogs } = editor();
+    dialogs.openRenameDialog();
+    dialogs.renameDialogPersistent.value = false;
+    const saving = dialogs.submitRenameDialog();
+    controller.selectSession("session-2");
+    expect(dialogs.renameDialogOpen.value).toBe(false);
+    dialogs.openRenameDialog();
+    finish(session("session-1", false));
+    await saving;
+    expect(dialogs.renameDialogOpen.value).toBe(true);
+    expect(dialogs.renameDialogValue.value).toBe("session-2");
+    expect(dialogs.renameDialogPersistent.value).toBe(true);
+  });
+
+  it("saves the name alone when persistence is unchanged or the session has ended", async () => {
+    const update = vi
+      .spyOn(TerminalAPI, "updateSession")
+      .mockResolvedValue(session());
+    const { controller, dialogs } = editor();
+    dialogs.openRenameDialog();
+    await dialogs.submitRenameDialog();
+    expect(update).toHaveBeenLastCalledWith(
+      "session-1",
+      { title: "session-1" },
+      expect.any(AbortSignal),
+    );
+    dialogs.openRenameDialog();
+    dialogs.renameDialogPersistent.value = false;
+    controller.updateSessionPhase("session-1", "closed");
+    expect(dialogs.renameDialogPersistenceDisabled.value).toBe(true);
+    await dialogs.submitRenameDialog();
+    expect(update).toHaveBeenLastCalledWith(
+      "session-1",
+      { title: "session-1" },
+      expect.any(AbortSignal),
+    );
+  });
+
+  it("keeps persistence controls and their guidance out of the terminal toolbar", async () => {
     const wrapper = mount(TerminalSessionToolbar, {
       props: {
         connectionState: "connected",
@@ -352,8 +461,6 @@ describe("session persistence", () => {
         isCreating: false,
         isKilling: false,
         isRenamingSession: false,
-        isSavingPersistence: false,
-        setSessionPersistence: change,
         keepTerminalFocused: vi.fn(),
         openRenameDialog: vi.fn(),
         openSendDialog: vi.fn(),
@@ -379,23 +486,50 @@ describe("session persistence", () => {
       },
     });
     try {
+      expect(wrapper.find('[role="checkbox"]').exists()).toBe(false);
+      expect(wrapper.text()).not.toContain(
+        "admin.webTerminal.persistenceDescription",
+      );
+    } finally {
+      wrapper.unmount();
+    }
+  });
+  it("shows the accessible persistence field inside the edit form, saving only on submit", async () => {
+    const wrapper = mount(TerminalRenameDialog, {
+      props: {
+        open: true,
+        value: "Shell",
+        renaming: false,
+        persistent: true,
+        persistenceDisabled: false,
+      },
+      global: {
+        stubs: { DialogContent: { template: "<div><slot /></div>" } },
+        plugins: [
+          createI18n({
+            legacy: false,
+            locale: "en",
+            missingWarn: false,
+            fallbackWarn: false,
+            messages: { en: {} },
+          }),
+        ],
+      },
+    });
+    try {
+      await flushPromises();
       const checkbox = wrapper.get('[role="checkbox"]');
       expect(checkbox.attributes("aria-checked")).toBe("true");
       const help = wrapper.get(`#${checkbox.attributes("aria-describedby")}`);
       expect(help.text()).toContain("admin.webTerminal.persistenceDescription");
-      expect(help.text()).toContain(
-        "admin.webTerminal.persistenceLeaseDescription",
-      );
       await checkbox.trigger("click");
-      expect(change).toHaveBeenCalledWith(false);
-      await wrapper.setProps({ isSavingPersistence: true });
+      expect(wrapper.emitted("update:persistent")).toEqual([[false]]);
+      expect(wrapper.emitted("submit")).toBeUndefined();
+      await wrapper.get("form").trigger("submit");
+      expect(wrapper.emitted("submit")).toHaveLength(1);
+      await wrapper.setProps({ renaming: true });
       expect(checkbox.attributes("disabled")).toBeDefined();
-      await wrapper.setProps({
-        isSavingPersistence: false,
-        selectedSession: { ...session(), phase: "closed" },
-      });
-      expect(checkbox.attributes("disabled")).toBeDefined();
-      await wrapper.setProps({ selectedSession: null });
+      await wrapper.setProps({ renaming: false, persistenceDisabled: true });
       expect(checkbox.attributes("disabled")).toBeDefined();
     } finally {
       wrapper.unmount();

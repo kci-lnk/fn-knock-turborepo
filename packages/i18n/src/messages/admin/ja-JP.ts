@@ -5071,7 +5071,6 @@ export const jaJPAdmin = {
       "維持されるのはターミナルのプロセスです。有効にすると、ブラウザーを閉じても実行が続き、再接続できます。無効にすると、ターミナルページの再読み込み、終了、または移動でプロセスが終了します。ターミナルサービスの再起動後はセッションは保持されません。",
     persistenceLeaseDescription:
       "複数のページで同じセッションを使用している場合、最後のページを離れたときに終了します。予期しない切断はタイムアウト後に自動的に処理されます。",
-    persistenceSaveFailed: "接続維持設定の保存に失敗しました",
     metrics: {
       disksTitle: "ディスクとマウントポイント",
       diskAvailable: "空き",
@@ -5252,8 +5251,8 @@ export const jaJPAdmin = {
     switchFailed: "セッションの切り替えに失敗しました",
     switchFailedDescription:
       "選択したターミナルセッションへ切り替えられませんでした",
-    renameFailed: "名前の変更に失敗しました",
-    renameFailedDescription: "セッション名を更新できません",
+    renameFailed: "セッションの保存に失敗しました",
+    renameFailedDescription: "セッション設定を更新できませんでした",
     sendFailed: "送信に失敗しました",
     sendFailedDescription: "ターミナルへ内容を送信できませんでした",
     notReady: "ターミナルビューはまだ準備ができていません",
@@ -5267,7 +5266,7 @@ export const jaJPAdmin = {
     endFailedDescription: "ターミナルセッションを終了できませんでした",
     newSession: "新しいセッション",
     newSessionAria: "ターミナルセッションを作成",
-    renameSession: "セッション名の変更",
+    renameSession: "セッションを編集",
     reconnect: "再接続",
     reconnectAria: "ターミナルへ再接続",
     send: "送信",
@@ -5285,8 +5284,7 @@ export const jaJPAdmin = {
     sendDialogDescription:
       "現在のターミナルへ貼り付ける内容を入力します。入力内容はそのままセッションへ送信されます。",
     sendDialogPlaceholder: "ターミナルへ送信する内容を入力",
-    renameDialogDescription:
-      "現在のターミナルセッションをより簡単に識別できる名前を設定します。",
+    renameDialogDescription: "セッション名とプロセスの維持設定を変更します。保存すると反映されます。",
     renameDialogPlaceholder: "セッション名を入力",
   },
   wafLogs: {

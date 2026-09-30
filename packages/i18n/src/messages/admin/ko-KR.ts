@@ -5039,7 +5039,6 @@ export const koKRAdmin = {
       "유지되는 것은 터미널 프로세스입니다. 선택하면 브라우저를 닫아도 실행이 계속되며 다시 연결할 수 있습니다. 선택을 해제하면 터미널 페이지를 새로 고치거나 닫거나 떠날 때 프로세스가 종료됩니다. 터미널 서비스가 재시작되면 세션은 유지되지 않습니다.",
     persistenceLeaseDescription:
       "여러 페이지에서 같은 세션을 사용하면 마지막 페이지를 떠날 때 종료됩니다. 예기치 않은 연결 끊김은 시간 초과 후 자동 정리됩니다.",
-    persistenceSaveFailed: "연결 유지 설정 저장 실패",
     metrics: {
       disksTitle: "디스크 및 마운트 지점",
       diskAvailable: "사용 가능",
@@ -5215,8 +5214,8 @@ export const koKRAdmin = {
       "브라우저는 클립보드를 직접 읽을 수 없습니다. 대화 상자에 붙여넣고 보냅니다.",
     switchFailed: "세션을 전환하지 못했습니다.",
     switchFailedDescription: "선택한 터미널 세션으로 전환할 수 없습니다.",
-    renameFailed: "이름 바꾸기 실패",
-    renameFailedDescription: "세션 이름을 업데이트할 수 없습니다.",
+    renameFailed: "세션 저장 실패",
+    renameFailedDescription: "세션 설정을 업데이트할 수 없습니다",
     sendFailed: "보내기 실패",
     sendFailedDescription: "콘텐츠를 터미널로 보낼 수 없습니다.",
     notReady: "터미널 보기가 아직 준비되지 않았습니다.",
@@ -5230,7 +5229,7 @@ export const koKRAdmin = {
     endFailedDescription: "터미널 세션을 종료할 수 없습니다.",
     newSession: "새 세션",
     newSessionAria: "터미널 세션 생성",
-    renameSession: "세션 이름 바꾸기",
+    renameSession: "세션 편집",
     reconnect: "다시 연결",
     reconnectAria: "터미널 다시 연결",
     send: "보내기",
@@ -5248,8 +5247,7 @@ export const koKRAdmin = {
     sendDialogDescription:
       "현재 터미널에 붙여넣을 내용을 입력하세요. 세션에 있는 그대로 기록됩니다.",
     sendDialogPlaceholder: "단말기로 보낼 내용을 입력하세요",
-    renameDialogDescription:
-      "현재 터미널 세션을 더 쉽게 인식할 수 있도록 이름을 설정합니다.",
+    renameDialogDescription: "현재 세션 이름과 프로세스 유지 설정을 변경합니다. 저장하면 적용됩니다.",
     renameDialogPlaceholder: "세션 이름을 입력하세요",
   },
   wafLogs: {

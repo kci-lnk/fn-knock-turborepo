@@ -4637,7 +4637,6 @@ export const zhHantAdmin = {
       "持久化的是終端程序。勾選後，關閉瀏覽器仍可繼續執行並重新連線；取消後，重新整理、關閉或離開終端頁面會結束程序。終端服務重新啟動後，工作階段不會保留。",
     persistenceLeaseDescription:
       "同一工作階段由多個頁面使用時，最後一個頁面離開才會結束；異常斷線後將於逾時後自動清理。",
-    persistenceSaveFailed: "儲存持久化設定失敗",
     metrics: {
       disksTitle: "磁碟與掛載點",
       diskAvailable: "可用",
@@ -4802,8 +4801,8 @@ export const zhHantAdmin = {
     manualPasteInfo: "瀏覽器不允許直接讀取剪貼板，請在彈窗中貼上後發送",
     switchFailed: "切換會話失敗",
     switchFailedDescription: "無法切換到所選終端會話",
-    renameFailed: "重命名失敗",
-    renameFailedDescription: "無法更新會話名稱",
+    renameFailed: "儲存工作階段失敗",
+    renameFailedDescription: "無法更新工作階段設定",
     sendFailed: "發送失敗",
     sendFailedDescription: "無法將內容發送到終端",
     notReady: "終端視圖尚未準備完成",
@@ -4817,7 +4816,7 @@ export const zhHantAdmin = {
     endFailedDescription: "無法結束終端會話",
     newSession: "新建會話",
     newSessionAria: "新建終端會話",
-    renameSession: "重命名會話",
+    renameSession: "編輯工作階段",
     reconnect: "重連",
     reconnectAria: "重連終端",
     send: "發送",
@@ -4835,7 +4834,7 @@ export const zhHantAdmin = {
     sendDialogDescription:
       "輸入要貼上到目前終端的內容，發送後會按原樣寫入會話。",
     sendDialogPlaceholder: "輸入要發送到終端的內容",
-    renameDialogDescription: "為目前終端會話設定一個更容易識別的名稱。",
+    renameDialogDescription: "修改目前工作階段的名稱與程序持久化設定，儲存後生效。",
     renameDialogPlaceholder: "輸入會話名稱",
   },
   wafLogs: {

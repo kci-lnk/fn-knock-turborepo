@@ -54,8 +54,6 @@ const {
   isKilling,
   isPinchZooming,
   isRenamingSession,
-  isSavingPersistence,
-  setSessionPersistence,
   isTerminalFullscreen,
   keepTerminalFocused,
   nudgeTerminalFontSize,
@@ -127,8 +125,6 @@ const selectedTargetEndpoint = computed(() => {
       :is-creating="isCreating"
       :is-killing="isKilling"
       :is-renaming-session="isRenamingSession"
-      :is-saving-persistence="isSavingPersistence"
-      :set-session-persistence="setSessionPersistence"
       :keep-terminal-focused="keepTerminalFocused"
       :open-rename-dialog="openRenameDialog"
       :open-send-dialog="openSendDialog"

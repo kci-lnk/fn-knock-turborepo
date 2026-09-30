@@ -139,7 +139,6 @@ import AuthCard from "@/components/AuthCard.vue";
 import AuthShell from "@/components/AuthShell.vue";
 import { useAuthBrowserCapabilities } from "@/composables/useAuthBrowserCapabilities";
 import { useAuthSystemConfig } from "@/composables/useAuthSystemConfig";
-import { usePasskeyRegistration } from "@/composables/usePasskeyRegistration";
 import { useKnownPasskeyCredentials } from "@/composables/useKnownPasskeyCredentials";
 import {
   passkeyBindingCopyKeys,
@@ -186,7 +185,6 @@ const authLoginMode = ref<AuthAccessState["login_mode"]>(undefined);
 const { isPasskeySupported, refreshBrowserCapabilities } =
   useAuthBrowserCapabilities();
 const { applyAuthSystemConfig } = useAuthSystemConfig(i18n);
-const { registerPasskeyCredential } = usePasskeyRegistration();
 const {
   hasKnownPasskeyCredential,
   rememberKnownPasskeyCredentialId,
@@ -394,6 +392,10 @@ async function handlePasskeyBind() {
     if (!bindToken) {
       throw new Error(t("auth.home.passkeyTokenMissing"));
     }
+    const { usePasskeyRegistration } = await import(
+      "@/composables/usePasskeyRegistration"
+    );
+    const { registerPasskeyCredential } = usePasskeyRegistration();
     const registration = await registerPasskeyCredential(bindToken, {
       alreadyRegistered: t("auth.passkeyAlreadyRegistered"),
       bindFailed: t("auth.passkeyBindFailed"),

@@ -59,56 +59,13 @@
           </TagsInput>
         </div>
 
-        <div class="grid gap-2">
-          <div class="flex items-center justify-between gap-3">
-            <label
-              :for="`${a11yId}-acmeapplicationdialog-3`"
-              class="text-sm text-muted-foreground"
-            >
-              {{ t("admin.acmeApplicationDialog.dnsProvider") }}
-            </label>
-            <span
-              v-if="activeDnsType"
-              class="text-xs font-mono text-muted-foreground"
-            >
-              {{ activeDnsType }}
-            </span>
-          </div>
-          <Select v-model="dnsType" :disabled="props.pending">
-            <SelectTrigger
-              :id="`${a11yId}-acmeapplicationdialog-3`"
-              class="w-full"
-            >
-              <SelectValue
-                :placeholder="
-                  t('admin.acmeApplicationDialog.selectDnsProvider')
-                "
-              />
-            </SelectTrigger>
-            <SelectContent class="max-h-[320px]">
-              <SelectGroup
-                v-for="group in groupedProviders"
-                :key="group.groupKey"
-              >
-                <SelectLabel>{{ group.group }}</SelectLabel>
-                <SelectItem
-                  v-for="provider in group.items"
-                  :key="provider.dnsType"
-                  :value="provider.dnsType"
-                >
-                  <div class="flex w-full items-center justify-between gap-3">
-                    <span class="truncate">{{ provider.label }}</span>
-                    <span
-                      class="shrink-0 font-mono text-xs text-muted-foreground"
-                    >
-                      {{ provider.dnsType }}
-                    </span>
-                  </div>
-                </SelectItem>
-              </SelectGroup>
-            </SelectContent>
-          </Select>
-        </div>
+        <AcmeDnsProviderSelect
+          :id="`${a11yId}-acmeapplicationdialog-3`"
+          v-model="dnsType"
+          :active-dns-type="activeDnsType"
+          :grouped-providers="groupedProviders"
+          :pending="props.pending"
+        />
 
         <div
           v-if="activeCredentialFields.length"
@@ -320,15 +277,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
-import {
-  Select,
-  SelectContent,
-  SelectGroup,
-  SelectItem,
-  SelectLabel,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+import AcmeDnsProviderSelect from "./AcmeDnsProviderSelect.vue";
 import { Switch } from "@/components/ui/switch";
 import {
   TagsInput,

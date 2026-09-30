@@ -191,9 +191,13 @@ describe("ACME stuck-job recovery UI", () => {
     const polling = readSource(
       "../src/views/ssl-settings/useAcmeJobPolling.ts",
     );
+    assert.match(polling, /notifyAcmeJobStop\(result,/u);
+    const feedback = readSource(
+      "../src/views/ssl-settings/acme-job-feedback.ts",
+    );
 
-    assert.match(polling, /result\.processResult\.remainingPids/u);
-    assert.match(polling, /result\.processResult\.errors/u);
-    assert.match(polling, /admin\.acmeCert\.stopJobFailed/u);
+    assert.match(feedback, /result\.processResult\.remainingPids/u);
+    assert.match(feedback, /result\.processResult\.errors/u);
+    assert.match(feedback, /admin\.acmeCert\.stopJobFailed/u);
   });
 });

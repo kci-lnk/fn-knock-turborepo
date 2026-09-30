@@ -1,4 +1,4 @@
-import axios from "axios";
+import { isAxiosError } from "@frontend-core/api/createApiClient";
 import { isInvalidApiResponseError } from "@frontend-core/api/createApiClient";
 
 const AUTH_BOOTSTRAP_PATH = "/__auth__/api/auth/bootstrap";
@@ -39,7 +39,7 @@ interface NormalizedGatewayAuthRecoveryOptions {
 }
 
 export const isAxiosNetworkErrorWithoutResponse = (error: unknown): boolean => {
-  if (!axios.isAxiosError(error) || error.response != null) return false;
+  if (!isAxiosError(error) || error.response != null) return false;
 
   return (
     error.code === "ERR_NETWORK" ||

@@ -15,7 +15,7 @@ describe("Web terminal frontend architecture", () => {
     const page = readSource("../src/views/web-terminal/useWebTerminalPage.ts");
     for (const composable of [
       "useTerminalTargets",
-      "useTerminalTargetEditor",
+      "useTerminalTargetEditorBinding",
       "useTerminalSessions",
       "useTerminalAttachment",
       "useTerminalEmulator",
@@ -25,6 +25,11 @@ describe("Web terminal frontend architecture", () => {
       assert.match(page, new RegExp(`${composable}\\(`, "u"), composable);
     }
     assert.doesNotMatch(page, /terminal_feature|installTmux|getStatus/u);
+    const editorBinding = readSource(
+      "../src/views/web-terminal/useTerminalTargetEditorBinding.ts",
+    );
+    assert.match(editorBinding, /useTerminalTargetEditor\(/u);
+    assert.match(editorBinding, /sessionsController\.applyTargetPersistence/u);
   });
 
   it("resets the emulator before applying a reset snapshot", () => {

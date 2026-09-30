@@ -481,6 +481,7 @@ fn action_label(segment: &str) -> Option<&'static str> {
         "download" => Some("下载"),
         "extend" => Some("延长"),
         "export" => Some("导出"),
+        "heartbeat" => Some("续期"),
         "import" => Some("导入"),
         "input" => Some("输入"),
         "init" | "initialize" => Some("初始化"),
@@ -495,6 +496,7 @@ fn action_label(segment: &str) -> Option<&'static str> {
         "probe-host-key" => Some("探测主机密钥"),
         "reclaim" => Some("释放"),
         "refresh" => Some("刷新"),
+        "release" => Some("释放"),
         "reset" => Some("重置"),
         "restart" => Some("重启"),
         "resize" => Some("调整大小"),
@@ -518,6 +520,8 @@ fn action_label(segment: &str) -> Option<&'static str> {
 
 fn segment_label(segment: &str) -> String {
     match segment {
+        "file-output" => "证书文件输出".to_string(),
+        "pages" => "页面".to_string(),
         "access" => "访问权限".to_string(),
         "access-entry" => "访问入口".to_string(),
         "access-scopes" => "访问范围".to_string(),

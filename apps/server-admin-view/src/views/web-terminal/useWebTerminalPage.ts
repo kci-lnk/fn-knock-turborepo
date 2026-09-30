@@ -24,7 +24,7 @@ import { useTerminalSessionConnection } from "./useTerminalSessionConnection";
 import { useTerminalSessionRefresh } from "./useTerminalSessionRefresh";
 import { useTerminalPageLease } from "./useTerminalPageLease";
 import { useTerminalSessions } from "./useTerminalSessions";
-import { useTerminalTargetEditor } from "./useTerminalTargetEditor";
+import { useTerminalTargetEditorBinding } from "./useTerminalTargetEditorBinding";
 import { normalizeTerminalDimensions } from "./terminal-dimensions";
 import { useTerminalTargetDeletion } from "./useTerminalTargetDeletion";
 import { useTerminalTargets } from "./useTerminalTargets";
@@ -182,29 +182,12 @@ export const useWebTerminalPage = () => {
     },
   });
 
-  const targetEditor = useTerminalTargetEditor({
-    cancelPendingSave: targetsController.cancelEdits,
-    createTarget: targetsController.createTarget,
-    updateTarget: async (targetId, payload, force, confirmationToken) => {
-      const updated = await targetsController.updateTarget(
-        targetId,
-        payload,
-        force,
-        confirmationToken,
-      );
-      sessionsController.applyTargetPersistence(targetId, updated.persistent);
-      if (force) {
-        const attachedSession = sessionsController.sessions.value.find(
-          (session) => session.id === attachmentController.sessionId.value,
-        );
-        if (attachedSession?.targetId === targetId) {
-          await sessionConnection.detach();
-        }
-        await sessionsController.loadSessions();
-      }
-      return updated;
-    },
-  });
+  const targetEditor = useTerminalTargetEditorBinding(
+    targetsController,
+    sessionsController,
+    attachmentController,
+    sessionConnection,
+  );
 
   const selectedTargetActiveSessionCount = computed(() =>
     sessionsController.activeSessionCount(

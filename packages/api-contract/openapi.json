@@ -28002,7 +28002,7 @@
   "info": {
     "description": "server-admin 7998 端口提供的完整管理端接口契约。路径、请求与响应均由 utoipa schema 和领域 operation 清单生成。",
     "title": "fn-knock server-admin API",
-    "version": "2.4.15"
+    "version": "2.5.1"
   },
   "openapi": "3.1.0",
   "paths": {
@@ -28700,7 +28700,7 @@
                 }
               }
             },
-            "description": "「同步ACME 证书管理file output」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。"
+            "description": "「同步ACME 证书管理证书文件输出」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。"
           },
           "default": {
             "content": {
@@ -28713,7 +28713,7 @@
             "description": "接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。"
           }
         },
-        "summary": "同步ACME 证书管理file output",
+        "summary": "同步ACME 证书管理证书文件输出",
         "tags": [
           "acme"
         ],
@@ -52355,7 +52355,7 @@
                 }
               }
             },
-            "description": "「提交Web 终端pages」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。"
+            "description": "「提交Web 终端页面」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。"
           },
           "default": {
             "content": {
@@ -52368,7 +52368,7 @@
             "description": "接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。"
           }
         },
-        "summary": "提交Web 终端pages",
+        "summary": "提交Web 终端页面",
         "tags": [
           "terminal"
         ],
@@ -52418,7 +52418,7 @@
                 }
               }
             },
-            "description": "「提交Web 终端heartbeat」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。"
+            "description": "「续期Web 终端页面」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。"
           },
           "default": {
             "content": {
@@ -52431,7 +52431,7 @@
             "description": "接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。"
           }
         },
-        "summary": "提交Web 终端heartbeat",
+        "summary": "续期Web 终端页面",
         "tags": [
           "terminal"
         ],
@@ -52461,7 +52461,7 @@
                 }
               }
             },
-            "description": "「提交Web 终端release」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。"
+            "description": "「释放Web 终端页面」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。"
           },
           "default": {
             "content": {
@@ -52474,7 +52474,7 @@
             "description": "接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。"
           }
         },
-        "summary": "提交Web 终端release",
+        "summary": "释放Web 终端页面",
         "tags": [
           "terminal"
         ],

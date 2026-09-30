@@ -1,4 +1,4 @@
-import axios from "axios";
+import { isAxiosError } from "@frontend-core/api/createApiClient";
 import { useGatewayLogDates } from "./useGatewayLogDates";
 import { useGatewayLogFilterLabels } from "./useGatewayLogFilterLabels";
 import { useRoute } from "vue-router";
@@ -224,7 +224,7 @@ export const useGatewayRequestLogsResource = () => {
       trackIps([]);
       nextCursor.value = "";
       const cursorExpired =
-        axios.isAxiosError(error) && error.response?.status === 409;
+        isAxiosError(error) && error.response?.status === 409;
       if (cursorExpired) resetCursorPagination();
       toast.error(t("admin.gatewayRequestLogs.loadFailed"), {
         description: cursorExpired

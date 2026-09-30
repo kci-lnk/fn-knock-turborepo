@@ -146,7 +146,7 @@ export interface paths {
         get?: never;
         put?: never;
         /**
-         * 同步ACME 证书管理file output
+         * 同步ACME 证书管理证书文件输出
          * @description 管理 ACME 客户端、证书申请、部署和运行任务。。`POST /api/admin/acme/applications/{id}/file-output/sync` 用于提交操作或创建、更新服务状态；执行结果以响应中的数据和消息为准。 该操作不要求 JSON 请求体。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
          */
         post: operations["sync_application_file_output"];
@@ -6328,7 +6328,7 @@ export interface paths {
         get?: never;
         put?: never;
         /**
-         * 提交Web 终端pages
+         * 提交Web 终端页面
          * @description 管理 Web 终端运行时能力和交互会话。。`POST /api/admin/terminal/pages` 用于提交操作或创建、更新服务状态；执行结果以响应中的数据和消息为准。 该操作不要求 JSON 请求体。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
          */
         post: operations["register_page"];
@@ -6348,7 +6348,7 @@ export interface paths {
         get?: never;
         put?: never;
         /**
-         * 提交Web 终端heartbeat
+         * 续期Web 终端页面
          * @description 管理 Web 终端运行时能力和交互会话。。`POST /api/admin/terminal/pages/{id}/heartbeat` 用于提交操作或创建、更新服务状态；执行结果以响应中的数据和消息为准。 该操作不要求 JSON 请求体。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
          */
         post: operations["heartbeat_page"];
@@ -6368,7 +6368,7 @@ export interface paths {
         get?: never;
         put?: never;
         /**
-         * 提交Web 终端release
+         * 释放Web 终端页面
          * @description 管理 Web 终端运行时能力和交互会话。。`POST /api/admin/terminal/pages/{id}/release` 用于提交操作或创建、更新服务状态；执行结果以响应中的数据和消息为准。 该操作不要求 JSON 请求体。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
          */
         post: operations["release_page"];
@@ -14872,7 +14872,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description 「同步ACME 证书管理file output」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
+            /** @description 「同步ACME 证书管理证书文件输出」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -29878,7 +29878,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description 「提交Web 终端pages」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
+            /** @description 「提交Web 终端页面」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -29916,7 +29916,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description 「提交Web 终端heartbeat」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
+            /** @description 「续期Web 终端页面」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -29954,7 +29954,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description 「提交Web 终端release」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
+            /** @description 「释放Web 终端页面」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
             200: {
                 headers: {
                     [name: string]: unknown;

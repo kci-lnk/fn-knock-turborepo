@@ -5,10 +5,7 @@ import { toast } from "@admin-shared/utils/toast";
 import { extractErrorMessage } from "@admin-shared/composables/useAsyncAction";
 import { browserT } from "@fn-knock/i18n/vue/admin";
 import { createPollingLifecycle } from "@/lib/pollingLifecycle";
-import {
-  replaceWithUpdatedApplication,
-  waitForUpdatedApplication,
-} from "@/lib/update-reload";
+import { replaceWithUpdatedApplication } from "@/lib/update-reload";
 
 const POLL_IDLE_MS = 15_000;
 const POLL_BUSY_MS = 1_000;
@@ -192,6 +189,8 @@ export const useUpdateStore = defineStore("update", () => {
       status.value?.download.targetVersion ?? status.value?.latest?.version;
     const previousVersion = status.value?.localVersion;
     try {
+      const { waitForUpdatedApplication } =
+        await import("@/lib/update-readiness");
       if (status.value) {
         status.value.download.status = "installing";
         status.value.download.error = null;

@@ -4,9 +4,11 @@ import {
   buildCacheBustedApplicationUrl,
   claimChunkReload,
   isDynamicImportFailure,
+} from "../src/lib/update-reload";
+import {
   isUpdatedApplicationReady,
   waitForUpdatedApplication,
-} from "../src/lib/update-reload";
+} from "../src/lib/update-readiness";
 
 describe("FPK update reload", () => {
   it("recognizes the restarted backend by its target version", async () => {

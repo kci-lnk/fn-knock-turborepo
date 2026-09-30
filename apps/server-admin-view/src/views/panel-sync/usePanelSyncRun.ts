@@ -1,6 +1,6 @@
 import { onBeforeUnmount, ref } from "vue";
 import { useI18n } from "vue-i18n";
-import axios from "axios";
+import { isAxiosError } from "@frontend-core/api/createApiClient";
 import { extractErrorMessage } from "@admin-shared/composables/useAsyncAction";
 import { toast } from "@admin-shared/utils/toast";
 import {
@@ -84,7 +84,7 @@ export const usePanelSyncRun = (reloadConnections: () => Promise<void>) => {
         error,
         t("admin.panelSync.messages.syncFailed"),
       );
-      const planChanged = axios.isAxiosError(error) && error.response?.status === 409;
+      const planChanged = isAxiosError(error) && error.response?.status === 409;
       toast.error(
         planChanged
           ? t("admin.panelSync.messages.planChanged")

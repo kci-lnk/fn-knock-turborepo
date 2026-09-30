@@ -6,6 +6,8 @@ import axios, {
 
 import { extractErrorMessage } from "../errors/extractErrorMessage";
 
+export { isAxiosError } from "axios";
+
 declare module "axios" {
   interface AxiosRequestConfig<D = any> {
     /** Allow an explicitly requested Blob download to contain an HTML document. */

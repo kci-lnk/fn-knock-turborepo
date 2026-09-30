@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import TerminalCopyDialog from "./TerminalCopyDialog.vue";
+import TerminalCopyFeedback from "./TerminalCopyFeedback.vue";
 import TerminalRenameDialog from "./TerminalRenameDialog.vue";
 import TerminalLocalSettingsDialog from "./TerminalLocalSettingsDialog.vue";
 import TerminalSendDialog from "./TerminalSendDialog.vue";
@@ -9,17 +9,8 @@ import type { WebTerminalPageController } from "./useWebTerminalPage";
 
 const props = defineProps<{ controller: WebTerminalPageController }>();
 const {
-  copyDialogOpen,
-  copyDialogText,
-  copying,
-  retryTerminalCopy,
-  downloadCopyText,
-  closeCopyDialog,
-  focusAfterCopyDialog,
   focusTerminalAfterDialogClose,
   canConfirmForceDelete,
-  confirmForceDeleteTarget,
-  closeForceDeleteTarget,
   forceDeletingTarget,
   deleteTarget,
   pendingForceDeleteActiveCount,
@@ -32,7 +23,6 @@ const {
   selectedTargetActiveSessionCount,
   sendDialogOpen,
   sendDialogPayload,
-  submitRenameDialog,
   submitSendDialog,
   targetEditor,
   toolbarDisabled,
@@ -40,15 +30,7 @@ const {
 </script>
 
 <template>
-  <TerminalCopyDialog
-    :open="copyDialogOpen"
-    :text="copyDialogText"
-    :copying="copying"
-    @update:open="closeCopyDialog"
-    @retry="retryTerminalCopy"
-    @download="downloadCopyText"
-    @close-auto-focus="focusAfterCopyDialog"
-  />
+  <TerminalCopyFeedback :controller="controller" />
 
   <TerminalLocalSettingsDialog :controller="controller" />
 
@@ -65,7 +47,7 @@ const {
     v-model:open="renameDialogOpen"
     v-model:value="renameDialogValue"
     :renaming="isRenamingSession"
-    @submit="submitRenameDialog"
+    @submit="controller.submitRenameDialog"
   />
 
   <TerminalTargetEditorDialog
@@ -81,7 +63,7 @@ const {
     :message="pendingForceDeleteMessage"
     :open="!!pendingForceDeleteTarget"
     :target-name="pendingForceDeleteTarget?.name || ''"
-    @close="closeForceDeleteTarget"
-    @confirm="confirmForceDeleteTarget"
+    @close="controller.closeForceDeleteTarget"
+    @confirm="controller.confirmForceDeleteTarget"
   />
 </template>

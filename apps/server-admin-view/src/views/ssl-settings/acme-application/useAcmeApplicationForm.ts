@@ -40,6 +40,8 @@ export const useAcmeApplicationForm = (
   const dnsType = ref("");
   const credentials = ref<Record<string, string>>({});
   const renewEnabled = ref(true);
+  const fileOutputEnabled = ref(false);
+  const fileOutputDirectory = ref("");
   const isCredentialsVisible = ref(false);
   const credentialEditReady = ref<Record<string, boolean>>({});
 
@@ -178,6 +180,8 @@ export const useAcmeApplicationForm = (
 
   const canSubmit = computed(() => {
     if (!domains.value.length) return false;
+    if (fileOutputEnabled.value && !fileOutputDirectory.value.trim())
+      return false;
     if (!/^dns_[a-z0-9_]+$/i.test(activeDnsType.value)) return false;
     if (!activeCredentialFields.value.length) return true;
     return Boolean(matchedCredentialScheme.value);
@@ -192,6 +196,8 @@ export const useAcmeApplicationForm = (
     dnsType.value = initialValue?.dnsType || "";
     credentials.value = { ...(initialValue?.credentials || {}) };
     renewEnabled.value = initialValue?.renewEnabled ?? true;
+    fileOutputEnabled.value = initialValue?.fileOutput?.enabled ?? false;
+    fileOutputDirectory.value = initialValue?.fileOutput?.directory ?? "";
     isCredentialsVisible.value = false;
     credentialEditReady.value = {};
   };
@@ -208,6 +214,10 @@ export const useAcmeApplicationForm = (
       dnsType: activeDnsType.value,
       credentials: buildAcmeCredentialsPayload(credentials.value),
       renewEnabled: renewEnabled.value,
+      fileOutput: {
+        enabled: fileOutputEnabled.value,
+        directory: fileOutputDirectory.value.trim(),
+      },
       submitNow,
     });
   };
@@ -263,6 +273,8 @@ export const useAcmeApplicationForm = (
     isTransferSourceLoading,
     name,
     renewEnabled,
+    fileOutputEnabled,
+    fileOutputDirectory,
     submit,
     t,
     transferSourceScopeLabel,

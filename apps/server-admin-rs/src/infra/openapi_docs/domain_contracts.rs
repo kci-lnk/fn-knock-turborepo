@@ -537,6 +537,8 @@ struct BackupImportResultData {
     AcmeConfigBodyData,
     AcmeConfigData,
     AcmeApplicationBodyData,
+    AcmeFileOutputData,
+    AcmeFileOutputStatusData,
     AcmeApplicationData,
     AcmeRuntimeLockData,
     AcmeJobData,
@@ -1263,6 +1265,12 @@ pub(super) fn components() -> Map<String, Value> {
             "failed",
             "stopped",
         ],
+    );
+    set_property_enum(
+        &mut schemas,
+        "AcmeFileOutputStatusData",
+        "status",
+        &["disabled", "waiting", "pending", "saved", "error"],
     );
     set_property_enum(
         &mut schemas,
@@ -4845,6 +4853,12 @@ const OPERATIONS: &[DomainOperation] = &[
     },
     DomainOperation {
         method: "post",
+        path: "/api/admin/acme/applications/{id}/file-output/sync",
+        request: None,
+        response: ResponseSchema::Ref("AcmeFileOutputStatusData"),
+    },
+    DomainOperation {
+        method: "post",
         path: "/api/admin/acme/applications/{id}/library/sync",
         request: None,
         response: ResponseSchema::Ref("AcmeLibrarySyncData"),
@@ -5613,6 +5627,7 @@ fn refine_path_parameters(operation: &mut Map<String, Value>, contract: &DomainO
         "/api/admin/acme/applications/{id}"
         | "/api/admin/acme/applications/{id}/certificate"
         | "/api/admin/acme/applications/{id}/library/sync"
+        | "/api/admin/acme/applications/{id}/file-output/sync"
         | "/api/admin/acme/applications/{id}/deploy"
         | "/api/admin/acme/applications/{id}/request" => &[(
             "id",

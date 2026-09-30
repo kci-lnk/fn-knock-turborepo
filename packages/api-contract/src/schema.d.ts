@@ -136,6 +136,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/admin/acme/applications/{id}/file-output/sync": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * 同步ACME 证书管理file output
+         * @description 管理 ACME 客户端、证书申请、部署和运行任务。。`POST /api/admin/acme/applications/{id}/file-output/sync` 用于提交操作或创建、更新服务状态；执行结果以响应中的数据和消息为准。 该操作不要求 JSON 请求体。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
+         */
+        post: operations["sync_application_file_output"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/admin/acme/applications/{id}/library/sync": {
         parameters: {
             query?: never;
@@ -7646,6 +7666,7 @@ export interface components {
             } | null;
             dnsType?: string | null;
             domains: string[];
+            fileOutput?: null | components["schemas"]["AcmeFileOutputData"];
             name?: string | null;
             provider?: string | null;
             renewEnabled?: boolean | null;
@@ -7663,6 +7684,8 @@ export interface components {
             };
             dnsType: string;
             domains: string[];
+            fileOutput?: null | components["schemas"]["AcmeFileOutputData"];
+            fileOutputStatus?: null | components["schemas"]["AcmeFileOutputStatusData"];
             id: string;
             lastError?: string | null;
             /** Format: date-time */
@@ -7692,6 +7715,8 @@ export interface components {
             createdAt: string;
             dnsType: string;
             domains: string[];
+            fileOutput?: null | components["schemas"]["AcmeFileOutputData"];
+            fileOutputStatus?: null | components["schemas"]["AcmeFileOutputStatusData"];
             id: string;
             latestJob: null | components["schemas"]["AcmeLatestJobData"];
             library: components["schemas"]["AcmeOverviewLibraryData"];
@@ -7784,6 +7809,18 @@ export interface components {
             dnsType: string;
             group: string;
             label: string;
+        };
+        AcmeFileOutputData: {
+            directory: string;
+            enabled: boolean;
+        };
+        AcmeFileOutputStatusData: {
+            certificatePath?: string | null;
+            error?: string | null;
+            lastSuccessAt?: string | null;
+            privateKeyPath?: string | null;
+            /** @enum {string} */
+            status: "disabled" | "waiting" | "pending" | "saved" | "error";
         };
         AcmeInitData: {
             /** @enum {string} */
@@ -14802,6 +14839,44 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["AcmeActionMessageData"];
+                };
+            };
+            /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorEnvelope"];
+                };
+            };
+        };
+    };
+    sync_application_file_output: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 「同步ACME 证书管理file output」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        data: components["schemas"]["AcmeFileOutputStatusData"];
+                        message?: string | null;
+                        /** @constant */
+                        success: true;
+                    } & {
+                        [key: string]: unknown;
+                    };
                 };
             };
             /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */

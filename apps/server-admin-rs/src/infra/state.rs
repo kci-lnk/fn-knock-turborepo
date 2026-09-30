@@ -105,6 +105,8 @@ pub struct GatewayState {
     /// concurrently with manual and ACME updates, so their read-modify-write
     /// sequences must share one owner.
     pub ssl_update_lock: Mutex<()>,
+    /// Serializes ACME configuration, certificate commits, and file output.
+    pub acme_output_lock: Arc<Mutex<()>>,
     /// Serializes SSL gateway calls and lets every caller converge a stale
     /// deployment request to the newest persisted SSL configuration.
     pub ssl_deployment_lock: Mutex<()>,
@@ -176,6 +178,7 @@ impl GatewayState {
         Self {
             client,
             ssl_update_lock: Mutex::new(()),
+            acme_output_lock: Arc::new(Mutex::new(())),
             ssl_deployment_lock: Mutex::new(()),
             host_mappings_update_lock: Mutex::new(()),
             protocol_mapping_update_lock: Mutex::new(()),

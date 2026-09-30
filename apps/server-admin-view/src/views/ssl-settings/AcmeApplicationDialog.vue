@@ -5,13 +5,20 @@
         <DialogTitle>{{ dialogTitle }}</DialogTitle>
         <DialogDescription>
           {{ t("admin.acmeApplicationDialog.description") }}
-          <span v-if="props.runtimeLocked" class="block text-amber-700 dark:text-amber-300">{{ t("admin.acmeCert.lock.description") }}</span>
+          <span
+            v-if="props.runtimeLocked"
+            class="block text-amber-700 dark:text-amber-300"
+            >{{ t("admin.acmeCert.lock.description") }}</span
+          >
         </DialogDescription>
       </DialogHeader>
 
       <div class="grid gap-6 py-1">
         <div class="grid gap-2">
-          <label :for="`${a11yId}-acmeapplicationdialog-1`" class="text-sm text-muted-foreground">
+          <label
+            :for="`${a11yId}-acmeapplicationdialog-1`"
+            class="text-sm text-muted-foreground"
+          >
             {{ t("admin.acmeApplicationDialog.name") }}
           </label>
           <Input
@@ -256,10 +263,20 @@
               {{ t("admin.acmeApplicationDialog.autoRenewDescription") }}
             </div>
           </div>
-          <Switch v-model="renewEnabled" :aria-label="t('admin.acmeApplicationDialog.autoRenew')" :disabled="props.pending" />
+          <Switch
+            v-model="renewEnabled"
+            :aria-label="t('admin.acmeApplicationDialog.autoRenew')"
+            :disabled="props.pending"
+          />
         </div>
       </div>
 
+      <AcmeFileOutputSettings
+        v-model:enabled="fileOutputEnabled"
+        v-model:directory="fileOutputDirectory"
+        :domain="domains[0] || ''"
+        :disabled="props.pending"
+      />
       <DialogFooter class="gap-2 sm:justify-end">
         <Button
           type="button"
@@ -291,6 +308,7 @@
 
 <script setup lang="ts">
 import { useId } from "vue";
+import AcmeFileOutputSettings from "./AcmeFileOutputSettings.vue";
 import { Eye, EyeOff } from "lucide-vue-next";
 import { Button } from "@/components/ui/button";
 import {
@@ -353,6 +371,8 @@ const {
   isTransferSourceLoading,
   name,
   renewEnabled,
+  fileOutputEnabled,
+  fileOutputDirectory,
   submit,
   t,
   transferSourceScopeLabel,

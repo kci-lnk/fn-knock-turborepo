@@ -21,7 +21,7 @@ import { useAcmeCertificateDisplay } from "./useAcmeCertificateDisplay";
 import { useAcmeJobPolling } from "./useAcmeJobPolling";
 
 export function useAcmeCertificateController() {
-  const { t } = useI18n();
+  const { t, locale } = useI18n();
   const router = useRouter();
   const configStore = useConfigStore();
   const overview = ref<AcmeOverview | null>(null);
@@ -77,7 +77,11 @@ export function useAcmeCertificateController() {
 
         const runningJobId = data.runningJob?.id || data.lock.jobId || "";
         if (runningJobId) {
-          await selectJob(runningJobId, true);
+          // Poll completion already has this job's current status. Reselecting
+          // it restarts the poller and can turn lock cleanup into a tight loop.
+          if (!opts?.preserveSelection || selectedJobId.value !== runningJobId) {
+            await selectJob(runningJobId, true);
+          }
           return;
         }
 
@@ -118,6 +122,7 @@ export function useAcmeCertificateController() {
     stopActiveJob,
     viewJob,
   } = useAcmeJobPolling({
+    isRuntimeLocked: () => overview.value?.lock.locked === true,
     refreshOverview: () =>
       fetchOverview({ silent: true, preserveSelection: true }),
   });
@@ -266,6 +271,11 @@ export function useAcmeCertificateController() {
           ? t("admin.acmeCert.taskSubmitted")
           : t("admin.acmeCert.saved"),
       );
+      if (response.application.fileOutputStatus?.status === "error") {
+        toast.warning(t("admin.acmeFileOutput.failed"), {
+          description: response.application.fileOutputStatus.error || undefined,
+        });
+      }
       isDialogOpen.value = false;
       editingApplication.value = null;
       await fetchOverview({ silent: true, preserveSelection: true });
@@ -280,6 +290,20 @@ export function useAcmeCertificateController() {
       toast.success(t("admin.acmeCert.taskSubmitted"));
       await fetchOverview({ silent: true, preserveSelection: true });
       await selectJob(response.job.id, true);
+    });
+  };
+
+  const syncFileOutput = async (application: AcmeApplicationOverviewItem) => {
+    await runMutating(async () => {
+      const status = await AcmeAPI.syncFileOutput(application.id);
+      if (status.status === "error") {
+        toast.error(t("admin.acmeFileOutput.failed"), {
+          description: status.error || undefined,
+        });
+      } else {
+        toast.success(t(`admin.acmeFileOutput.status.${status.status}`));
+      }
+      await fetchOverview({ silent: true, preserveSelection: true });
     });
   };
 
@@ -426,6 +450,8 @@ export function useAcmeCertificateController() {
     editingApplication,
     focusCredentialsFromJob,
     formatCertificateRange,
+    formatFileOutputTime: (value: string) =>
+      new Date(value).toLocaleString(locale.value),
     goToAcmeInitialization,
     handleDeleteDialogOpenChange,
     isAcmeInstalled,
@@ -463,6 +489,7 @@ export function useAcmeCertificateController() {
     stopActiveJob,
     submitDialog,
     syncLibrary,
+    syncFileOutput,
     t,
     viewJob,
   };

@@ -5,6 +5,7 @@ import { describe, it } from "node:test";
 
 import {
   acmeCertificateArchiveFilename,
+  acmeCertificateOutputPaths,
   acmeCertificateArchiveStem,
 } from "../src/lib/acme-download";
 
@@ -24,7 +25,18 @@ describe("ACME certificate archive filenames", () => {
   });
 
   it("removes unsafe Windows filename characters", () => {
-    assert.equal(acmeCertificateArchiveStem(' bad:*?name. '), "bad___name");
+    assert.equal(acmeCertificateArchiveStem(" bad:*?name. "), "bad___name");
     assert.equal(acmeCertificateArchiveStem("..."), "certificate");
   });
+});
+
+it("previews output filenames for POSIX roots, Windows drives and wildcard domains", () => {
+  assert.deepEqual(acmeCertificateOutputPaths("/", "*.Example.COM"), {
+    certificatePath: "/wildcard.example.com.cert.pem",
+    privateKeyPath: "/wildcard.example.com.key.pem",
+  });
+  assert.equal(
+    acmeCertificateOutputPaths("C:\\certs\\", "example.com").privateKeyPath,
+    "C:\\certs\\example.com.key.pem",
+  );
 });

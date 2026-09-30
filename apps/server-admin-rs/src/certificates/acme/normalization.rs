@@ -42,6 +42,10 @@ pub(super) fn normalize_acme_application(value: Value) -> Option<Value> {
         "renewEnabled".to_string(),
         json!(raw.get("renewEnabled").and_then(Value::as_bool) != Some(false)),
     );
+    object.insert(
+        "fileOutput".to_string(),
+        normalize_file_output(raw.get("fileOutput")),
+    );
     object.insert("createdAt".to_string(), json!(created_at));
     object.insert("updatedAt".to_string(), json!(updated_at));
     insert_optional_string(&mut object, "latestJobId", raw.get("latestJobId"));

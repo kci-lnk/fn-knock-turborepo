@@ -126,6 +126,12 @@ pub(super) async fn stop_active_acme_job(
         .and_then(Value::as_str)
         .unwrap_or_default()
         .to_string();
+    // Cancellation must reach the executor before status updates wait for the
+    // commit/output lock. Retain the control even if it finishes meanwhile.
+    let control = state.acme_job_control(&job_id).await;
+    if let Some(control) = &control {
+        control.cancellation.cancel();
+    }
     let mut job = if job_id.is_empty() {
         Value::Null
     } else {
@@ -139,7 +145,7 @@ pub(super) async fn stop_active_acme_job(
     let mut errors = Vec::new();
     let mut executor_finished = true;
 
-    if let Some(control) = state.acme_job_control(&job_id).await {
+    if let Some(control) = control {
         let pid = control.pid();
         if pid > 0 {
             matched_pids.push(pid);

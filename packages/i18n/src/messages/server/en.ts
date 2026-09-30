@@ -812,6 +812,14 @@ export const enServer = {
     stoppedIgnoredProcessError:
       "The task has stopped. The process exit error was ignored.",
   },
+  acmeFileOutput: {
+    "invalidConfiguration": "Invalid file output configuration.",
+    "invalidDirectory": "Enter an absolute server directory without parent traversal (..).",
+    "conflict": "Another application already uses these output filenames in this directory.",
+    "managedDirectory": "Choose a directory outside the internal ACME and SSL storage so exported files are preserved.",
+    "notRegularFile": "The output target must be a regular file, not a symbolic link: {path}",
+    "writeFailed": "Could not save certificate files: {message}"
+},
   acmeRoutes: {
     invalidRequestBody: "Invalid request body",
     loadStatusFailed: "Failed to load ACME status",

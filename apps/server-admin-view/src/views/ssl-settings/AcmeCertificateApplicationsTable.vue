@@ -57,6 +57,8 @@ const {
   requestCertificate,
   shouldPromptAcmeInitialization,
   syncLibrary,
+  syncFileOutput,
+  formatFileOutputTime,
   t,
   viewJob,
 } = props.controller;
@@ -196,6 +198,25 @@ const {
                         </Badge>
                       </div>
                       <div
+                        v-if="application.fileOutput?.enabled"
+                        class="space-y-1 border-t pt-2 text-xs"
+                        data-testid="acme-file-output-status"
+                      >
+                        <Badge :variant="application.fileOutputStatus?.status === 'error' ? 'destructive' : 'outline'">
+                          {{ t(`admin.acmeFileOutput.status.${application.fileOutputStatus?.status || 'pending'}`) }}
+                        </Badge>
+                        <p class="truncate font-mono text-muted-foreground" :title="application.fileOutput.directory">
+                          {{ application.fileOutput.directory }}
+                        </p>
+                        <p v-if="application.fileOutputStatus?.lastSuccessAt" class="text-muted-foreground">
+                          {{ t('admin.acmeFileOutput.lastSuccess') }}
+                          {{ formatFileOutputTime(application.fileOutputStatus.lastSuccessAt) }}
+                        </p>
+                        <p v-if="application.fileOutputStatus?.error" class="break-all text-destructive" role="alert">
+                          {{ application.fileOutputStatus.error }}
+                        </p>
+                      </div>
+                      <div
                         v-if="application.certificate?.exists"
                         class="text-xs text-muted-foreground break-all"
                       >
@@ -244,6 +265,13 @@ const {
                               @select="openEditDialog(application.id)"
                             >
                               {{ t("admin.acmeCert.editApplication") }}
+                            </DropdownMenuItem>
+                            <DropdownMenuItem
+                              v-if="application.fileOutput?.enabled"
+                              :disabled="isConfigurationEditBlocked() || isTableLocked || !application.certificate?.exists"
+                              @select="syncFileOutput(application)"
+                            >
+                              {{ t(application.fileOutputStatus?.status === 'error' ? 'admin.acmeFileOutput.retry' : 'admin.acmeFileOutput.saveNow') }}
                             </DropdownMenuItem>
                             <DropdownMenuItem
                               v-if="application.latestJob?.id"

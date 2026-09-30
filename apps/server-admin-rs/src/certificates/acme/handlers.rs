@@ -19,6 +19,7 @@ pub(super) fn openapi_routes() -> OpenApiRouter<AppState> {
         .routes(routes!(delete_application))
         .routes(routes!(delete_application_certificate))
         .routes(routes!(sync_application_library))
+        .routes(routes!(sync_application_file_output))
         .routes(routes!(deploy_application_certificate))
         .routes(routes!(request_application_certificate))
         .routes(routes!(request_certificate))
@@ -343,6 +344,7 @@ pub(super) async fn save_config(State(state): State<AppState>, req: Request<Body
         &state,
         &t,
         SaveAcmeApplicationInput {
+            file_output: body.get("fileOutput").filter(|value| !value.is_null()).cloned(),
             id: target
                 .as_ref()
                 .and_then(|value| value.get("id"))
@@ -392,6 +394,10 @@ pub(super) async fn create_application(
         &state,
         &t,
         SaveAcmeApplicationInput {
+            file_output: body
+                .get("fileOutput")
+                .filter(|value| !value.is_null())
+                .cloned(),
             id: None,
             name: body.get("name").and_then(Value::as_str).map(str::to_string),
             name_provided: body.get("name").is_some(),
@@ -470,6 +476,10 @@ pub(super) async fn update_application(
         &state,
         &t,
         SaveAcmeApplicationInput {
+            file_output: body
+                .get("fileOutput")
+                .filter(|value| !value.is_null())
+                .cloned(),
             id: Some(id),
             name: body.get("name").and_then(Value::as_str).map(str::to_string),
             name_provided: body.get("name").is_some(),
@@ -736,6 +746,10 @@ pub(super) async fn request_certificate(
         &state,
         &t,
         SaveAcmeApplicationInput {
+            file_output: body
+                .get("fileOutput")
+                .filter(|value| !value.is_null())
+                .cloned(),
             id: target
                 .as_ref()
                 .and_then(|value| value.get("id"))
@@ -853,6 +867,15 @@ pub(super) async fn build_application_overview(
 
         let mut item = Map::new();
         item.insert(
+            "fileOutput".into(),
+            normalize_file_output(application.get("fileOutput")),
+        );
+        item.insert(
+            "fileOutputStatus".into(),
+            file_output_status_for_certificate(state, &application, issued_certificate.as_ref())
+                .await?,
+        );
+        item.insert(
             "id".to_string(),
             application.get("id").cloned().unwrap_or(Value::Null),
         );
@@ -938,7 +961,20 @@ pub(super) async fn build_application_overview(
 pub(super) async fn applications(State(state): State<AppState>) -> Response {
     let t = Translator::from_state(&state).await;
     match read_acme_applications(&state).await {
-        Ok(value) => response::ok(Value::Array(value)).into_response(),
+        Ok(mut value) => {
+            for application in &mut value {
+                match file_output_status(&state, application).await {
+                    Ok(status) => application["fileOutputStatus"] = status,
+                    Err(error) => {
+                        return response::error(
+                            StatusCode::INTERNAL_SERVER_ERROR,
+                            error.to_string(),
+                        );
+                    }
+                }
+            }
+            response::ok(Value::Array(value)).into_response()
+        }
         Err(error) => {
             tracing::warn!(%error, "failed to load ACME applications");
             response::error(
@@ -956,7 +992,13 @@ pub(super) async fn application(
 ) -> Response {
     let t = Translator::from_state(&state).await;
     match find_acme_application(&state, &id).await {
-        Ok(Some(value)) => response::ok(value).into_response(),
+        Ok(Some(mut value)) => match file_output_status(&state, &value).await {
+            Ok(status) => {
+                value["fileOutputStatus"] = status;
+                response::ok(value).into_response()
+            }
+            Err(error) => response::error(StatusCode::INTERNAL_SERVER_ERROR, error.to_string()),
+        },
         Ok(None) => response::error(StatusCode::NOT_FOUND, t.t("server.acmeRoutes.notFound")),
         Err(error) => {
             tracing::warn!(%error, "failed to load ACME application");
@@ -1265,5 +1307,27 @@ pub(super) async fn deploy_domain_certificate(
             tracing::warn!(%error, "failed to resolve ACME certificate domain before deploy");
             response::error(StatusCode::BAD_REQUEST, error.to_string())
         }
+    }
+}
+
+#[utoipa::path(post, path = "/api/admin/acme/applications/{id}/file-output/sync", tag = "acme", params(("id" = String, Path, description = "ACME application identifier")), responses((status = 200, description = "ACME file output status")))]
+pub(super) async fn sync_application_file_output(
+    State(state): State<AppState>,
+    AxumPath(id): AxumPath<String>,
+) -> Response {
+    let t = Translator::from_state(&state).await;
+    match find_acme_application(&state, &id).await {
+        Ok(None) => {
+            return response::error(
+                StatusCode::NOT_FOUND,
+                t.t("server.acmeRoutes.applicationNotFound"),
+            );
+        }
+        Err(error) => return response::error(StatusCode::INTERNAL_SERVER_ERROR, error.to_string()),
+        Ok(Some(_)) => {}
+    }
+    match sync_file_output(&state, &id).await {
+        Ok(status) => response::ok(status).into_response(),
+        Err(error) => response::error(StatusCode::INTERNAL_SERVER_ERROR, error.to_string()),
     }
 }

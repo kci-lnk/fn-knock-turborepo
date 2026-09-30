@@ -820,6 +820,14 @@ export const koKRServer = {
     stoppedIgnoredProcessError:
       "작업이 중지되었습니다. 프로세스 종료 오류가 무시되었습니다.",
   },
+  acmeFileOutput: {
+    "invalidConfiguration": "파일 저장 설정이 올바르지 않습니다.",
+    "invalidDirectory": "상위 경로(..)를 포함하지 않는 서버 절대 디렉터리를 입력하세요.",
+    "conflict": "다른 신청이 이 디렉터리에서 같은 출력 파일 이름을 사용 중입니다.",
+    "managedDirectory": "내보낸 파일을 유지하려면 내부 ACME 및 SSL 저장소 외부의 디렉터리를 선택하세요.",
+    "notRegularFile": "출력 대상은 심볼릭 링크가 아닌 일반 파일이어야 합니다: {path}",
+    "writeFailed": "인증서 파일을 저장할 수 없습니다: {message}"
+},
   acmeRoutes: {
     invalidRequestBody: "요청 본문이 올바르지 않습니다.",
     loadStatusFailed: "ACME 상태를 불러오지 못했습니다.",

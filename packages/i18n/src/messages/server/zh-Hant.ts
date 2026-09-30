@@ -710,6 +710,14 @@ export const zhHantServer = {
     addToLibraryFailed: "證書已簽發並保存，但自動加入證書庫失敗: {message}",
     stoppedIgnoredProcessError: "任務已停止，已忽略進程退出後的錯誤",
   },
+  acmeFileOutput: {
+    "invalidConfiguration": "檔案儲存設定無效。",
+    "invalidDirectory": "請輸入伺服器絕對目錄，不允許包含上層路徑（..）。",
+    "conflict": "其他申請已使用此目錄中的同名輸出檔案。",
+    "managedDirectory": "請選擇內部 ACME 和 SSL 儲存空間之外的目錄，以保留已匯出的檔案。",
+    "notRegularFile": "輸出目標必須是一般檔案，不能是符號連結：{path}",
+    "writeFailed": "無法儲存憑證檔案：{message}"
+},
   acmeRoutes: {
     invalidRequestBody: "請求體不正確",
     loadStatusFailed: "讀取 ACME 狀態失敗",

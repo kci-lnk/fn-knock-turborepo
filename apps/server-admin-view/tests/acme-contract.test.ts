@@ -64,6 +64,7 @@ describe("ACME API contract", () => {
       ["delete", "/api/admin/acme/applications/{id}"],
       ["delete", "/api/admin/acme/applications/{id}/certificate"],
       ["post", "/api/admin/acme/applications/{id}/library/sync"],
+      ["post", "/api/admin/acme/applications/{id}/file-output/sync"],
       ["post", "/api/admin/acme/applications/{id}/deploy"],
       ["post", "/api/admin/acme/applications/{id}/request"],
       ["post", "/api/admin/acme/request"],

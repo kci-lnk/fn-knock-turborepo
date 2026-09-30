@@ -2253,6 +2253,31 @@ export const enAdmin = {
       "This deletes the FN-KNOCK-SSH chain and marks current active block records as removed. Saved region and CIDR configuration will not be deleted and can be synced again later.",
     clear: "Clear",
   },
+  acmeFileOutput: {
+    title: "Save to directory",
+    description:
+      "Automatically save the full certificate chain and private key after issuance and renewal. Existing certificates are saved when you enable this option or change the directory.",
+    directory: "Server directory",
+    browse: "Browse directories",
+    directoryHelp:
+      "Enter an absolute path on the server. Missing directories are created when saving.",
+    overwriteHelp:
+      "The two files shown above will be replaced. Existing exported files are kept when you disable saving, change the path, or delete the application.",
+    browserHelp:
+      "Select a server directory. Write permissions are checked when saving the certificate.",
+    selectDirectory: "Select this directory",
+    saveNow: "Save files now",
+    retry: "Retry saving files",
+    failed: "Certificate file saving failed",
+    lastSuccess: "Last saved:",
+    status: {
+      disabled: "File saving off",
+      waiting: "Files: awaiting issuance",
+      pending: "Files: awaiting save",
+      saved: "Files saved",
+      error: "File saving failed",
+    },
+  },
   acmeCert: {
     title: "ACME certificate requests",
     dns01Title: "DNS-01 certificate requests",

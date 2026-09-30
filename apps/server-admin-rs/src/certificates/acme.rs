@@ -39,6 +39,7 @@ use crate::{
 
 mod analysis;
 mod certificates;
+mod file_output;
 mod handlers;
 mod install;
 mod jobs;
@@ -53,6 +54,7 @@ mod validation;
 
 use analysis::*;
 use certificates::*;
+use file_output::*;
 #[cfg(test)]
 use handlers::build_init_acme_payload;
 use install::*;
@@ -107,6 +109,7 @@ struct SaveAcmeApplicationInput {
     dns_type: String,
     credentials: Value,
     renew_enabled: Option<bool>,
+    file_output: Option<Value>,
 }
 
 struct AcmeApplicationSaveOutcome {

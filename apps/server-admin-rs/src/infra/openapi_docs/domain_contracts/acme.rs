@@ -135,6 +135,7 @@ pub(super) struct AcmeConfigData {
 #[derive(Serialize, ToSchema)]
 #[serde(rename_all = "camelCase")]
 pub(super) struct AcmeApplicationBodyData {
+    file_output: Option<AcmeFileOutputData>,
     name: Option<String>,
     domains: Vec<String>,
     dns_type: Option<String>,
@@ -147,6 +148,8 @@ pub(super) struct AcmeApplicationBodyData {
 #[derive(Serialize, ToSchema)]
 #[serde(rename_all = "camelCase")]
 pub(super) struct AcmeApplicationData {
+    file_output: Option<AcmeFileOutputData>,
+    file_output_status: Option<AcmeFileOutputStatusData>,
     id: String,
     name: Option<String>,
     domains: Vec<String>,
@@ -308,6 +311,8 @@ pub(super) struct AcmeOverviewLibraryData {
 #[derive(Serialize, ToSchema)]
 #[serde(rename_all = "camelCase")]
 pub(super) struct AcmeApplicationOverviewData {
+    file_output: Option<AcmeFileOutputData>,
+    file_output_status: Option<AcmeFileOutputStatusData>,
     id: String,
     name: Option<String>,
     primary_domain: String,
@@ -385,4 +390,21 @@ pub(super) struct AcmeSubdomainRecommendationData {
 pub(super) struct AcmeActionMessageData {
     success: bool,
     message: String,
+}
+
+#[derive(Serialize, ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub(super) struct AcmeFileOutputData {
+    enabled: bool,
+    directory: String,
+}
+
+#[derive(Serialize, ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub(super) struct AcmeFileOutputStatusData {
+    status: String,
+    certificate_path: Option<String>,
+    private_key_path: Option<String>,
+    last_success_at: Option<String>,
+    error: Option<String>,
 }

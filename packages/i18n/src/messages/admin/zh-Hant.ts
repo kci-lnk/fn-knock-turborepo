@@ -2017,6 +2017,29 @@ export const zhHantAdmin = {
       "這會刪除 FN-KNOCK-SSH 鏈，並將當前活動封鎖記錄標記為已解除。儲存的地區與 CIDR 配置不會被刪除，之後可重新同步。",
     clear: "清空",
   },
+  acmeFileOutput: {
+    title: "儲存至目錄",
+    description:
+      "申請與續期成功後自動儲存完整憑證鏈及私鑰。啟用此功能或修改目錄時，會立即儲存現有憑證。",
+    directory: "伺服器目錄",
+    browse: "瀏覽目錄",
+    directoryHelp: "請輸入伺服器的絕對路徑。目錄不存在時會在儲存時建立。",
+    overwriteHelp:
+      "將取代上方顯示的兩個同名檔案。關閉儲存、修改路徑或刪除申請時，已輸出的檔案會保留。",
+    browserHelp: "選擇伺服器目錄，實際儲存憑證時會檢查寫入權限。",
+    selectDirectory: "選擇此目錄",
+    saveNow: "立即儲存檔案",
+    retry: "重試儲存檔案",
+    failed: "憑證檔案儲存失敗",
+    lastSuccess: "上次儲存：",
+    status: {
+      disabled: "未啟用檔案儲存",
+      waiting: "檔案：等待簽發",
+      pending: "檔案：等待儲存",
+      saved: "檔案已儲存",
+      error: "檔案儲存失敗",
+    },
+  },
   acmeCert: {
     title: "ACME 證書申請",
     dns01Title: "DNS-01 證書申請",

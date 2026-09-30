@@ -661,6 +661,7 @@ function validateContract(openapiPath) {
     ["delete /api/admin/acme/applications/{id}", null],
     ["delete /api/admin/acme/applications/{id}/certificate", null],
     ["post /api/admin/acme/applications/{id}/library/sync", null],
+    ["post /api/admin/acme/applications/{id}/file-output/sync", null],
     ["post /api/admin/acme/applications/{id}/deploy", null],
     ["post /api/admin/acme/applications/{id}/request", null],
     ["post /api/admin/acme/request", "AcmeLegacyRequestBodyData"],

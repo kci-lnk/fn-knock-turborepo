@@ -14,10 +14,12 @@ import { createVisibilityPoller } from "@/composables/useVisibilityPolling";
 
 type UseAcmeJobPollingOptions = {
   refreshOverview: () => Promise<void>;
+  isRuntimeLocked?: () => boolean;
 };
 
 export function useAcmeJobPolling({
   refreshOverview,
+  isRuntimeLocked = () => false,
 }: UseAcmeJobPollingOptions) {
   const { t } = useI18n();
   const selectedJobId = ref("");
@@ -41,7 +43,11 @@ export function useAcmeJobPolling({
     },
   });
 
-  const pollJobOnce = async (jobId: string, signal?: AbortSignal) => {
+  const pollJobOnce = async (
+    jobId: string,
+    signal?: AbortSignal,
+    refreshOnCompletion = true,
+  ) => {
     const data = await AcmeAPI.poll(jobId, {
       limit: 500,
       order: "desc",
@@ -58,8 +64,10 @@ export function useAcmeJobPolling({
       data.job.status === "failed" ||
       data.job.status === "stopped"
     ) {
-      stopPolling();
-      await refreshOverview();
+      if (refreshOnCompletion) await refreshOverview();
+      // A stopped job may still be finishing its file transaction. Keep the
+      // normal interval until the runtime lock is released and actions unlock.
+      if (!isRuntimeLocked()) stopPolling();
     }
   };
 
@@ -88,10 +96,14 @@ export function useAcmeJobPolling({
     if (!jobId) return;
     stopPolling();
     selectedJobId.value = jobId;
-    await pollJobOnce(jobId);
+    // Overview loading may select a terminal job while its executor still
+    // holds the runtime lock. Do not recurse back into overview loading here.
+    await pollJobOnce(jobId, undefined, false);
     if (
       autoPoll &&
-      (job.value?.status === "queued" || job.value?.status === "running")
+      (job.value?.status === "queued" ||
+        job.value?.status === "running" ||
+        isRuntimeLocked())
     ) {
       startPolling(jobId);
     } else {
@@ -117,13 +129,13 @@ export function useAcmeJobPolling({
       const remainingPids = result.processResult.remainingPids;
       if (
         !result.stopped &&
-        (Boolean(result.job) || stopErrors.length > 0 || remainingPids.length > 0)
+        (Boolean(result.job) ||
+          stopErrors.length > 0 ||
+          remainingPids.length > 0)
       ) {
         const details = [
           ...stopErrors,
-          ...(remainingPids.length
-            ? [`PID: ${remainingPids.join(", ")}`]
-            : []),
+          ...(remainingPids.length ? [`PID: ${remainingPids.join(", ")}`] : []),
         ].join("; ");
         toast.error(t("admin.acmeCert.stopJobFailed"), {
           description: details || undefined,

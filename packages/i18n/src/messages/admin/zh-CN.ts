@@ -2073,6 +2073,29 @@ export const zhCNAdmin = {
       "这会删除 FN-KNOCK-SSH 链，并将当前活动封锁记录标记为已解除。保存的地区与 CIDR 配置不会被删除，之后可重新同步。",
     clear: "清空",
   },
+  acmeFileOutput: {
+    title: "保存到目录",
+    description:
+      "申请和续期成功后自动保存完整证书链及私钥。启用此功能或修改目录时，会立即保存已有证书。",
+    directory: "服务端目录",
+    browse: "浏览目录",
+    directoryHelp: "请输入服务端的绝对路径。目录不存在时会在保存时创建。",
+    overwriteHelp:
+      "将替换上方显示的两个同名文件。关闭保存、修改路径或删除申请时，已输出的文件会保留。",
+    browserHelp: "选择服务端目录，实际保存证书时会检查写入权限。",
+    selectDirectory: "选择此目录",
+    saveNow: "立即保存文件",
+    retry: "重试保存文件",
+    failed: "证书文件保存失败",
+    lastSuccess: "最后保存：",
+    status: {
+      disabled: "未启用文件保存",
+      waiting: "文件：等待签发",
+      pending: "文件：等待保存",
+      saved: "文件已保存",
+      error: "文件保存失败",
+    },
+  },
   acmeCert: {
     title: "ACME 证书申请",
     dns01Title: "DNS-01 证书申请",

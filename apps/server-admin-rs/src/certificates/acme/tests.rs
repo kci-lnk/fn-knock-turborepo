@@ -112,7 +112,7 @@ async fn acme_test_state_with_data_dir(data_dir: PathBuf, runtime_target: &str) 
         .expect("create ACME test state")
 }
 
-async fn acme_test_state() -> (tempfile::TempDir, AppState) {
+pub(super) async fn acme_test_state() -> (tempfile::TempDir, AppState) {
     let directory = tempfile::tempdir().expect("create ACME test directory");
     let state = acme_test_state_with_data_dir(directory.path().join("data"), "linux").await;
     state
@@ -354,7 +354,7 @@ async fn acme_workspace_reports_unwritable_persistent_home() {
     assert_eq!(std::fs::read_dir(home).unwrap().count(), 0);
 }
 
-fn test_application(id: &str, domains: &[&str]) -> Value {
+pub(super) fn test_application(id: &str, domains: &[&str]) -> Value {
     json!({
         "id": id,
         "name": format!("Application {id}"),
@@ -369,7 +369,7 @@ fn test_application(id: &str, domains: &[&str]) -> Value {
     })
 }
 
-fn test_cert_info(domains: &[&str], serial_number: &str) -> Value {
+pub(super) fn test_cert_info(domains: &[&str], serial_number: &str) -> Value {
     json!({
         "issuer": "CN=ACME Test CA",
         "subject": format!("CN={}", domains.first().copied().unwrap_or_default()),
@@ -955,6 +955,7 @@ async fn domain_changes_and_failed_or_stopped_jobs_preserve_active_certificate()
         &state,
         &translator,
         SaveAcmeApplicationInput {
+            file_output: None,
             id: Some("app-1".to_string()),
             name: Some("Application app-1".to_string()),
             name_provided: true,
@@ -1085,6 +1086,7 @@ async fn successful_issue_replaces_in_place_and_preserves_deployment_role() {
         &state,
         &translator,
         SaveAcmeApplicationInput {
+            file_output: None,
             id: Some("app-1".to_string()),
             name: Some("Preserved label".to_string()),
             name_provided: true,
@@ -2211,8 +2213,15 @@ async fn manual_stop_waits_for_the_owned_executor_to_release_its_lock() {
     let executor_state = state.clone();
     let executor_lock = lock.clone();
     let executor_job_id = job_id.clone();
+    let commit_guard = state.gateway.acme_output_lock.clone().lock_owned().await;
     let executor = async move {
-        control.cancellation.cancelled().await;
+        tokio::time::timeout(
+            std::time::Duration::from_secs(2),
+            control.cancellation.cancelled(),
+        )
+        .await
+        .expect("stop must signal cancellation before waiting for the output/commit lock");
+        drop(commit_guard);
         release_acme_runtime_lock(&executor_state, &executor_lock)
             .await
             .expect("release runtime lock");

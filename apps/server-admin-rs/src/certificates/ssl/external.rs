@@ -1485,6 +1485,9 @@ async fn deploy_external_certificate_inner(
     };
     let validated = validate_external_certificate(&body);
 
+    // Takeover and rollback mutate entire ACME application/certificate arrays.
+    // Follow the issuance lock order (ACME, then SSL) for the whole transaction.
+    let _acme_guard = state.gateway.acme_output_lock.lock().await;
     let _guard = state.gateway.ssl_update_lock.lock().await;
     let mut bindings = match load_bindings(&state).await {
         Ok(bindings) => bindings,
@@ -2303,12 +2306,24 @@ mod tests {
             }))
             .await
             .unwrap();
-        let deployed = deploy_external_certificate(
+        let acme_guard = state.gateway.acme_output_lock.lock().await;
+        let mut deployment = Box::pin(deploy_external_certificate(
             State(state.clone()),
             AxumPath(binding_id.clone()),
             deployment_request(&token, &cert, &key),
-        )
-        .await;
+        ));
+        assert!(
+            tokio::time::timeout(std::time::Duration::from_millis(100), &mut deployment,)
+                .await
+                .is_err(),
+            "deployment must wait for ACME configuration/output transactions"
+        );
+        assert!(
+            state.gateway.ssl_update_lock.try_lock().is_ok(),
+            "ACME lock must be acquired before SSL lock to avoid deadlocks"
+        );
+        drop(acme_guard);
+        let deployed = deployment.await;
         assert_eq!(deployed.status(), StatusCode::OK);
         let deployed = response_json(deployed).await;
         assert_eq!(deployed["data"]["changed"], json!(true));

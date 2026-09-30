@@ -3254,6 +3254,14 @@
         "activeDirectoryLabel": "Active Directory",
         "customLabel": "自定义 LDAP"
       }
+    },
+    "acmeFileOutput": {
+      "invalidConfiguration": "文件保存配置无效。",
+      "invalidDirectory": "请输入服务端绝对目录，不允许包含上级路径（..）。",
+      "conflict": "其他申请已使用此目录中的同名输出文件。",
+      "managedDirectory": "请选择内部 ACME 和 SSL 存储之外的目录，以便保留已导出的文件。",
+      "notRegularFile": "输出目标必须是普通文件，不能是符号链接：{path}",
+      "writeFailed": "无法保存证书文件：{message}"
     }
   },
   "zh-Hant": {
@@ -6511,6 +6519,14 @@
         "activeDirectoryLabel": "Active Directory",
         "customLabel": "自訂 LDAP"
       }
+    },
+    "acmeFileOutput": {
+      "invalidConfiguration": "檔案儲存設定無效。",
+      "invalidDirectory": "請輸入伺服器絕對目錄，不允許包含上層路徑（..）。",
+      "conflict": "其他申請已使用此目錄中的同名輸出檔案。",
+      "managedDirectory": "請選擇內部 ACME 和 SSL 儲存空間之外的目錄，以保留已匯出的檔案。",
+      "notRegularFile": "輸出目標必須是一般檔案，不能是符號連結：{path}",
+      "writeFailed": "無法儲存憑證檔案：{message}"
     }
   },
   "en": {
@@ -9768,6 +9784,14 @@
         "activeDirectoryLabel": "Active Directory",
         "customLabel": "Custom LDAP"
       }
+    },
+    "acmeFileOutput": {
+      "invalidConfiguration": "Invalid file output configuration.",
+      "invalidDirectory": "Enter an absolute server directory without parent traversal (..).",
+      "conflict": "Another application already uses these output filenames in this directory.",
+      "managedDirectory": "Choose a directory outside the internal ACME and SSL storage so exported files are preserved.",
+      "notRegularFile": "The output target must be a regular file, not a symbolic link: {path}",
+      "writeFailed": "Could not save certificate files: {message}"
     }
   },
   "ko-KR": {
@@ -13025,6 +13049,14 @@
         "activeDirectoryLabel": "Active Directory",
         "customLabel": "사용자 지정 LDAP"
       }
+    },
+    "acmeFileOutput": {
+      "invalidConfiguration": "파일 저장 설정이 올바르지 않습니다.",
+      "invalidDirectory": "상위 경로(..)를 포함하지 않는 서버 절대 디렉터리를 입력하세요.",
+      "conflict": "다른 신청이 이 디렉터리에서 같은 출력 파일 이름을 사용 중입니다.",
+      "managedDirectory": "내보낸 파일을 유지하려면 내부 ACME 및 SSL 저장소 외부의 디렉터리를 선택하세요.",
+      "notRegularFile": "출력 대상은 심볼릭 링크가 아닌 일반 파일이어야 합니다: {path}",
+      "writeFailed": "인증서 파일을 저장할 수 없습니다: {message}"
     }
   },
   "ja-JP": {
@@ -16282,6 +16314,14 @@
         "activeDirectoryLabel": "Active Directory",
         "customLabel": "カスタム LDAP"
       }
+    },
+    "acmeFileOutput": {
+      "invalidConfiguration": "ファイル保存設定が無効です。",
+      "invalidDirectory": "親パス（..）を含まないサーバー上の絶対ディレクトリを入力してください。",
+      "conflict": "このディレクトリの同名出力ファイルは別の申請で使用されています。",
+      "managedDirectory": "出力済みファイルを保持するため、内部の ACME・SSL 保存領域以外を選択してください。",
+      "notRegularFile": "出力先はシンボリックリンクではなく通常のファイルである必要があります：{path}",
+      "writeFailed": "証明書ファイルを保存できませんでした：{message}"
     }
   }
 }

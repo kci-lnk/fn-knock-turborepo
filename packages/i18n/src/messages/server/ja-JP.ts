@@ -848,6 +848,14 @@ export const jaJPServer = {
     stoppedIgnoredProcessError:
       "タスクが停止され、プロセス終了後のエラーは無視されました",
   },
+  acmeFileOutput: {
+    "invalidConfiguration": "ファイル保存設定が無効です。",
+    "invalidDirectory": "親パス（..）を含まないサーバー上の絶対ディレクトリを入力してください。",
+    "conflict": "このディレクトリの同名出力ファイルは別の申請で使用されています。",
+    "managedDirectory": "出力済みファイルを保持するため、内部の ACME・SSL 保存領域以外を選択してください。",
+    "notRegularFile": "出力先はシンボリックリンクではなく通常のファイルである必要があります：{path}",
+    "writeFailed": "証明書ファイルを保存できませんでした：{message}"
+},
   acmeRoutes: {
     invalidRequestBody: "リクエスト本文が正しくありません",
     loadStatusFailed: "ACME 状態の読み込みに失敗しました",

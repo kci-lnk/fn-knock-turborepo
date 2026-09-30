@@ -122,6 +122,16 @@
             "minItems": 1,
             "type": "array"
           },
+          "fileOutput": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/AcmeFileOutputData"
+              }
+            ]
+          },
           "name": {
             "type": [
               "string",
@@ -175,6 +185,26 @@
               "type": "string"
             },
             "type": "array"
+          },
+          "fileOutput": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/AcmeFileOutputData"
+              }
+            ]
+          },
+          "fileOutputStatus": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/AcmeFileOutputStatusData"
+              }
+            ]
           },
           "id": {
             "type": "string"
@@ -310,6 +340,26 @@
               "type": "string"
             },
             "type": "array"
+          },
+          "fileOutput": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/AcmeFileOutputData"
+              }
+            ]
+          },
+          "fileOutputStatus": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/AcmeFileOutputStatusData"
+              }
+            ]
           },
           "id": {
             "type": "string"
@@ -715,6 +765,63 @@
           "label",
           "group",
           "credentialSchemes"
+        ],
+        "type": "object"
+      },
+      "AcmeFileOutputData": {
+        "properties": {
+          "directory": {
+            "type": "string"
+          },
+          "enabled": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "enabled",
+          "directory"
+        ],
+        "type": "object"
+      },
+      "AcmeFileOutputStatusData": {
+        "properties": {
+          "certificatePath": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "error": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "lastSuccessAt": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "privateKeyPath": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "status": {
+            "enum": [
+              "disabled",
+              "waiting",
+              "pending",
+              "saved",
+              "error"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "status"
         ],
         "type": "object"
       },
@@ -28504,6 +28611,71 @@
           }
         },
         "summary": "部署ACME 证书管理应用",
+        "tags": [
+          "acme"
+        ],
+        "x-fn-knock-contract-source": "utoipa"
+      }
+    },
+    "/api/admin/acme/applications/{id}/file-output/sync": {
+      "post": {
+        "description": "管理 ACME 客户端、证书申请、部署和运行任务。。`POST /api/admin/acme/applications/{id}/file-output/sync` 用于提交操作或创建、更新服务状态；执行结果以响应中的数据和消息为准。 该操作不要求 JSON 请求体。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。",
+        "operationId": "sync_application_file_output",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "description": "Opaque application identifier; legacy non-UUID identifiers remain accepted.",
+              "minLength": 1,
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "properties": {
+                    "data": {
+                      "$ref": "#/components/schemas/AcmeFileOutputStatusData"
+                    },
+                    "message": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "success": {
+                      "const": true,
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "success",
+                    "data"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "「同步ACME 证书管理file output」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorEnvelope"
+                }
+              }
+            },
+            "description": "接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。"
+          }
+        },
+        "summary": "同步ACME 证书管理file output",
         "tags": [
           "acme"
         ],

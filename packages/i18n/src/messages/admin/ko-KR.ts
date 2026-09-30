@@ -2233,6 +2233,31 @@ export const koKRAdmin = {
       "FN-KNOCK-SSH 체인을 삭제하고 현재 활성 차단 기록을 해제합니다. 저장된 지역 및 CIDR 설정은 유지되며 나중에 다시 동기화할 수 있습니다.",
     clear: "지우기",
   },
+  acmeFileOutput: {
+    title: "디렉터리에 저장",
+    description:
+      "발급 및 갱신 성공 후 전체 인증서 체인과 개인 키를 자동 저장합니다. 활성화하거나 디렉터리를 변경하면 기존 인증서를 즉시 저장합니다.",
+    directory: "서버 디렉터리",
+    browse: "디렉터리 찾아보기",
+    directoryHelp:
+      "서버의 절대 경로를 입력하세요. 없는 디렉터리는 저장 시 생성됩니다.",
+    overwriteHelp:
+      "위에 표시된 두 파일과 이름이 같은 파일을 덮어씁니다. 저장을 끄거나 경로를 변경하거나 신청을 삭제해도 이미 내보낸 파일은 유지됩니다.",
+    browserHelp:
+      "서버 디렉터리를 선택하세요. 쓰기 권한은 인증서를 저장할 때 확인합니다.",
+    selectDirectory: "이 디렉터리 선택",
+    saveNow: "지금 파일 저장",
+    retry: "파일 저장 재시도",
+    failed: "인증서 파일 저장 실패",
+    lastSuccess: "마지막 저장:",
+    status: {
+      disabled: "파일 저장 꺼짐",
+      waiting: "파일: 발급 대기",
+      pending: "파일: 저장 대기",
+      saved: "파일 저장 완료",
+      error: "파일 저장 실패",
+    },
+  },
   acmeCert: {
     title: "ACME 인증서 발급",
     dns01Title: "DNS-01 인증서 발급",

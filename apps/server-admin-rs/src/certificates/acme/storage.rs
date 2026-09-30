@@ -139,6 +139,8 @@ pub(super) async fn save_acme_application_with_effects(
     t: &Translator,
     input: SaveAcmeApplicationInput,
 ) -> anyhow::Result<AcmeApplicationSaveOutcome> {
+    let output_guard =
+        std::sync::Arc::new(state.gateway.acme_output_lock.clone().lock_owned().await);
     ensure_acme_data_migrated(state).await?;
     let applications = read_acme_applications_raw(state).await?;
     let normalized_domains = normalize_domain_strings(input.domains);
@@ -244,7 +246,22 @@ pub(super) async fn save_acme_application_with_effects(
     } else {
         application.insert("latestJobStatus".to_string(), json!("idle"));
     }
-    let application = Value::Object(application);
+    let output = match input.file_output.as_ref() {
+        Some(value) => validate_file_output_input(value)
+            .map_err(|error| anyhow::anyhow!(output_error_message(&error, t)))?,
+        None => normalize_file_output(existing.as_ref().and_then(|v| v.get("fileOutput"))),
+    };
+    let output_changed = existing
+        .as_ref()
+        .map(|v| normalize_file_output(v.get("fileOutput")))
+        != Some(output.clone());
+    application.insert("fileOutput".to_string(), output);
+    let mut application = Value::Object(application);
+    // Syntax errors reject the configuration; filesystem errors are reported
+    // separately after saving, so users can fix a temporarily unavailable mount.
+    validate_output_location(state, &application)
+        .and_then(|()| check_output_conflicts(&application, &applications))
+        .map_err(|error| anyhow::anyhow!(output_error_message(&error, t)))?;
     let application_id = application
         .get("id")
         .and_then(Value::as_str)
@@ -266,6 +283,18 @@ pub(super) async fn save_acme_application_with_effects(
     // protects the deployed certificate if gateway synchronization fails.
     // Compatibility checks hide the stale issued record from the updated
     // application in the meantime.
+    if output_changed {
+        match sync_file_output_locked(state, &application_id, &output_guard).await {
+            Ok(status) => application["fileOutputStatus"] = status,
+            Err(error) => {
+                tracing::warn!(%error, "failed to synchronize ACME file output");
+                application["fileOutputStatus"] =
+                    json!({"status": "error", "error": error.to_string()});
+            }
+        }
+    } else {
+        application["fileOutputStatus"] = file_output_status(state, &application).await?;
+    }
     Ok(AcmeApplicationSaveOutcome { application })
 }
 
@@ -294,6 +323,7 @@ pub(super) async fn delete_acme_application_internal(
     state: &AppState,
     id: &str,
 ) -> anyhow::Result<bool> {
+    let _guard = state.gateway.acme_output_lock.lock().await;
     ensure_acme_data_migrated(state).await?;
     let applications = read_acme_applications_raw(state).await?;
     let Some(existing) = applications
@@ -328,6 +358,11 @@ pub(super) async fn delete_acme_application_internal(
     )
     .await?;
     sync_gateway_if_acme_library_removed(state, removed_active, removed_count).await?;
+    state
+        .storage
+        .store
+        .delete_key(&format!("{OUTPUT_STATUS_PREFIX}{id}"))
+        .await?;
     Ok(true)
 }
 
@@ -335,6 +370,7 @@ pub(super) async fn delete_acme_application_certificate_internal(
     state: &AppState,
     id: &str,
 ) -> anyhow::Result<bool> {
+    let _guard = state.gateway.acme_output_lock.lock().await;
     let Some(application) = find_acme_application(state, id).await? else {
         return Ok(false);
     };

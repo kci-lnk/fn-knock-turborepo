@@ -710,6 +710,14 @@ export const zhCNServer = {
     addToLibraryFailed: "证书已签发并保存，但自动加入证书库失败: {message}",
     stoppedIgnoredProcessError: "任务已停止，已忽略进程退出后的错误",
   },
+  acmeFileOutput: {
+    "invalidConfiguration": "文件保存配置无效。",
+    "invalidDirectory": "请输入服务端绝对目录，不允许包含上级路径（..）。",
+    "conflict": "其他申请已使用此目录中的同名输出文件。",
+    "managedDirectory": "请选择内部 ACME 和 SSL 存储之外的目录，以便保留已导出的文件。",
+    "notRegularFile": "输出目标必须是普通文件，不能是符号链接：{path}",
+    "writeFailed": "无法保存证书文件：{message}"
+},
   acmeRoutes: {
     invalidRequestBody: "请求体不正确",
     loadStatusFailed: "读取 ACME 状态失败",

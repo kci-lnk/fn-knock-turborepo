@@ -135,6 +135,14 @@ export const AcmeAPI = {
       `/acme/applications/${encodeURIComponent(id)}/certificate`,
     );
   },
+  async syncFileOutput(
+    id: string,
+  ): Promise<AcmeSchemas["AcmeFileOutputStatusData"]> {
+    const res = await apiClient.post(
+      `/acme/applications/${encodeURIComponent(id)}/file-output/sync`,
+    );
+    return res.data.data;
+  },
   async syncApplicationLibrary(id: string): Promise<AcmeLibrarySync> {
     const res = await apiClient.post(
       `/acme/applications/${encodeURIComponent(id)}/library/sync`,

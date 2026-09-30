@@ -482,6 +482,7 @@ pub(super) async fn update_acme_application_job_state(
     let Some(application_id) = application.get("id").and_then(Value::as_str) else {
         return Ok(());
     };
+    let _guard = state.gateway.acme_output_lock.lock().await;
     let mut applications = read_acme_applications_raw(state).await?;
     let Some(index) = applications
         .iter()
@@ -606,6 +607,7 @@ async fn execute_acme_application_job_inner(
 
     let mut previous_issued_certificate = None;
     let mut issued_certificate_commit_started = false;
+    let mut commit_guard = None;
     let result = async {
         let client_settings = ensure_client_settings(&state).await?;
         let certificate_authority = client_settings
@@ -617,13 +619,6 @@ async fn execute_acme_application_job_inner(
             .get("id")
             .and_then(Value::as_str)
             .ok_or_else(|| anyhow::anyhow!(t.t("server.store.acme.jobDataInvalid")))?;
-        previous_issued_certificate =
-            read_issued_certificates(&state)
-                .await?
-                .into_iter()
-                .find(|certificate| {
-                    certificate.get("applicationId").and_then(Value::as_str) == Some(application_id)
-                });
         issue_acme_certificate(
             &state,
             &application,
@@ -647,6 +642,7 @@ async fn execute_acme_application_job_inner(
         {
             update_acme_application_job_state(&state, &application, &job).await?;
         }
+        commit_guard = Some(state.gateway.acme_output_lock.lock().await);
         let latest_application = find_acme_application(&state, application_id)
             .await?
             .ok_or_else(|| {
@@ -680,6 +676,15 @@ async fn execute_acme_application_job_inner(
             anyhow::bail!(t.t("server.acmeJobRunner.issuedButApplicationChanged"));
         }
         ensure_acme_job_running(&state, &job_id, &t).await?;
+        // Snapshot only after acquiring the commit lock: external takeover or
+        // deletion may have changed the previous record during ACME issuance.
+        previous_issued_certificate =
+            read_issued_certificates(&state)
+                .await?
+                .into_iter()
+                .find(|certificate| {
+                    certificate.get("applicationId").and_then(Value::as_str) == Some(application_id)
+                });
         issued_certificate_commit_started = true;
         save_acme_issued_cert_from_fs(&state, &latest_application, &job_id, &t).await?;
         ensure_acme_job_running(&state, &job_id, &t).await?;
@@ -772,6 +777,28 @@ async fn execute_acme_application_job_inner(
         }
     }
 
+    drop(commit_guard);
+    if result.is_ok() {
+        let id = application["id"].as_str().unwrap_or("");
+        match sync_file_output(&state, id).await {
+            Ok(status) if status["status"] == "error" => {
+                append_acme_log(
+                    &state,
+                    &job_id,
+                    &format!(
+                        "[file-output] {}",
+                        status["error"].as_str().unwrap_or("Save failed")
+                    ),
+                )
+                .await
+                .ok();
+            }
+            Err(error) => {
+                tracing::warn!(%error, "ACME file output failed after issuance");
+            }
+            _ => {}
+        }
+    }
     async {
         match result {
             Ok(()) => {

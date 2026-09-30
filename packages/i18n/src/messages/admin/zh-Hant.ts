@@ -564,6 +564,8 @@ export const zhHantAdmin = {
   dashboard: {
     ...zhCNAdmin.dashboard,
     onlineIps: {
+      unknownDevice: "未知裝置",
+      deviceCount: "{name}：{count} 個線上身分",
       open: "檢視線上使用者 IP",
       title: "線上使用者",
       description: "最近 {seconds} 秒內活躍的已登入使用者",

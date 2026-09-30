@@ -698,6 +698,8 @@ export const koKRAdmin = {
   },
   dashboard: {
     onlineIps: {
+      unknownDevice: "알 수 없는 기기",
+      deviceCount: "{name}: 온라인 인증 ID {count}개",
       open: "온라인 사용자 IP 보기",
       title: "온라인 사용자",
       description: "최근 {seconds}초 동안 활동한 인증된 사용자",

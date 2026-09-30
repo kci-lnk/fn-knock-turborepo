@@ -245,6 +245,10 @@ fn online_ips_payload(snapshot: crate::grpc_proto::OnlineIpsStats) -> Value {
             "ip": item.ip,
             "last_seen_at": item.last_seen_at,
             "identity_count": item.identity_count,
+            "devices": item.devices.into_iter().map(|device| json!({
+                "type": device.r#type,
+                "count": device.count,
+            })).collect::<Vec<_>>(),
         })).collect::<Vec<_>>(),
         "online_count": snapshot.online_count,
         "window_seconds": snapshot.window_seconds,
@@ -1152,6 +1156,10 @@ mod tests {
                 ip: String::new(),
                 last_seen_at: "2026-09-14T00:00:00Z".into(),
                 identity_count: 2,
+                devices: vec![crate::grpc_proto::OnlineDeviceStats {
+                    r#type: "windows".into(),
+                    count: 2,
+                }],
             }],
             online_count: 2,
             window_seconds: 120,
@@ -1159,12 +1167,28 @@ mod tests {
         });
         assert_eq!(payload["items"][0]["ip"], "");
         assert_eq!(payload["items"][0]["identity_count"], 2);
+        assert_eq!(
+            payload["items"][0]["devices"],
+            serde_json::json!([{ "type": "windows", "count": 2 }])
+        );
         assert_eq!(payload["online_count"], 2);
         assert_eq!(payload["timestamp"], 1234);
         assert_eq!(
             super::online_ips_payload(Default::default())["items"],
             serde_json::json!([])
         );
+    }
+
+    #[test]
+    fn online_ip_legacy_gateway_has_no_devices() {
+        let payload = super::online_ips_payload(crate::grpc_proto::OnlineIpsStats {
+            items: vec![crate::grpc_proto::OnlineIpStats {
+                identity_count: 1,
+                ..Default::default()
+            }],
+            ..Default::default()
+        });
+        assert_eq!(payload["items"][0]["devices"], serde_json::json!([]));
     }
 
     #[test]

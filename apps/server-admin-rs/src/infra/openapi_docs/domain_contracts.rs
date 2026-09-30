@@ -1150,6 +1150,7 @@ struct BackupImportResultData {
     DashboardHostTrafficData,
     DashboardRealtimeData,
     DashboardStreamTrafficData,
+    DashboardOnlineDeviceData,
     DashboardOnlineIpData,
     DashboardOnlineIpsData,
     DashboardActiveIpData,

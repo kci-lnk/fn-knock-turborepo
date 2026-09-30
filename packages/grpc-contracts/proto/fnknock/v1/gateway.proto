@@ -968,10 +968,16 @@ message StreamTrafficStats {
   int32 active_ip_count = 8;
 }
 
+message OnlineDeviceStats {
+  string type = 1;
+  int64 count = 2;
+}
+
 message OnlineIpStats {
   string ip = 1;
   string last_seen_at = 2;
   int64 identity_count = 3;
+  repeated OnlineDeviceStats devices = 4;
 }
 
 message OnlineIpsStats {

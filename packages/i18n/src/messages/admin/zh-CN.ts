@@ -629,6 +629,8 @@ export const zhCNAdmin = {
   },
   dashboard: {
     onlineIps: {
+      unknownDevice: "未知设备",
+      deviceCount: "{name}：{count} 个在线身份",
       open: "查看在线用户 IP",
       title: "在线用户",
       description: "最近 {seconds} 秒内活跃的已登录用户",

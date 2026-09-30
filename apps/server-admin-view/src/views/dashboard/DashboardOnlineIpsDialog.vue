@@ -18,6 +18,7 @@ import {
 } from "@/components/ui/dialog";
 import { Skeleton } from "@/components/ui/skeleton";
 import HumanFriendlyTime from "@admin-shared/components/common/HumanFriendlyTime.vue";
+import OnlineDeviceIcons from "./OnlineDeviceIcons.vue";
 import { useDashboardOnlineIps } from "./useDashboardOnlineIps";
 
 const props = defineProps<{ open: boolean }>();
@@ -151,9 +152,13 @@ const {
               class="online-ip-columns grid grid-cols-[minmax(0,1fr)_auto] gap-x-3 gap-y-1 py-3 text-xs sm:items-center"
             >
               <span
-                class="col-span-2 min-w-0 break-all font-mono text-sm sm:col-span-1 sm:text-xs"
-                >{{ item.ip || t("admin.dashboard.onlineIps.unknownIp") }}</span
+                class="col-span-2 flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 text-sm sm:col-span-1 sm:text-xs"
               >
+                <OnlineDeviceIcons :devices="item.devices" />
+                <span class="min-w-0 break-all font-mono">{{
+                  item.ip || t("admin.dashboard.onlineIps.unknownIp")
+                }}</span>
+              </span>
               <span
                 class="col-span-2 min-w-0 break-words text-muted-foreground sm:col-span-1"
                 >{{ item.locationText }}</span
@@ -207,10 +212,9 @@ const {
 <style scoped>
 @media (min-width: 640px) {
   .online-ip-columns {
-    grid-template-columns: minmax(0, 1.35fr) minmax(0, 1.15fr) minmax(
-        0,
-        1fr
-      ) 5rem;
+    grid-template-columns:
+      minmax(0, 1.8fr) minmax(0, 1fr) minmax(0, 1fr)
+      5rem;
   }
 }
 </style>

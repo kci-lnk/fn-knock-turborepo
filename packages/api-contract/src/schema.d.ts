@@ -9189,7 +9189,13 @@ export interface components {
             /** Format: double */
             total_out: number;
         };
+        DashboardOnlineDeviceData: {
+            /** Format: int64 */
+            count: number;
+            type: string;
+        };
         DashboardOnlineIpData: {
+            devices?: components["schemas"]["DashboardOnlineDeviceData"][];
             /** Format: int64 */
             identity_count: number;
             ip: string;

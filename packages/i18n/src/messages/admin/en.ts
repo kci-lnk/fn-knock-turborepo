@@ -706,6 +706,8 @@ export const enAdmin = {
   },
   dashboard: {
     onlineIps: {
+      unknownDevice: "Unknown device",
+      deviceCount: "{name}: {count} online identities",
       open: "View online user IPs",
       title: "Online users",
       description: "Authenticated users active in the last {seconds} seconds",

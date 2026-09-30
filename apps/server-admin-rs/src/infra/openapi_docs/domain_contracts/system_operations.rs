@@ -831,10 +831,18 @@ pub(super) struct DashboardStreamTrafficData {
 }
 
 #[derive(Serialize, ToSchema)]
+pub(super) struct DashboardOnlineDeviceData {
+    r#type: String,
+    count: i64,
+}
+
+#[derive(Serialize, ToSchema)]
 pub(super) struct DashboardOnlineIpData {
     ip: String,
     last_seen_at: String,
     identity_count: i64,
+    #[serde(default)]
+    devices: Vec<DashboardOnlineDeviceData>,
 }
 
 #[derive(Serialize, ToSchema)]

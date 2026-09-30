@@ -706,6 +706,8 @@ export const jaJPAdmin = {
   },
   dashboard: {
     onlineIps: {
+      unknownDevice: "不明なデバイス",
+      deviceCount: "{name}：オンライン認証 ID {count} 件",
       open: "オンラインユーザーの IP を表示",
       title: "オンラインユーザー",
       description: "過去 {seconds} 秒間にアクティブだった認証済みユーザー",

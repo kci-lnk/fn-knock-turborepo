@@ -6673,8 +6673,30 @@
         ],
         "type": "object"
       },
+      "DashboardOnlineDeviceData": {
+        "properties": {
+          "count": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "type": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "type",
+          "count"
+        ],
+        "type": "object"
+      },
       "DashboardOnlineIpData": {
         "properties": {
+          "devices": {
+            "items": {
+              "$ref": "#/components/schemas/DashboardOnlineDeviceData"
+            },
+            "type": "array"
+          },
           "identity_count": {
             "format": "int64",
             "type": "integer"

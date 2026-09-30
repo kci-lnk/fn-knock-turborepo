@@ -671,6 +671,7 @@ async fn handle_authorize_http(
             routed_upstream_host,
             routed_upstream_route_id,
             inspected_rule_access,
+            matched_rule_valid,
         )
         .await
         {
@@ -684,8 +685,8 @@ async fn handle_authorize_http(
         let mut preflight = preflight_auth_response_from_http(&preflight);
         preflight_rejected = preflight_rejects_request(&preflight);
         // A validated subdomain-rule match may proceed to the verify stage so
-        // Rust can issue the host-only grant. Protective preflight denials
-        // (blacklist/WAF/strict whitelist) remain fail-closed.
+        // Rust can issue the host-only grant. Explicit preflight denials
+        // (such as strict whitelist) remain fail-closed.
         if preflight_rejected && matched_rule_valid && !preflight.deny {
             preflight_rejected = false;
             preflight.redirect_location.clear();
@@ -1782,6 +1783,201 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn matched_temporary_rule_access_skips_scanner_without_ip_trust() {
+        let (_directory, state) =
+            super::super::tests::auth_route_test_state("temporary-rule-scanner").await;
+        let config = state.storage.store.get_config().await.unwrap();
+        assert_eq!(config["run_type"], json!(3));
+        let previous = config
+            .get("host_mappings")
+            .and_then(Value::as_array)
+            .cloned()
+            .unwrap_or_default();
+        let mappings = vec![json!({
+            "host": "allowed.example.com", "use_auth": true,
+            "advanced_auth": {
+                "enabled": true, "policy_version": "policy-v1",
+                "groups": [{"id": "group-v1", "conditions": []}]
+            }
+        })];
+        assert!(
+            state
+                .storage
+                .store
+                .compare_and_set_host_mappings(&previous, &mappings)
+                .await
+                .unwrap()
+                .is_some()
+        );
+        state
+            .storage
+            .store
+            .save_scanner_settings(&json!({
+                "enabled": true, "threshold": 1, "windowMinutes": 10,
+                "blacklistTtlSeconds": 3600, "pathWhitelist": [],
+                "commonLocationExemptEnabled": false
+            }))
+            .await
+            .unwrap();
+        let ip = "203.0.113.20";
+        let request = AuthorizeHttpRequest {
+            context: Some(AuthContext {
+                client_ip: ip.into(),
+                forwarded_host: "allowed.example.com".into(),
+                forwarded_proto: "https".into(),
+                forwarded_path: "/uncommon-temporary-rule".into(),
+                path: "/uncommon-temporary-rule".into(),
+                ..Default::default()
+            }),
+            matched: true,
+            mode: HttpAuthMode::PreflightAndVerify as i32,
+            subdomain_rule_match: Some(crate::grpc_proto::SubdomainRuleMatch {
+                host: "allowed.example.com".into(),
+                policy_version: "policy-v1".into(),
+                group_id: "group-v1".into(),
+            }),
+        };
+        for blacklisted in [false, true] {
+            if blacklisted {
+                state
+                    .storage
+                    .store
+                    .add_scanner_blacklist_record(
+                        ip,
+                        &json!({"ip": ip}),
+                        time_utils::now_ms(),
+                        3600,
+                    )
+                    .await
+                    .unwrap();
+            }
+            for mode in [
+                HttpAuthMode::PreflightOnly,
+                HttpAuthMode::PreflightAndVerify,
+            ] {
+                let mut current = request.clone();
+                current.mode = mode as i32;
+                let result = handle_authorize_http(state.clone(), current).await;
+                assert!(
+                    !result.preflight.unwrap().deny,
+                    "mode={mode:?} blacklisted={blacklisted}"
+                );
+                assert_eq!(
+                    result.preflight_cache_scope,
+                    AuthCacheScope::ExactRequest as i32
+                );
+                if mode == HttpAuthMode::PreflightAndVerify {
+                    let verify = result.verify.unwrap();
+                    assert!(verify.success && !verify.login_authenticated);
+                    assert_eq!(verify.auth_grant_state, "transient");
+                }
+                assert!(
+                    state
+                        .storage
+                        .store
+                        .scanner_suspicious_hits_since(ip, 0)
+                        .await
+                        .unwrap()
+                        .is_empty()
+                );
+                assert_eq!(
+                    state
+                        .storage
+                        .store
+                        .scanner_blacklist_exists(ip)
+                        .await
+                        .unwrap(),
+                    blacklisted
+                );
+                assert!(
+                    !super::super::preflight::has_preflight_whitelist_access(&state, ip)
+                        .await
+                        .unwrap()
+                );
+                assert!(
+                    !state
+                        .storage
+                        .store
+                        .is_recent_auth_ip_active(ip, time_utils::now_ms() / 1000)
+                        .await
+                        .unwrap()
+                );
+            }
+        }
+
+        // Invalid rule assertions and a cookie name alone confer no exemption.
+        for invalid in [
+            "missing",
+            "host",
+            "policy",
+            "group",
+            "forged_cookie",
+            "strict",
+        ] {
+            let mut current = request.clone();
+            match invalid {
+                "missing" => current.subdomain_rule_match = None,
+                "host" => {
+                    current.subdomain_rule_match.as_mut().unwrap().host = "other.example.com".into()
+                }
+                "policy" => {
+                    current
+                        .subdomain_rule_match
+                        .as_mut()
+                        .unwrap()
+                        .policy_version = "old".into()
+                }
+                "group" => {
+                    current.subdomain_rule_match.as_mut().unwrap().group_id = "removed".into()
+                }
+                "forged_cookie" => {
+                    current.subdomain_rule_match = None;
+                    current.context.as_mut().unwrap().cookie =
+                        format!("{}=forged", cookies::SUBDOMAIN_RULE_GRANT_COOKIE_NAME);
+                }
+                "strict" => {
+                    current.context.as_mut().unwrap().access_mode = "strict_whitelist".into()
+                }
+                _ => unreachable!(),
+            }
+            let result = handle_authorize_http(state.clone(), current).await;
+            assert!(result.preflight.unwrap().deny, "{invalid}");
+            assert!(result.verify.is_none(), "{invalid}");
+        }
+
+        // Malformed scanner settings would fail policy loading. Temporary
+        // authorization must not even enter that load, not merely ignore Deny.
+        state
+            .storage
+            .store
+            .save_scanner_settings(&json!({
+                "enabled": true, "pathWhitelist": [42]
+            }))
+            .await
+            .unwrap();
+        assert!(
+            crate::discovery::scanner::load_preflight_policy(&state, ip)
+                .await
+                .is_err()
+        );
+        let result = handle_authorize_http(state.clone(), request).await;
+        assert_eq!(
+            result.preflight_cache_scope,
+            AuthCacheScope::ExactRequest as i32
+        );
+        assert!(!result.preflight.unwrap().deny);
+        assert!(result.verify.unwrap().success);
+        assert!(
+            state
+                .storage
+                .store
+                .scanner_blacklist_exists(ip)
+                .await
+                .unwrap()
+        );
+    }
+
+    #[tokio::test]
     async fn returned_cookie_probe_bypasses_preflight_and_becomes_one_persistent_grant() {
         let directory = tempfile::tempdir().expect("temporary auth database");
         let mut settings = {
@@ -2025,6 +2221,21 @@ mod tests {
                 .unwrap()
                 .deny
         );
+        // Legacy/header-based contexts can carry the grant in a later Cookie
+        // field. It must still exempt this already blacklisted IP from scanning.
+        let mut repeated_headers = preflight.clone();
+        let context = repeated_headers.context.as_mut().unwrap();
+        let grant_cookie = std::mem::take(&mut context.cookie);
+        context.extra_headers.push(crate::grpc_proto::Header {
+            name: "Cookie".into(),
+            values: vec!["theme=dark".into(), grant_cookie],
+        });
+        let result = handle_authorize_http(state.clone(), repeated_headers).await;
+        assert!(!result.preflight.unwrap().deny);
+        assert_eq!(
+            result.preflight_cache_scope,
+            AuthCacheScope::ExactRequest as i32
+        );
         preflight.mode = HttpAuthMode::PreflightAndVerify as i32;
         let renewed = handle_authorize_http(state.clone(), preflight)
             .await
@@ -2037,9 +2248,17 @@ mod tests {
         forged.context.as_mut().unwrap().cookie =
             format!("{}=forged", cookies::SUBDOMAIN_RULE_GRANT_COOKIE_NAME);
         assert!(
-            !handle_authorize_http(state.clone(), forged)
+            !handle_authorize_http(state.clone(), forged.clone())
                 .await
                 .subdomain_grant_security_exempt
+        );
+        forged.mode = HttpAuthMode::PreflightOnly as i32;
+        assert!(
+            handle_authorize_http(state.clone(), forged)
+                .await
+                .preflight
+                .unwrap()
+                .deny
         );
         let mut invalid = inspection.clone();
         invalid.context.as_mut().unwrap().forwarded_host = "other.example.com".into();
@@ -2061,6 +2280,15 @@ mod tests {
                 !handle_authorize_http(state.clone(), inspection.clone())
                     .await
                     .subdomain_grant_security_exempt
+            );
+            let mut expired = inspection.clone();
+            expired.mode = HttpAuthMode::PreflightOnly as i32;
+            assert!(
+                handle_authorize_http(state.clone(), expired)
+                    .await
+                    .preflight
+                    .unwrap()
+                    .deny
             );
         }
         state
@@ -2098,7 +2326,24 @@ mod tests {
                     .await
                     .subdomain_grant_security_exempt
             );
+            let mut disabled = inspection.clone();
+            disabled.mode = HttpAuthMode::PreflightOnly as i32;
+            assert!(
+                handle_authorize_http(state.clone(), disabled)
+                    .await
+                    .preflight
+                    .unwrap()
+                    .deny
+            );
         }
+        assert!(
+            state
+                .storage
+                .store
+                .scanner_blacklist_exists("203.0.113.20")
+                .await
+                .unwrap()
+        );
         assert_eq!(
             state
                 .storage

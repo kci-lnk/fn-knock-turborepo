@@ -11,15 +11,17 @@ pub const OIDC_FLOW_COOKIE_NAME: &str = "fn-knock-oidc-flow";
 pub const SUBDOMAIN_RULE_GRANT_COOKIE_NAME: &str = "fn-knock-subdomain-rule-grant";
 
 pub fn read_cookie(headers: &HeaderMap, name: &str) -> Option<String> {
-    let cookie = headers.get(axum::http::header::COOKIE)?.to_str().ok()?;
-    for segment in cookie.split(';') {
-        let trimmed = segment.trim();
-        let (key, value) = match trimmed.split_once('=') {
-            Some(pair) => pair,
-            None => continue,
-        };
-        if key.trim() == name {
-            return Some(percent_decode(value));
+    for cookie in headers.get_all(axum::http::header::COOKIE) {
+        let cookie = cookie.to_str().ok()?;
+        for segment in cookie.split(';') {
+            let trimmed = segment.trim();
+            let (key, value) = match trimmed.split_once('=') {
+                Some(pair) => pair,
+                None => continue,
+            };
+            if key.trim() == name {
+                return Some(percent_decode(value));
+            }
         }
     }
     None
@@ -339,6 +341,32 @@ mod tests {
     use axum::http::{HeaderMap, HeaderValue, header};
 
     use super::*;
+
+    #[test]
+    fn reads_later_cookie_headers_and_preserves_first_duplicate() {
+        for first in [None, Some(""), Some("forged")] {
+            let mut headers = HeaderMap::new();
+            headers.append(header::COOKIE, HeaderValue::from_static("theme=dark"));
+            if let Some(value) = first {
+                headers.append(
+                    header::COOKIE,
+                    format!("{SUBDOMAIN_RULE_GRANT_COOKIE_NAME}={value}")
+                        .parse()
+                        .unwrap(),
+                );
+            }
+            headers.append(
+                header::COOKIE,
+                format!("{SUBDOMAIN_RULE_GRANT_COOKIE_NAME}=valid")
+                    .parse()
+                    .unwrap(),
+            );
+            assert_eq!(
+                read_cookie(&headers, SUBDOMAIN_RULE_GRANT_COOKIE_NAME).as_deref(),
+                Some(first.unwrap_or("valid"))
+            );
+        }
+    }
 
     #[test]
     fn reads_percent_decoded_cookie_value() {

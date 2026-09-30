@@ -122,12 +122,15 @@ pub(super) async fn apply_preflight_behavior_with_normal_access(
         routed_upstream_host,
         routed_upstream_route_id,
         None,
+        false,
     )
     .await
 }
 
 /// Reuse only a successful preparation-stage inspection for these same
 /// headers/config. Verify deliberately performs a fresh authoritative read.
+/// `matched_rule_valid` must come from host/policy/group validation of the
+/// authenticated bridge's rule match, never from an unverified request header.
 #[allow(clippy::too_many_arguments)]
 pub(super) async fn apply_preflight_behavior_with_grant_inspection(
     state: &AppState,
@@ -142,6 +145,7 @@ pub(super) async fn apply_preflight_behavior_with_grant_inspection(
     routed_upstream_host: Option<&str>,
     routed_upstream_route_id: Option<&str>,
     inspected_rule_access: Option<bool>,
+    matched_rule_valid: bool,
 ) -> anyhow::Result<()> {
     let _phase = crate::auth::diagnostics::enter("preflight");
     let forwarded_path = preflight_forwarded_path(headers);
@@ -216,8 +220,12 @@ pub(super) async fn apply_preflight_behavior_with_grant_inspection(
         }
     }
 
+    // Current rule matches confer request-local temporary authorization even
+    // before a cookie is returned. Skip the entire scanner path, including
+    // policy reads and hit recording, without changing independent denials.
     if !normal_access.authorized
         && !active_rule_access
+        && !matched_rule_valid
         && config.get("run_type").and_then(Value::as_i64).unwrap_or(0) != 0
         && !scanner::is_request_exempt_from_scan(headers, uri, config)
     {

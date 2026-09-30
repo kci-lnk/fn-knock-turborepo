@@ -4000,7 +4000,7 @@ export const koKRAdmin = {
     deleteAuthAction: "인증 서비스 삭제",
     authServicePort: "인증 서비스의 외부 HTTPS 포트",
     authServicePortHint:
-      "브라우저에서 사용할 외부 HTTPS URL을 만드는 데만 쓰이며, 로컬 수신 포트나 라우터의 포트 포워딩 설정은 바뀌지 않습니다. 라우터에서 외부 포트 10012를 로컬 포트 7999로 전달한다면 10012를 입력하세요. 설정하지 않으면 현재 접근 포트를 사용합니다.",
+      "외부 HTTPS URL을 만드는 데만 사용하며 로컬 수신 포트나 포트 포워딩 설정은 변경하지 않습니다. FRP HTTPS 터널에 표준 HTTPS로 접속한다면 443을 입력하세요. TCP 터널이나 라우터가 외부 포트 10012를 로컬 포트 7999로 전달한다면 10012를 입력하세요. 설정하지 않으면 현재 접근 포트를 사용합니다.",
     authServicePortWarning: "주의: 로컬 수신 포트를 변경하는 항목이 아닙니다.",
     edgeClientIpTitle: "Edge 실제 IP 감지",
     edgeClientIpDescription:

@@ -3687,7 +3687,7 @@ export const zhHantAdmin = {
     deleteAuthAction: "刪除鑒權服務",
     authServicePort: "鑒權服務公開 HTTPS 端口",
     authServicePortHint:
-      "僅用於產生瀏覽器存取鑒權服務的公開 HTTPS 位址，不會修改本機監聽端口或路由器映射。路由器將公開 10012 轉發到本機 7999 時填寫 10012；未設定時使用目前入口端口。",
+      "僅用於產生公開 HTTPS 位址，不會修改本機監聽端口或端口映射。FRP HTTPS 隧道透過標準 HTTPS 存取時填寫 443；TCP 隧道或路由器將公開 10012 轉發到本機 7999 時填寫 10012。未設定時使用目前入口端口。",
     authServicePortWarning: "注意：此處不是修改本機監聽端口。",
     edgeClientIpTitle: "邊緣網路真實 IP 識別",
     edgeClientIpDescription:

@@ -3,6 +3,7 @@ import {
   isHttpProxyTargetProtocol,
   isSupportedProxyTargetUrl,
 } from "@admin-shared/utils/proxyTargetInput";
+import { parseExplicitPublicUrlPort } from "@/lib/reverse-proxy-submode";
 import { normalizeHostMappingAvailability } from "@/lib/host-mapping-availability";
 import type {
   HostMapping,
@@ -126,32 +127,21 @@ export const normalizePublicPort = (value: unknown): number => {
     typeof value === "number"
       ? value
       : Number.parseInt(String(value ?? "").trim(), 10);
-  if (!Number.isFinite(port) || port <= 0) return 0;
+  if (!Number.isFinite(port) || port <= 0 || port > 65535) return 0;
   return Math.floor(port);
 };
 
 export const parsePublicAuthBaseUrlPort = (
   value: string | undefined,
   scheme?: "http" | "https",
-): number => {
-  const trimmed = value?.trim();
-  if (!trimmed) return 0;
-
-  try {
-    const parsed = new URL(trimmed);
-    if (scheme && parsed.protocol !== `${scheme}:`) return 0;
-    return normalizePublicPort(parsed.port);
-  } catch {
-    return 0;
-  }
-};
+): number => parseExplicitPublicUrlPort(value, scheme) ?? 0;
 
 export const syncPublicAuthBaseUrlPort = (
   value: string | undefined,
   port: number,
 ): string => {
   const trimmed = value?.trim();
-  if (!trimmed || !port) return trimmed || "";
+  if (!trimmed) return "";
 
   try {
     const parsed = new URL(trimmed);
@@ -166,7 +156,7 @@ export const syncPublicAuthBaseUrlPort = (
     const isDefaultPort =
       (scheme === "https" && port === 443) ||
       (scheme === "http" && port === 80);
-    parsed.port = isDefaultPort ? "" : String(port);
+    parsed.port = !port || isDefaultPort ? "" : String(port);
     parsed.pathname = parsed.pathname.replace(/\/+$/, "") || "/";
     parsed.search = "";
     parsed.hash = "";
@@ -181,48 +171,21 @@ export const resolveConfiguredAuthServicePublicPort = (
     SubdomainModeConfig,
     "public_auth_base_url" | "public_http_port" | "public_https_port"
   >,
-  allowConfiguredPort = true,
+  scheme?: "http" | "https",
 ): number => {
-  const explicitHttpsPort = parsePublicAuthBaseUrlPort(
+  const explicitPort = parsePublicAuthBaseUrlPort(
     config.public_auth_base_url,
-    "https",
+    scheme,
   );
-  const explicitHttpPort = parsePublicAuthBaseUrlPort(
-    config.public_auth_base_url,
-    "http",
-  );
-  const configuredHttpsPort = normalizePublicPort(config.public_https_port);
-  const configuredHttpPort = normalizePublicPort(config.public_http_port);
-  return (
-    explicitHttpsPort ||
-    explicitHttpPort ||
-    (allowConfiguredPort ? configuredHttpsPort || configuredHttpPort : 0)
-  );
+  const configuredHttpsPort =
+    scheme === "http" ? 0 : normalizePublicPort(config.public_https_port);
+  const configuredHttpPort =
+    scheme === "https" ? 0 : normalizePublicPort(config.public_http_port);
+  return explicitPort || configuredHttpsPort || configuredHttpPort;
 };
 
-export const resolveConfiguredAccessEntryPublicPort = (
-  config: Pick<
-    SubdomainModeConfig,
-    "public_auth_base_url" | "public_http_port" | "public_https_port"
-  >,
-  allowConfiguredPort = true,
-): number => {
-  const explicitHttpsPort = parsePublicAuthBaseUrlPort(
-    config.public_auth_base_url,
-    "https",
-  );
-  const explicitHttpPort = parsePublicAuthBaseUrlPort(
-    config.public_auth_base_url,
-    "http",
-  );
-  const configuredHttpsPort = normalizePublicPort(config.public_https_port);
-  const configuredHttpPort = normalizePublicPort(config.public_http_port);
-  const configuredPort =
-    explicitHttpsPort ||
-    explicitHttpPort ||
-    (allowConfiguredPort ? configuredHttpsPort || configuredHttpPort : 0);
-  return configuredPort > 0 ? configuredPort : 0;
-};
+export const resolveConfiguredAccessEntryPublicPort =
+  resolveConfiguredAuthServicePublicPort;
 
 export const isDefaultPublicPort = (value: unknown): boolean => {
   const port = normalizePublicPort(value);

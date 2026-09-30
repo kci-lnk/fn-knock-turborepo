@@ -4033,7 +4033,7 @@ export const enAdmin = {
     deleteAuthAction: "Delete auth service",
     authServicePort: "Public HTTPS port for the auth service",
     authServicePortHint:
-      "Used only to generate public HTTPS URLs for browsers; it does not change the local listener or router mapping. If the router forwards public port 10012 to local port 7999, enter 10012. If not explicitly set, the current entry port is used.",
+      "Used only to generate public HTTPS URLs; it does not change the local listener or port mapping. Enter 443 for an FRP HTTPS tunnel accessed over standard HTTPS. If a TCP tunnel or router forwards public port 10012 to local port 7999, enter 10012. If unset, the current entry port is used.",
     authServicePortWarning:
       "Note: this does not change the local listening port.",
     edgeClientIpTitle: "Edge real IP detection",

@@ -29,22 +29,14 @@ export const useSubdomainPortDisplay = ({
   const defaultAuthServicePublicPort = computed(
     () => normalizePublicPort(accessEntryPort.value) || 7999,
   );
-  const isReverseProxySubdomain = computed(() =>
-    isReverseProxySubdomainMode(getConfig()),
-  );
   const isCloudflaredReverseProxySubdomain = computed(() =>
     isCloudflaredReverseProxySubdomainMode(getConfig()),
   );
-  const isFrpReverseProxySubdomain = computed(
-    () =>
-      isReverseProxySubdomain.value &&
-      !isCloudflaredReverseProxySubdomain.value,
+  const publicPortScheme = computed(() =>
+    isReverseProxySubdomainMode(getConfig()) ? ("https" as const) : undefined,
   );
   const configuredAuthServicePublicPort = computed(() =>
-    resolveConfiguredAuthServicePublicPort(
-      modeForm,
-      !isFrpReverseProxySubdomain.value,
-    ),
+    resolveConfiguredAuthServicePublicPort(modeForm, publicPortScheme.value),
   );
   const authServicePublicPort = computed({
     get: () => {
@@ -69,7 +61,7 @@ export const useSubdomainPortDisplay = ({
   const configuredAccessEntryPort = computed(() =>
     resolveConfiguredAccessEntryPublicPort(
       currentModeConfig.value,
-      !isFrpReverseProxySubdomain.value,
+      publicPortScheme.value,
     ),
   );
   const displayAccessEntryPort = computed(() =>
@@ -102,7 +94,7 @@ export const useSubdomainPortDisplay = ({
       activeEdgeClientIpProvider.value !== null,
   );
   const omitPublicPortConfiguration = computed(
-    () => isReverseProxySubdomain.value,
+    () => isCloudflaredReverseProxySubdomain.value,
   );
   const shouldOmitAccessEntryPort = computed(() => {
     if (
@@ -111,7 +103,9 @@ export const useSubdomainPortDisplay = ({
     ) {
       return true;
     }
-    return isDefaultPublicPort(displayAccessEntryPort.value);
+    return publicPortScheme.value === "https"
+      ? displayAccessEntryPort.value === "443"
+      : isDefaultPublicPort(displayAccessEntryPort.value);
   });
   const formatHostWithAccessEntryPort = (host: string): string =>
     formatHostWithOptionalPort(
@@ -126,7 +120,7 @@ export const useSubdomainPortDisplay = ({
     ) {
       return true;
     }
-    return isDefaultPublicPort(authServicePublicPort.value);
+    return authServicePublicPort.value === 443;
   });
   const formatAuthServiceHostWithPublicPort = (host: string): string =>
     formatHostWithOptionalPort(

@@ -259,3 +259,32 @@ fn map_from_values(values: &[(&str, Value)]) -> Map<String, Value> {
         .map(|(key, value)| ((*key).to_string(), value.clone()))
         .collect()
 }
+
+#[test]
+fn frp_oidc_callback_and_invitation_use_public_https_port() {
+    let mut headers = HeaderMap::new();
+    headers.insert("host", "internal.example.com:7999".parse().unwrap());
+    let uri = Uri::from_static("/api/admin/auth/oidc/providers");
+    for (port, origin) in [
+        (443, "https://auth.example.com"),
+        (8443, "https://auth.example.com:8443"),
+    ] {
+        let config = json!({
+            "run_type": 1,
+            "reverse_proxy_submode": "subdomain",
+            "default_tunnel": "frp",
+            "subdomain_mode": {
+                "auth_host": "auth.example.com",
+                "public_https_port": port
+            }
+        });
+        let base = callback_base_url(&headers, &uri, &config);
+        assert_eq!(base.as_deref(), Some(origin));
+        assert_eq!(super::urls::invite_base_url(&headers, &uri, &config), base);
+        let provider = mask_provider(json!({"id": "qq", "type": "fnknock_qq"}), base.as_deref());
+        assert_eq!(
+            provider["callback_url"],
+            format!("{origin}/api/auth/oidc/callback/qq")
+        );
+    }
+}

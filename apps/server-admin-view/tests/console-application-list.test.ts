@@ -483,24 +483,30 @@ describe("console application list", () => {
     );
   });
 
-  it("uses the FRP remote entry instead of a reverse-mode origin port", () => {
-    assert.equal(
-      buildConsoleHostApplicationHref(
-        "app.example.test",
-        location,
-        config({
-          run_type: 1,
-          reverse_proxy_submode: "subdomain",
-          default_tunnel: "frp",
-          ssl: { enabled: true },
-          subdomain_mode: {
-            ...config().subdomain_mode,
-            public_https_port: 8443,
-          },
-        }),
-        "24443",
-      ),
-      "https://app.example.test:24443/",
-    );
-  });
+  for (const [port, suffix] of [
+    [443, ""],
+    [8443, ":8443"],
+    [0, ":24443"],
+  ] as const) {
+    it(`uses FRP public port ${port} with remote-entry fallback only when unset`, () => {
+      assert.equal(
+        buildConsoleHostApplicationHref(
+          "app.example.test",
+          location,
+          config({
+            run_type: 1,
+            reverse_proxy_submode: "subdomain",
+            default_tunnel: "frp",
+            ssl: { enabled: true },
+            subdomain_mode: {
+              ...config().subdomain_mode,
+              public_https_port: port,
+            },
+          }),
+          "24443",
+        ),
+        `https://app.example.test${suffix}/`,
+      );
+    });
+  }
 });

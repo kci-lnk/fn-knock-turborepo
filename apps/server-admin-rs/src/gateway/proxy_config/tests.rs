@@ -4120,21 +4120,35 @@ fn builds_gateway_auth_config_from_auth_mapping() {
 }
 
 #[test]
-fn reverse_proxy_gateway_auth_ignores_configured_public_https_port() {
-    let config = json!({
-        "run_type": 1,
-        "reverse_proxy_submode": "subdomain",
-        "default_tunnel": "frp",
-        "subdomain_mode": {
-            "public_auth_base_url": "",
-            "public_https_port": 7999
-        }
-    });
-
-    assert_eq!(
-        resolve_auth_public_port_for_scheme(&config, "https", "", false),
-        None
-    );
+fn frp_gateway_auth_and_public_links_use_configured_public_https_port() {
+    for (port, suffix) in [(443, ""), (8443, ":8443")] {
+        let config = json!({
+            "run_type": 1,
+            "reverse_proxy_submode": "subdomain",
+            "default_tunnel": "frp",
+            "ssl": { "cert": "configured", "key": "configured" },
+            "host_mappings": [
+                { "host": "auth.example.com", "target": "http://127.0.0.1:7997" },
+                { "host": "app.example.com", "target": "http://127.0.0.1:8000" }
+            ],
+            "subdomain_mode": { "public_https_port": port }
+        });
+        let auth = build_gateway_auth_config(&config);
+        let origin = format!("https://auth.example.com{suffix}");
+        assert_eq!(auth["public_auth_base_url"], origin);
+        assert_eq!(auth["public_https_port"], port);
+        assert_eq!(
+            crate::auth::resolve_public_auth_base_url(&config),
+            Some(origin)
+        );
+        let app_url = format!("https://app.example.com{suffix}/");
+        assert_eq!(
+            public_host_url(&public_host_link_context(&config), "app.example.com"),
+            app_url
+        );
+        let bookmarks = build_bookmarks_document(&config, &crate::i18n::Translator::new("en"));
+        assert!(bookmarks.contains(&format!("HREF=\"{app_url}\"")));
+    }
 }
 
 #[test]
@@ -4265,4 +4279,102 @@ fn gateway_must_acknowledge_advanced_auth_removal() {
     let error =
         ensure_go_host_protocol_modes_applied(&requested, &json!({"data": stale})).unwrap_err();
     assert!(error.contains("advanced authentication"));
+}
+
+#[test]
+fn frp_unset_public_port_preserves_access_entry_fallback() {
+    let config = json!({
+        "run_type": 1,
+        "reverse_proxy_submode": "subdomain",
+        "default_tunnel": "frp",
+        "subdomain_mode": {
+            "auth_host": "auth.example.com",
+            "public_https_port": 0
+        }
+    });
+    let port = crate::system_info::resolve_public_gateway_port_u16(&config).unwrap();
+    let expected = if port == 443 {
+        "https://auth.example.com".to_string()
+    } else {
+        format!("https://auth.example.com:{port}")
+    };
+    assert_eq!(
+        build_gateway_auth_config(&config)["public_https_port"],
+        port
+    );
+    assert_eq!(
+        build_gateway_auth_config(&config)["public_auth_base_url"],
+        expected
+    );
+    assert_eq!(
+        crate::auth::resolve_public_auth_base_url(&config),
+        Some(expected)
+    );
+}
+
+#[test]
+fn explicit_standard_public_port_survives_auth_url_normalization() {
+    for run_type in [1, 3] {
+        for (raw, public_http_port, public_https_port, origin) in [
+            (
+                "https://auth.example.com:443",
+                8080,
+                7999,
+                "https://auth.example.com",
+            ),
+            (
+                "http://auth.example.com:80",
+                8080,
+                443,
+                "http://auth.example.com",
+            ),
+        ] {
+            let config = json!({
+                "run_type": run_type,
+                "reverse_proxy_submode": "subdomain",
+                "default_tunnel": "frp",
+                "subdomain_mode": {
+                    "auth_host": "auth.example.com",
+                    "public_auth_base_url": raw,
+                    "public_http_port": public_http_port,
+                    "public_https_port": public_https_port
+                }
+            });
+            let auth = build_gateway_auth_config(&config);
+            let expected_origin = if run_type == 1 {
+                "https://auth.example.com"
+            } else {
+                origin
+            };
+            assert_eq!(auth["public_auth_base_url"], expected_origin);
+            assert_eq!(
+                crate::auth::resolve_public_auth_base_url(&config).as_deref(),
+                Some(expected_origin)
+            );
+            assert_eq!(auth["public_https_port"], 443);
+            assert_eq!(
+                auth["public_http_port"],
+                if raw.starts_with("http:") { 80 } else { 8080 }
+            );
+        }
+    }
+}
+
+#[test]
+fn public_auth_port_accepts_legacy_strings_consistently() {
+    let config = json!({
+        "run_type": 1,
+        "reverse_proxy_submode": "subdomain",
+        "default_tunnel": "frp",
+        "subdomain_mode": { "auth_host": "auth.example.com", "public_https_port": "443" }
+    });
+    assert_eq!(build_gateway_auth_config(&config)["public_https_port"], 443);
+    assert_eq!(
+        build_gateway_auth_config(&config)["public_auth_base_url"],
+        "https://auth.example.com"
+    );
+    assert_eq!(
+        crate::auth::resolve_public_auth_base_url(&config).as_deref(),
+        Some("https://auth.example.com")
+    );
 }

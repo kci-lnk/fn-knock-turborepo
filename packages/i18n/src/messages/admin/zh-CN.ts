@@ -3743,7 +3743,7 @@ export const zhCNAdmin = {
     deleteAuthAction: "删除鉴权服务",
     authServicePort: "鉴权服务公网 HTTPS 端口",
     authServicePortHint:
-      "仅用于生成浏览器访问鉴权服务的公网 HTTPS 地址，不会修改本机监听端口或路由器映射。路由器将公网 10012 转发到本机 7999 时填写 10012；未设置时使用当前入口端口。",
+      "仅用于生成公网 HTTPS 地址，不会修改本机监听端口或端口映射。FRP HTTPS 隧道通过标准 HTTPS 访问时填写 443；TCP 隧道或路由器将公网 10012 转发到本机 7999 时填写 10012。未设置时使用当前入口端口。",
     authServicePortWarning: "注意：此处不是修改本机监听端口。",
     edgeClientIpTitle: "边缘网络真实 IP 识别",
     edgeClientIpDescription:

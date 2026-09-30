@@ -50,6 +50,40 @@ pub(crate) fn is_edge_client_ip_active(config: &Value) -> bool {
                 .unwrap_or(false))
 }
 
+/// Preserve explicit standard ports that `Url::port()` normalizes away.
+pub(crate) fn parse_explicit_public_url_port(raw_url: &str, scheme: &str) -> Option<u16> {
+    let raw = raw_url.trim();
+    let parsed = Url::parse(raw).ok()?;
+    if !matches!(scheme, "http" | "https")
+        || parsed.scheme() != scheme
+        || parsed.host_str().is_none()
+    {
+        return None;
+    }
+    let (_, rest) = raw.split_once("://")?;
+    let authority = rest.split(['/', '\\', '?', '#']).next()?;
+    let host = authority.rsplit('@').next()?;
+    let (_, port) = host.rsplit_once(':')?;
+    if port.is_empty() || !port.bytes().all(|byte| byte.is_ascii_digit()) {
+        return None;
+    }
+    port.parse::<u16>().ok().filter(|port| *port > 0)
+}
+
+pub(crate) fn configured_public_port(config: &Value, scheme: &str) -> Option<u16> {
+    let pointer = match scheme {
+        "https" => "/subdomain_mode/public_https_port",
+        "http" => "/subdomain_mode/public_http_port",
+        _ => return None,
+    };
+    let port = match config.pointer(pointer)? {
+        Value::Number(number) => number.as_i64(),
+        Value::String(raw) => raw.trim().parse::<i64>().ok(),
+        _ => None,
+    }?;
+    u16::try_from(port).ok().filter(|port| *port > 0)
+}
+
 pub(crate) fn parse_target_port_i64(target: &str) -> Option<i64> {
     let normalized = target.trim();
     if normalized.is_empty() {
@@ -127,6 +161,51 @@ fn default_port_for_scheme(scheme: &str) -> Option<u16> {
 mod tests {
     use super::*;
     use serde_json::json;
+
+    #[test]
+    fn explicit_public_ports_preserve_standard_ports_and_validate_authorities() {
+        for (raw, scheme, expected) in [
+            (
+                "https://auth.example.com:443/path?port=7999",
+                "https",
+                Some(443),
+            ),
+            ("http://auth.example.com:80/", "http", Some(80)),
+            ("https://[::1]:443/", "https", Some(443)),
+            ("https://[::1]/", "https", None),
+            ("https://auth.example.com:8443/", "https", Some(8443)),
+            ("https://auth.example.com/", "https", None),
+            ("https://user:443@auth.example.com/", "https", None),
+            ("https://auth.example.com:0/", "https", None),
+            ("https://auth.example.com:65536/", "https", None),
+            ("https://auth.example.com:443/", "http", None),
+            ("ftp://auth.example.com:21/", "ftp", None),
+        ] {
+            assert_eq!(
+                parse_explicit_public_url_port(raw, scheme),
+                expected,
+                "{raw}"
+            );
+        }
+    }
+
+    #[test]
+    fn configured_public_ports_use_the_same_range_and_type_rules() {
+        for (value, expected) in [
+            (json!(443), Some(443)),
+            (json!("443"), Some(443)),
+            (json!(65535), Some(65535)),
+            (json!(0), None),
+            (json!(-1), None),
+            (json!(65536), None),
+            (json!(443.5), None),
+            (json!(true), None),
+        ] {
+            let config = json!({"subdomain_mode": {"public_https_port": value}});
+            assert_eq!(configured_public_port(&config, "https"), expected);
+            assert_eq!(configured_public_port(&config, "http"), None);
+        }
+    }
 
     #[test]
     fn host_auth_includes_required_login_paths() {

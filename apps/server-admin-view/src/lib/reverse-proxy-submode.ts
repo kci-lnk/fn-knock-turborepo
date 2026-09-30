@@ -51,14 +51,23 @@ const normalizePublicPort = (value: unknown): number | null => {
   return Math.floor(parsed);
 };
 
-const parsePublicBaseUrlPort = (
+export const parseExplicitPublicUrlPort = (
   rawUrl: string | undefined | null,
+  scheme?: "http" | "https",
 ): number | null => {
   const raw = rawUrl?.trim();
   if (!raw) return null;
 
   try {
-    return normalizePublicPort(new URL(raw).port);
+    const parsed = new URL(raw);
+    if (!["http:", "https:"].includes(parsed.protocol)) return null;
+    if (scheme && parsed.protocol !== `${scheme}:`) return null;
+    // URL.port removes explicit :80/:443; inspect the validated raw authority
+    // so those settings still take precedence over the gateway's local port.
+    const authority = raw.match(/^[a-z][a-z\d+.-]*:\/\/([^/\\?#]*)/iu)?.[1];
+    const host = authority?.split("@").pop();
+    const port = host?.match(/:(\d+)$/u)?.[1];
+    return normalizePublicPort(port);
   } catch {
     return null;
   }
@@ -66,10 +75,18 @@ const parsePublicBaseUrlPort = (
 
 export const resolveExplicitPublicAccessEntryPort = (
   config?: Pick<AppConfig, "subdomain_mode"> | null,
+  scheme?: "http" | "https",
 ): number | null =>
-  parsePublicBaseUrlPort(config?.subdomain_mode?.public_auth_base_url) ||
-  normalizePublicPort(config?.subdomain_mode?.public_https_port) ||
-  normalizePublicPort(config?.subdomain_mode?.public_http_port);
+  parseExplicitPublicUrlPort(
+    config?.subdomain_mode?.public_auth_base_url,
+    scheme,
+  ) ||
+  (scheme === "http"
+    ? null
+    : normalizePublicPort(config?.subdomain_mode?.public_https_port)) ||
+  (scheme === "https"
+    ? null
+    : normalizePublicPort(config?.subdomain_mode?.public_http_port));
 
 export const isCloudflaredTunnelAvailable = (
   config?: Pick<AppConfig, "run_type" | "reverse_proxy_submode"> | null,

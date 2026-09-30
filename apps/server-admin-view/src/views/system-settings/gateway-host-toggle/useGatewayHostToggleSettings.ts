@@ -3,6 +3,7 @@ import { useI18n } from "vue-i18n";
 import { useAccessEntryPort } from "@/composables/useAccessEntryPort";
 import {
   resolveExplicitPublicAccessEntryPort,
+  isReverseProxySubdomainMode,
   shouldOmitPublicAccessEntryPort,
 } from "@/lib/reverse-proxy-submode";
 import { useConfigStore } from "@/store/config";
@@ -90,8 +91,16 @@ export const useGatewayHostToggleSettings = (
       .filter((item) => !getToggleValue(item))
       .map((item) => item.host),
   );
+  const publicPortScheme = computed(() =>
+    isReverseProxySubdomainMode(configStore.config)
+      ? ("https" as const)
+      : undefined,
+  );
   const explicitAccessEntryPort = computed(() =>
-    resolveExplicitPublicAccessEntryPort(configStore.config),
+    resolveExplicitPublicAccessEntryPort(
+      configStore.config,
+      publicPortScheme.value,
+    ),
   );
   const displayAccessEntryPort = computed(() =>
     explicitAccessEntryPort.value
@@ -99,14 +108,11 @@ export const useGatewayHostToggleSettings = (
       : accessEntryPort.value.trim() || "7999",
   );
   const shouldOmitAccessEntryPort = computed(() => {
-    if (
-      shouldOmitPublicAccessEntryPort(configStore.config) &&
-      !explicitAccessEntryPort.value
-    ) {
+    if (shouldOmitPublicAccessEntryPort(configStore.config)) {
       return true;
     }
     const port = Number.parseInt(displayAccessEntryPort.value, 10);
-    return port === 80 || port === 443;
+    return port === 443 || (publicPortScheme.value !== "https" && port === 80);
   });
   const formatHostWithAccessEntryPort = (host: string) =>
     shouldOmitAccessEntryPort.value

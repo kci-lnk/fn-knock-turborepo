@@ -456,30 +456,11 @@ pub(super) use crate::proxy_utils::parse_env_port_i64_with_fallback_value as par
 pub(super) use crate::node_compat::parse_i64_prefix as parse_js_parse_int_radix_10;
 
 pub(super) fn parse_explicit_url_port(raw_url: &str, scheme: &str) -> Option<i64> {
-    let parsed = Url::parse(raw_url.trim()).ok()?;
-    if parsed.scheme() != scheme {
-        return None;
-    }
-    parsed.port().map(i64::from)
+    crate::proxy_utils::parse_explicit_public_url_port(raw_url, scheme).map(i64::from)
 }
 
-pub(super) fn resolve_configured_public_port(
-    config: &Value,
-    scheme: &str,
-    allow_reverse_proxy_configured_port: bool,
-) -> Option<i64> {
-    if is_reverse_proxy_subdomain_mode(config) && !allow_reverse_proxy_configured_port {
-        return None;
-    }
-    let pointer = if scheme == "https" {
-        "/subdomain_mode/public_https_port"
-    } else {
-        "/subdomain_mode/public_http_port"
-    };
-    config
-        .pointer(pointer)
-        .and_then(json_number_floor)
-        .filter(|port| *port > 0)
+pub(super) fn resolve_configured_public_port(config: &Value, scheme: &str) -> Option<i64> {
+    crate::proxy_utils::configured_public_port(config, scheme).map(i64::from)
 }
 
 pub(super) fn resolve_public_port_for_scheme(
@@ -487,7 +468,6 @@ pub(super) fn resolve_public_port_for_scheme(
     scheme: &str,
     raw_public_base_url: &str,
     gateway_fallback: bool,
-    allow_reverse_proxy_configured_port: bool,
 ) -> Option<i64> {
     if should_omit_public_access_entry_port(config) {
         return None;
@@ -495,9 +475,7 @@ pub(super) fn resolve_public_port_for_scheme(
     if let Some(port) = parse_explicit_url_port(raw_public_base_url, scheme) {
         return Some(port);
     }
-    if let Some(port) =
-        resolve_configured_public_port(config, scheme, allow_reverse_proxy_configured_port)
-    {
+    if let Some(port) = resolve_configured_public_port(config, scheme) {
         return Some(port);
     }
     if !gateway_fallback {
@@ -515,13 +493,7 @@ pub(super) fn resolve_auth_public_port_for_scheme(
     if is_cloudflared_reverse_proxy_subdomain_mode(config) {
         return None;
     }
-    resolve_public_port_for_scheme(
-        config,
-        scheme,
-        raw_public_base_url,
-        gateway_fallback,
-        !is_reverse_proxy_subdomain_mode(config),
-    )
+    resolve_public_port_for_scheme(config, scheme, raw_public_base_url, gateway_fallback)
 }
 
 pub(super) fn apply_public_port_to_base_url(raw_base_url: &str, config: &Value) -> String {
@@ -542,7 +514,7 @@ pub(super) fn apply_public_port_to_base_url(raw_base_url: &str, config: &Value) 
         // browser-facing port. Stale origin ports must never leak into URLs.
         let _ = parsed.set_port(None);
     } else if parsed.port().is_none()
-        && let Some(port) = resolve_public_port_for_scheme(config, scheme, trimmed, true, false)
+        && let Some(port) = resolve_public_port_for_scheme(config, scheme, trimmed, true)
         && !is_default_scheme_port(scheme, port)
     {
         let _ = parsed.set_port(Some(port as u16));

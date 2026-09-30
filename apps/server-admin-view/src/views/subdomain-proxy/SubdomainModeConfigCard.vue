@@ -219,7 +219,10 @@ const confirmRemoveAuthService = async () => {
             </div>
 
             <div
-              v-if="!omitPublicPortConfiguration && !edgeClientIpEnabledModel"
+              v-if="
+                !omitPublicPortConfiguration &&
+                !(isEdgeClientIpModeEditable && edgeClientIpEnabledModel)
+              "
               class="mt-4 grid gap-3 border-t pt-4 sm:grid-cols-[minmax(0,1fr)_12rem] sm:items-end"
             >
               <div class="space-y-1">

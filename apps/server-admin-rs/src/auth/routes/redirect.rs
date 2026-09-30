@@ -379,8 +379,7 @@ pub(super) fn apply_public_port_to_base_url(raw_base_url: &str, config: &Value) 
         // as 7999 must not leak into browser-facing URLs.
         let _ = parsed.set_port(None);
     } else if parsed.port().is_none()
-        && let Some(port) =
-            resolve_public_port_for_scheme(config, parsed.scheme(), trimmed, true, false)
+        && let Some(port) = resolve_public_port_for_scheme(config, parsed.scheme(), trimmed, true)
         && !is_default_scheme_port(parsed.scheme(), port)
     {
         let _ = parsed.set_port(Some(port));
@@ -410,44 +409,16 @@ pub(super) fn format_derived_public_auth_base_url(host: &str, config: &Value) ->
     Some(format!("{scheme}://{host}"))
 }
 
-pub(super) fn parse_explicit_url_port(raw_url: &str, scheme: &str) -> Option<u16> {
-    let parsed = url::Url::parse(raw_url.trim()).ok()?;
-    if parsed.scheme() != scheme {
-        return None;
-    }
-    parsed.port()
-}
-
-pub(super) fn resolve_configured_public_port(
-    config: &Value,
-    scheme: &str,
-    allow_reverse_proxy_configured_port: bool,
-) -> Option<u16> {
-    if is_reverse_proxy_subdomain_mode(config) && !allow_reverse_proxy_configured_port {
-        return None;
-    }
-    let pointer = if scheme == "https" {
-        "/subdomain_mode/public_https_port"
-    } else {
-        "/subdomain_mode/public_http_port"
-    };
-    config
-        .pointer(pointer)
-        .and_then(|value| match value {
-            Value::Number(number) => number.as_i64(),
-            Value::String(raw) => raw.trim().parse::<i64>().ok(),
-            _ => None,
-        })
-        .filter(|port| *port > 0 && *port <= u16::MAX as i64)
-        .map(|port| port as u16)
-}
+pub(super) use crate::proxy_utils::{
+    configured_public_port as resolve_configured_public_port,
+    parse_explicit_public_url_port as parse_explicit_url_port,
+};
 
 pub(super) fn resolve_public_port_for_scheme(
     config: &Value,
     scheme: &str,
     raw_public_base_url: &str,
     gateway_fallback: bool,
-    allow_reverse_proxy_configured_port: bool,
 ) -> Option<u16> {
     if should_omit_public_access_entry_port(config) {
         return None;
@@ -455,9 +426,7 @@ pub(super) fn resolve_public_port_for_scheme(
     if let Some(port) = parse_explicit_url_port(raw_public_base_url, scheme) {
         return Some(port);
     }
-    if let Some(port) =
-        resolve_configured_public_port(config, scheme, allow_reverse_proxy_configured_port)
-    {
+    if let Some(port) = resolve_configured_public_port(config, scheme) {
         return Some(port);
     }
     if !gateway_fallback {
@@ -475,13 +444,7 @@ pub(super) fn resolve_auth_public_port_for_scheme(
     if is_cloudflared_reverse_proxy_subdomain_mode(config) {
         return None;
     }
-    resolve_public_port_for_scheme(
-        config,
-        scheme,
-        raw_public_base_url,
-        gateway_fallback,
-        !is_reverse_proxy_subdomain_mode(config),
-    )
+    resolve_public_port_for_scheme(config, scheme, raw_public_base_url, gateway_fallback)
 }
 
 pub(super) use crate::system_info::resolve_public_gateway_port_u16 as resolve_public_gateway_port;

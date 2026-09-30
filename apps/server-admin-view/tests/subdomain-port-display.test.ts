@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
-import { computed, ref } from "vue";
+import { computed, reactive, ref } from "vue";
 import type { AppConfig, SubdomainModeConfig } from "../src/types";
 import { createDefaultModeForm } from "../src/views/subdomain-proxy/model";
 import { useSubdomainPortDisplay } from "../src/views/subdomain-proxy/useSubdomainPortDisplay";
@@ -109,35 +109,65 @@ test("cloudflared omits a stale explicitly configured public port", () => {
   );
 });
 
-test("FRP reverse subdomain mode uses the access entry instead of public_https_port", () => {
-  const subdomainMode = {
-    ...createDefaultModeForm(),
-    public_https_port: 7999,
-  };
-  const {
-    authServicePublicPort,
-    formatAuthServiceHostWithPublicPort,
-    formatHostWithAccessEntryPort,
-    omitPublicPortConfiguration,
-  } = createHostFormatters(
-    subdomainMode,
-    {
-      run_type: 1,
-      reverse_proxy_submode: "subdomain",
-      default_tunnel: "frp",
-    },
-    "15101",
-  );
+for (const [port, suffix] of [
+  [443, ""],
+  [8443, ":8443"],
+  [0, ":15101"],
+] as const) {
+  test(`FRP uses public port ${port} with remote-entry fallback only when unset`, () => {
+    const subdomainMode = {
+      ...createDefaultModeForm(),
+      public_https_port: port,
+      edge_client_ip_enabled: true,
+      tencent_edgeone_enabled: true,
+    };
+    const display = createHostFormatters(
+      subdomainMode,
+      {
+        run_type: 1,
+        reverse_proxy_submode: "subdomain",
+        default_tunnel: "frp",
+      },
+      "15101",
+    );
+    assert.equal(display.omitPublicPortConfiguration.value, false);
+    assert.equal(display.authServicePublicPort.value, port || 15101);
+    assert.equal(
+      display.formatHostWithAccessEntryPort("app.example.com"),
+      `app.example.com${suffix}`,
+    );
+    assert.equal(
+      display.formatAuthServiceHostWithPublicPort("auth.example.com"),
+      `auth.example.com${suffix}`,
+    );
+  });
+}
 
-  assert.equal(omitPublicPortConfiguration.value, true);
-  assert.equal(authServicePublicPort.value, 15101);
+test("editing the FRP HTTPS port removes a stale port from the auth base URL", () => {
+  const modeForm = reactive({
+    ...createDefaultModeForm(),
+    public_auth_base_url: "https://auth.example.com:7999",
+    public_https_port: 7999,
+  });
+  const config = createConfig(modeForm, {
+    run_type: 1,
+    reverse_proxy_submode: "subdomain",
+    default_tunnel: "frp",
+  });
+  const display = useSubdomainPortDisplay({
+    accessEntryPort: ref("15101"),
+    currentModeConfig: computed(() => modeForm),
+    getConfig: () => config,
+    modeForm,
+  });
+  assert.equal(display.authServicePublicPort.value, 7999);
+  display.authServicePublicPort.value = 443;
+  assert.equal(modeForm.public_https_port, 443);
+  assert.equal(modeForm.public_auth_base_url, "https://auth.example.com");
+  assert.equal(display.authServicePublicPort.value, 443);
   assert.equal(
-    formatHostWithAccessEntryPort("app.example.com"),
-    "app.example.com:15101",
-  );
-  assert.equal(
-    formatAuthServiceHostWithPublicPort("auth.example.com"),
-    "auth.example.com:15101",
+    display.formatAuthServiceHostWithPublicPort("auth.example.com"),
+    "auth.example.com",
   );
 });
 
@@ -190,4 +220,92 @@ test("public auth port description displays a concise destructive warning", () =
     component,
     /t\("admin\.subdomainProxy\.authServicePortWarning"\)/u,
   );
+});
+
+test("FRP preserves an explicit standard HTTPS port ahead of stale configured ports", () => {
+  const display = createHostFormatters(
+    {
+      ...createDefaultModeForm(),
+      public_auth_base_url: "https://auth.example.com:443",
+      public_https_port: 7999,
+    },
+    { run_type: 1, reverse_proxy_submode: "subdomain", default_tunnel: "frp" },
+  );
+  assert.equal(display.authServicePublicPort.value, 443);
+  assert.equal(
+    display.formatAuthServiceHostWithPublicPort("auth.example.com"),
+    "auth.example.com",
+  );
+  assert.equal(
+    display.formatHostWithAccessEntryPort("app.example.com"),
+    "app.example.com",
+  );
+});
+
+test("clearing the FRP port also clears an explicit URL port and restores the remote entry", () => {
+  const modeForm = reactive({
+    ...createDefaultModeForm(),
+    public_auth_base_url: "https://auth.example.com:8443",
+    public_https_port: 8443,
+  });
+  const config = createConfig(modeForm, {
+    run_type: 1,
+    reverse_proxy_submode: "subdomain",
+    default_tunnel: "frp",
+  });
+  const display = useSubdomainPortDisplay({
+    accessEntryPort: ref("15101"),
+    currentModeConfig: computed(() => modeForm),
+    getConfig: () => config,
+    modeForm,
+  });
+  display.authServicePublicPort.value = "";
+  assert.equal(modeForm.public_https_port, 0);
+  assert.equal(modeForm.public_auth_base_url, "https://auth.example.com");
+  assert.equal(display.authServicePublicPort.value, 15101);
+  assert.equal(
+    display.formatAuthServiceHostWithPublicPort("auth.example.com"),
+    "auth.example.com:15101",
+  );
+});
+
+test("HTTPS auth preview keeps port 80 when it is explicitly configured", () => {
+  const display = createHostFormatters({
+    ...createDefaultModeForm(),
+    public_https_port: 80,
+  });
+  assert.equal(
+    display.formatAuthServiceHostWithPublicPort("auth.example.com"),
+    "auth.example.com:80",
+  );
+});
+
+test("FRP HTTPS previews do not borrow a legacy HTTP URL port", () => {
+  for (const port of [0, 80, 443, 8443]) {
+    const display = createHostFormatters(
+      {
+        ...createDefaultModeForm(),
+        public_auth_base_url: "http://auth.example.com:9080",
+        public_http_port: 9080,
+        public_https_port: port,
+      },
+      {
+        run_type: 1,
+        reverse_proxy_submode: "subdomain",
+        default_tunnel: "frp",
+      },
+      "15101",
+    );
+    const expectedPort = port || 15101;
+    const suffix = expectedPort === 443 ? "" : `:${expectedPort}`;
+    assert.equal(display.authServicePublicPort.value, expectedPort);
+    assert.equal(
+      display.formatAuthServiceHostWithPublicPort("auth.example.com"),
+      `auth.example.com${suffix}`,
+    );
+    assert.equal(
+      display.formatHostWithAccessEntryPort("app.example.com"),
+      `app.example.com${suffix}`,
+    );
+  }
 });

@@ -199,14 +199,20 @@ pub(crate) fn build_gateway_auth_config(config: &Value) -> Value {
             .get("aliyun_esa_enabled")
             .and_then(Value::as_bool)
             .unwrap_or(false);
+    // Resolve ports from the original config, before URL normalization removes
+    // an explicit :80/:443 and could expose a stale configured or local port.
+    let raw_public_auth_base_url = subdomain_mode
+        .get("public_auth_base_url")
+        .and_then(Value::as_str)
+        .unwrap_or("");
     let public_http_port = if is_subdomain_mode_active {
-        resolve_auth_public_port_for_scheme(config, "http", &public_auth_base_url, false)
+        resolve_auth_public_port_for_scheme(config, "http", raw_public_auth_base_url, false)
             .unwrap_or(0)
     } else {
         0
     };
     let public_https_port = if is_subdomain_mode_active {
-        resolve_auth_public_port_for_scheme(config, "https", &public_auth_base_url, true)
+        resolve_auth_public_port_for_scheme(config, "https", raw_public_auth_base_url, true)
             .unwrap_or(0)
     } else {
         0

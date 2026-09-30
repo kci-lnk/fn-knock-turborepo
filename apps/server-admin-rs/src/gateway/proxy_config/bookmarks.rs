@@ -14,7 +14,7 @@ pub(crate) fn public_host_link_context(config: &Value) -> PublicHostLinkContext 
         .and_then(Value::as_str)
         .unwrap_or("");
     let resolved_public_port =
-        resolve_public_port_for_scheme(config, scheme, raw_public_base_url, true, false);
+        resolve_public_port_for_scheme(config, scheme, raw_public_base_url, true);
     PublicHostLinkContext {
         scheme,
         access_entry_port: resolved_public_port
@@ -50,7 +50,7 @@ pub(super) fn build_bookmarks_document(
         .and_then(Value::as_str)
         .unwrap_or("");
     let resolved_public_port =
-        resolve_public_port_for_scheme(config, scheme, raw_public_base_url, true, false);
+        resolve_public_port_for_scheme(config, scheme, raw_public_base_url, true);
     let access_entry_port = resolved_public_port
         .map(|port| port.to_string())
         .unwrap_or_else(|| crate::system_info::resolve_access_entry_port(config));

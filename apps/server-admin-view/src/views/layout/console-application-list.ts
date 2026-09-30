@@ -1,7 +1,7 @@
 import type { AppConfig, DeploymentTarget, HostMapping } from "@/types";
 import {
   isAnySubdomainRoutingMode,
-  isReverseProxySubdomainMode,
+  parseExplicitPublicUrlPort,
   shouldOmitPublicAccessEntryPort,
 } from "@/lib/reverse-proxy-submode";
 
@@ -59,27 +59,17 @@ const resolvePublicBaseUrlPort = (
   config: AppConfig,
   protocol: GatewayProtocol,
 ): string | null => {
-  const rawUrl = config.subdomain_mode?.public_auth_base_url?.trim();
-  if (!rawUrl) return null;
-  try {
-    const parsed = new URL(rawUrl);
-    if (parsed.protocol !== protocol) return null;
-    const authority = rawUrl.match(/^[a-z][a-z\d+.-]*:\/\/([^/?#]*)/iu)?.[1];
-    const explicitPort = authority?.match(/:(\d+)$/u)?.[1];
-    return normalizeGatewayPort(explicitPort);
-  } catch {
-    return null;
-  }
+  const port = parseExplicitPublicUrlPort(
+    config.subdomain_mode?.public_auth_base_url,
+    protocol === "https:" ? "https" : "http",
+  );
+  return port === null ? null : String(port);
 };
 
 const resolveConfiguredPublicPort = (
   config: AppConfig,
   protocol: GatewayProtocol,
 ): string | null => {
-  // Reverse-proxy subdomain mode publishes through the FRP access entry. Its
-  // configured origin port must not replace the remote port returned by the
-  // access-entry API.
-  if (isReverseProxySubdomainMode(config)) return null;
   return normalizeGatewayPort(
     protocol === "https:"
       ? config.subdomain_mode?.public_https_port

@@ -175,21 +175,34 @@ fn shared_auth_absolutizes_relative_admin_redirect_before_crossing_origins() {
 }
 
 #[test]
-fn reverse_proxy_auth_port_ignores_configured_public_https_port() {
-    let config = json!({
-        "run_type": 1,
-        "reverse_proxy_submode": "subdomain",
-        "default_tunnel": "frp",
-        "subdomain_mode": {
-            "public_auth_base_url": "",
-            "public_https_port": 7999
-        }
-    });
-
-    assert_eq!(
-        resolve_auth_public_port_for_scheme(&config, "https", "", false),
-        None
-    );
+fn frp_auth_redirect_uses_configured_public_https_port() {
+    for (port, origin) in [
+        (443, "https://auth.example.com"),
+        (8443, "https://auth.example.com:8443"),
+    ] {
+        let config = json!({
+            "run_type": 1,
+            "reverse_proxy_submode": "subdomain",
+            "default_tunnel": "frp",
+            "subdomain_mode": {
+                "root_domain": "example.com",
+                "auth_host": "auth.example.com",
+                "public_https_port": port
+            }
+        });
+        assert_eq!(
+            resolve_public_auth_base_url(&config).as_deref(),
+            Some(origin)
+        );
+        let redirect = resolve_shared_auth_login_redirect(
+            &config,
+            &forwarded_headers("app.example.com"),
+            Some("/dashboard"),
+        )
+        .unwrap();
+        assert!(redirect.starts_with(&format!("{origin}/?redirect_uri=")));
+        assert!(redirect.ends_with("#/login"));
+    }
 }
 
 #[test]

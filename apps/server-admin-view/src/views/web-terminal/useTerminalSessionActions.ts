@@ -15,6 +15,7 @@ export const useTerminalSessionActions = ({
   createSession: requestCreateSession,
   detach,
   endSession,
+  focusTerminal,
   getTerminalSize,
   isAttachedTo,
   onConnectStart,
@@ -35,6 +36,7 @@ export const useTerminalSessionActions = ({
   ) => Promise<TerminalSessionRecord>;
   detach: () => Promise<void>;
   endSession: (sessionId: string) => Promise<void>;
+  focusTerminal: () => void;
   getTerminalSize: () => { cols: number; rows: number };
   isAttachedTo: (sessionId: string) => boolean;
   onConnectStart: () => void;
@@ -53,16 +55,32 @@ export const useTerminalSessionActions = ({
     await connect(session);
   };
 
+  // Output no longer takes focus. Restore it only for explicit session actions,
+  // and only if the user has not moved to another field while connecting.
+  const restoreUserFocus = (origin: Element | null, sessionId: string) => {
+    if (selectedSessionId.value !== sessionId) return;
+    if (
+      document.activeElement === origin ||
+      (origin &&
+        !origin.isConnected &&
+        document.activeElement === document.body)
+    )
+      focusTerminal();
+  };
+
   const handleSessionTabChange = async (sessionId: string | number) => {
+    const origin = document.activeElement;
     const session = sessions.value.find(
       (item) => item.id === String(sessionId),
     );
     if (!session) return;
     if (session.id === selectedSessionId.value && isAttachedTo(session.id)) {
+      focusTerminal();
       return;
     }
     try {
       await connectToSession(session);
+      restoreUserFocus(origin, session.id);
     } catch (reason) {
       toast.error(translate("admin.webTerminal.switchFailed"), {
         description: errorMessage(
@@ -74,6 +92,7 @@ export const useTerminalSessionActions = ({
   };
 
   const createSession = async () => {
+    const origin = document.activeElement;
     const target = selectedTarget.value;
     if (!target) {
       beginTargetCreate();
@@ -96,6 +115,7 @@ export const useTerminalSessionActions = ({
       const session = await requestCreateSession(target.id, getTerminalSize());
       await nextTick();
       await connectToSession(session);
+      restoreUserFocus(origin, session.id);
       toast.success(translate("admin.webTerminal.sessionCreated"));
       return session;
     } catch (reason) {
@@ -129,8 +149,11 @@ export const useTerminalSessionActions = ({
   };
 
   const reconnectSession = async () => {
+    const origin = document.activeElement;
+    const sessionId = selectedSessionId.value;
     try {
       await reconnectAttachment();
+      restoreUserFocus(origin, sessionId);
     } catch (reason) {
       toast.error(translate("admin.webTerminal.reconnectFailed"), {
         description: errorMessage(

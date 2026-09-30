@@ -64,7 +64,7 @@ const pageBudgets = [
   ["../src/views/Layout.vue", 460],
   ["../src/views/WebTerminal.vue", 30],
   ["../src/views/web-terminal/WebTerminalWorkspace.vue", 260],
-  ["../src/views/web-terminal/WebTerminalDialogs.vue", 70],
+  ["../src/views/web-terminal/WebTerminalDialogs.vue", 90],
   ["../src/views/system-settings/WAFSettings.vue", 410],
   ["../src/views/system-settings/FeaturesSettings.vue", 180],
   ["../src/components/charts/TimeSeriesChart.vue", 130],

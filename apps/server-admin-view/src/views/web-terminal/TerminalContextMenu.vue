@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, type CSSProperties } from "vue";
 import { useI18n } from "vue-i18n";
-import { ClipboardPaste, Copy, TextSelect } from "lucide-vue-next";
+import { ClipboardPaste, Copy, CopyCheck } from "lucide-vue-next";
 
 defineProps<{
   canPaste: boolean;
@@ -14,7 +14,7 @@ const emit = defineEmits<{
   close: [];
   copy: [];
   paste: [];
-  selectAll: [];
+  copyAll: [];
 }>();
 
 const { t } = useI18n();
@@ -68,10 +68,11 @@ defineExpose({
     <button
       type="button"
       class="flex h-9 w-full items-center gap-2 rounded-md px-2.5 text-left transition-colors hover:bg-white/10"
-      @click="emit('selectAll')"
+      :title="t('admin.webTerminal.copyBufferHint')"
+      @click="emit('copyAll')"
     >
-      <TextSelect class="h-4 w-4" />
-      <span>{{ t("admin.webTerminal.selectAll") }}</span>
+      <CopyCheck class="h-4 w-4" />
+      <span>{{ t("admin.webTerminal.copyAllLogs") }}</span>
     </button>
   </div>
 </template>

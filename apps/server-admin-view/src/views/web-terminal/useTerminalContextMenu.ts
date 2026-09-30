@@ -13,7 +13,6 @@ import {
   TERMINAL_CONTEXT_MENU_WIDTH,
 } from "./terminal-runtime";
 import {
-  copyTextToClipboard,
   focusElementWithoutScroll,
   resolveConstrainedMenuPosition,
 } from "./terminal-dom";
@@ -22,7 +21,6 @@ type TerminalSelectionApi = {
   focus?: () => void;
   getSelection: () => string;
   paste: (text: string) => void;
-  selectAll: () => void;
 };
 
 type TerminalContextMenuHandle = {
@@ -42,15 +40,19 @@ const readTextFromClipboard = async (
 export const useTerminalContextMenu = ({
   activeAttachment,
   clearArmedModifier,
+  copyTerminalText,
   focusTerminal,
   getTerminal,
+  getTerminalText,
   openManualPasteDialog,
   translate,
 }: {
   activeAttachment: Ref<TerminalAttachmentRecord | null>;
   clearArmedModifier: () => void;
+  copyTerminalText: (text: string) => Promise<void>;
   focusTerminal: () => void;
   getTerminal: () => TerminalSelectionApi | null;
+  getTerminalText: () => string;
   openManualPasteDialog: () => void;
   translate: (key: string) => string;
 }) => {
@@ -59,6 +61,8 @@ export const useTerminalContextMenu = ({
   const terminalContextMenuX = ref(0);
   const terminalContextMenuY = ref(0);
   const terminalContextMenuHasSelection = ref(false);
+  let selectionSnapshot = "";
+  let pasteGeneration = 0;
 
   const setTerminalContextMenuRef = (
     instance: Element | ComponentPublicInstance | null,
@@ -73,6 +77,13 @@ export const useTerminalContextMenu = ({
 
   const closeTerminalContextMenu = () => {
     terminalContextMenuOpen.value = false;
+    terminalContextMenuHasSelection.value = false;
+    selectionSnapshot = "";
+  };
+
+  const invalidateTerminalContextMenu = () => {
+    pasteGeneration += 1;
+    closeTerminalContextMenu();
   };
 
   const handleDocumentPointerDown = (event: PointerEvent) => {
@@ -95,6 +106,7 @@ export const useTerminalContextMenu = ({
     event.stopImmediatePropagation();
 
     const selectedText = getTerminal()?.getSelection() || "";
+    selectionSnapshot = selectedText;
     const viewportWidth = window.innerWidth || TERMINAL_CONTEXT_MENU_WIDTH;
     const viewportHeight = window.innerHeight || TERMINAL_CONTEXT_MENU_HEIGHT;
     const menuPosition = resolveConstrainedMenuPosition({
@@ -112,6 +124,7 @@ export const useTerminalContextMenu = ({
     terminalContextMenuY.value = menuPosition.y;
     terminalContextMenuOpen.value = true;
     void nextTick(() => {
+      if (!terminalContextMenuOpen.value) return;
       const root = terminalContextMenuRef.value?.rootElement;
       focusElementWithoutScroll(
         root?.querySelector<HTMLButtonElement>("button:not(:disabled)") ||
@@ -122,41 +135,31 @@ export const useTerminalContextMenu = ({
   };
 
   const copyTerminalSelectionFromMenu = async () => {
-    const selectedText = getTerminal()?.getSelection() || "";
+    const selectedText = selectionSnapshot;
     closeTerminalContextMenu();
-
-    if (!selectedText.length) {
-      toast.info(translate("admin.webTerminal.noSelection"));
-      focusTerminal();
-      return;
-    }
-
-    try {
-      await copyTextToClipboard(selectedText);
-      toast.success(translate("admin.webTerminal.selectionCopied"));
-    } catch (error) {
-      toast.error(translate("admin.webTerminal.copyFailed"), {
-        description:
-          error instanceof Error
-            ? error.message
-            : translate("admin.webTerminal.copySelectionFailed"),
-      });
-    } finally {
-      focusTerminal();
-    }
+    focusTerminal();
+    await copyTerminalText(selectedText);
   };
 
   const pasteClipboardToTerminal = async () => {
+    const operation = ++pasteGeneration;
+    const attachment = activeAttachment.value;
     closeTerminalContextMenu();
+    focusTerminal();
+    const origin = document.activeElement;
+    const isCurrent = () =>
+      operation === pasteGeneration &&
+      attachment === activeAttachment.value &&
+      document.activeElement === origin;
 
-    if (!activeAttachment.value) {
+    if (!attachment) {
       toast.error(translate("admin.webTerminal.noConnection"));
-      focusTerminal();
       return;
     }
 
     try {
       const text = await readTextFromClipboard(translate);
+      if (!isCurrent()) return;
       if (!text) {
         toast.info(translate("admin.webTerminal.emptyClipboard"));
         focusTerminal();
@@ -167,6 +170,7 @@ export const useTerminalContextMenu = ({
       getTerminal()?.paste(text);
       focusTerminal();
     } catch (error) {
+      if (!isCurrent()) return;
       console.warn(
         "[terminal] clipboard read unavailable, using manual paste",
         {
@@ -178,20 +182,21 @@ export const useTerminalContextMenu = ({
     }
   };
 
-  const selectAllTerminalText = () => {
+  const copyAllTerminalText = () => {
+    const text = getTerminalText();
     closeTerminalContextMenu();
-    getTerminal()?.selectAll();
-    terminalContextMenuHasSelection.value = true;
     focusTerminal();
+    return copyTerminalText(text);
   };
 
   return {
     closeTerminalContextMenu,
+    invalidateTerminalContextMenu,
     copyTerminalSelectionFromMenu,
     handleDocumentPointerDown,
     handleTerminalContextMenu,
     pasteClipboardToTerminal,
-    selectAllTerminalText,
+    copyAllTerminalText,
     setTerminalContextMenuRef,
     terminalContextMenuHasSelection,
     terminalContextMenuOpen,

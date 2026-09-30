@@ -68,7 +68,7 @@ const {
   reconnectSession,
   resetTerminalFontSize,
   runtimeRestarted,
-  selectAllTerminalText,
+  copyAllTerminalText,
   selectedSession,
   selectedSessionId,
   selectedTarget,
@@ -313,7 +313,7 @@ const selectedTargetEndpoint = computed(() => {
             @close="closeTerminalContextMenu"
             @copy="copyTerminalSelectionFromMenu"
             @paste="pasteClipboardToTerminal"
-            @select-all="selectAllTerminalText"
+            @copy-all="copyAllTerminalText"
           />
         </div>
         <TerminalResourceStatusBar

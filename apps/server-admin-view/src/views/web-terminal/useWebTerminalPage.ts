@@ -257,6 +257,7 @@ export const useWebTerminalPage = () => {
     createSession: sessionsController.createSession,
     detach: sessionConnection.detach,
     endSession: sessionsController.endSession,
+    focusTerminal: emulator.focusTerminal,
     getTerminalSize: emulator.getTerminalSize,
     isAttachedTo: attachmentController.isAttachedTo,
     onConnectStart: () => {

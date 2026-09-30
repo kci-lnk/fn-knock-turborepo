@@ -11,6 +11,8 @@ import { createTerminalMouseReporter } from "./terminal-mouse";
 import { createTerminalFitController } from "./terminal-fit";
 import { createTerminalTouchGestures } from "./terminal-touch";
 import { bindTerminalTextInput } from "./terminal-text-input";
+import { bindTerminalClipboard } from "./terminal-clipboard";
+import { snapshotTerminalText } from "./terminal-buffer-text";
 
 interface UseTerminalEmulatorOptions {
   applyFontSize: (value: number, options?: { persist?: boolean }) => void;
@@ -40,6 +42,7 @@ export function useTerminalEmulator({
   const terminalMountRef = ref<HTMLElement | null>(null);
   const isPinchZooming = ref(false);
   const armedModifier = ref<ArmedModifier | null>(null);
+  const terminalContentRevision = ref(0);
   let term: InstanceType<GhosttyModule["Terminal"]> | null = null;
   let fitAddon: InstanceType<GhosttyModule["FitAddon"]> | null = null;
   let lastOutputCursor = 0;
@@ -49,6 +52,8 @@ export function useTerminalEmulator({
   let disposed = false;
   let initializationPromise: Promise<void> | null = null;
   let unbindTextInput: (() => void) | null = null;
+  let unbindClipboard: (() => void) | null = null;
+  let copyHandler: ((text: string) => void) | null = null;
 
   function runTerminalInternalMutation(
     action: () => void,
@@ -103,6 +108,7 @@ export function useTerminalEmulator({
     if (textInput) {
       focusElementWithoutScroll(textInput);
       void nextTick(() => {
+        if (disposed || document.activeElement !== textInput) return;
         const nextInput = getTerminalTextInput();
         if (nextInput) focusElementWithoutScroll(nextInput);
       });
@@ -143,13 +149,23 @@ export function useTerminalEmulator({
       remoteOutputWriteDepth -= 1;
     }
   };
+  const resetTerminalBuffer = () => {
+    terminalContentRevision.value += 1;
+    if (!term) return;
+    // Ghostty 0.4 reset() replaces wasmTerm without updating SelectionManager's
+    // reference. Reset the parser in place so selection never reads freed memory.
+    term.clearSelection();
+    runTerminalInternalMutation(
+      () => {
+        term?.write("\u001bc\u001b[2J\u001b[3J\u001b[H");
+      },
+      { dropResponses: true },
+    );
+    term.scrollToBottom();
+  };
   const clearTerminal = () => {
     resetOutputState();
-    if (!term) return;
-    term.clear?.();
-    term.reset();
-    term.write("\u001b[2J\u001b[3J\u001b[H");
-    focusTerminal();
+    resetTerminalBuffer();
   };
   const clearArmedModifier = () => {
     armedModifier.value = null;
@@ -170,7 +186,7 @@ export function useTerminalEmulator({
   const applyOutputEvent = (event: TerminalOutputEvent) => {
     if (!term) return;
     if (event.reset) {
-      term.reset();
+      resetTerminalBuffer();
       outputTextDecoder = new TextDecoder();
       lastOutputCursor = 0;
     }
@@ -182,7 +198,6 @@ export function useTerminalEmulator({
       if (payload) writeRemoteTerminalOutput(payload);
     }
     lastOutputCursor = event.cursor;
-    void nextTick(() => focusTerminal());
   };
 
   const initializeTerminal = async () => {
@@ -226,6 +241,9 @@ export function useTerminalEmulator({
       nextTerm.loadAddon(nextFitAddon);
       nextTerm.open(mountElement);
       term = nextTerm;
+      unbindClipboard = bindTerminalClipboard(mountElement, nextTerm, (text) =>
+        copyHandler?.(text),
+      );
       fitAddon = nextFitAddon;
       syncTerminalTextInputAnchor();
       const textInput = getTerminalTextInput();
@@ -269,6 +287,9 @@ export function useTerminalEmulator({
     disposed = true;
     unbindTextInput?.();
     unbindTextInput = null;
+    unbindClipboard?.();
+    unbindClipboard = null;
+    copyHandler = null;
     mouseReporter.unbind();
     touchGestures.unbind();
     fitController.dispose();
@@ -288,6 +309,11 @@ export function useTerminalEmulator({
     focusTerminal,
     getOutputCursor: () => lastOutputCursor,
     getTerminal: () => term,
+    getTerminalText: () => snapshotTerminalText(term?.wasmTerm),
+    setCopyHandler: (handler: ((text: string) => void) | null) => {
+      copyHandler = handler;
+    },
+    terminalContentRevision,
     getTerminalSize: () => ({
       cols: term?.cols || 120,
       rows: term?.rows || 32,

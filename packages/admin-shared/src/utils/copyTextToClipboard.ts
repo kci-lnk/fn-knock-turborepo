@@ -3,8 +3,15 @@ export type CopyTextResult = {
   method: string;
 };
 
+export type CopyTextOptions = {
+  strategy?: 'write-text-first';
+  verify?: boolean;
+  /** Stop a delayed fallback after the caller's session or UI has changed. */
+  shouldContinue?: () => boolean;
+};
+
 const normalizeClipboardText = (value: string) =>
-  value.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+  value.replace(/\r\n/g, '\n').replace(/\r/g, '\n').normalize('NFC');
 
 const verifyClipboardText = async (expectedText: string) => {
   if (typeof navigator === 'undefined' || !navigator.clipboard?.readText) {
@@ -37,12 +44,10 @@ const copyWithExecCommand = (text: string) => {
     }
   }
 
-  let copyEventHandled = false;
   const handleCopy = (event: ClipboardEvent) => {
     if (!event.clipboardData) return;
     event.clipboardData.setData('text/plain', text);
     event.preventDefault();
-    copyEventHandled = true;
   };
 
   const textarea = document.createElement('textarea');
@@ -60,7 +65,12 @@ const copyWithExecCommand = (text: string) => {
   textarea.style.pointerEvents = 'none';
   textarea.style.zIndex = '-1';
 
-  document.body.appendChild(textarea);
+  // Stay inside a modal's focus trap when retrying from a text dialog.
+  const container =
+    activeElement instanceof Element
+      ? (activeElement.closest('[role="dialog"]') ?? document.body)
+      : document.body;
+  container.appendChild(textarea);
   document.addEventListener('copy', handleCopy, true);
 
   try {
@@ -72,10 +82,10 @@ const copyWithExecCommand = (text: string) => {
     textarea.select();
     textarea.setSelectionRange(0, textarea.value.length);
 
-    return document.execCommand('copy') || copyEventHandled;
+    return document.execCommand('copy');
   } finally {
     document.removeEventListener('copy', handleCopy, true);
-    document.body.removeChild(textarea);
+    textarea.remove();
 
     if (selection) {
       selection.removeAllRanges();
@@ -121,6 +131,7 @@ const copyWithWriteText = async (text: string) => {
 
 export async function copyTextToClipboard(
   text: string,
+  options: CopyTextOptions = {},
 ): Promise<CopyTextResult> {
   const errors: string[] = [];
   let unverifiedResult: CopyTextResult | null = null;
@@ -131,6 +142,7 @@ export async function copyTextToClipboard(
     strategy: () => boolean | Promise<boolean>,
   ) => {
     try {
+      if (options.shouldContinue && !options.shouldContinue()) return;
       const copied = await strategy();
 
       if (!copied) {
@@ -138,6 +150,7 @@ export async function copyTextToClipboard(
         return;
       }
 
+      if (options.verify === false) return { verified: false, method };
       const verified = await verifyClipboardText(text);
 
       if (verified === true) {
@@ -160,14 +173,21 @@ export async function copyTextToClipboard(
     return undefined;
   };
 
-  for (const [method, strategy] of [
-    ['execCommand', () => copyWithExecCommand(text)],
-    ['clipboard.write', () => copyWithClipboardItem(text)],
-    ['clipboard.writeText', () => copyWithWriteText(text)],
-  ] as const) {
+  const strategies =
+    options.strategy === 'write-text-first'
+      ? ([
+          ['clipboard.writeText', () => copyWithWriteText(text)],
+          ['execCommand', () => copyWithExecCommand(text)],
+        ] as const)
+      : ([
+          ['execCommand', () => copyWithExecCommand(text)],
+          ['clipboard.write', () => copyWithClipboardItem(text)],
+          ['clipboard.writeText', () => copyWithWriteText(text)],
+        ] as const);
+  for (const [method, strategy] of strategies) {
     const result = await runStrategy(method, strategy);
 
-    if (result?.verified) {
+    if (result) {
       return result;
     }
   }

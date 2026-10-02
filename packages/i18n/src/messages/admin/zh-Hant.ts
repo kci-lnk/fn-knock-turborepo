@@ -72,6 +72,9 @@ export const zhHantAdmin = {
   },
   nav: {
     ...zhCNAdmin.nav,
+    expandSidebar: "展開側欄",
+    collapseSidebar: "收起側欄",
+    sidebarSaveFailed: "儲存側欄狀態失敗",
     updateAlert: "有可用的系統更新",
     criticalEventAlert: "存在嚴重事件",
     sslCert: "SSL證書",

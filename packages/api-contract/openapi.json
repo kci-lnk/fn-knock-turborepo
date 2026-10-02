@@ -6531,6 +6531,9 @@
           "show_entry_status_module": {
             "type": "boolean"
           },
+          "sidebar_collapsed": {
+            "type": "boolean"
+          },
           "sidebar_menu_order": {
             "items": {
               "enum": [
@@ -6554,6 +6557,7 @@
           }
         },
         "required": [
+          "sidebar_collapsed",
           "show_entry_status_module",
           "show_console_app_list",
           "sidebar_menu_order",
@@ -6580,6 +6584,12 @@
             ]
           },
           "show_entry_status_module": {
+            "type": [
+              "boolean",
+              "null"
+            ]
+          },
+          "sidebar_collapsed": {
             "type": [
               "boolean",
               "null"

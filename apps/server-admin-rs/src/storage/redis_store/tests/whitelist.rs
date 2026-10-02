@@ -106,6 +106,10 @@ fn default_config_includes_node_runtime_feature_defaults() {
         Some(&json!(false))
     );
     assert_eq!(
+        config.pointer("/dashboard_display/sidebar_collapsed"),
+        Some(&json!(false))
+    );
+    assert_eq!(
         config.pointer("/waf/system_rules_auto_update_enabled"),
         Some(&json!(true))
     );

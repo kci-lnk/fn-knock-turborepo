@@ -120,6 +120,7 @@ describe("FPK console application list setting", () => {
 
     const pending = settings.saveShowConsoleAppList(true);
     expect(settings.showConsoleAppList.value).toBe(true);
+    await flushPromises();
     expect(api.updateDashboardDisplayConfig).toHaveBeenCalledWith({
       show_console_app_list: true,
     });
@@ -127,6 +128,71 @@ describe("FPK console application list setting", () => {
     rejectSave?.(new Error("save failed"));
     await pending;
     expect(settings.showConsoleAppList.value).toBe(false);
+    wrapper.unmount();
+  });
+
+  it("queues feature display changes behind a pending sidebar preference save", async () => {
+    const { settings, store, wrapper } = mountSettings(fpkConfig());
+    await flushPromises();
+    let finishSidebar!: (value: unknown) => void;
+    let finishFeature!: (value: unknown) => void;
+    api.updateDashboardDisplayConfig
+      .mockReturnValueOnce(
+        new Promise((done) => {
+          finishSidebar = done;
+        }),
+      )
+      .mockReturnValueOnce(
+        new Promise((done) => {
+          finishFeature = done;
+        }),
+      );
+    const collapse = store.saveDashboardDisplayConfig({
+      sidebar_collapsed: true,
+    });
+    const feature = settings.saveShowConsoleAppList(true);
+    await flushPromises();
+    expect(api.updateDashboardDisplayConfig).toHaveBeenCalledTimes(1);
+    finishSidebar({
+      ...fpkConfig().dashboard_display,
+      sidebar_collapsed: true,
+    });
+    await collapse;
+    await flushPromises();
+    expect(settings.showConsoleAppList.value).toBe(true);
+    finishFeature({
+      ...fpkConfig().dashboard_display,
+      sidebar_collapsed: true,
+      show_console_app_list: true,
+    });
+    await Promise.all([collapse, feature]);
+    expect(store.config!.dashboard_display).toMatchObject({
+      sidebar_collapsed: true,
+      show_console_app_list: true,
+    });
+    expect(settings.showConsoleAppList.value).toBe(true);
+    wrapper.unmount();
+  });
+
+  it("uses refreshed display settings when a feature save fails", async () => {
+    const { settings, store, wrapper } = mountSettings(fpkConfig());
+    await flushPromises();
+    let reject!: (error: Error) => void;
+    api.updateDashboardDisplayConfig.mockReturnValueOnce(
+      new Promise((_done, fail) => {
+        reject = fail;
+      }),
+    );
+    const pending = settings.saveShowConsoleAppList(true);
+    await flushPromises();
+    store.config!.dashboard_display = {
+      ...store.config!.dashboard_display!,
+      show_console_app_list: true,
+    };
+    await flushPromises();
+    reject(new Error("save failed"));
+    await pending;
+    expect(settings.showConsoleAppList.value).toBe(true);
     wrapper.unmount();
   });
 

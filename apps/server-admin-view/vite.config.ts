@@ -29,7 +29,32 @@ const isInteractionChunk = createChunkMatcher([
   "node_modules/reka-ui/dist/shared/",
 ]);
 
+const isLayoutInteractionHelper = createChunkMatcher([
+  "node_modules/reka-ui/dist/shared/useForwardProps.js",
+  "node_modules/reka-ui/dist/shared/useForwardPropsEmits.js",
+  "node_modules/reka-ui/dist/shared/useEmitAsProps.js",
+  "node_modules/reka-ui/dist/Tooltip/TooltipRoot.js",
+  "node_modules/reka-ui/dist/Tooltip/TooltipProvider.js",
+  "node_modules/reka-ui/dist/Tooltip/TooltipTrigger.js",
+  "node_modules/reka-ui/dist/Popper/PopperRoot.js",
+  "node_modules/reka-ui/dist/Popper/PopperAnchor.js",
+  "packages/ui-vue/src/components/ui/tooltip/Tooltip.vue",
+  "packages/ui-vue/src/components/ui/tooltip/TooltipProvider.vue",
+  "packages/ui-vue/src/components/ui/tooltip/TooltipTrigger.vue",
+]);
+
+// Keep the display store and its API together as saves are shared by the
+// sidebar and the settings routes.
+const isConfigChunk = createChunkMatcher([
+  "apps/server-admin-view/src/store/config.ts",
+  "apps/server-admin-view/src/lib/api/config",
+]);
+
+// These modules already participate in the first dashboard render. Group them
+// to avoid small shared chunks and repeated import overhead.
 const isDashboardCoreChunk = createChunkMatcher([
+  "node_modules/vue-sonner/",
+  "packages/ui-vue/src/components/ui/badge/",
   "packages/ui-vue/src/components/ui/alert/",
   "packages/ui-vue/src/components/ui/card/",
   "packages/ui-vue/src/components/ui/skeleton/",
@@ -42,6 +67,16 @@ const isDashboardCoreChunk = createChunkMatcher([
   "apps/server-admin-view/src/components/LiveStatusBadge.vue",
   "apps/server-admin-view/src/composables/useTargetPolling.ts",
   "apps/server-admin-view/src/lib/api/dashboard.ts",
+  "apps/server-admin-view/src/lib/api/security.ts",
+  "apps/server-admin-view/src/lib/api/events.ts",
+  "apps/server-admin-view/src/lib/ddns-time.ts",
+  "node_modules/lucide-vue-next/dist/esm/createLucideIcon.js",
+  "node_modules/lucide-vue-next/dist/esm/icons/arrow-right.js",
+  "node_modules/lucide-vue-next/dist/esm/icons/arrow-down-left.js",
+  "node_modules/lucide-vue-next/dist/esm/icons/arrow-up-right.js",
+  "node_modules/lucide-vue-next/dist/esm/icons/clock.js",
+  "node_modules/lucide-vue-next/dist/esm/icons/ban.js",
+  "node_modules/lucide-vue-next/dist/esm/icons/shield-alert.js",
   "apps/server-admin-view/src/lib/api/polling.ts",
   "apps/server-admin-view/src/lib/pollingLifecycle.ts",
 ]);
@@ -124,6 +159,10 @@ export default defineConfig({
       output: {
         manualChunks(id) {
           if (isFrameworkChunk(id)) return "framework";
+          if (isConfigChunk(id)) return "config";
+          // Sidebar triggers need the tooltip context before opening. Keep
+          // it out of the larger, deferred interaction bundle.
+          if (isLayoutInteractionHelper(id)) return "dashboard-core";
           // A module request crosses the fnOS CGI boundary and starts a local
           // curl process. Keep interaction primitives together instead of
           // emitting many sub-kilobyte chunks for the first dashboard render.

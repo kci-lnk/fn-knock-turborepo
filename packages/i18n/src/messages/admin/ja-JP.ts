@@ -76,6 +76,9 @@ export const jaJPAdmin = {
     nextRestart: "{count} 回連続失敗。次の再試行：",
   },
   nav: {
+    expandSidebar: "サイドバーを展開",
+    collapseSidebar: "サイドバーを折りたたむ",
+    sidebarSaveFailed: "サイドバーの設定を保存できませんでした",
     updateAlert: "システム更新があります",
     criticalEventAlert: "重大なイベントがあります",
     sslCert: "SSL",

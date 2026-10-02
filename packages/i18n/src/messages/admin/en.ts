@@ -78,6 +78,9 @@ export const enAdmin = {
     nextRestart: "{count} consecutive failures; next retry:",
   },
   nav: {
+    expandSidebar: "Expand sidebar",
+    collapseSidebar: "Collapse sidebar",
+    sidebarSaveFailed: "Failed to save sidebar preference",
     updateAlert: "System update available",
     criticalEventAlert: "Critical events present",
     sslCert: "SSL",

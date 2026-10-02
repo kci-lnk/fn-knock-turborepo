@@ -21,14 +21,19 @@ describe("sidebar navigation order", () => {
       new URL("../src/views/Layout.vue", import.meta.url),
       "utf8",
     );
+    const desktopSidebarSource = readFileSync(
+      new URL("../src/views/layout/LayoutDesktopSidebar.vue", import.meta.url),
+      "utf8",
+    );
     const scrollAreaSource = readFileSync(
       new URL("../src/views/layout/LayoutScrollArea.vue", import.meta.url),
       "utf8",
     );
 
-    assert.equal(layoutSource.match(/<LayoutScrollArea/g)?.length, 2);
+    assert.equal(layoutSource.match(/<LayoutScrollArea/g)?.length, 1);
+    assert.equal(desktopSidebarSource.match(/<LayoutScrollArea/g)?.length, 1);
     assert.match(layoutSource, /hint-on-mount/u);
-    assert.match(layoutSource, /reserve-rail-gutter/u);
+    assert.match(desktopSidebarSource, /reserve-rail-gutter/u);
     assert.match(scrollAreaSource, /scrollHeight > clientHeight \+ 1/u);
     assert.match(scrollAreaSource, /isScrolling\.value = true/u);
     assert.match(scrollAreaSource, /setPointerCapture/u);

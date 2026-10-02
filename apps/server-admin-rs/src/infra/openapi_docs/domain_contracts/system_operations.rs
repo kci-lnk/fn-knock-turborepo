@@ -710,6 +710,7 @@ pub(super) struct FnosCertificateSyncResponseData {
 
 #[derive(Serialize, ToSchema)]
 pub(super) struct DashboardDisplayData {
+    sidebar_collapsed: bool,
     show_entry_status_module: bool,
     show_console_app_list: bool,
     sidebar_menu_order: Vec<String>,
@@ -718,6 +719,7 @@ pub(super) struct DashboardDisplayData {
 
 #[derive(Serialize, ToSchema)]
 pub(super) struct DashboardDisplayUpdateData {
+    sidebar_collapsed: Option<bool>,
     show_entry_status_module: Option<bool>,
     show_console_app_list: Option<bool>,
     sidebar_menu_order: Option<Vec<String>>,

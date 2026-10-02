@@ -264,18 +264,20 @@ export function useFeaturesSettings() {
     showEntryStatusModule.value = nextValue;
     const result = await runSaveSettings(
       () =>
-        ConfigAPI.updateDashboardDisplayConfig({
+        configStore.saveDashboardDisplayConfig({
           show_entry_status_module: nextValue,
         }),
       {
-        onSuccess: async (data) => {
+        onSuccess: (data) => {
           applyDashboardDisplaySettings(data);
           toast.success(t("admin.featuresSettings.updated"));
-          await configStore.loadConfig();
         },
       },
     );
-    if (!result) showEntryStatusModule.value = previousValue;
+    if (!result) {
+      if (configStore.config) syncDashboardDisplayFromConfig();
+      else showEntryStatusModule.value = previousValue;
+    }
   };
 
   const saveShowConsoleAppList = async (nextValue: boolean) => {
@@ -290,18 +292,20 @@ export function useFeaturesSettings() {
     showConsoleAppList.value = nextValue;
     const result = await runSaveSettings(
       () =>
-        ConfigAPI.updateDashboardDisplayConfig({
+        configStore.saveDashboardDisplayConfig({
           show_console_app_list: nextValue,
         }),
       {
-        onSuccess: async (data) => {
+        onSuccess: (data) => {
           applyDashboardDisplaySettings(data);
           toast.success(t("admin.featuresSettings.updated"));
-          await configStore.loadConfig();
         },
       },
     );
-    if (!result) showConsoleAppList.value = previousValue;
+    if (!result) {
+      if (configStore.config) syncDashboardDisplayFromConfig();
+      else showConsoleAppList.value = previousValue;
+    }
   };
 
   const saveDateTimeDisplayMode = async (nextValue: DateTimeDisplayMode) => {
@@ -311,20 +315,22 @@ export function useFeaturesSettings() {
     applyDateTimeDisplayMode(nextValue);
     const result = await runSaveSettings(
       () =>
-        ConfigAPI.updateDashboardDisplayConfig({
+        configStore.saveDashboardDisplayConfig({
           date_time_display_mode: nextValue,
         }),
       {
-        onSuccess: async (data) => {
+        onSuccess: (data) => {
           applyDashboardDisplaySettings(data);
           toast.success(t("admin.featuresSettings.updated"));
-          await configStore.loadConfig();
         },
       },
     );
     if (!result) {
-      dateTimeDisplayMode.value = previousValue;
-      applyDateTimeDisplayMode(previousValue);
+      if (configStore.config) syncDashboardDisplayFromConfig();
+      else {
+        dateTimeDisplayMode.value = previousValue;
+        applyDateTimeDisplayMode(previousValue);
+      }
     }
   };
 
@@ -422,8 +428,10 @@ export function useFeaturesSettings() {
   });
 
   watch(
-    () => configStore.config?.dashboard_display,
-    syncDashboardDisplayFromConfig,
+    [() => configStore.config?.dashboard_display, isSaving],
+    () => {
+      if (!isSaving.value) syncDashboardDisplayFromConfig();
+    },
     { immediate: true },
   );
 

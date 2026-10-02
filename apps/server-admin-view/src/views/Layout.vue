@@ -117,88 +117,17 @@
     <div
       class="mx-auto flex w-full max-w-[96rem] min-w-0 flex-1 min-h-0 flex-col gap-4 px-4 py-4 sm:flex-row sm:gap-4 sm:px-6 sm:py-6 lg:gap-5"
     >
-      <aside
-        class="hidden shrink-0 sm:sticky sm:top-6 sm:block sm:h-[calc(100dvh-3rem)] sm:w-36 md:w-[9.25rem] xl:w-[9.5rem]"
-      >
-        <div class="flex h-full min-h-0 flex-col gap-3">
-          <LayoutScrollArea
-            reserve-rail-gutter
-            class="min-h-0 flex-1"
-            content-class="flex min-h-full flex-col items-stretch gap-1.5"
-            :class="{ 'sidebar-menu-editing': isSidebarMenuOrderMode }"
-          >
-            <Button
-              v-for="item in navItems"
-              :key="item.path"
-              :variant="isNavActive(item.path) ? 'default' : 'ghost'"
-              :class="[
-                'min-w-0 w-full justify-start gap-2 overflow-hidden select-none [-webkit-user-select:none] [-webkit-touch-callout:none] px-2.5 transition-[transform,box-shadow,background-color,color] duration-150',
-                isNavActive(item.path)
-                  ? 'shadow-sm shadow-primary/15'
-                  : 'hover:-translate-y-[1px]',
-              ]"
-              @click="navigateTo(item.path)"
-            >
-              <component :is="item.icon" class="h-4 w-4 shrink-0" />
-              <span class="min-w-0 truncate">{{ item.name }}</span>
-              <NavAlertDot :label="item.alert" class="ml-auto" />
-            </Button>
-          </LayoutScrollArea>
-          <div>
-            <div class="mb-5 flex justify-center gap-2">
-              <ThemeModeToggle />
-              <Button
-                variant="ghost"
-                size="sm"
-                class="h-8 max-w-full justify-center gap-1.5 rounded-md border border-border/60 bg-background/70 px-2.5 text-xs shadow-none hover:bg-muted"
-                :title="t('locale.label')"
-                @click="openLocaleDialog"
-              >
-                <Languages class="h-3.5 w-3.5 shrink-0" />
-              </Button>
-              <ConfirmDangerPopover
-                v-if="shouldShowPanelLogout"
-                :title="t('admin.dockerAdmin.logoutConfirmTitle')"
-                :description="t('admin.dockerAdmin.logoutConfirmDescription')"
-                :confirm-text="t('admin.dockerAdmin.logoutConfirm')"
-                :loading="dockerAdminAuthStore.isSubmitting"
-                :disabled="dockerAdminAuthStore.isSubmitting"
-                :on-confirm="handlePanelLogout"
-                content-class="w-64 text-left"
-              >
-                <template #trigger>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="sm"
-                    class="h-8 w-8 shrink-0 rounded-md border border-destructive/20 bg-destructive/5 p-0 text-destructive shadow-none hover:bg-destructive/10 hover:text-destructive"
-                    :disabled="dockerAdminAuthStore.isSubmitting"
-                    :title="t('admin.dockerAdmin.logout')"
-                  >
-                    <LogOut class="h-3.5 w-3.5" />
-                    <span class="sr-only">{{
-                      t("admin.dockerAdmin.logout")
-                    }}</span>
-                  </Button>
-                </template>
-              </ConfirmDangerPopover>
-            </div>
-            <p class="min-w-0 text-center text-xs font-medium text-primary/70">
-              <a
-                :href="OFFICIAL_WEBSITE_URL"
-                target="_blank"
-                rel="noopener noreferrer"
-                class="inline-flex max-w-full items-center gap-1.5 rounded-full px-2.5 py-1 leading-none transition-colors hover:text-foreground hover:bg-background/70"
-                :title="t('admin.nav.officialWebsite')"
-                :aria-label="t('admin.nav.officialWebsite')"
-              >
-                <Globe2 class="h-3.5 w-3.5" />
-                <span>{{ currentVersionLabel }}</span>
-              </a>
-            </p>
-          </div>
-        </div>
-      </aside>
+      <LayoutDesktopSidebar
+        :nav-items="navItems"
+        :current-version-label="currentVersionLabel"
+        :is-nav-active="isNavActive"
+        :is-sidebar-menu-order-mode="isSidebarMenuOrderMode"
+        :should-show-panel-logout="shouldShowPanelLogout"
+        :is-logout-submitting="dockerAdminAuthStore.isSubmitting"
+        :navigate-to="navigateTo"
+        :on-panel-logout="handlePanelLogout"
+        :on-open-locale="openLocaleDialog"
+      />
 
       <main
         id="main-content"
@@ -208,7 +137,14 @@
       >
         <h1 class="sr-only">{{ currentNavLabel }}</h1>
         <ConsoleApplicationBar v-if="route.name === 'Dashboard'" />
-        <LayoutStatusBanners :navigate-to="navigateTo" />
+        <LayoutStatusBanners
+          v-if="
+            (configStore.canSyncSystemClock &&
+              systemClockStore.shouldShowBanner) ||
+            updateStore.shouldShowBanner
+          "
+          :navigate-to="navigateTo"
+        />
         <div
           v-if="isRouteNavigating"
           class="mx-auto mb-4 flex w-full max-w-7xl justify-end"
@@ -275,7 +211,7 @@ import { OFFICIAL_WEBSITE_URL } from "../lib/update-presentation";
 import { Globe2, Languages, LogOut, Menu } from "lucide-vue-next";
 import LayoutLoadStatus from "./layout/LayoutLoadStatus.vue";
 import LayoutScrollArea from "./layout/LayoutScrollArea.vue";
-import LayoutStatusBanners from "./layout/LayoutStatusBanners.vue";
+import LayoutDesktopSidebar from "./layout/LayoutDesktopSidebar.vue";
 import { useDialogFocusRestore } from "./layout/useDialogFocusRestore";
 import { useLayoutNavigation } from "./layout/useLayoutNavigation";
 import RouteAccessibility from "../components/RouteAccessibility.vue";
@@ -283,6 +219,7 @@ import {
   ConsoleApplicationBar,
   ConfirmDangerPopover,
   LayoutLocaleDialog,
+  LayoutStatusBanners,
   Sheet,
   SheetContent,
   SheetHeader,

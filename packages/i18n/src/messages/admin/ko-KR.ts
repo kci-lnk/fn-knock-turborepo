@@ -81,6 +81,9 @@ export const koKRAdmin = {
     nextRestart: "{count}회 연속 실패, 다음 재시도:",
   },
   nav: {
+    expandSidebar: "사이드바 펼치기",
+    collapseSidebar: "사이드바 접기",
+    sidebarSaveFailed: "사이드바 설정을 저장하지 못했습니다",
     updateAlert: "시스템 업데이트가 있습니다",
     criticalEventAlert: "심각한 이벤트가 있습니다",
     sslCert: "SSL 인증서",

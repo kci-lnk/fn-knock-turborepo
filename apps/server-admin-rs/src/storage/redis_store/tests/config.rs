@@ -263,6 +263,37 @@ async fn presentation_config_snapshot_tracks_mutations_migrations_and_restore() 
 }
 
 #[tokio::test]
+async fn sidebar_collapse_partial_update_preserves_other_display_preferences() {
+    let (_dir, store) = open_test_store().await;
+    let mut original = store.get_config().await.unwrap();
+    original["dashboard_display"] = json!({
+        "sidebar_menu_order": ["events", "dashboard"],
+        "show_entry_status_module": false,
+        "show_console_app_list": true,
+        "date_time_display_mode": "full"
+    });
+    store.save_config(&original).await.unwrap();
+
+    for collapsed in [true, false] {
+        let updated = store
+            .merge_config_object_fields(
+                "dashboard_display",
+                Map::from_iter([("sidebar_collapsed".to_string(), json!(collapsed))]),
+            )
+            .await
+            .unwrap();
+        let mut expected_display = original["dashboard_display"].clone();
+        expected_display["sidebar_collapsed"] = json!(collapsed);
+        assert_eq!(updated["dashboard_display"], expected_display);
+
+        let reader = Store::connect(&store.path).await.unwrap();
+        let persisted = reader.get_config().await.unwrap();
+        assert_eq!(persisted["dashboard_display"], expected_display);
+        assert_eq!(persisted["locale"], original["locale"]);
+    }
+}
+
+#[tokio::test]
 async fn presentation_config_snapshot_tracks_compatibility_writes_and_deletes() {
     let (_dir, store) = open_test_store().await;
     let config = json!({ "locale": { "default_locale": "en" } });

@@ -69,6 +69,9 @@ export const zhCNAdmin = {
     nextRestart: "连续失败 {count} 次，下次重试：",
   },
   nav: {
+    expandSidebar: "展开侧栏",
+    collapseSidebar: "收起侧栏",
+    sidebarSaveFailed: "保存侧栏状态失败",
     updateAlert: "有可用的系统更新",
     criticalEventAlert: "存在严重事件",
     sslCert: "SSL证书",

@@ -13,6 +13,9 @@ export const ConfirmDangerPopover = defineAsyncComponent(
 export const ConsoleApplicationBar = defineAsyncComponent(
   () => import("./ConsoleApplicationBar.vue"),
 );
+export const LayoutStatusBanners = defineAsyncComponent(
+  () => import("./LayoutStatusBanners.vue"),
+);
 export const LayoutLocaleDialog = defineAsyncComponent(
   () => import("./LayoutLocaleDialog.vue"),
 );

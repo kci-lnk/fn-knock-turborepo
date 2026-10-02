@@ -45,6 +45,8 @@ export const useConfigStore = defineStore("config", () => {
   let hostMappingsSnapshotRequestId = 0;
   let hostMappingsSavePromise: Promise<HostMapping[]> | null = null;
   const runStreamMappingsSave = createSerialTaskQueue();
+  const runDashboardDisplaySave = createSerialTaskQueue();
+  let dashboardDisplayWriteRevision = 0;
 
   const refreshHostMappingsOnly = async () => {
     if (hostMappingsSavePromise) {
@@ -144,12 +146,14 @@ export const useConfigStore = defineStore("config", () => {
         await hostMappingsSavePromise;
       }
       const hostMappingsRequestId = ++hostMappingsSnapshotRequestId;
+      const displayRevision = dashboardDisplayWriteRevision;
       return {
         snapshot: await ConfigAPI.getConfig(),
         hostMappingsRequestId,
+        displayRevision,
       };
     })()
-      .then(({ snapshot, hostMappingsRequestId }) => {
+      .then(({ snapshot, hostMappingsRequestId, displayRevision }) => {
         let next: AppConfig = {
           ...snapshot.config,
           host_mapping_groups: snapshot.config.host_mapping_groups ?? [],
@@ -157,6 +161,13 @@ export const useConfigStore = defineStore("config", () => {
             snapshot.config.host_mapping_grouped_view === true,
         };
         if (requestId === loadConfigRequestId) {
+          // A read begun before a completed display save must not undo it.
+          if (
+            displayRevision !== dashboardDisplayWriteRevision &&
+            config.value?.dashboard_display
+          ) {
+            next.dashboard_display = config.value.dashboard_display;
+          }
           if (hostMappingsRequestId === hostMappingsSnapshotRequestId) {
             hostMappingCatalogRevision = snapshot.hostMappingCatalogRevision;
             hostMappingsSnapshot = next.host_mappings;
@@ -444,17 +455,18 @@ export const useConfigStore = defineStore("config", () => {
     return result;
   }
 
-  async function saveDashboardDisplayConfig(
-    next: Partial<DashboardDisplayConfig>,
-  ) {
-    const result = await ConfigAPI.updateDashboardDisplayConfig(next);
-    applyDateTimeDisplayConfig(result);
-    if (config.value) {
-      config.value.dashboard_display = result;
-    } else {
-      await loadConfig({ force: true });
-    }
-    return result;
+  function saveDashboardDisplayConfig(next: Partial<DashboardDisplayConfig>) {
+    return runDashboardDisplaySave(async () => {
+      const result = await ConfigAPI.updateDashboardDisplayConfig(next);
+      dashboardDisplayWriteRevision += 1;
+      applyDateTimeDisplayConfig(result);
+      if (config.value) {
+        config.value.dashboard_display = result;
+      } else {
+        await loadConfig({ force: true });
+      }
+      return result;
+    });
   }
 
   const {

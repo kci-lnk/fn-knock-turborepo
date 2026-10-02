@@ -905,6 +905,10 @@ fn normalize_date_time_display_mode(value: Option<&Value>) -> &'static str {
 
 fn normalize_dashboard_display(value: Option<&Value>) -> Value {
     json!({
+        "sidebar_collapsed": value
+            .and_then(|value| value.get("sidebar_collapsed"))
+            .and_then(Value::as_bool)
+            .unwrap_or(false),
         "show_entry_status_module": value
             .and_then(|value| value.get("show_entry_status_module"))
             .and_then(Value::as_bool)
@@ -924,6 +928,9 @@ fn normalize_dashboard_display(value: Option<&Value>) -> Value {
 
 fn dashboard_display_update_fields(body: &Value) -> Map<String, Value> {
     let mut fields = Map::new();
+    if let Some(collapsed) = body.get("sidebar_collapsed").and_then(Value::as_bool) {
+        fields.insert("sidebar_collapsed".to_string(), Value::Bool(collapsed));
+    }
     if let Some(show) = body
         .get("show_entry_status_module")
         .and_then(Value::as_bool)
@@ -1214,6 +1221,7 @@ mod tests {
                 "show_entry_status_module": false
             }))),
             json!({
+                "sidebar_collapsed": false,
                 "show_entry_status_module": false,
                 "show_console_app_list": false,
                 "date_time_display_mode": "human_friendly",
@@ -1267,6 +1275,34 @@ mod tests {
                 .count(),
             1
         );
+    }
+
+    #[test]
+    fn sidebar_collapse_defaults_to_expanded_and_requires_a_boolean() {
+        assert_eq!(
+            normalize_dashboard_display(None)["sidebar_collapsed"],
+            json!(false)
+        );
+        for invalid in [Value::Null, json!("true"), json!(1)] {
+            assert_eq!(
+                normalize_dashboard_display(Some(&json!({ "sidebar_collapsed": invalid })))["sidebar_collapsed"],
+                json!(false)
+            );
+            assert!(
+                dashboard_display_update_fields(&json!({ "sidebar_collapsed": invalid }))
+                    .is_empty()
+            );
+        }
+        for collapsed in [true, false] {
+            let update =
+                dashboard_display_update_fields(&json!({ "sidebar_collapsed": collapsed }));
+            assert_eq!(update.len(), 1);
+            assert_eq!(update["sidebar_collapsed"], json!(collapsed));
+            assert_eq!(
+                normalize_dashboard_display(Some(&json!({ "sidebar_collapsed": collapsed })))["sidebar_collapsed"],
+                json!(collapsed)
+            );
+        }
     }
 
     #[test]

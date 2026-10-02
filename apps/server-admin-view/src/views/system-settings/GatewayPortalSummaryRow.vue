@@ -9,7 +9,6 @@ defineProps<{
   enabledLabel: string;
   displayLabel: string;
   versionLabel: string;
-  navigationLabel: string;
   iconLabel: string;
 }>();
 defineEmits<{ action: [] }>();
@@ -35,9 +34,6 @@ const { t } = useI18n();
       </Badge>
       <Badge variant="secondary" class="rounded-full px-2.5">
         {{ versionLabel }}
-      </Badge>
-      <Badge variant="secondary" class="rounded-full px-2.5">
-        {{ navigationLabel }}
       </Badge>
       <Badge
         :variant="showAppIcon ? 'default' : 'secondary'"

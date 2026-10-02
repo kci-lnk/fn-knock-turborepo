@@ -135,14 +135,6 @@ export const useGatewaySettingsController = () => {
       ? t("admin.gatewaySettings.enabled")
       : t("admin.gatewaySettings.disabled"),
   );
-  const portalNavigationSummary = computed(
-    () =>
-      `${t("admin.gatewayPortalSettings.smartLanDetection")} · ${t(
-        portalSummary.value?.smart_lan_detection === true
-          ? "admin.gatewaySettings.enabled"
-          : "admin.gatewaySettings.disabled",
-      )}`,
-  );
   const portalVersionSummary = computed(() =>
     portalSummary.value?.version === "v2"
       ? t("admin.gatewaySettings.portalVersionV2")
@@ -286,7 +278,6 @@ export const useGatewaySettingsController = () => {
     portalIconSummary,
     portalSummary,
     portalVersionSummary,
-    portalNavigationSummary,
     proxyHeadersDisabledReason,
     proxyProtocolSummary,
     resetForm,

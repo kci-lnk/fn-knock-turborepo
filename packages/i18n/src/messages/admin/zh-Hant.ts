@@ -829,7 +829,7 @@ export const zhHantAdmin = {
       "網際網路導航使用域名或網關路徑；區域網路導航直接開啟現有代理目標。本機回環或無效目標仍使用原入口，直連使用目標應用自身的登入。",
     smartLanDetection: "智慧判斷區域網路環境",
     smartLanDetectionDescription:
-      "根據網關識別的用戶端 IP 自動選擇：私網或 VPN 位址使用目標 URL，公網或無法判斷時使用原入口。開啟後自動覆蓋固定導航方式，不檢測目標連通性。",
+      "開啟後，根據網關識別的用戶端 IP 自動選擇：私網或 VPN 位址使用目標 URL，公網或無法判斷時使用原入口。不檢測目標連通性。",
     loadFailedDescription: "載入傳送門設定失敗",
     saveFailed: "保存失敗",
     saveFailedDescription: "保存傳送門設定失敗",

@@ -57,72 +57,58 @@ async function setup() {
   return wrapper;
 }
 const navigation = (wrapper: ReturnType<typeof mount>) =>
-  wrapper.get('[role="group"][aria-label="Navigation mode"]');
+  wrapper.find('[role="group"][aria-label="Navigation mode"]');
 const smart = (wrapper: ReturnType<typeof mount>) =>
   wrapper.get('[role="switch"][id$="-smart-lan"]');
 
 describe("portal navigation settings", () => {
-  it("defaults legacy configuration to internet navigation with detection off", async () => {
+  it("shows only smart detection and defaults legacy configuration to off", async () => {
     stored.portal = {
       enabled: true,
       version: "v1",
     } as GatewaySettings["portal"];
     const wrapper = await setup();
-    expect(
-      navigation(wrapper).findAll("button")[0].attributes("aria-pressed"),
-    ).toBe("true");
+    expect(navigation(wrapper).exists()).toBe(false);
+    expect(wrapper.text()).not.toContain(
+      enAdmin.gatewayPortalSettings.navigationInternet,
+    );
+    expect(wrapper.text()).not.toContain(
+      enAdmin.gatewayPortalSettings.navigationLan,
+    );
     expect(smart(wrapper).attributes("aria-checked")).toBe("false");
     expect(ConfigAPI.updateGatewaySettings).not.toHaveBeenCalled();
   });
 
-  it("saves immediately, disables fixed navigation while smart, and preserves the selected mode", async () => {
+  it("saves smart detection immediately and preserves the hidden navigation configuration", async () => {
+    stored.portal.navigation_mode = "lan";
     const wrapper = await setup();
-    await navigation(wrapper).findAll("button")[1].trigger("click");
-    await flushPromises();
-    expect(ConfigAPI.updateGatewaySettings).toHaveBeenLastCalledWith({
-      portal: { navigation_mode: "lan" },
-    });
     await smart(wrapper).trigger("click");
     await flushPromises();
     expect(ConfigAPI.updateGatewaySettings).toHaveBeenLastCalledWith({
       portal: { smart_lan_detection: true },
     });
-    for (const button of navigation(wrapper).findAll("button")) {
-      expect(button.attributes("disabled")).toBeDefined();
-    }
-    expect(
-      navigation(wrapper).findAll("button")[1].attributes("aria-pressed"),
-    ).toBe("true");
     const refreshed = await setup();
     expect(smart(refreshed).attributes("aria-checked")).toBe("true");
-    expect(
-      navigation(refreshed).findAll("button")[1].attributes("aria-pressed"),
-    ).toBe("true");
+    expect(navigation(refreshed).exists()).toBe(false);
     await smart(refreshed).trigger("click");
     await flushPromises();
-    expect(
-      navigation(refreshed).findAll("button")[1].attributes("disabled"),
-    ).toBeUndefined();
+    expect(smart(refreshed).attributes("aria-checked")).toBe("false");
+    expect(ConfigAPI.updateGatewaySettings).toHaveBeenLastCalledWith({
+      portal: { smart_lan_detection: false },
+    });
     expect(stored.portal.navigation_mode).toBe("lan");
   });
 
-  it("rolls back failed mode and smart saves", async () => {
+  it("rolls back a failed smart save", async () => {
     vi.mocked(ConfigAPI.updateGatewaySettings).mockRejectedValue(
       new Error("Gateway sync failed"),
     );
     const wrapper = await setup();
-    await navigation(wrapper).findAll("button")[1].trigger("click");
-    await flushPromises();
-    expect(
-      navigation(wrapper).findAll("button")[0].attributes("aria-pressed"),
-    ).toBe("true");
     await smart(wrapper).trigger("click");
     await flushPromises();
     expect(smart(wrapper).attributes("aria-checked")).toBe("false");
-    expect(
-      navigation(wrapper).findAll("button")[0].attributes("disabled"),
-    ).toBeUndefined();
-    expect(mock.error).toHaveBeenCalledTimes(2);
+    expect(navigation(wrapper).exists()).toBe(false);
+    expect(mock.error).toHaveBeenCalledTimes(1);
     expect(mock.success).not.toHaveBeenCalled();
   });
 });

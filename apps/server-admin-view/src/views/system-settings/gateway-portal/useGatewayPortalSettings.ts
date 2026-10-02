@@ -116,13 +116,6 @@ export const useGatewayPortalSettings = () => {
       return savePortalPatch({ show_wol: showWol });
     }
   };
-  const saveNavigationMode = (
-    navigationMode: GatewayPortalConfig["navigation_mode"],
-  ) => {
-    if (!form.smart_lan_detection && form.navigation_mode !== navigationMode) {
-      return savePortalPatch({ navigation_mode: navigationMode });
-    }
-  };
   const saveSmartLanDetection = (smartLanDetection: boolean) => {
     if (form.smart_lan_detection !== smartLanDetection) {
       return savePortalPatch({ smart_lan_detection: smartLanDetection });
@@ -151,7 +144,6 @@ export const useGatewayPortalSettings = () => {
     saveShowAppIcon,
     saveShowWOL,
     saveVersion,
-    saveNavigationMode,
     saveSmartLanDetection,
     wolFeatureEnabled,
   });

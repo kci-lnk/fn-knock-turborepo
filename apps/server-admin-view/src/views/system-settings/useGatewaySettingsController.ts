@@ -135,12 +135,13 @@ export const useGatewaySettingsController = () => {
       ? t("admin.gatewaySettings.enabled")
       : t("admin.gatewaySettings.disabled"),
   );
-  const portalNavigationSummary = computed(() =>
-    portalSummary.value?.smart_lan_detection === true
-      ? t("admin.gatewayPortalSettings.smartLanDetection")
-      : portalSummary.value?.navigation_mode === "lan"
-        ? t("admin.gatewayPortalSettings.navigationLan")
-        : t("admin.gatewayPortalSettings.navigationInternet"),
+  const portalNavigationSummary = computed(
+    () =>
+      `${t("admin.gatewayPortalSettings.smartLanDetection")} · ${t(
+        portalSummary.value?.smart_lan_detection === true
+          ? "admin.gatewaySettings.enabled"
+          : "admin.gatewaySettings.disabled",
+      )}`,
   );
   const portalVersionSummary = computed(() =>
     portalSummary.value?.version === "v2"

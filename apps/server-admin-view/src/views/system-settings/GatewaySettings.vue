@@ -43,6 +43,7 @@ const {
   portalIconSummary,
   portalSummary,
   portalVersionSummary,
+  portalNavigationSummary,
   proxyHeadersDisabledReason,
   proxyProtocolSummary,
   resetForm,
@@ -174,6 +175,7 @@ const {
         :enabled-label="portalEnabledSummary"
         :display-label="portalDisplaySummary"
         :version-label="portalVersionSummary"
+        :navigation-label="portalNavigationSummary"
         :icon-label="portalIconSummary"
         @action="openPortalEditor"
       />

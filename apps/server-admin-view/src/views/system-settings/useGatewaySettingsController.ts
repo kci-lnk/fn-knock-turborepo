@@ -135,6 +135,13 @@ export const useGatewaySettingsController = () => {
       ? t("admin.gatewaySettings.enabled")
       : t("admin.gatewaySettings.disabled"),
   );
+  const portalNavigationSummary = computed(() =>
+    portalSummary.value?.smart_lan_detection === true
+      ? t("admin.gatewayPortalSettings.smartLanDetection")
+      : portalSummary.value?.navigation_mode === "lan"
+        ? t("admin.gatewayPortalSettings.navigationLan")
+        : t("admin.gatewayPortalSettings.navigationInternet"),
+  );
   const portalVersionSummary = computed(() =>
     portalSummary.value?.version === "v2"
       ? t("admin.gatewaySettings.portalVersionV2")
@@ -191,6 +198,8 @@ export const useGatewaySettingsController = () => {
     form.portal.show_app_icon = snapshot.portal.show_app_icon;
     form.portal.icon_drag_mode = snapshot.portal.icon_drag_mode;
     form.portal.version = snapshot.portal.version;
+    form.portal.navigation_mode = snapshot.portal.navigation_mode;
+    form.portal.smart_lan_detection = snapshot.portal.smart_lan_detection;
     form.unmatched_route.behavior = snapshot.unmatched_route.behavior;
     form.unmatched_route.upstream_error_detail =
       snapshot.unmatched_route.upstream_error_detail;
@@ -276,6 +285,7 @@ export const useGatewaySettingsController = () => {
     portalIconSummary,
     portalSummary,
     portalVersionSummary,
+    portalNavigationSummary,
     proxyHeadersDisabledReason,
     proxyProtocolSummary,
     resetForm,

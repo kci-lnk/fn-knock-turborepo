@@ -1624,6 +1624,8 @@ fn parse_portal(value: &Value) -> GatewayPortalConfig {
         icon_drag_mode: string_field(value, "icon_drag_mode"),
         version: string_field(value, "version"),
         show_wol: bool_field(value, "show_wol", true),
+        navigation_mode: string_field(value, "navigation_mode"),
+        smart_lan_detection: bool_field(value, "smart_lan_detection", false),
     }
 }
 
@@ -1995,7 +1997,9 @@ fn portal_to_json(config: GatewayPortalConfig) -> Value {
         "show_app_icon": config.show_app_icon,
         "show_wol": config.show_wol,
         "icon_drag_mode": config.icon_drag_mode,
-        "version": config.version
+        "version": config.version,
+        "navigation_mode": config.navigation_mode,
+        "smart_lan_detection": config.smart_lan_detection
     })
 }
 

@@ -19,7 +19,24 @@ test("gateway portal version defaults invalid and legacy values to v1", () => {
   assert.equal(normalizeGatewayPortalConfig().version, "v1");
   assert.equal(normalizeGatewayPortalConfig({ version: "v2" }).version, "v2");
   assert.equal(normalizeGatewayPortalConfig().show_wol, true);
-  assert.equal(normalizeGatewayPortalConfig({ show_wol: false }).show_wol, false);
+  assert.equal(
+    normalizeGatewayPortalConfig({ show_wol: false }).show_wol,
+    false,
+  );
+  assert.equal(normalizeGatewayPortalConfig().navigation_mode, "internet");
+  assert.equal(normalizeGatewayPortalConfig().smart_lan_detection, false);
+  assert.equal(
+    normalizeGatewayPortalConfig({
+      navigation_mode: "lan",
+      smart_lan_detection: true,
+    }).navigation_mode,
+    "lan",
+  );
+  assert.equal(
+    normalizeGatewayPortalConfig({ smart_lan_detection: true })
+      .smart_lan_detection,
+    true,
+  );
 });
 
 test("gateway portal version builds a partial immediate-save patch", () => {

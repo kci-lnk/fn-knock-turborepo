@@ -839,6 +839,10 @@ const budgets = [
     maxLines: 160,
   },
   {
+    path: "apps/server-admin-view/src/views/system-settings/gateway-portal/GatewayPortalNavigationSettings.vue",
+    maxLines: 75,
+  },
+  {
     path: "apps/server-admin-view/src/views/system-settings/gateway-portal/GatewayPortalChoiceSetting.vue",
     maxLines: 70,
   },

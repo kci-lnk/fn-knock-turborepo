@@ -165,7 +165,9 @@ fn gateway_response_uses_node_defaults() {
             "show_app_icon": true,
             "show_wol": true,
             "icon_drag_mode": "corners",
-            "version": "v1"
+            "version": "v1",
+            "navigation_mode": "internet",
+            "smart_lan_detection": false
         })
     );
     assert_eq!(
@@ -548,4 +550,56 @@ fn gateway_visibility_cidr_validation_matches_node_shape() {
         validate_gateway_custom_cidrs(vec![Value::String("10.0.0.0/33".to_string())], &translator)
             .unwrap_err();
     assert!(error.contains("10.0.0.0/33"));
+}
+
+#[test]
+fn gateway_portal_navigation_patch_preserves_fixed_mode_when_smart_changes() {
+    let mut config = json!({});
+    apply_gateway_patch(
+        &mut config,
+        json!({ "portal": { "navigation_mode": "lan" } })
+            .as_object()
+            .unwrap(),
+    );
+    apply_gateway_patch(
+        &mut config,
+        json!({ "portal": { "smart_lan_detection": true } })
+            .as_object()
+            .unwrap(),
+    );
+    assert_eq!(config["gateway_portal"]["navigation_mode"], json!("lan"));
+    assert_eq!(config["gateway_portal"]["smart_lan_detection"], json!(true));
+    apply_gateway_patch(
+        &mut config,
+        json!({ "portal": { "smart_lan_detection": false } })
+            .as_object()
+            .unwrap(),
+    );
+    assert_eq!(config["gateway_portal"]["navigation_mode"], json!("lan"));
+    assert_eq!(
+        normalize_gateway_portal(&json!({ "navigation_mode": "unknown" }))["navigation_mode"],
+        json!("internet")
+    );
+}
+
+#[test]
+fn gateway_portal_navigation_runtime_echo_rejects_legacy_backend() {
+    for patch in [
+        json!({ "navigation_mode": "lan" }),
+        json!({ "smart_lan_detection": true }),
+    ] {
+        let error = super::runtime::ensure_gateway_portal_applied(
+            &patch,
+            json!({ "success": true, "data": {} }),
+        )
+        .unwrap_err();
+        assert!(error.contains("upgrade the gateway backend"));
+    }
+    assert!(
+        super::runtime::ensure_gateway_portal_applied(
+            &json!({}),
+            json!({ "success": true, "data": {} })
+        )
+        .is_ok()
+    );
 }

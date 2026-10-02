@@ -10758,8 +10758,11 @@ export interface components {
             enabled: boolean;
             /** @enum {string} */
             icon_drag_mode: "corners" | "free";
+            /** @enum {string} */
+            navigation_mode: "internet" | "lan";
             show_app_icon: boolean;
             show_wol: boolean;
+            smart_lan_detection: boolean;
             /** @enum {string} */
             version: "v1" | "v2";
         };
@@ -10769,8 +10772,11 @@ export interface components {
             enabled?: boolean | null;
             /** @enum {string|null} */
             icon_drag_mode?: "corners" | "free" | null;
+            /** @enum {string|null} */
+            navigation_mode?: "internet" | "lan" | null;
             show_app_icon?: boolean | null;
             show_wol?: boolean | null;
+            smart_lan_detection?: boolean | null;
             /** @enum {string|null} */
             version?: "v1" | "v2" | null;
         };

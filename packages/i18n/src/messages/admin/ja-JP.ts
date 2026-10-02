@@ -972,6 +972,14 @@ export const jaJPAdmin = {
     save: "設定を保存",
   },
   gatewayPortalSettings: {
+    navigationMode: "ナビゲーション方式",
+    navigationInternet: "インターネット経由",
+    navigationLan: "LAN 経由",
+    navigationModeDescription:
+      "インターネット経由ではドメインまたはゲートウェイのパスを使用します。LAN 経由では既存のプロキシ先を直接開きます。ループバックや無効な宛先は元の入口を使用し、直接アクセス時はアプリ自身のログインを使用します。",
+    smartLanDetection: "LAN 環境を自動判定",
+    smartLanDetectionDescription:
+      "ゲートウェイが解決したクライアント IP で判定します。プライベートまたは VPN アドレスは宛先 URL、それ以外や不明な場合は元の入口を使用します。有効時は固定方式より優先され、宛先の到達性は検査しません。",
     loadFailedDescription: "ポータル設定の読み込みに失敗しました",
     saveFailed: "保存に失敗しました",
     saveFailedDescription: "ポータル設定の保存に失敗しました",

@@ -31,6 +31,8 @@ export const useGatewayPortalSettings = () => {
     show_wol: true,
     icon_drag_mode: "corners",
     version: "v1",
+    navigation_mode: "internet",
+    smart_lan_detection: false,
   });
   const wolFeatureEnabled = computed(
     () => configStore.config?.wol_feature?.enabled === true,
@@ -114,6 +116,18 @@ export const useGatewayPortalSettings = () => {
       return savePortalPatch({ show_wol: showWol });
     }
   };
+  const saveNavigationMode = (
+    navigationMode: GatewayPortalConfig["navigation_mode"],
+  ) => {
+    if (!form.smart_lan_detection && form.navigation_mode !== navigationMode) {
+      return savePortalPatch({ navigation_mode: navigationMode });
+    }
+  };
+  const saveSmartLanDetection = (smartLanDetection: boolean) => {
+    if (form.smart_lan_detection !== smartLanDetection) {
+      return savePortalPatch({ smart_lan_detection: smartLanDetection });
+    }
+  };
   const saveVersion = async (version: GatewayPortalVersion) => {
     if (isSaving.value || form.version === version) return;
     const previous = { ...form };
@@ -137,6 +151,8 @@ export const useGatewayPortalSettings = () => {
     saveShowAppIcon,
     saveShowWOL,
     saveVersion,
+    saveNavigationMode,
+    saveSmartLanDetection,
     wolFeatureEnabled,
   });
 };

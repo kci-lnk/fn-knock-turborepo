@@ -13,6 +13,8 @@ export const normalizeGatewayPortalConfig = (
   show_wol: portal?.show_wol !== false,
   icon_drag_mode: portal?.icon_drag_mode === "free" ? "free" : "corners",
   version: normalizeGatewayPortalVersion(portal?.version),
+  navigation_mode: portal?.navigation_mode === "lan" ? "lan" : "internet",
+  smart_lan_detection: portal?.smart_lan_detection === true,
 });
 
 export const buildGatewayPortalVersionPatch = (

@@ -974,6 +974,14 @@ export const enAdmin = {
     save: "Save settings",
   },
   gatewayPortalSettings: {
+    navigationMode: "Navigation mode",
+    navigationInternet: "Internet navigation",
+    navigationLan: "LAN navigation",
+    navigationModeDescription:
+      "Internet navigation uses the domain or gateway path. LAN navigation opens the existing proxy target directly. Loopback or invalid targets use the original entry. Direct access uses the target app’s own sign-in.",
+    smartLanDetection: "Detect LAN environment automatically",
+    smartLanDetectionDescription:
+      "Choose using the client IP resolved by the gateway: private or VPN addresses use the target URL; public or unknown addresses use the original entry. Overrides the fixed mode when enabled; target reachability is not checked.",
     loadFailedDescription: "Failed to load portal settings",
     saveFailed: "Save failed",
     saveFailedDescription: "Failed to save portal settings",

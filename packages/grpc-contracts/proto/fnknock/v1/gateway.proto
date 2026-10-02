@@ -365,6 +365,8 @@ message GatewayPortalConfig {
   string icon_drag_mode = 4;
   string version = 5;
   bool show_wol = 6;
+  string navigation_mode = 7;
+  bool smart_lan_detection = 8;
 }
 
 message GatewayUnmatchedRouteConfig {

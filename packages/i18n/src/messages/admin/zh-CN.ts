@@ -886,6 +886,14 @@ export const zhCNAdmin = {
     save: "保存设置",
   },
   gatewayPortalSettings: {
+    navigationMode: "导航方式",
+    navigationInternet: "互联网导航",
+    navigationLan: "局域网导航",
+    navigationModeDescription:
+      "互联网导航使用域名或网关路径；局域网导航直接打开现有代理目标。本机回环或无效目标仍使用原入口，直连使用目标应用自身的登录。",
+    smartLanDetection: "智能判断局域网环境",
+    smartLanDetectionDescription:
+      "根据网关识别的客户端 IP 自动选择：私网或 VPN 地址使用目标 URL，公网或无法判断时使用原入口。开启后自动覆盖固定导航方式，不检测目标连通性。",
     loadFailedDescription: "加载传送门设置失败",
     saveFailed: "保存失败",
     saveFailedDescription: "保存传送门设置失败",

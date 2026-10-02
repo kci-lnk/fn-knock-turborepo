@@ -40,6 +40,8 @@ pub(super) struct GatewayPortalData {
     show_wol: bool,
     icon_drag_mode: String,
     version: String,
+    navigation_mode: String,
+    smart_lan_detection: bool,
 }
 
 #[derive(Serialize, ToSchema)]
@@ -50,6 +52,8 @@ pub(super) struct GatewayPortalUpdateData {
     show_wol: Option<bool>,
     icon_drag_mode: Option<String>,
     version: Option<String>,
+    navigation_mode: Option<String>,
+    smart_lan_detection: Option<bool>,
 }
 
 #[derive(Serialize, ToSchema)]

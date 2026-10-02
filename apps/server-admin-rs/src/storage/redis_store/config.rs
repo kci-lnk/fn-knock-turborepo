@@ -103,7 +103,9 @@ pub fn default_config() -> Value {
         "show_app_icon": true,
         "show_wol": true,
         "icon_drag_mode": "corners",
-        "version": "v1"
+        "version": "v1",
+        "navigation_mode": "internet",
+        "smart_lan_detection": false
     });
     let wol_feature = json!({ "enabled": false });
     let gateway_unmatched_route = json!({

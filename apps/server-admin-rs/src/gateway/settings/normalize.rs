@@ -58,6 +58,8 @@ pub(super) fn normalize_gateway_portal(value: &Value) -> Value {
         "show_app_icon": value.get("show_app_icon").and_then(Value::as_bool).unwrap_or(true),
         "show_wol": value.get("show_wol").and_then(Value::as_bool).unwrap_or(true),
         "icon_drag_mode": if value.get("icon_drag_mode").and_then(Value::as_str) == Some("free") { "free" } else { "corners" },
+        "navigation_mode": if value.get("navigation_mode").and_then(Value::as_str) == Some("lan") { "lan" } else { "internet" },
+        "smart_lan_detection": value.get("smart_lan_detection").and_then(Value::as_bool).unwrap_or(false),
         "version": if value.get("version").and_then(Value::as_str) == Some("v2") { "v2" } else { "v1" },
     })
 }
@@ -213,6 +215,8 @@ pub(super) fn default_gateway_portal() -> Value {
         "show_wol": true,
         "icon_drag_mode": "corners",
         "version": "v1",
+        "navigation_mode": "internet",
+        "smart_lan_detection": false,
     })
 }
 

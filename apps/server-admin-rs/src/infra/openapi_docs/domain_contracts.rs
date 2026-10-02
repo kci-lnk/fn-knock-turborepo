@@ -1622,6 +1622,12 @@ pub(super) fn components() -> Map<String, Value> {
         set_property_enum(&mut schemas, schema, "display_style", &["domain", "title"]);
         set_property_enum(&mut schemas, schema, "icon_drag_mode", &["corners", "free"]);
         set_property_enum(&mut schemas, schema, "version", &["v1", "v2"]);
+        set_property_enum(
+            &mut schemas,
+            schema,
+            "navigation_mode",
+            &["internet", "lan"],
+        );
     }
     for schema in [
         "GatewayUnmatchedRouteData",

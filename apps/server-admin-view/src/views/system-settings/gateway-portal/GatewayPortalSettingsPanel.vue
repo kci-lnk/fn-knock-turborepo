@@ -4,6 +4,7 @@ import { useI18n } from "vue-i18n";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import GatewayPortalChoiceSetting from "./GatewayPortalChoiceSetting.vue";
+import GatewayPortalNavigationSettings from "./GatewayPortalNavigationSettings.vue";
 import type { GatewayPortalSettingsModel } from "./useGatewayPortalSettings";
 
 defineProps<{ model: GatewayPortalSettingsModel }>();
@@ -59,6 +60,7 @@ const dragModeOptions = computed(() => [
   </section>
 
   <template v-if="model.form.enabled">
+    <GatewayPortalNavigationSettings :model="model" />
     <GatewayPortalChoiceSetting
       :title="t('admin.gatewayPortalSettings.version')"
       :description="t('admin.gatewayPortalSettings.versionDescription')"

@@ -12810,10 +12810,20 @@
             ],
             "type": "string"
           },
+          "navigation_mode": {
+            "enum": [
+              "internet",
+              "lan"
+            ],
+            "type": "string"
+          },
           "show_app_icon": {
             "type": "boolean"
           },
           "show_wol": {
+            "type": "boolean"
+          },
+          "smart_lan_detection": {
             "type": "boolean"
           },
           "version": {
@@ -12830,7 +12840,9 @@
           "show_app_icon",
           "show_wol",
           "icon_drag_mode",
-          "version"
+          "version",
+          "navigation_mode",
+          "smart_lan_detection"
         ],
         "type": "object"
       },
@@ -12862,6 +12874,16 @@
               "null"
             ]
           },
+          "navigation_mode": {
+            "enum": [
+              "internet",
+              "lan"
+            ],
+            "type": [
+              "string",
+              "null"
+            ]
+          },
           "show_app_icon": {
             "type": [
               "boolean",
@@ -12869,6 +12891,12 @@
             ]
           },
           "show_wol": {
+            "type": [
+              "boolean",
+              "null"
+            ]
+          },
+          "smart_lan_detection": {
             "type": [
               "boolean",
               "null"

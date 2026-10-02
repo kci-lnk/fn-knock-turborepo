@@ -68,7 +68,6 @@ assert_file_contains apps/fn-knock-lite/app/ui/config '"fn-knock-lite.Applicatio
 assert_file_contains apps/fn-knock-lite/app/ui/config '/cgi/ThirdParty/fn-knock-lite/index\.cgi/'
 
 assert_file_contains apps/fn-knock-lite/cmd/main 'FN_KNOCK_RUNTIME_TARGET="fpk-lite"'
-assert_file_contains apps/fn-knock-lite/cmd/main 'FN_KNOCK_DISABLE_REDIS_MIGRATION="1"'
 assert_file_contains apps/fn-knock-lite/cmd/main 'GATEWAY_CONFIG_DIR="\$\{PKG_VAR_DIR}/gateway"'
 assert_file_contains apps/fn-knock-lite/cmd/main 'requires an integer between 1024 and 65535'
 assert_file_contains apps/fn-knock-lite/cmd/main '"8991"'

@@ -30,8 +30,6 @@ pub struct Settings {
     pub gateway_config_dir: PathBuf,
     pub waf_dir: PathBuf,
     pub sqlite_path: PathBuf,
-    #[allow(dead_code)]
-    pub legacy_redis_url: String,
     pub go_backend_grpc_addr: String,
     pub internal_rpc_token: String,
     pub hmac_secret: String,
@@ -73,11 +71,6 @@ impl Settings {
         } else {
             None
         };
-        let legacy_redis_url = env::var("FN_KNOCK_LEGACY_REDIS_URL")
-            .ok()
-            .filter(|value| !value.trim().is_empty())
-            .unwrap_or_else(legacy_redis_url_from_redis_env);
-
         let data_dir = env_path("FN_KNOCK_DATA_DIR", &default_data_dir());
         let gateway_config_dir = env::var("FN_KNOCK_GATEWAY_CONFIG_DIR")
             .or_else(|_| env::var("GATEWAY_CONFIG_DIR"))
@@ -118,7 +111,6 @@ impl Settings {
             gateway_config_dir,
             waf_dir,
             sqlite_path,
-            legacy_redis_url,
             go_backend_grpc_addr: env::var("GO_BACKEND_GRPC_ADDR")
                 .ok()
                 .filter(|value| !value.trim().is_empty())
@@ -411,25 +403,6 @@ fn env_string(name: &str, fallback: &str) -> String {
         .map(|value| value.trim().to_string())
         .filter(|value| !value.is_empty())
         .unwrap_or_else(|| fallback.to_string())
-}
-
-fn legacy_redis_url_from_redis_env() -> String {
-    let redis_host = env_string("REDIS_HOST", "127.0.0.1");
-    let redis_port = env_port("REDIS_PORT", 6379);
-    let redis_password = env::var("REDIS_PASSWORD")
-        .ok()
-        .map(|value| value.trim().to_string())
-        .filter(|value| !value.is_empty());
-    if let Some(password) = redis_password {
-        format!(
-            "redis://:{}@{}:{}/",
-            crate::http_utils::url_encode_component(&password),
-            redis_host,
-            redis_port
-        )
-    } else {
-        format!("redis://{}:{}/", redis_host, redis_port)
-    }
 }
 
 fn traffic_user_id_from_env() -> String {

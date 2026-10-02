@@ -6,7 +6,6 @@ use serde_json::json;
 use crate::{
     i18n::{DEFAULT_LOCALE, Translator},
     settings::Settings,
-    storage::legacy_redis_migration::{self, LegacyRedisMigrationOptions},
     store::Store,
 };
 
@@ -15,9 +14,6 @@ pub(super) fn print_help() {
     println!();
     println!("Commands:");
     println!("  reset-panel-password    Clear admin panel password/session state");
-    println!(
-        "  migrate-redis-to-sqlite Import legacy Redis fn_knock:* data into SQLite, then delete source keys"
-    );
 }
 
 pub(super) async fn reset_panel_password_command() -> anyhow::Result<()> {
@@ -63,47 +59,5 @@ pub(super) async fn reset_panel_password_command() -> anyhow::Result<()> {
         }))?
     );
     println!("{}", translator.t("server.dockerAdminPanel.resetNextVisit"));
-    Ok(())
-}
-
-pub(super) async fn migrate_redis_to_sqlite_command() -> anyhow::Result<()> {
-    let args = env::args().skip(2).collect::<Vec<_>>();
-    let force = args.iter().any(|arg| arg == "--force");
-    if args
-        .iter()
-        .any(|arg| matches!(arg.as_str(), "-h" | "--help"))
-    {
-        println!("Usage: server-admin-rs migrate-redis-to-sqlite [--force]");
-        println!();
-        println!("Imports legacy Redis fn_knock:* data into the configured SQLite database.");
-        println!(
-            "By default it will not overwrite an SQLite database that already has fn_knock:* keys."
-        );
-        println!("After a successful import it deletes legacy fn_knock:* keys from source Redis.");
-        println!("Use --force to clear the SQLite fn_knock:* keyspace before importing.");
-        return Ok(());
-    }
-    if let Some(arg) = args.iter().find(|arg| arg.as_str() != "--force") {
-        anyhow::bail!("unknown argument for migrate-redis-to-sqlite: {arg}");
-    }
-
-    let settings = Settings::from_env();
-    if !legacy_redis_migration::migration_allowed_for_runtime_target(&settings.runtime_target) {
-        anyhow::bail!("legacy Redis migration is unavailable for fpk-lite");
-    }
-    let store = Store::connect(&settings.sqlite_path)
-        .await
-        .context("open SQLite storage for legacy Redis migration")?;
-    let outcome = legacy_redis_migration::migrate_if_available(
-        &store,
-        &settings.legacy_redis_url,
-        LegacyRedisMigrationOptions {
-            require_source: true,
-            force,
-            cleanup_source: true,
-        },
-    )
-    .await?;
-    println!("{}", outcome.summary());
     Ok(())
 }

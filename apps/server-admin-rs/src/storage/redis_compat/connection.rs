@@ -152,6 +152,7 @@ impl ConnectionManager {
         .await
     }
 
+    #[cfg(test)]
     pub(crate) async fn meta_value(&self, key: &str) -> RedisResult<Option<String>> {
         let key = key.to_string();
         self.call(move |conn| {
@@ -166,6 +167,7 @@ impl ConnectionManager {
         .await
     }
 
+    #[cfg(test)]
     pub(crate) async fn set_meta_value(&self, key: &str, value: &str) -> RedisResult<()> {
         let key = key.to_string();
         let value = value.to_string();
@@ -182,6 +184,7 @@ impl ConnectionManager {
         .await
     }
 
+    #[cfg(test)]
     pub(crate) async fn key_count_by_prefix(&self, prefix: &str) -> RedisResult<i64> {
         let prefix = prefix.to_string();
         self.call(move |conn| {

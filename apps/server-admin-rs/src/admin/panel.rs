@@ -1567,7 +1567,6 @@ mod tests {
         settings.data_dir = directory.path().join("data");
         settings.gateway_config_dir = directory.path().join("gateway");
         settings.sqlite_path = directory.path().join("fn-knock.sqlite3");
-        settings.legacy_redis_url = String::new();
         settings.internal_rpc_token = format!("admin-panel-{name}-test");
         let state = AppState::new(settings).await.expect("panel test state");
         (directory, state)

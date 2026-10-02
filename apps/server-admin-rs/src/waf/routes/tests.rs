@@ -22,7 +22,6 @@ async fn waf_test_state(go_backend_grpc_addr: &str) -> (tempfile::TempDir, AppSt
     settings.gateway_config_dir = directory.path().join("gateway");
     settings.waf_dir = directory.path().join("waf");
     settings.sqlite_path = directory.path().join("fn-knock.sqlite3");
-    settings.legacy_redis_url = String::new();
     settings.go_backend_grpc_addr = go_backend_grpc_addr.to_string();
     settings.internal_rpc_token = "test-internal-rpc-token".to_string();
     settings.request_timeout = std::time::Duration::from_millis(100);

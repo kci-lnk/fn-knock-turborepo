@@ -1046,19 +1046,6 @@ cmd_reset_panel_password_local() {
   compose_local exec -T "${SERVICE_NAME}" fn-knock-reset-panel-password
 }
 
-cmd_migrate_redis_to_sqlite_local() {
-  local legacy_url="${FN_KNOCK_LEGACY_REDIS_URL:-redis://redis:6379/}"
-  require_cmd docker
-  require_env_file
-
-  log "Using env file ${ENV_FILE}"
-  log "Migrating legacy Redis data from ${legacy_url}"
-  compose_local exec -T \
-    -e "FN_KNOCK_LEGACY_REDIS_URL=${legacy_url}" \
-    "${SERVICE_NAME}" \
-    /opt/fn-knock/bin/server-admin-rs migrate-redis-to-sqlite "$@"
-}
-
 cmd_remote_ps() {
   require_cmd ssh
   ensure_remote_prerequisites
@@ -1075,18 +1062,6 @@ cmd_reset_panel_password_remote() {
   require_cmd ssh
   ensure_remote_prerequisites
   run_remote_compose exec -T "${SERVICE_NAME}" fn-knock-reset-panel-password
-}
-
-cmd_migrate_redis_to_sqlite_remote() {
-  local legacy_url="${FN_KNOCK_LEGACY_REDIS_URL:-redis://redis:6379/}"
-  require_cmd ssh
-  ensure_remote_prerequisites
-
-  log "Migrating remote legacy Redis data from ${legacy_url}"
-  run_remote_compose exec -T \
-    -e "FN_KNOCK_LEGACY_REDIS_URL=${legacy_url}" \
-    "${SERVICE_NAME}" \
-    /opt/fn-knock/bin/server-admin-rs migrate-redis-to-sqlite "$@"
 }
 
 cmd_local_deploy() {
@@ -1218,14 +1193,12 @@ Commands:
   down-local    Stop the local Docker stack
   logs-local    Tail local fn-knock container logs
   reset-panel-password-local   Clear Docker admin panel password for the local compose stack
-  migrate-redis-to-sqlite-local [--force]  Import legacy Redis data into local SQLite storage, then delete source keys
   local-deploy-fast  Build and upload only the remote host architecture, then restart remote compose
   local-deploy  Build amd64, arm64, and arm32 images, upload them via SSH, and restart remote compose
   publish-hub   Push amd64, arm64, and arm32 images to a registry, then update version and latest manifest tags
   remote-ps     Show remote compose status
   remote-logs   Tail remote fn-knock container logs
   reset-panel-password-remote  Clear Docker admin panel password on the remote compose stack
-  migrate-redis-to-sqlite-remote [--force] Import legacy Redis data into remote SQLite storage, then delete source keys
 
 Optional env overrides:
   FN_KNOCK_DOCKER_ENV_FILE        (default: deploy/docker/.env, fallback: deploy/docker/.env.example)
@@ -1252,7 +1225,6 @@ Optional env overrides:
   FN_KNOCK_DOCKER_REMOTE_HOST     (default: root@192.168.31.135)
   FN_KNOCK_DOCKER_REMOTE_DIR      (default: /opt/fn-knock-docker)
   FN_KNOCK_DOCKER_SERVICE_NAME    (default: fn-knock)
-  FN_KNOCK_LEGACY_REDIS_URL       (default for migration commands: redis://redis:6379/)
   FN_KNOCK_DOCKER_WAIT_TIMEOUT    (default: 180)
 EOF
 }
@@ -1275,9 +1247,6 @@ case "${1:-}" in
   reset-panel-password-local)
     cmd_reset_panel_password_local
     ;;
-  migrate-redis-to-sqlite-local)
-    cmd_migrate_redis_to_sqlite_local "${@:2}"
-    ;;
   local-deploy-fast)
     cmd_local_deploy_fast
     ;;
@@ -1295,9 +1264,6 @@ case "${1:-}" in
     ;;
   reset-panel-password-remote)
     cmd_reset_panel_password_remote
-    ;;
-  migrate-redis-to-sqlite-remote)
-    cmd_migrate_redis_to_sqlite_remote "${@:2}"
     ;;
   *)
     usage

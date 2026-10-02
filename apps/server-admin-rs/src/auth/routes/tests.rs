@@ -1530,7 +1530,6 @@ pub(super) async fn auth_route_test_state(name: &str) -> (tempfile::TempDir, App
     settings.data_dir = directory.path().join("data");
     settings.gateway_config_dir = directory.path().join("gateway");
     settings.sqlite_path = directory.path().join("fn-knock.sqlite3");
-    settings.legacy_redis_url = String::new();
     settings.go_backend_grpc_addr = "127.0.0.1:1".to_string();
     settings.internal_rpc_token = format!("auth-route-{name}-test");
     settings.altcha_hmac_key = None;

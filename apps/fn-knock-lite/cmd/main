@@ -846,7 +846,6 @@ start_backend() {
         AUTH_STATIC_PATH="${AUTH_STATIC_PATH}" \
         FN_KNOCK_RUNTIME_TARGET="fpk-lite" \
         FN_KNOCK_EXPECTED_GATEWAY_START="${expected_gateway_start}" \
-        FN_KNOCK_DISABLE_REDIS_MIGRATION="1" \
         FN_KNOCK_BACKEND_IMPL="rust" \
         FN_KNOCK_DATA_DIR="${PKG_VAR_DIR}" \
         FN_KNOCK_GATEWAY_CONFIG_DIR="${GATEWAY_CONFIG_DIR}" \

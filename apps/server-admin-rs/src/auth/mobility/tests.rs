@@ -677,7 +677,6 @@ async fn repeated_same_session_ip_does_not_commit_storage_writes() {
     settings.data_dir = directory.path().join("data");
     settings.gateway_config_dir = directory.path().join("gateway");
     settings.sqlite_path = sqlite_path.clone();
-    settings.legacy_redis_url = String::new();
     settings.internal_rpc_token = "auth-hotpath-test".to_string();
     let state = AppState::new(settings).await.expect("auth test state");
     state
@@ -756,7 +755,6 @@ async fn revoked_borrowed_session_cannot_recreate_active_ip_or_whitelist() {
     settings.data_dir = directory.path().join("data");
     settings.gateway_config_dir = directory.path().join("gateway");
     settings.sqlite_path = directory.path().join("fn-knock.sqlite3");
-    settings.legacy_redis_url = String::new();
     settings.internal_rpc_token = "auth-revocation-race-test".to_string();
     let state = AppState::new(settings).await.expect("auth test state");
     state
@@ -1297,7 +1295,6 @@ async fn disabled_mobility_same_ip_keeps_session_migration_grant_without_writes(
     settings.data_dir = directory.path().join("data");
     settings.gateway_config_dir = directory.path().join("gateway");
     settings.sqlite_path = sqlite_path.clone();
-    settings.legacy_redis_url = String::new();
     settings.internal_rpc_token = "auth-restore-compat-test".to_string();
     let state = AppState::new(settings).await.expect("auth test state");
     state
@@ -1389,7 +1386,6 @@ async fn concurrent_disabled_mobility_restores_share_one_session_mutation() {
     settings.data_dir = directory.path().join("data");
     settings.gateway_config_dir = directory.path().join("gateway");
     settings.sqlite_path = directory.path().join("fn-knock.sqlite3");
-    settings.legacy_redis_url = String::new();
     settings.internal_rpc_token = "auth-concurrent-restore-test".to_string();
     let state = AppState::new(settings).await.expect("auth test state");
     state
@@ -2004,7 +2000,6 @@ async fn mobility_test_state(name: &str) -> (tempfile::TempDir, AppState) {
     settings.data_dir = directory.path().join("data");
     settings.gateway_config_dir = directory.path().join("gateway");
     settings.sqlite_path = directory.path().join("fn-knock.sqlite3");
-    settings.legacy_redis_url = String::new();
     settings.internal_rpc_token = format!("auth-{name}-test");
     let state = AppState::new(settings).await.expect("auth test state");
     state

@@ -244,6 +244,7 @@ impl Store {
         Ok(cleared_keys)
     }
 
+    #[cfg(test)]
     pub async fn storage_meta_value(
         &self,
         key: &str,
@@ -251,6 +252,7 @@ impl Store {
         self.manager.meta_value(key).await
     }
 
+    #[cfg(test)]
     pub async fn set_storage_meta_value(
         &self,
         key: &str,
@@ -259,6 +261,7 @@ impl Store {
         self.manager.set_meta_value(key, value).await
     }
 
+    #[cfg(test)]
     pub async fn count_keys_by_prefix(&self, prefix: &str) -> crate::storage::StorageResult<i64> {
         self.manager.key_count_by_prefix(prefix).await
     }

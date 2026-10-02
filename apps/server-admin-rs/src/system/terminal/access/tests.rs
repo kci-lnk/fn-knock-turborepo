@@ -16,7 +16,6 @@ async fn test_state() -> (tempfile::TempDir, AppState) {
     settings.runtime_target = "linux".into();
     settings.gateway_config_dir = directory.path().join("gateway");
     settings.sqlite_path = directory.path().join("test.sqlite3");
-    settings.legacy_redis_url = String::new();
     settings.go_backend_grpc_addr = "http://127.0.0.1:1".into();
     settings.internal_rpc_token = "terminal-access-test".into();
     settings.request_timeout = Duration::from_millis(100);

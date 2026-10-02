@@ -27,7 +27,6 @@ fn proxy_config_test_settings(
     settings.data_dir = directory.path().join("data");
     settings.gateway_config_dir = directory.path().join("gateway");
     settings.sqlite_path = directory.path().join("fn-knock.sqlite3");
-    settings.legacy_redis_url = String::new();
     settings.go_backend_grpc_addr = go_backend_grpc_addr;
     settings.internal_rpc_token = "test-internal-rpc-token".to_string();
     settings.request_timeout = Duration::from_millis(100);

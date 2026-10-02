@@ -1463,7 +1463,6 @@ mod tests {
         settings.data_dir = data_dir.join("data");
         settings.gateway_config_dir = data_dir.join("gateway");
         settings.sqlite_path = data_dir.join("fn-knock.sqlite3");
-        settings.legacy_redis_url = String::new();
         settings.internal_rpc_token = "fpk-lite-update-test-token".to_string();
         AppState::new(settings)
             .await

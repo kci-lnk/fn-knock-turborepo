@@ -103,7 +103,6 @@ async fn acme_test_state_with_data_dir(data_dir: PathBuf, runtime_target: &str) 
     settings.gateway_config_dir = data_dir.join("gateway");
     settings.sqlite_path = data_dir.join("fn-knock.sqlite3");
     settings.data_dir = data_dir;
-    settings.legacy_redis_url = String::new();
     settings.go_backend_grpc_addr = "127.0.0.1:1".to_string();
     settings.internal_rpc_token = "test-internal-rpc-token".to_string();
     settings.request_timeout = std::time::Duration::from_millis(100);

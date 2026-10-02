@@ -1956,7 +1956,6 @@ mod tests {
         settings.data_dir = directory.path().join("data");
         settings.gateway_config_dir = directory.path().join("gateway");
         settings.sqlite_path = directory.path().join("fn-knock.sqlite3");
-        settings.legacy_redis_url = String::new();
         settings.internal_rpc_token = "fnos-share-fast-path-test".to_string();
         let state = AppState::new(settings).await.expect("auth test state");
         let config = json!({
@@ -2260,7 +2259,6 @@ mod tests {
         settings.data_dir = directory.path().join("data");
         settings.gateway_config_dir = directory.path().join("gateway");
         settings.sqlite_path = directory.path().join("fn-knock.sqlite3");
-        settings.legacy_redis_url = String::new();
         settings.internal_rpc_token = "fnos-share-fallback-test".to_string();
         let state = AppState::new(settings).await.expect("auth test state");
         let config = json!({ "fnos_share_bypass": { "enabled": true } });
@@ -2351,7 +2349,6 @@ mod tests {
         settings.data_dir = directory.path().join("data");
         settings.gateway_config_dir = directory.path().join("gateway");
         settings.sqlite_path = directory.path().join("fn-knock.sqlite3");
-        settings.legacy_redis_url = String::new();
         settings.internal_rpc_token = "fnos-share-access-code-test".to_string();
         let state = AppState::new(settings).await.expect("auth test state");
         let config = json!({ "fnos_share_bypass": { "enabled": true } });

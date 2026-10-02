@@ -1225,7 +1225,6 @@ mod tests {
         settings.runtime_target = "linux".to_string();
         settings.gateway_config_dir = directory.path().join("gateway");
         settings.sqlite_path = directory.path().join("fn-knock.sqlite3");
-        settings.legacy_redis_url = String::new();
         settings.go_backend_grpc_addr = "http://127.0.0.1:1".to_string();
         settings.internal_rpc_token = "terminal-service-test-token".to_string();
         settings.request_timeout = std::time::Duration::from_millis(100);

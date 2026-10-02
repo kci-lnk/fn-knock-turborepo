@@ -158,7 +158,7 @@ fn sorts_backup_strings_like_node_locale_compare() {
 async fn clear_all_keys_removes_the_complete_keyspace_and_preserves_storage_metadata() {
     let (_dir, store) = open_test_store().await;
     store
-        .set_storage_meta_value("redis_migration_status", "done")
+        .set_storage_meta_value("test_metadata", "preserved")
         .await
         .expect("seed storage metadata");
 
@@ -210,11 +210,11 @@ async fn clear_all_keys_removes_the_complete_keyspace_and_preserves_storage_meta
     assert!(store.scan_keys("", 100).await.unwrap().is_empty());
     assert_eq!(
         store
-            .storage_meta_value("redis_migration_status")
+            .storage_meta_value("test_metadata")
             .await
             .unwrap()
             .as_deref(),
-        Some("done")
+        Some("preserved")
     );
     let typed = store
         .typed

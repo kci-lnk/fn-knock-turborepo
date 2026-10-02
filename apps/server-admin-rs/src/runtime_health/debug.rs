@@ -463,7 +463,6 @@ mod tests {
         settings.data_dir = directory.path().join("data");
         settings.sqlite_path = directory.path().join("fn-knock.sqlite3");
         settings.gateway_config_dir = directory.path().join("gateway");
-        settings.legacy_redis_url.clear();
         settings.go_backend_grpc_addr = "127.0.0.1:1".to_string();
         settings.internal_rpc_token = "debug-test-token".to_string();
         settings.altcha_hmac_key = Some("debug-test-altcha-key".to_string());

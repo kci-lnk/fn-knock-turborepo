@@ -14,16 +14,13 @@ use tokio_util::sync::CancellationToken;
 
 use super::background_tasks::BackgroundTaskRegistry;
 use crate::{
-    auto_https::AutoHttpsRedirectManager,
-    cidr::IpSetRegistry,
-    go_backend::GoBackendClient,
-    runtime_health::RuntimeHealth,
-    settings::Settings,
-    static_files::StaticFileCatalogs,
-    storage::legacy_redis_migration::{self, LegacyRedisMigrationOptions},
-    store::Store,
-    tunnels::supervisor::TunnelSupervisorRegistry,
+    auto_https::AutoHttpsRedirectManager, cidr::IpSetRegistry, go_backend::GoBackendClient,
+    runtime_health::RuntimeHealth, settings::Settings, static_files::StaticFileCatalogs,
+    store::Store, tunnels::supervisor::TunnelSupervisorRegistry,
 };
+
+#[cfg(test)]
+mod tests;
 
 #[derive(Clone)]
 pub struct AppState {
@@ -379,49 +376,6 @@ impl AppState {
                 return Err(error).context("open sqlite storage");
             }
         };
-        if legacy_redis_migration::migration_allowed_for_runtime_target(&settings.runtime_target) {
-            let migration = match legacy_redis_migration::migrate_if_available(
-                &store,
-                &settings.legacy_redis_url,
-                LegacyRedisMigrationOptions {
-                    require_source: false,
-                    force: false,
-                    cleanup_source: true,
-                },
-            )
-            .await
-            {
-                Ok(migration) => migration,
-                Err(error) => {
-                    runtime_health.operational_log(
-                        "ERROR",
-                        "storage",
-                        "migration_failed",
-                        "legacy_redis_migration_failed",
-                        serde_json::Map::from_iter([(
-                            "result".to_string(),
-                            serde_json::json!("failed"),
-                        )]),
-                    );
-                    runtime_health.flush_operational_log().await;
-                    return Err(error).context("migrate legacy Redis data into SQLite");
-                }
-            };
-            tracing::info!("{}", migration.summary());
-            runtime_health.operational_log(
-                "INFO",
-                "storage",
-                "migration_completed",
-                "legacy_redis_migration_completed",
-                serde_json::Map::from_iter([("result".to_string(), serde_json::json!("success"))]),
-            );
-            store
-                .refresh_config_snapshot()
-                .await
-                .context("refresh config snapshot after legacy Redis migration")?;
-        } else {
-            tracing::info!("legacy Redis migration disabled for fpk-lite runtime");
-        }
         let go_backend = GoBackendClient::new(
             settings.go_backend_grpc_addr.clone(),
             settings.internal_rpc_token.clone(),

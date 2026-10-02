@@ -1,4 +1,3 @@
-pub(crate) mod legacy_redis_migration;
 pub(crate) mod redis_compat;
 pub(crate) mod redis_store;
 pub(crate) mod typed_config;

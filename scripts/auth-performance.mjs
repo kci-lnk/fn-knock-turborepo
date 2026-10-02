@@ -484,7 +484,6 @@ async function trial(
   const env = {
     ...benchmarkEnvironment(process.env, variant.env),
     FN_KNOCK_RUNTIME_TARGET: "linux",
-    FN_KNOCK_DISABLE_REDIS_MIGRATION: "1",
     FN_KNOCK_INTERNAL_RPC_TOKEN: token,
     HMAC_SECRET: token,
     FN_KNOCK_DATA_DIR: directory,

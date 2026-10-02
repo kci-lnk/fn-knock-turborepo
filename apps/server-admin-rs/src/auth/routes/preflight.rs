@@ -365,24 +365,12 @@ pub(super) async fn resolve_preflight_normal_access(
     access_mode: RequestedAccessMode,
 ) -> anyhow::Result<PreflightNormalAccess> {
     let _phase = crate::auth::diagnostics::enter("normal_access");
-    let identity = inspect_auth_mobility_request(headers);
-    let mut invalid_session_cookie = false;
-    let browser_session = if let Some(session_id) = identity.session_id.as_deref() {
-        match state.storage.store.get_session(session_id).await? {
-            Some(session) if login_session_has_expired(&session) => {
-                invalid_session_cookie = true;
-                revoke_expired_presented_session(state, session_id, &session, config).await;
-                None
-            }
-            Some(session) => Some((session_id.to_string(), session)),
-            None => {
-                invalid_session_cookie = true;
-                None
-            }
-        }
-    } else {
-        None
-    };
+    let mut identity = inspect_auth_mobility_request(headers);
+    let (browser_session, invalid_session_cookie) =
+        resolve_presented_browser_session(state, headers, config).await?;
+    if let Some((session_id, _)) = browser_session.as_ref() {
+        identity.session_id = Some(session_id.clone());
+    }
     let normalized_session_source = http_utils::normalize_session_client_ip(client_ip);
     let invalid_session_source = normalized_session_source.is_empty();
 
@@ -568,6 +556,62 @@ pub(crate) fn login_session_has_expired(session: &LoginSession) -> bool {
         .as_deref()
         .and_then(time_utils::parse_iso_ms)
         .is_some_and(|expires_at| expires_at <= time_utils::now_ms())
+}
+
+pub(super) async fn resolve_presented_browser_session(
+    state: &AppState,
+    headers: &HeaderMap,
+    config: &Value,
+) -> anyhow::Result<(Option<(String, LoginSession)>, bool)> {
+    let identity = inspect_auth_mobility_request(headers);
+    let Some(preferred_id) = identity.session_id else {
+        return Ok((None, false));
+    };
+    if let Some(session) = state.storage.store.get_session(&preferred_id).await? {
+        if !login_session_has_expired(&session) {
+            return Ok((Some((preferred_id, session)), false));
+        }
+        revoke_expired_presented_session(state, &preferred_id, &session, config).await;
+    }
+
+    // A stale host-only cookie can follow a valid shared cookie. Recover only
+    // one unambiguous live session, never pick an account by the host it can
+    // access. Preserve the existing last-cookie precedence for live sessions.
+    let mut candidates = BTreeSet::new();
+    for header in headers.get_all(header::COOKIE) {
+        let Ok(header) = header.to_str() else {
+            continue;
+        };
+        for segment in header.split(';') {
+            let Some((name, value)) = segment.split_once('=') else {
+                continue;
+            };
+            if name.trim() == cookies::SESSION_COOKIE_NAME {
+                let value = value.trim().trim_matches('"');
+                if !value.is_empty() {
+                    candidates.insert(cookies::percent_decode(value));
+                }
+            }
+        }
+    }
+    // Bound work for malformed requests with many different cookie values.
+    if candidates.len() > 8 {
+        return Ok((None, true));
+    }
+    candidates.remove(&preferred_id);
+    let mut recovered = None;
+    for candidate in candidates {
+        if let Some(session) = state.storage.store.get_session(&candidate).await?
+            && !login_session_has_expired(&session)
+        {
+            if recovered.is_some() {
+                return Ok((None, true));
+            }
+            recovered = Some((candidate, session));
+        }
+    }
+    let invalid = recovered.is_none();
+    Ok((recovered, invalid))
 }
 
 pub(crate) async fn revoke_expired_presented_session(

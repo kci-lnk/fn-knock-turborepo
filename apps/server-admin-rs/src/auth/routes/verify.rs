@@ -117,14 +117,31 @@ async fn build_auth_shell_data_scoped(
 
     if include_redirect {
         let redirect_to = if access.authenticated {
-            effective_login_redirect(
-                &config,
-                headers,
-                access.grant_type.as_deref().unwrap_or_default(),
-                redirect_uri,
-            )
+            let (session, _) = resolve_presented_browser_session(state, headers, &config).await?;
+            let credential = if let Some((_, session)) = session {
+                session_auth_credential(state, &session).await?
+            } else {
+                None
+            };
+            if let Some(credential) = credential {
+                credential_login_redirect(
+                    &config,
+                    headers,
+                    access.grant_type.as_deref().unwrap_or_default(),
+                    redirect_uri,
+                    &credential.subdomain_access,
+                )
+            } else {
+                effective_login_redirect(
+                    &config,
+                    headers,
+                    access.grant_type.as_deref().unwrap_or_default(),
+                    redirect_uri,
+                )
+            }
         } else {
-            resolve_shared_auth_login_redirect(&config, headers, redirect_uri)
+            service_local_login_for_target(&config, headers, redirect_uri)
+                .or_else(|| resolve_shared_auth_login_redirect(&config, headers, redirect_uri))
         };
         if let Some(value) = redirect_to {
             data["redirect_to"] = Value::String(value);
@@ -169,11 +186,8 @@ async fn append_shared_session_cookie_for_auth_shell(
         return Ok(());
     }
 
-    let identity = inspect_auth_mobility_request(headers);
-    let Some(session_id) = identity.session_id.as_deref() else {
-        return Ok(());
-    };
-    let Some(session) = state.storage.store.get_session(session_id).await? else {
+    let (session, _) = resolve_presented_browser_session(state, headers, config).await?;
+    let Some((session_id, session)) = session else {
         return Ok(());
     };
     let Some(expires_at) = session
@@ -189,14 +203,15 @@ async fn append_shared_session_cookie_for_auth_shell(
     if remaining_ms <= 0 {
         return Ok(());
     }
-    let Some(cookie_domain) = resolve_cookie_domain(config, headers) else {
+    let Some(_) = resolve_cookie_domain(config, headers) else {
         return Ok(());
     };
     let max_age = remaining_ms.saturating_add(999).div_euclid(1000).max(1);
-    access.set_cookies.push(cookies::session_cookie(
-        session_id,
+    access.set_cookies.extend(session_cookie_replacement(
+        config,
+        headers,
+        &session_id,
         max_age,
-        Some(&cookie_domain),
     ));
     Ok(())
 }
@@ -462,7 +477,9 @@ pub(super) async fn resolve_auth_access_with_normal_access_and_rule_match(
         grant_type: None,
         deny_reason: None,
         set_cookies: invalid_session_cookies,
-        response_headers: Vec::new(),
+        response_headers: local_service_login_redirect(config, headers, uri)
+            .map(|location| vec![("X-Reauth-Redirect-Location".to_string(), location)])
+            .unwrap_or_default(),
     })
 }
 

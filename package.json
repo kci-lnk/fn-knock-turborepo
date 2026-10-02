@@ -11,6 +11,7 @@
     "a11y:audit": "node ./scripts/a11y-runtime-audit.mjs",
     "runtime:build": "cargo build --locked --manifest-path apps/server-admin-rs/Cargo.toml --profile runtime-test --bin server-admin-rs",
     "runtime:auth-assets": "node ./scripts/auth-assets-runtime-test.mjs",
+    "runtime:auth-single-service": "node ./scripts/auth-single-service-runtime-test.mjs",
     "runtime:e2e": "node ./scripts/runtime-e2e.mjs",
     "runtime:debug:e2e": "node ./scripts/runtime-debug-e2e.mjs",
     "frontend:measure": "node ./scripts/frontend-performance.mjs",

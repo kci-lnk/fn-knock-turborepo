@@ -7,6 +7,8 @@ use axum::{
 };
 use tower::ServiceExt;
 
+mod password_scope;
+
 #[test]
 fn safe_redirect_allows_relative_current_origin_and_configured_hosts() {
     let config = json!({
@@ -1268,10 +1270,12 @@ async fn bootstrap_migrates_valid_auth_host_session_to_shared_cookie_domain() {
 
     assert_eq!(response.status(), StatusCode::OK);
     let cookies = response_set_cookies(&response);
-    assert_eq!(cookies.len(), 1);
-    assert!(cookies[0].contains("x-go-reauth-proxy-session-id=valid-auth-host-session"));
-    assert!(cookies[0].contains("Domain=example.com"));
-    assert!(!cookies[0].contains("Max-Age=0"));
+    assert_eq!(cookies.len(), 3);
+    assert!(cookies[..2].iter().all(|cookie| cookie.contains("Max-Age=0")));
+    let fresh = cookies.last().unwrap();
+    assert!(fresh.contains("x-go-reauth-proxy-session-id=valid-auth-host-session"));
+    assert!(fresh.contains("Domain=example.com"));
+    assert!(!fresh.contains("Max-Age=0"));
 }
 
 #[test]

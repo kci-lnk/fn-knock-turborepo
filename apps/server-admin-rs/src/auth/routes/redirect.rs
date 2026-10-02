@@ -125,6 +125,161 @@ pub(crate) fn effective_login_redirect(
     Some(redirect_to)
 }
 
+pub(super) fn credential_login_redirect(
+    config: &Value,
+    headers: &HeaderMap,
+    grant_type: &str,
+    redirect_uri: Option<&str>,
+    access: &Value,
+) -> Option<String> {
+    if redirect_uri.is_some_and(|value| !value.trim().is_empty()) {
+        if grant_type == "browser_session"
+            && let Some(target) = safe_redirect(config, headers, redirect_uri)
+            && let Ok(url) = url::Url::parse(&target)
+            && let Some(host) = url.host_str()
+            && is_host_allowed_by_totp_subdomain_access(access, host)
+            && let Some(login) = service_local_login_for_target(config, headers, Some(&target))
+        {
+            return Some(login);
+        }
+        return effective_login_redirect(config, headers, grant_type, redirect_uri);
+    }
+    if !is_any_subdomain_routing_mode(config) || access["mode"] != "custom" {
+        return None;
+    }
+    let hosts = config
+        .get("host_mappings")
+        .and_then(Value::as_array)
+        .into_iter()
+        .flatten()
+        .filter(|mapping| mapping.get("disabled").and_then(Value::as_bool) != Some(true))
+        .filter(|mapping| {
+            mapping
+                .as_object()
+                .is_some_and(crate::proxy_utils::host_mapping_uses_auth)
+        })
+        .filter_map(|mapping| mapping.get("host").and_then(Value::as_str))
+        .map(normalize_subdomain_access_host)
+        .filter(|host| is_host_allowed_by_totp_subdomain_access(access, host))
+        .collect::<BTreeSet<_>>();
+    if hosts.len() != 1 {
+        return None;
+    }
+    let host = hosts.into_iter().next()?;
+    let scheme = resolve_forwarded_proto(headers);
+    let mut target = url::Url::parse(&format!("{scheme}://{host}/")).ok()?;
+    if !should_omit_public_access_entry_port(config)
+        && let Some(port) = resolve_public_port_for_scheme(config, &scheme, "", true)
+        && !is_default_scheme_port(&scheme, port)
+    {
+        target.set_port(Some(port)).ok()?;
+    }
+    if grant_type == "browser_session"
+        && let Some(login) = service_local_login_for_target(config, headers, Some(target.as_str()))
+    {
+        return Some(login);
+    }
+    effective_login_redirect(config, headers, grant_type, Some(target.as_str()))
+}
+
+pub(super) fn service_local_login_for_target(
+    config: &Value,
+    headers: &HeaderMap,
+    redirect_uri: Option<&str>,
+) -> Option<String> {
+    if !is_any_subdomain_routing_mode(config) {
+        return None;
+    }
+    let target = url::Url::parse(&safe_redirect(config, headers, redirect_uri)?).ok()?;
+    let host = target.host_str().map(normalize_subdomain_access_host)?;
+    if !is_protected_subdomain_auth_host(&host, config)
+        || can_browser_session_reach_redirect_uri(config, headers, Some(target.as_str()))
+    {
+        return None;
+    }
+    // Different registrable domains cannot share a browser cookie. Complete
+    // login on the target origin instead of leaving the user in shared AUTH.
+    let mut login = target.clone();
+    login.set_path("/__auth__/login");
+    login.set_query(None);
+    login.set_fragment(None);
+    login
+        .query_pairs_mut()
+        .append_pair("redirect_uri", target.as_str());
+    Some(login.to_string())
+}
+
+pub(super) fn session_cookie_replacement(
+    config: &Value,
+    headers: &HeaderMap,
+    session_id: &str,
+    max_age: i64,
+) -> Vec<String> {
+    let domain = resolve_cookie_domain(config, headers);
+    let mut cookies = resolve_cookie_clear_domains(Some(config), headers)
+        .into_iter()
+        .filter(|old_domain| old_domain != &domain)
+        .map(|old_domain| cookies::session_clear_cookie(old_domain.as_deref()))
+        .collect::<Vec<_>>();
+    // The fresh cookie must be last: host-only and Domain cookies with the
+    // same name can coexist after upgrades or cookie-domain changes.
+    cookies.push(cookies::session_cookie(
+        session_id,
+        max_age,
+        domain.as_deref(),
+    ));
+    cookies
+}
+
+pub(super) fn local_service_login_redirect(
+    config: &Value,
+    headers: &HeaderMap,
+    uri: &Uri,
+) -> Option<String> {
+    let host = resolve_request_subdomain_access_key(headers, uri);
+    if !is_any_subdomain_routing_mode(config)
+        || !is_protected_subdomain_auth_host(&host, config)
+        || host.starts_with("__builtin_")
+    {
+        return None;
+    }
+    let auth_url = url::Url::parse(&resolve_public_auth_base_url(config)?).ok()?;
+    let scheme = resolve_forwarded_proto(headers);
+    let request_host = resolve_forwarded_host(headers)?;
+    let mut target = url::Url::parse(&format!("{scheme}://{request_host}/")).ok()?;
+    // The gateway's auth bridge normalizes the routed host without its port.
+    // Restore the public ingress port before constructing the return URL.
+    if !should_omit_public_access_entry_port(config)
+        && let Some(port) = resolve_public_port_for_scheme(
+            config,
+            &scheme,
+            &format!("{scheme}://{request_host}/"),
+            true,
+        )
+    {
+        target
+            .set_port((!is_default_scheme_port(&scheme, port)).then_some(port))
+            .ok()?;
+    }
+    let path = first_header_value(headers, "x-forwarded-path").unwrap_or_else(|| uri.to_string());
+    // Keep the original origin even if a malformed forwarding value starts
+    // with '//'; only the path/query of a parsed request URI are retained.
+    let request_path = target.join(&path).ok()?;
+    target.set_path(request_path.path());
+    target.set_query(request_path.query());
+    if can_browser_session_reach_redirect_uri_for_host(
+        config,
+        auth_url.host_str(),
+        Some(target.as_str()),
+    ) {
+        return None;
+    }
+    let query = url::form_urlencoded::Serializer::new(String::new())
+        .append_pair("redirect_uri", target.as_str())
+        .finish();
+    Some(format!("/__auth__/login?{query}"))
+}
+
 pub(crate) fn resolve_cookie_domain(config: &Value, headers: &HeaderMap) -> Option<String> {
     let request_host = resolve_request_hostname_from_headers(headers);
     resolve_cookie_domain_for_request_host(config, request_host.as_deref())

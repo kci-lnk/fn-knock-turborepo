@@ -910,11 +910,12 @@ async fn password_login(
         tracing::warn!(%error, %tracking_ip, "failed to reset password login backoff after success");
     }
 
-    let redirect_to = effective_login_redirect(
+    let redirect_to = credential_login_redirect(
         config,
         headers,
         &created.grant_type,
         body.redirect_uri.as_deref(),
+        &account.subdomain_access,
     );
     let cookie_domain = resolve_cookie_domain(config, headers);
     let cookie = cookies::session_cookie(
@@ -950,6 +951,16 @@ async fn password_login(
         }),
     )
         .into_response();
+    response.headers_mut().remove(header::SET_COOKIE);
+    for cookie in
+        session_cookie_replacement(config, headers, &created.session_id, created.ttl_seconds)
+    {
+        append_set_cookie_header(
+            response.headers_mut(),
+            cookie,
+            "password login session cookie",
+        );
+    }
     apply_no_store_headers(response.headers_mut());
     response
 }
@@ -1086,7 +1097,17 @@ pub(super) async fn logout(
         }
     };
     let identity = inspect_auth_mobility_request(&headers);
-    let session_id = identity.session_id;
+    let mut session_id = identity.session_id;
+    if let Some(config) = config.as_ref() {
+        match resolve_presented_browser_session(&state, &headers, config).await {
+            Ok((Some((resolved_id, _)), _)) => session_id = Some(resolved_id),
+            Ok(_) => {}
+            Err(error) => {
+                tracing::warn!(%error, "failed to resolve browser session for logout");
+                grant_revoke_failed = true;
+            }
+        }
+    }
     let client_ip = client_ip_for_auth(&headers);
     if let Some(session_id) = session_id.as_deref() {
         let outcome = auth_mobility::revoke_login_session(

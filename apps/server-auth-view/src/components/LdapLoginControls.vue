@@ -48,7 +48,10 @@
         <Label for="ldap-username">{{ t("auth.ldapUsername") }}</Label>
         <Input
           id="ldap-username"
+          name="username"
+          type="text"
           v-model="username"
+          allow-password-manager
           autocomplete="username"
           :disabled="disabled"
         />
@@ -57,7 +60,9 @@
         <Label for="ldap-password">{{ t("auth.ldapPassword") }}</Label>
         <Input
           id="ldap-password"
+          name="password"
           v-model="password"
+          allow-password-manager
           type="password"
           autocomplete="current-password"
           :disabled="disabled"

@@ -39,7 +39,7 @@
 
       <form
         class="flex flex-col gap-6 items-center"
-        autocomplete="off"
+        autocomplete="on"
         @submit.prevent="handleLogin"
       >
         <div
@@ -185,7 +185,10 @@
             <Label for="login-username">{{ t("auth.username") }}</Label>
             <Input
               id="login-username"
+              name="username"
+              type="text"
               v-model="username"
+              allow-password-manager
               autocomplete="username"
               :disabled="isLoading || isLoginCoolingDown"
             />
@@ -195,7 +198,9 @@
             <div class="relative">
               <Input
                 id="login-password"
+                name="password"
                 v-model="password"
+                allow-password-manager
                 :type="isPasswordVisible ? 'text' : 'password'"
                 autocomplete="current-password"
                 class="pr-10"

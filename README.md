@@ -94,6 +94,18 @@ flowchart LR
 | Linux         | x86_64 / ARM64 / ARMv7          | [一键安装](https://www.fnknock.cn/linux) · [部署文档](https://docs.fnknock.cn/quick-start/linux-deployment)                                                                                                                                   |
 | macOS         | macOS 13+ Intel / Apple Silicon | `curl -fsSL https://cdn.fnknock.cn/macos/install.sh \| sudo bash` · [部署说明](./deploy/macos/README.md)                                                                                                                                      |
 
+### Moo 应用源
+
+根目录的 [moo.json](./moo.json) 按 [Moo 应用源协议](https://github.com/Blue-Mink/moo/blob/main/docs/MOO-PROTOCOL.md) 提供完整版 `fn-knock` 的稳定版 FPK，包含 x86 / ARM64 安装包、SHA-256、体积和更新日志。
+
+在 Moo 的「设置 → 应用源设置 → 添加应用源」中填写：
+
+```text
+https://raw.githubusercontent.com/kci-lnk/fn-knock-turborepo/main/moo.json
+```
+
+也可以将该地址粘到 Moo 首页搜索框预览。Moo 会按设备架构选包；完整版以 root 运行。Lite 和其他平台的安装包请通过各自的安装渠道获取。
+
 ### Docker
 
 ```bash
@@ -279,6 +291,10 @@ npm run quality:check
 `release status`、`release prepare`、`release gateway-check`、`release check`、发布前置检查以及 Windows/通用 Go 构建都会校验控制 API 契约；如果 Go stub 尚未从当前 proto 生成，流程会在产出安装包或发布资产前失败，并提示运行同步命令。正式发布 CI 还会重新生成全部 Go stub 并要求工作区无差异。
 
 推送与 `version.json` 一致的 `vX.Y.Z` Tag 后，发布工作流会冻结当前源码和 Go 网关提交，完成质量门禁、多平台构建、架构校验、校验清单、SBOM / provenance 及 GitHub Release 发布。
+
+稳定版 Tag 发布流程在 GitHub Release 正式发布成功后，自动执行 `update-moo-index` 任务，按本次 Tag 的两个 FPK 资产摘要和字节大小生成索引，并使用 `GITHUB_TOKEN` 单独提交默认分支的根目录 `moo.json`。Beta、手动试构建和失败的发布不会更新索引。任务使用冻结的发布源码和应用 manifest，只保留最新稳定版；同一内容重跑不会重复提交，重跑旧版本不会覆盖较新索引，并发写入冲突会重新读取后重试。
+
+若自动更新失败，可在 Actions 中重跑失败的 `update-moo-index` 任务，无需重新构建或发布 Release。该任务需要默认分支允许 `GITHUB_TOKEN` 写入；分支保护拒绝提交时任务会明确失败，不会绕过规则。也可运行 `npm run moo:update` 手动刷新后提交；用 `npm run moo:update -- --tag vX.Y.Z` 指定已发布版本，或用 `npm run moo:update -- /path/to/release.json` 从保存的 GitHub Release API 响应离线生成。生成器拒绝草稿、预发布、缺失安装包或缺失 SHA-256 的数据，校验失败时保留原索引。
 
 ## 支持项目
 

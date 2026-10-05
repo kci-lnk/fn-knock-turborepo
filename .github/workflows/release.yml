@@ -932,3 +932,32 @@ jobs:
           else
             gh release edit "${TAG}" --draft=false --latest
           fi
+
+  update-moo-index:
+    needs: [preflight, publish]
+    if: github.event_name == 'push' && needs.preflight.outputs.prerelease == 'false'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout frozen release source
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          ref: ${{ needs.preflight.outputs.source_sha }}
+          persist-credentials: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Commit Moo index to the default branch
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          TAG: ${{ needs.preflight.outputs.tag }}
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+        run: >-
+          node ./scripts/update-moo-index.mjs
+          --tag "${TAG}" --publish --branch "${DEFAULT_BRANCH}"

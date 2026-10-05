@@ -100,4 +100,18 @@ cos_block="$(sed -n "${cos_line},${public_line}p" "${WORKFLOW}")"
 printf '%s\n' "${cos_block}" | grep -Fq "if: github.event_name == 'push'" ||
   fail "COS publication must only run for tag push releases"
 
+[ "$(job_needs update-moo-index)" = "[preflight, publish]" ] ||
+  fail "Moo index must wait until the release is successfully published"
+moo_block="$(sed -n '/^  update-moo-index:/,$p' "${WORKFLOW}")"
+printf '%s\n' "${moo_block}" | grep -Fq "if: github.event_name == 'push' && needs.preflight.outputs.prerelease == 'false'" ||
+  fail "Moo index must only update for stable tag push releases"
+printf '%s\n' "${moo_block}" | grep -Fq 'ref: ${{ needs.preflight.outputs.source_sha }}' ||
+  fail "Moo generator must use the frozen release source"
+printf '%s\n' "${moo_block}" | grep -Fq 'contents: write' ||
+  fail "Moo index commit requires contents write permission"
+printf '%s\n' "${moo_block}" | grep -Fq 'DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}' ||
+  fail "Moo index must target the default branch"
+printf '%s\n' "${moo_block}" | grep -Fq -- '--tag "${TAG}" --publish --branch "${DEFAULT_BRANCH}"' ||
+  fail "Moo index must use the exact published tag and commit it"
+
 printf '[test-cos-release-workflow] COS transaction ordering passed\n'

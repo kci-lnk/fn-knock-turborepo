@@ -31,7 +31,9 @@ case "$platform" in
     file uptime /proc/uptime
     ;;
   Darwin)
-    command_metric cpu top -l 2 -s 1 -n 0
+    # Only aggregate CPU counters are consumed. Skip expensive framework and
+    # per-process memory-map accounting so collection stays within its budget.
+    command_metric cpu top -l 2 -s 1 -n 0 -F -R
     command_metric memory vm_stat
     command_metric total sysctl -n hw.memsize
     command_metric boot sysctl -n kern.boottime

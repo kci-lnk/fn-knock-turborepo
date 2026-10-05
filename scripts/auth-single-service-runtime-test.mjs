@@ -197,7 +197,13 @@ try {
       "--host-resolver-rules=MAP *.abc.com 127.0.0.1, MAP *.def.com 127.0.0.1",
     ],
   });
-  const newContext = () => browser.newContext({ ignoreHTTPSErrors: true });
+  const newContext = () =>
+    browser.newContext({
+      ignoreHTTPSErrors: true,
+      // Incognito contexts can inherit the system proxy despite launch flags.
+      // Bypass every destination so these local test domains stay local.
+      proxy: { server: "http://127.0.0.1:9", bypass: "*" },
+    });
   const submitLogin = async (page) => {
     const captcha = page.locator('altcha-widget input[type="checkbox"]');
     const fallback = page.getByRole("button", {

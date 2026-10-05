@@ -392,7 +392,7 @@ const testAdminKeyboardFlow = async (browser, adminUrl) => {
     "SPA route change did not focus main content",
   );
 
-  const localeTrigger = page.locator('button[title="语言"]').last();
+  const localeTrigger = page.getByRole("button", { name: "语言", exact: true });
   await localeTrigger.click();
   const dialog = page.getByRole("dialog");
   await dialog.waitFor({ state: "visible" });

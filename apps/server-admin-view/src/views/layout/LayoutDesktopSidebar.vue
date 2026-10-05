@@ -63,33 +63,6 @@ watch(collapsed, (next) => {
   >
     <TooltipProvider>
       <div class="flex h-full min-h-0 flex-col gap-3">
-        <div
-          class="flex"
-          :class="collapsed ? 'justify-center' : 'justify-end pr-3'"
-        >
-          <Tooltip v-slot="{ open }">
-            <TooltipTrigger as-child>
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon"
-                class="h-9 w-9"
-                :aria-label="toggleLabel"
-                :aria-expanded="!collapsed"
-                aria-controls="desktop-sidebar-menu"
-                :aria-busy="isSaving"
-                :disabled="!canToggle"
-                @click="toggle"
-              >
-                <PanelLeftOpen v-if="collapsed" class="h-4 w-4" />
-                <PanelLeftClose v-else class="h-4 w-4" />
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent v-if="open" side="right">{{
-              toggleLabel
-            }}</TooltipContent>
-          </Tooltip>
-        </div>
         <LayoutScrollArea
           id="desktop-sidebar-menu"
           :reserve-rail-gutter="!collapsed"
@@ -145,7 +118,7 @@ watch(collapsed, (next) => {
             </TooltipContent>
           </Tooltip>
         </LayoutScrollArea>
-        <div>
+        <div class="shrink-0">
           <div
             class="mb-5 flex items-center justify-center gap-2"
             :class="{ 'flex-col': collapsed }"
@@ -214,6 +187,30 @@ watch(collapsed, (next) => {
               </TooltipContent>
             </Tooltip>
           </p>
+        </div>
+        <div class="flex shrink-0 justify-center">
+          <Tooltip v-slot="{ open }">
+            <TooltipTrigger as-child>
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                class="h-9 w-9"
+                :aria-label="toggleLabel"
+                :aria-expanded="!collapsed"
+                aria-controls="desktop-sidebar-menu"
+                :aria-busy="isSaving"
+                :disabled="!canToggle"
+                @click="toggle"
+              >
+                <PanelLeftOpen v-if="collapsed" class="h-4 w-4" />
+                <PanelLeftClose v-else class="h-4 w-4" />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent v-if="open" side="right">{{
+              toggleLabel
+            }}</TooltipContent>
+          </Tooltip>
         </div>
       </div>
     </TooltipProvider>

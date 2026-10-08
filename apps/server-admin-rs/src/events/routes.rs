@@ -95,12 +95,25 @@ pub(crate) struct RuntimeEventInput {
     pub level: &'static str,
     pub component: String,
     pub payload: Value,
+    pub happened_at: String,
 }
 
 pub(crate) async fn publish_runtime_event(
     state: &AppState,
     input: RuntimeEventInput,
 ) -> anyhow::Result<bool> {
+    // A timed-out SQLite write may still commit. Retries must use the same
+    // incident/type key, while recovery remains distinct from failure.
+    let dedupe_key = format!(
+        "runtime:{}:{}:{}",
+        input.component,
+        input.event_type,
+        input
+            .payload
+            .get("incident_id")
+            .and_then(Value::as_str)
+            .unwrap_or(&input.happened_at),
+    );
     publish_system_event_body(
         state,
         InternalSystemEventBody {
@@ -108,9 +121,10 @@ pub(crate) async fn publish_runtime_event(
             event_type: input.event_type.to_string(),
             source: "RUNTIME_MONITOR".to_string(),
             level: Some(input.level.to_string()),
-            happened_at: None,
-            dedupe_key: None,
-            dedupe_ttl_seconds: None,
+            happened_at: Some(input.happened_at),
+            dedupe_key: Some(dedupe_key),
+            // Longer than the runtime monitor's one-hour retry window.
+            dedupe_ttl_seconds: Some(2.0 * 60.0 * 60.0),
             subject: Some(json!({ "kind": "COMPONENT", "id": input.component })),
             tags: Some(vec!["runtime".to_string()]),
             payload: input.payload,

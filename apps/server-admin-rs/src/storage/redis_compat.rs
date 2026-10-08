@@ -5,11 +5,8 @@ use std::{
     collections::{BTreeMap, BTreeSet, HashMap},
     fmt::Display,
     path::{Path, PathBuf},
-    sync::{
-        Arc,
-        atomic::{AtomicU64, Ordering as AtomicOrdering},
-    },
-    time::{Instant, SystemTime, UNIX_EPOCH},
+    sync::Arc,
+    time::Instant,
 };
 
 use serde_json::{Value, json};

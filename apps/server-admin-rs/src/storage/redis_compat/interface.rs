@@ -29,6 +29,7 @@ pub(crate) struct ConnectionManager {
 pub(crate) struct PrimaryQueueStatus {
     pub(crate) queue_depth: u64,
     pub(crate) queue_depth_peak: u64,
+    /// Age of the oldest caller still waiting for primary admission.
     pub(crate) queue_wait_ms: u64,
     pub(crate) queue_wait_peak_ms: u64,
     pub(crate) active_operation_ms: u64,
@@ -37,65 +38,85 @@ pub(crate) struct PrimaryQueueStatus {
 
 #[derive(Default)]
 pub(super) struct PrimaryExecutorMetrics {
-    waiting: AtomicU64,
-    waiting_peak: AtomicU64,
-    last_wait_ms: AtomicU64,
-    wait_peak_ms: AtomicU64,
-    active_since_ms: AtomicU64,
-    canceled: AtomicU64,
+    state: std::sync::Mutex<PrimaryExecutorState>,
+}
+
+#[derive(Default)]
+struct PrimaryExecutorState {
+    waiters: BTreeMap<u64, Instant>,
+    next_waiter: u64,
+    active_since: Option<Instant>,
+    queue_depth_peak: u64,
+    queue_wait_peak_ms: u64,
+    canceled_operations: u64,
 }
 
 impl PrimaryExecutorMetrics {
+    fn lock(&self) -> std::sync::MutexGuard<'_, PrimaryExecutorState> {
+        self.state.lock().unwrap_or_else(|error| error.into_inner())
+    }
+
     pub(super) fn begin_wait(self: &Arc<Self>) -> PrimaryQueueWaiter {
-        let depth = self.waiting.fetch_add(1, AtomicOrdering::AcqRel) + 1;
-        self.waiting_peak.fetch_max(depth, AtomicOrdering::Relaxed);
+        let mut state = self.lock();
+        let id = state.next_waiter;
+        state.next_waiter += 1;
+        let started = Instant::now();
+        state.waiters.insert(id, started);
+        state.queue_depth_peak = state.queue_depth_peak.max(state.waiters.len() as u64);
         PrimaryQueueWaiter {
             metrics: self.clone(),
-            started: Instant::now(),
+            id,
             admitted: false,
         }
     }
 
     pub(super) fn begin_execution(self: &Arc<Self>, wait_ms: u64) -> PrimaryExecution {
-        self.last_wait_ms.store(wait_ms, AtomicOrdering::Release);
-        self.wait_peak_ms
-            .fetch_max(wait_ms, AtomicOrdering::Relaxed);
-        self.active_since_ms
-            .store(unix_time_ms(), AtomicOrdering::Release);
+        let mut state = self.lock();
+        state.queue_wait_peak_ms = state.queue_wait_peak_ms.max(wait_ms);
+        state.active_since = Some(Instant::now());
         PrimaryExecution {
             metrics: self.clone(),
         }
     }
 
     pub(super) fn status(&self) -> PrimaryQueueStatus {
-        let active_since_ms = self.active_since_ms.load(AtomicOrdering::Acquire);
-        let active_operation_ms = if active_since_ms == 0 {
-            0
-        } else {
-            unix_time_ms().saturating_sub(active_since_ms)
-        };
+        let mut state = self.lock();
+        // Measure the oldest request still waiting, not the previous operation's
+        // admission delay. An old slow admission must not poison fresh traffic.
+        let queue_wait_ms = state
+            .waiters
+            .first_key_value()
+            .map_or(0, |(_, started)| started.elapsed().as_millis() as u64);
+        state.queue_wait_peak_ms = state.queue_wait_peak_ms.max(queue_wait_ms);
         PrimaryQueueStatus {
-            queue_depth: self.waiting.load(AtomicOrdering::Acquire),
-            queue_depth_peak: self.waiting_peak.load(AtomicOrdering::Relaxed),
-            queue_wait_ms: self.last_wait_ms.load(AtomicOrdering::Relaxed),
-            queue_wait_peak_ms: self.wait_peak_ms.load(AtomicOrdering::Relaxed),
-            active_operation_ms,
-            canceled_operations: self.canceled.load(AtomicOrdering::Relaxed),
+            queue_depth: state.waiters.len() as u64,
+            queue_depth_peak: state.queue_depth_peak,
+            queue_wait_ms,
+            queue_wait_peak_ms: state.queue_wait_peak_ms,
+            active_operation_ms: state
+                .active_since
+                .map_or(0, |started| started.elapsed().as_millis() as u64),
+            canceled_operations: state.canceled_operations,
         }
     }
 }
 
 pub(super) struct PrimaryQueueWaiter {
     metrics: Arc<PrimaryExecutorMetrics>,
-    started: Instant,
+    id: u64,
     admitted: bool,
 }
 
 impl PrimaryQueueWaiter {
     pub(super) fn admit(mut self) -> u64 {
         self.admitted = true;
-        self.metrics.waiting.fetch_sub(1, AtomicOrdering::AcqRel);
-        self.started.elapsed().as_millis() as u64
+        let mut state = self.metrics.lock();
+        let wait_ms = state
+            .waiters
+            .remove(&self.id)
+            .map_or(0, |started| started.elapsed().as_millis() as u64);
+        state.queue_wait_peak_ms = state.queue_wait_peak_ms.max(wait_ms);
+        wait_ms
     }
 }
 
@@ -104,8 +125,13 @@ impl Drop for PrimaryQueueWaiter {
         if self.admitted {
             return;
         }
-        self.metrics.waiting.fetch_sub(1, AtomicOrdering::AcqRel);
-        self.metrics.canceled.fetch_add(1, AtomicOrdering::Relaxed);
+        let mut state = self.metrics.lock();
+        if let Some(started) = state.waiters.remove(&self.id) {
+            state.queue_wait_peak_ms = state
+                .queue_wait_peak_ms
+                .max(started.elapsed().as_millis() as u64);
+        }
+        state.canceled_operations += 1;
     }
 }
 
@@ -115,20 +141,60 @@ pub(super) struct PrimaryExecution {
 
 impl Drop for PrimaryExecution {
     fn drop(&mut self) {
-        self.metrics
-            .active_since_ms
-            .store(0, AtomicOrdering::Release);
+        self.metrics.lock().active_since = None;
     }
 }
 
-fn unix_time_ms() -> u64 {
-    SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .unwrap_or_default()
-        .as_millis() as u64
-}
-
 impl AsyncCommands for ConnectionManager {}
+
+#[cfg(test)]
+mod metrics_tests {
+    use super::*;
+    use std::time::Duration;
+
+    #[test]
+    fn old_admission_delay_does_not_mark_fresh_waiters_as_saturated() {
+        let metrics = Arc::new(PrimaryExecutorMetrics::default());
+        let old = metrics.begin_wait();
+        metrics
+            .lock()
+            .waiters
+            .insert(old.id, Instant::now() - Duration::from_secs(60));
+        let execution = metrics.begin_execution(old.admit());
+        let fresh = metrics.begin_wait();
+        let status = metrics.status();
+        assert_eq!(status.queue_depth, 1);
+        assert!(status.queue_wait_ms < 2_000);
+        assert!(status.active_operation_ms < 2_000);
+        assert!(status.queue_wait_peak_ms >= 60_000);
+        drop(fresh);
+        drop(execution);
+        let idle = metrics.status();
+        assert_eq!(idle.queue_wait_ms, 0);
+        assert_eq!(idle.active_operation_ms, 0);
+    }
+
+    #[test]
+    fn canceling_oldest_waiter_updates_current_wait_and_retains_peak() {
+        let metrics = Arc::new(PrimaryExecutorMetrics::default());
+        let oldest = metrics.begin_wait();
+        metrics
+            .lock()
+            .waiters
+            .insert(oldest.id, Instant::now() - Duration::from_secs(30));
+        let next = metrics.begin_wait();
+        assert!(metrics.status().queue_wait_ms >= 30_000);
+        drop(oldest);
+        let status = metrics.status();
+        assert_eq!(status.queue_depth, 1);
+        assert_eq!(status.queue_depth_peak, 2);
+        assert_eq!(status.canceled_operations, 1);
+        assert!(status.queue_wait_ms < 2_000);
+        assert!(status.queue_wait_peak_ms >= 30_000);
+        next.admit();
+        assert_eq!(metrics.status().queue_wait_ms, 0);
+    }
+}
 
 pub(crate) mod streams {
     use super::*;

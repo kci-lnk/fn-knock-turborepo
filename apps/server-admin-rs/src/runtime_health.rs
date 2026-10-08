@@ -1,6 +1,8 @@
 pub(crate) mod debug;
 pub(crate) mod debug_resources;
 pub(crate) mod operations;
+#[cfg(test)]
+mod persistence_tests;
 pub(crate) mod planned_stop;
 mod planned_stop_watch;
 #[cfg(test)]
@@ -36,6 +38,8 @@ use crate::{
 
 const PROBE_INTERVAL: Duration = Duration::from_secs(5);
 const PROBE_TIMEOUT: Duration = Duration::from_secs(2);
+const EVENT_WRITE_BUDGET: Duration = Duration::from_millis(100);
+const SHUTDOWN_WRITE_BUDGET: Duration = Duration::from_secs(2);
 const STARTUP_GRACE: Duration = Duration::from_secs(60);
 const RESUME_GAP: Duration = Duration::from_secs(30);
 const RESUME_RECOVERY_GRACE: Duration = Duration::from_secs(120);
@@ -240,11 +244,13 @@ struct RuntimeHealthInner {
     snapshot: RwLock<RuntimeSnapshot>,
     trackers: Mutex<BTreeMap<String, Tracker>>,
     pending_events: Mutex<VecDeque<PendingRuntimeEvent>>,
+    event_flush: Mutex<Option<InFlightRuntimeEvent>>,
     logger: DiagnosticLogger,
     process_started: Instant,
     process_started_at: String,
     management_instance_id: String,
     seen_gateway_instance: Mutex<Option<String>>,
+    pending_gateway_instance: Mutex<Option<String>>,
     supervisor_events_dir: PathBuf,
     monitor_done: Notify,
     monitor_stopped: AtomicBool,
@@ -275,6 +281,11 @@ struct Incident {
 struct PendingRuntimeEvent {
     queued_at: Instant,
     input: RuntimeEventInput,
+}
+
+struct InFlightRuntimeEvent {
+    input: RuntimeEventInput,
+    result: oneshot::Receiver<anyhow::Result<bool>>,
 }
 
 enum TrackerTransition {
@@ -384,11 +395,13 @@ impl RuntimeHealth {
                 }),
                 trackers: Mutex::new(trackers),
                 pending_events: Mutex::new(VecDeque::new()),
+                event_flush: Mutex::new(None),
                 logger,
                 process_started: Instant::now(),
                 process_started_at,
                 management_instance_id,
                 seen_gateway_instance: Mutex::new(None),
+                pending_gateway_instance: Mutex::new(None),
                 supervisor_events_dir: data_dir.join("runtime/supervisor-events"),
                 monitor_done: Notify::new(),
                 monitor_stopped: AtomicBool::new(false),
@@ -481,10 +494,13 @@ impl RuntimeHealth {
     }
 
     pub(crate) async fn wait_stopped(&self, timeout: Duration) {
+        let notified = self.inner.monitor_done.notified();
+        tokio::pin!(notified);
+        notified.as_mut().enable();
         if self.inner.monitor_stopped.load(Ordering::Acquire) {
             return;
         }
-        let _ = tokio::time::timeout(timeout, self.inner.monitor_done.notified()).await;
+        let _ = tokio::time::timeout(timeout, notified).await;
     }
 
     async fn initialize_session(&self, state: &AppState) -> anyhow::Result<()> {
@@ -504,6 +520,7 @@ impl RuntimeHealth {
                 .management_abnormal_reported
                 .store(true, Ordering::Release);
             let input = RuntimeEventInput {
+                happened_at: time_utils::now_iso(),
                 event_type: "FN_EVENT_RUNTIME_ABNORMAL_EXIT",
                 level: "ERROR",
                 component: "management".to_string(),
@@ -627,20 +644,13 @@ impl RuntimeHealth {
     }
 
     async fn publish_or_buffer(&self, state: &AppState, input: RuntimeEventInput) {
-        match publish_runtime_event(state, input.clone()).await {
-            Ok(_) => return,
-            Err(error) => {
-                tracing::warn!(%error, event_type = input.event_type, component = %input.component, "failed to persist runtime event; buffering transition");
-                self.inner.logger.log(
-                    "ERROR",
-                    "storage",
-                    "event_write_failed",
-                    "sqlite_write_failed",
-                    Map::from_iter([("result".to_string(), json!("failed"))]),
-                );
-            }
-        }
         let mut pending = self.inner.pending_events.lock().await;
+        Self::enqueue_event(&mut pending, input);
+        drop(pending);
+        self.flush_pending(state).await;
+    }
+
+    fn enqueue_event(pending: &mut VecDeque<PendingRuntimeEvent>, input: RuntimeEventInput) {
         if pending.len() == MAX_PENDING_EVENTS {
             pending.pop_front();
         }
@@ -651,18 +661,103 @@ impl RuntimeHealth {
     }
 
     async fn flush_pending(&self, state: &AppState) {
+        // One tracked writer continues independently of the probe budget. Keep
+        // its receiver across probes: canceling/restarting a multi-step write
+        // would starve it whenever a single stage exceeds the budget.
+        let Ok(mut in_flight) = self.inner.event_flush.try_lock() else {
+            return;
+        };
+        let deadline = tokio::time::Instant::now() + EVENT_WRITE_BUDGET;
+        self.drain_events(state, &mut in_flight, deadline, false)
+            .await;
+    }
+
+    async fn drain_events(
+        &self,
+        state: &AppState,
+        in_flight: &mut Option<InFlightRuntimeEvent>,
+        deadline: tokio::time::Instant,
+        shutting_down: bool,
+    ) {
         loop {
-            let next = self.inner.pending_events.lock().await.pop_front();
-            let Some(next) = next else { break };
-            if next.queued_at.elapsed() > PENDING_EVENT_TTL {
-                continue;
-            }
-            if publish_runtime_event(state, next.input.clone())
-                .await
-                .is_err()
-            {
-                self.inner.pending_events.lock().await.push_front(next);
+            if tokio::time::Instant::now() >= deadline {
                 break;
+            }
+            let (input, result) = if let Some(write) = in_flight.as_mut() {
+                let result = match tokio::time::timeout_at(deadline, &mut write.result).await {
+                    Ok(Ok(result)) => result,
+                    Ok(Err(_)) if shutting_down => {
+                        // Registration may have closed during the last probe,
+                        // or a writer may have exited without acknowledging a
+                        // commit. Retry inline with the same dedupe key.
+                        in_flight.take();
+                        continue;
+                    }
+                    Ok(Err(error)) => Err(error.into()),
+                    Err(_) => break,
+                };
+                (in_flight.take().unwrap().input, result)
+            } else {
+                let mut pending = self.inner.pending_events.lock().await;
+                while pending
+                    .front()
+                    .is_some_and(|next| next.queued_at.elapsed() > PENDING_EVENT_TTL)
+                {
+                    pending.pop_front();
+                }
+                let Some(next) = pending.front() else { break };
+                let input = next.input.clone();
+                drop(pending);
+                if shutting_down {
+                    // The background registry is already closed at this point.
+                    // Keep the head queued on cancellation; the dedupe key also
+                    // protects a SQLite closure that commits after our deadline.
+                    let result = match tokio::time::timeout_at(
+                        deadline,
+                        publish_runtime_event(state, input.clone()),
+                    )
+                    .await
+                    {
+                        Ok(result) => result,
+                        Err(_) => break,
+                    };
+                    (input, result)
+                } else {
+                    let write_input = input.clone();
+                    let write_state = state.clone();
+                    let (sender, result) = oneshot::channel();
+                    state.spawn_background("runtime-event-write", async move {
+                        let result = publish_runtime_event(&write_state, write_input).await;
+                        let _ = sender.send(result);
+                    });
+                    *in_flight = Some(InFlightRuntimeEvent { input, result });
+                    continue;
+                }
+            };
+            match result {
+                Ok(_) => {
+                    let mut pending = self.inner.pending_events.lock().await;
+                    // Overflow may have evicted the head during this write.
+                    if pending.front().is_some_and(|next| {
+                        next.input.happened_at == input.happened_at
+                            && next.input.event_type == input.event_type
+                            && next.input.component == input.component
+                            && next.input.payload == input.payload
+                    }) {
+                        pending.pop_front();
+                    }
+                }
+                Err(error) => {
+                    tracing::warn!(%error, event_type = input.event_type, "failed to persist runtime event; retaining transition");
+                    self.inner.logger.log(
+                        "ERROR",
+                        "storage",
+                        "event_write_failed",
+                        "sqlite_write_failed",
+                        Map::new(),
+                    );
+                    break;
+                }
             }
         }
     }
@@ -676,6 +771,27 @@ impl RuntimeHealth {
         reason_code: &str,
         instance_id: Option<&str>,
     ) {
+        if let Some(input) = self.record_lifecycle(
+            state,
+            event_type,
+            level,
+            component,
+            reason_code,
+            instance_id,
+        ) {
+            self.publish_or_buffer(state, input).await;
+        }
+    }
+
+    fn record_lifecycle(
+        &self,
+        state: &AppState,
+        event_type: &'static str,
+        level: &'static str,
+        component: &str,
+        reason_code: &str,
+        instance_id: Option<&str>,
+    ) -> Option<RuntimeEventInput> {
         let mut fields = Map::new();
         if component == "management" {
             fields.insert("version".to_string(), json!(APP_LOCAL_VERSION));
@@ -701,24 +817,21 @@ impl RuntimeHealth {
             "FN_EVENT_RUNTIME_STARTED" | "FN_EVENT_RUNTIME_STOPPED"
         ) || (event_type == "FN_EVENT_RUNTIME_RESTARTED" && reason_code == "platform_start")
         {
-            return;
+            return None;
         }
-        self.publish_or_buffer(
-            state,
-            RuntimeEventInput {
-                event_type,
-                level,
-                component: component.to_string(),
-                payload: json!({
-                    "component": component,
-                    "incident_id": uuid::Uuid::new_v4().simple().to_string(),
-                    "instance_id": instance_id,
-                    "supervisor": state.settings.runtime_target,
-                    "reason_code": reason_code,
-                }),
-            },
-        )
-        .await;
+        Some(RuntimeEventInput {
+            happened_at: time_utils::now_iso(),
+            event_type,
+            level,
+            component: component.to_string(),
+            payload: json!({
+                "component": component,
+                "incident_id": uuid::Uuid::new_v4().simple().to_string(),
+                "instance_id": instance_id,
+                "supervisor": state.settings.runtime_target,
+                "reason_code": reason_code,
+            }),
+        })
     }
 
     async fn run_probe(&self, state: &AppState) {
@@ -1047,6 +1160,7 @@ impl RuntimeHealth {
                 self.publish_or_buffer(
                     state,
                     RuntimeEventInput {
+                        happened_at: time_utils::now_iso(),
                         event_type: if event == Some("stop_failed") { "FN_EVENT_RUNTIME_STOP_FAILED" } else { "FN_EVENT_RUNTIME_ABNORMAL_EXIT" },
                         level: "ERROR",
                         component: component.to_string(),
@@ -1124,26 +1238,22 @@ impl RuntimeHealth {
                         .reason_code
                         .clone()
                         .unwrap_or_else(|| "unknown".to_string()),
+                    storage_diagnostic_fields(&tracker.health),
                 ));
             }
         }
 
-        if let Some((previous, current, reason)) = log_transition {
+        if let Some((previous, current, reason, mut fields)) = log_transition {
             let level = match current {
                 HealthStatus::Unhealthy => "ERROR",
                 HealthStatus::Degraded | HealthStatus::Blocked => "WARN",
                 _ => "INFO",
             };
-            self.inner.logger.log(
-                level,
-                id,
-                "health_transition",
-                &reason,
-                Map::from_iter([
-                    ("previous_status".to_string(), json!(previous)),
-                    ("status".to_string(), json!(current)),
-                ]),
-            );
+            fields.insert("previous_status".to_string(), json!(previous));
+            fields.insert("status".to_string(), json!(current));
+            self.inner
+                .logger
+                .log(level, id, "health_transition", &reason, fields);
         }
 
         if let Some((event_type, level, incident_id, duration_ms)) = event {
@@ -1161,23 +1271,29 @@ impl RuntimeHealth {
                 );
                 return;
             };
+            let mut payload = json!({
+                "component": id,
+                "incident_id": incident_id,
+                "instance_id": health.instance_id,
+                "reason_code": health.reason_code,
+                "supervisor": state.settings.runtime_target,
+                "duration_ms": duration_ms,
+                "pid": health.pid,
+                "process_state": health.process_state,
+                "consecutive_failures": health.consecutive_failures,
+            });
+            payload
+                .as_object_mut()
+                .unwrap()
+                .extend(storage_diagnostic_fields(&health));
             self.publish_or_buffer(
                 state,
                 RuntimeEventInput {
+                    happened_at: checked_at.to_string(),
                     event_type,
                     level,
                     component: id.to_string(),
-                    payload: json!({
-                        "component": id,
-                        "incident_id": incident_id,
-                        "instance_id": health.instance_id,
-                        "reason_code": health.reason_code,
-                        "supervisor": state.settings.runtime_target,
-                        "duration_ms": duration_ms,
-                        "pid": health.pid,
-                        "process_state": health.process_state,
-                        "consecutive_failures": health.consecutive_failures,
-                    }),
+                    payload,
                 },
             )
             .await;
@@ -1314,6 +1430,8 @@ impl RuntimeHealth {
         let Some(instance) = instance else { return };
         let mut seen = self.inner.seen_gateway_instance.lock().await;
         if seen.as_deref() == Some(instance.as_str()) {
+            drop(seen);
+            self.flush_gateway_instance(state).await;
             return;
         }
         let event_type = if seen.is_some() {
@@ -1340,7 +1458,12 @@ impl RuntimeHealth {
             state.set_gateway_config_synced(false);
             state.request_gateway_config_reconcile();
         }
-        self.publish_lifecycle(
+        // Acquire both destinations before committing the observation. There
+        // must be no await between enqueueing its event and advancing `seen`:
+        // cancellation during persistence used to emit a new incident on retry.
+        let mut pending_instance = self.inner.pending_gateway_instance.lock().await;
+        let mut pending_events = self.inner.pending_events.lock().await;
+        if let Some(input) = self.record_lifecycle(
             state,
             event_type,
             level,
@@ -1353,22 +1476,81 @@ impl RuntimeHealth {
                 "instance_observed"
             },
             Some(&instance),
-        )
-        .await;
-        if state
-            .storage
-            .store
-            .set_string_value_with_optional_ttl(
-                GATEWAY_INSTANCE_KEY,
-                &instance,
-                Some(RUNTIME_STATE_TTL_SECONDS),
+        ) {
+            Self::enqueue_event(&mut pending_events, input);
+        }
+        // Observation is independent of durable bookkeeping. A slow write
+        // must not create a new restart incident on every subsequent probe.
+        *seen = Some(instance.clone());
+        *pending_instance = Some(instance);
+        drop(pending_events);
+        drop(pending_instance);
+        drop(seen);
+        self.flush_pending(state).await;
+        self.flush_gateway_instance(state).await;
+    }
+
+    async fn flush_gateway_instance(&self, state: &AppState) {
+        let Ok(mut pending) = self.inner.pending_gateway_instance.try_lock() else {
+            return;
+        };
+        let Some(instance) = pending.as_ref() else {
+            return;
+        };
+        if matches!(
+            tokio::time::timeout(
+                EVENT_WRITE_BUDGET,
+                state.storage.store.set_string_value_with_optional_ttl(
+                    GATEWAY_INSTANCE_KEY,
+                    instance,
+                    Some(RUNTIME_STATE_TTL_SECONDS),
+                )
             )
-            .await
-            .is_ok()
-        {
-            *seen = Some(instance);
+            .await,
+            Ok(Ok(_))
+        ) {
+            pending.take();
         }
     }
+
+    async fn finish_monitor(&self, state: &AppState) {
+        let deadline = tokio::time::Instant::now() + SHUTDOWN_WRITE_BUDGET;
+        let _ = tokio::time::timeout_at(deadline, async {
+            let _ = self.persist_session(state, "stopped").await;
+            let mut in_flight = self.inner.event_flush.lock().await;
+            self.drain_events(state, &mut in_flight, deadline, true)
+                .await;
+        })
+        .await;
+        let pending_count = self.inner.pending_events.lock().await.len();
+        if pending_count > 0 {
+            self.inner.logger.log(
+                "WARN",
+                "storage",
+                "events_pending_at_shutdown",
+                "sqlite_write_pending",
+                Map::from_iter([("count".into(), json!(pending_count))]),
+            );
+        }
+        self.inner.logger.flush().await;
+        self.inner.monitor_stopped.store(true, Ordering::Release);
+        self.inner.monitor_done.notify_waiters();
+    }
+}
+
+fn storage_diagnostic_fields(health: &ComponentHealth) -> Map<String, Value> {
+    [
+        ("latency_ms", health.latency_ms),
+        ("queue_depth", health.queue_depth),
+        ("queue_depth_peak", health.queue_depth_peak),
+        ("queue_wait_ms", health.queue_wait_ms),
+        ("queue_wait_peak_ms", health.queue_wait_peak_ms),
+        ("active_operation_ms", health.active_operation_ms),
+        ("canceled_operations", health.canceled_operations),
+    ]
+    .into_iter()
+    .filter_map(|(key, value)| value.map(|value| (key.to_string(), json!(value))))
+    .collect()
 }
 
 async fn cleanup_supervisor_paths(paths: &mut Vec<PathBuf>, ttl: Duration, max_files: usize) {
@@ -1494,11 +1676,7 @@ pub(crate) async fn start_runtime_monitor(state: AppState) -> anyhow::Result<()>
                         "graceful_shutdown",
                         Some(&runtime.inner.management_instance_id),
                     ).await;
-                    let _ = runtime.persist_session(&state, "stopped").await;
-                    runtime.flush_pending(&state).await;
-                    runtime.inner.logger.flush().await;
-                    runtime.inner.monitor_stopped.store(true, Ordering::Release);
-                    runtime.inner.monitor_done.notify_waiters();
+                    runtime.finish_monitor(&state).await;
                     break;
                 }
                 _ = async {
@@ -1783,11 +1961,15 @@ fn current_process_rss_bytes() -> Option<u64> {
     let info = unsafe { info.assume_init() };
     // SAFETY: sysconf is read-only and does not retain any pointers.
     let page_size = unsafe { libc::sysconf(libc::_SC_PAGESIZE) };
-    (page_size > 0 && info.p_vm_rssize >= 0)
-        .then(|| info.p_vm_rssize as u64 * page_size as u64)
+    (page_size > 0 && info.p_vm_rssize >= 0).then(|| info.p_vm_rssize as u64 * page_size as u64)
 }
 
-#[cfg(not(any(target_os = "linux", target_os = "macos", target_os = "netbsd", windows)))]
+#[cfg(not(any(
+    target_os = "linux",
+    target_os = "macos",
+    target_os = "netbsd",
+    windows
+)))]
 fn current_process_rss_bytes() -> Option<u64> {
     None
 }
@@ -1886,7 +2068,11 @@ impl DiagnosticLogger {
             }
         }
         let mut count = 1;
-        if let Ok(mut repeats) = self.repeats.lock() {
+        // These are already edge-triggered. Suppressing by reason alone hides
+        // degraded -> unhealthy escalation and subsequent incidents/recoveries.
+        if event != "health_transition"
+            && let Ok(mut repeats) = self.repeats.lock()
+        {
             let now = Instant::now();
             repeats.retain(|_, entry| now.saturating_duration_since(entry.last) <= LOG_REPEAT_TTL);
             if let Some(previous) = repeats.get_mut(&key) {
@@ -1939,8 +2125,12 @@ impl DiagnosticLogger {
                     | "retry_delay_ms"
                     | "recovery_kind"
                     | "queue_depth"
+                    | "latency_ms"
+                    | "queue_depth_peak"
                     | "queue_wait_ms"
+                    | "queue_wait_peak_ms"
                     | "active_operation_ms"
+                    | "canceled_operations"
                     | "max_in_flight"
                     | "phase"
                     | "phase_active_ms"
@@ -2456,7 +2646,12 @@ mod tests {
     }
 
     #[test]
-    #[cfg(any(target_os = "linux", target_os = "macos", target_os = "netbsd", windows))]
+    #[cfg(any(
+        target_os = "linux",
+        target_os = "macos",
+        target_os = "netbsd",
+        windows
+    ))]
     fn current_process_rss_is_reported() {
         assert!(current_process_rss_bytes().is_some_and(|bytes| bytes > 0));
     }

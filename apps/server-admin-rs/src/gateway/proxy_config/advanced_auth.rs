@@ -679,12 +679,6 @@ async fn compile_condition(
                 return Err("Header name is invalid or protected".to_string());
             }
             validate_text_operator(&operator, false, &values)?;
-            // Go's http.CanonicalHeaderKey is applied while compiling the
-            // immutable gateway snapshot.  Canonicalize here as well so the
-            // control-plane payload and the gateway echo compare equal during
-            // the CAS/runtime transaction (header matching remains
-            // case-insensitive at request time).
-            let name = canonical_header_name(&name);
             Ok(plain_condition(json!({
                 "id": id, "target": target, "operator": operator, "name": name, "values": values,
             })))
@@ -721,11 +715,52 @@ async fn compile_condition(
     }
 }
 
-fn plain_condition(config: Value) -> CompiledAdvancedAuthCondition {
+fn plain_condition(mut config: Value) -> CompiledAdvancedAuthCondition {
+    normalize_gateway_named_condition(&mut config);
     CompiledAdvancedAuthCondition {
         config,
         policy: None,
     }
+}
+
+/// Apply only the gateway's semantics-preserving normalization for named
+/// conditions. Match values and query parameter names remain case-sensitive.
+fn normalize_gateway_named_condition(condition: &mut Value) {
+    let Some(condition) = condition.as_object_mut() else {
+        return;
+    };
+    let target = condition.get("target").and_then(Value::as_str);
+    if !matches!(target, Some("request_header" | "query_parameter")) {
+        return;
+    }
+    if target == Some("request_header")
+        && let Some(name) = condition.get("name").and_then(Value::as_str)
+        && valid_header_name(name)
+    {
+        condition.insert("name".to_string(), json!(canonical_header_name(name)));
+    }
+    if matches!(
+        condition.get("operator").and_then(Value::as_str),
+        Some("exists" | "not_exists")
+    ) {
+        condition.insert("values".to_string(), json!([]));
+    }
+}
+
+/// Normalize a cloned outbound policy, including legacy stored drafts, without
+/// rewriting storage or relaxing the comparison of the actual gateway echo.
+pub(super) fn normalize_gateway_advanced_auth(mut config: Value) -> Value {
+    for condition in config
+        .get_mut("groups")
+        .and_then(Value::as_array_mut)
+        .into_iter()
+        .flatten()
+        .filter_map(|group| group.get_mut("conditions").and_then(Value::as_array_mut))
+        .flatten()
+    {
+        normalize_gateway_named_condition(condition);
+    }
+    config
 }
 
 fn text_field(object: &Map<String, Value>, field: &str) -> String {
@@ -953,6 +988,71 @@ fn is_broad_group(conditions: &[Value]) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn advanced_auth_normalization_preserves_other_targets_and_invalid_header_names() {
+        for (target, operator, name) in [
+            ("url_path", "equals", ""),
+            ("http_method", "in", ""),
+            ("source_ip", "in_cidr", ""),
+            ("source_region", "in", ""),
+            ("request_header", "equals", "Bad Header"),
+            ("request_header", "equals", "aUThorization"),
+            ("request_header", "equals", "x-Forwarded-For"),
+        ] {
+            let original = json!({"target": target, "operator": operator,
+                "name": name, "values": [" Keep Case And Spaces "], "policy_id": "unchanged"});
+            let mut condition = original.clone();
+            normalize_gateway_named_condition(&mut condition);
+            assert_eq!(condition, original);
+        }
+        let normalized = normalize_gateway_advanced_auth(json!({"enabled": true,
+            "groups": [{"conditions": [{"target": "request_header", "operator": "exists",
+                "name": "x-CuSTom", "values": ["stale"]}]}]}));
+        assert_eq!(
+            normalize_gateway_advanced_auth(normalized.clone()),
+            normalized
+        );
+    }
+
+    #[tokio::test]
+    async fn advanced_auth_compilation_clears_values_only_for_named_presence_conditions() {
+        let (_directory, state) =
+            super::super::tests::proxy_config_test_state("http://127.0.0.1:1".to_string()).await;
+        for target in ["request_header", "query_parameter"] {
+            for operator in ["exists", "not_exists", "equals", "contains", "regex"] {
+                for values in [json!([]), json!([" Keep Case And Spaces "])] {
+                    if values.as_array().unwrap().is_empty()
+                        && !matches!(operator, "exists" | "not_exists")
+                    {
+                        continue;
+                    }
+                    let requested = json!({"target": target, "operator": operator,
+                        "name": "x-CuSTom", "values": values});
+                    let compiled =
+                        compile_condition(&state, requested.as_object().unwrap(), "c", "", "", "")
+                            .await
+                            .expect("compile named condition");
+                    assert_eq!(
+                        compiled.config["values"],
+                        if matches!(operator, "exists" | "not_exists") {
+                            json!([])
+                        } else {
+                            values
+                        }
+                    );
+                    assert_eq!(
+                        compiled.config["name"],
+                        if target == "request_header" {
+                            "X-Custom"
+                        } else {
+                            "x-CuSTom"
+                        }
+                    );
+                }
+            }
+        }
+    }
 
     #[test]
     fn emergency_disable_retains_compiled_draft_and_rotates_version() {

@@ -732,6 +732,15 @@ pub(crate) fn localize_proxy_config_error(translator: &Translator, message: &str
             &[("host", host.to_string())],
         );
     }
+    if let Some(host) =
+        message.strip_prefix("Go backend advanced authentication configuration mismatch for ")
+    {
+        return admin_config_text_params(
+            translator,
+            "hostMappings.backendAdvancedAuthMismatch",
+            &[("host", host.to_string())],
+        );
+    }
     if let Some(rest) = message.strip_prefix("Go backend did not apply HTTPS protocol mode ")
         && let Some((mode, host_and_reported)) = rest.split_once(" for ")
         && let Some((host, _)) = host_and_reported.split_once(" (reported ")

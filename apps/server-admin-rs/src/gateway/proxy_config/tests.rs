@@ -8,7 +8,9 @@ use tokio::{
 };
 use tower::ServiceExt;
 
-async fn proxy_config_test_state(go_backend_grpc_addr: String) -> (tempfile::TempDir, AppState) {
+pub(super) async fn proxy_config_test_state(
+    go_backend_grpc_addr: String,
+) -> (tempfile::TempDir, AppState) {
     let directory = tempfile::tempdir().unwrap();
     let settings = proxy_config_test_settings(&directory, go_backend_grpc_addr);
     let state = AppState::new(settings).await.unwrap();
@@ -1555,6 +1557,201 @@ fn validates_go_backend_echoed_host_visibility() {
 }
 
 #[test]
+fn advanced_auth_payload_normalizes_legacy_named_conditions_without_changing_storage() {
+    for target in ["request_header", "query_parameter"] {
+        for operator in ["exists", "not_exists"] {
+            for values in [json!([]), json!(["stale-secret"])] {
+                let mapping = json!({
+                    "host": "app.example.com", "target": "http://127.0.0.1:8080",
+                    "advanced_auth": {
+                        "enabled": true, "idle_ttl_seconds": 3600,
+                        "max_lifetime_seconds": 7200, "policy_version": "v1",
+                        "groups": [{"id": "g", "conditions": [{
+                            "id": "c", "target": target, "operator": operator,
+                            "name": "x-CuSTom", "values": values
+                        }]}]
+                    }
+                });
+                let original = mapping.clone();
+                let payload = build_host_rules_payload(std::slice::from_ref(&mapping));
+                let condition = &payload[0]["advanced_auth"]["groups"][0]["conditions"][0];
+                let mut echo = payload.clone();
+                echo[0]["advanced_auth"]["groups"][0]["conditions"][0]["values"] = json!([]);
+                if target == "request_header" {
+                    echo[0]["advanced_auth"]["groups"][0]["conditions"][0]["name"] =
+                        json!("X-Custom");
+                }
+                ensure_go_host_protocol_modes_applied(&payload, &json!({"data": echo}))
+                    .expect("legacy named conditions must match the normalized gateway echo");
+                assert_eq!(condition["values"], json!([]));
+                assert_eq!(
+                    condition["name"],
+                    if target == "request_header" {
+                        "X-Custom"
+                    } else {
+                        "x-CuSTom"
+                    }
+                );
+                assert_eq!(mapping, original);
+            }
+        }
+    }
+}
+
+#[test]
+fn advanced_auth_echo_rejects_semantic_changes_without_disclosing_values() {
+    let mapping = json!({
+        "host": "app.example.com", "target": "http://127.0.0.1:8080",
+        "advanced_auth": {
+            "enabled": true, "idle_ttl_seconds": 3600,
+            "max_lifetime_seconds": 7200, "policy_version": "v1",
+            "groups": [{"id": "g", "conditions": [{
+                "id": "c", "target": "request_header", "operator": "equals",
+                "name": "x-CuSTom", "values": [" Keep Case And Spaces "]
+            }]}]
+        }
+    });
+    let payload = build_host_rules_payload(&[mapping]);
+    assert_eq!(
+        payload[0]["advanced_auth"]["groups"][0]["conditions"][0]["values"],
+        json!([" Keep Case And Spaces "])
+    );
+    ensure_go_host_protocol_modes_applied(&payload, &json!({"data": payload})).unwrap();
+    for (path, wrong) in [
+        ("/0/advanced_auth/enabled", json!(false)),
+        ("/0/advanced_auth/policy_version", json!("stale")),
+        ("/0/advanced_auth/idle_ttl_seconds", json!(7200)),
+        (
+            "/0/advanced_auth/groups/0/conditions/0/operator",
+            json!("contains"),
+        ),
+        (
+            "/0/advanced_auth/groups/0/conditions/0/name",
+            json!("X-Other"),
+        ),
+        (
+            "/0/advanced_auth/groups/0/conditions/0/values/0",
+            json!("Keep Case And Spaces"),
+        ),
+        (
+            "/0/advanced_auth/groups/0/conditions/0/values/0",
+            json!(" keep case and spaces "),
+        ),
+        ("/0/advanced_auth/groups/0/conditions", json!([])),
+    ] {
+        let mut echoed = payload.clone();
+        *echoed.pointer_mut(path).unwrap() = wrong;
+        let error =
+            ensure_go_host_protocol_modes_applied(&payload, &json!({"data": echoed})).unwrap_err();
+        assert_eq!(
+            error,
+            "Go backend advanced authentication configuration mismatch for app.example.com"
+        );
+        assert!(!error.contains("Keep Case"));
+        assert!(!error.contains("upgrade"));
+    }
+}
+
+#[test]
+fn advanced_auth_mismatch_is_localized_in_every_supported_language() {
+    let translations: Value =
+        serde_json::from_str(include_str!("../../infra/server_i18n.json")).unwrap();
+    for (locale, strings) in translations.as_object().unwrap() {
+        let expected = strings["admin"]["hostMappings"]["backendAdvancedAuthMismatch"]
+            .as_str()
+            .expect("translated mismatch message")
+            .replace("{host}", "app.example.com");
+        assert_eq!(
+            localize_runtime_sync_error(
+                &Translator::new(locale),
+                "Go backend advanced authentication configuration mismatch for app.example.com",
+                "server.admin.hostMappings.syncHostRulesFailed",
+            ),
+            expected
+        );
+    }
+}
+
+// The harness starts the Go control service from version.json's pinned commit.
+// Keep this opt-in so ordinary Rust tests do not require a second repository.
+#[tokio::test]
+#[ignore = "run scripts/tests/test-advanced-auth-gateway-contract.sh"]
+async fn advanced_auth_pinned_gateway_contract() {
+    let address = std::env::var("FN_KNOCK_TEST_GATEWAY_ADDR").expect("harness gateway address");
+    let directory = tempfile::tempdir().unwrap();
+    let mut settings = proxy_config_test_settings(&directory, address);
+    // Route updates and rollback also use this timeout, not just direct RPCs.
+    settings.request_timeout = Duration::from_secs(10);
+    let state = AppState::new(settings).await.unwrap();
+    let client = &state.gateway.client;
+    let mut mappings = Vec::new();
+    for target in ["request_header", "query_parameter"] {
+        for operator in ["exists", "not_exists", "equals"] {
+            mappings.push(json!({
+                "host": format!("case-{}.example.com", mappings.len()),
+                "target": "http://127.0.0.1:8080", "use_auth": true,
+                "advanced_auth": {
+                    "enabled": true, "idle_ttl_seconds": 3600,
+                    "max_lifetime_seconds": 7200, "policy_version": "v1",
+                    "groups": [{"id": "g", "conditions": [{
+                        "id": "c", "target": target, "operator": operator,
+                        "name": "x-CuSTom", "values": [" Keep Case And Spaces "]
+                    }]}]
+                }
+            }));
+        }
+    }
+    let payload = build_host_rules_payload(&mappings);
+    // Isolate the original bug from header name normalization: send the
+    // otherwise canonical payload with just a stale presence match value.
+    let mut legacy = payload.clone();
+    legacy[0]["advanced_auth"]["groups"][0]["conditions"][0]["values"] = json!(["stale"]);
+    let echoed = client.set_host_rules(&legacy).await.unwrap();
+    assert!(ensure_go_host_protocol_modes_applied(&legacy, &echoed).is_err());
+    let echoed = client.set_host_rules(&payload).await.unwrap();
+    ensure_go_host_protocol_modes_applied(&payload, &echoed).unwrap();
+    std::fs::write(
+        std::env::var("FN_KNOCK_TEST_AUTH_PAYLOAD").expect("harness payload path"),
+        serde_json::to_vec(&payload).unwrap(),
+    )
+    .unwrap();
+
+    // The harness corrupts only the acknowledgement of this host's disable.
+    // Exercise the real route's 502 + storage/runtime rollback transaction.
+    let mut original = mappings[2].clone();
+    original["host"] = json!("rollback.example.com");
+    let previous_config =
+        json!({"run_type": 3, "host_mappings": [original], "visibility_policies": {}});
+    state
+        .storage
+        .store
+        .save_config(&previous_config)
+        .await
+        .unwrap();
+    let previous_payload = build_host_rules_payload_for_config(&previous_config);
+    ensure_go_host_protocol_modes_applied(
+        &previous_payload,
+        &client.set_host_rules(&previous_payload).await.unwrap(),
+    )
+    .unwrap();
+    let response = update_advanced_auth(State(state.clone()), Path("rollback.example.com".to_string()), Json(json!({
+        "advanced_auth": {"enabled": false, "idle_ttl_seconds": 3600, "max_lifetime_seconds": 7200}
+    }))).await;
+    assert_eq!(response.status(), StatusCode::BAD_GATEWAY);
+    let body = axum::body::to_bytes(response.into_body(), usize::MAX)
+        .await
+        .unwrap();
+    let message = String::from_utf8(body.to_vec()).unwrap();
+    assert!(message.contains("rollback.example.com"));
+    assert!(!message.contains("Keep Case"));
+    assert!(!message.contains("upgrade"));
+    assert_eq!(
+        state.storage.store.get_config().await.unwrap()["host_mappings"],
+        previous_config["host_mappings"]
+    );
+}
+
+#[test]
 fn validates_advanced_auth_echo_without_comparing_control_metadata() {
     let requested = json!([{
         "host": "video.example.com",
@@ -1613,7 +1810,7 @@ fn validates_advanced_auth_echo_without_comparing_control_metadata() {
     wrong_policy["data"][0]["advanced_auth"]["groups"][0]["conditions"][0]["policy_id"] =
         json!("ipset-v2:wrong");
     let error = ensure_go_host_protocol_modes_applied(&requested, &wrong_policy).unwrap_err();
-    assert!(error.contains("did not apply advanced authentication"));
+    assert!(error.contains("advanced authentication configuration mismatch"));
 
     let stale_version = json!({
         "success": true,
@@ -1630,7 +1827,7 @@ fn validates_advanced_auth_echo_without_comparing_control_metadata() {
         }]
     });
     let error = ensure_go_host_protocol_modes_applied(&requested, &stale_version).unwrap_err();
-    assert!(error.contains("did not apply advanced authentication"));
+    assert!(error.contains("advanced authentication configuration mismatch"));
 }
 
 #[test]

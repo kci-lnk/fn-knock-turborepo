@@ -80,6 +80,7 @@ pub(super) fn host_rules_failure_class(error: &str) -> &'static str {
     {
         "authorization"
     } else if error.contains("did not apply")
+        || error.contains("advanced authentication configuration mismatch")
         || error.contains("missing data")
         || error.contains("upgrade the gateway backend")
     {
@@ -278,8 +279,19 @@ pub(super) fn ensure_go_host_protocol_modes_applied(
                 && requested_policy.map(gateway_advanced_auth_projection)
                     != echoed_policy.map(gateway_advanced_auth_projection))
         {
+            let requested = requested_policy
+                .map(gateway_advanced_auth_projection)
+                .unwrap_or(Value::Null);
+            let echoed = echoed_policy
+                .map(gateway_advanced_auth_projection)
+                .unwrap_or(Value::Null);
+            let difference_path = first_json_difference_path(&requested, &echoed, "/advanced_auth")
+                .unwrap_or_else(|| "/advanced_auth/enabled".to_string());
+            // Never log the policies, condition IDs, or matching values: a
+            // field path and host are sufficient to diagnose echo mismatches.
+            tracing::warn!(%host, %difference_path, "advanced_auth_echo_mismatch");
             return Err(format!(
-                "Go backend did not apply advanced authentication for {host}; upgrade the gateway backend"
+                "Go backend advanced authentication configuration mismatch for {host}"
             ));
         }
     }
@@ -294,6 +306,40 @@ pub(super) fn ensure_go_host_protocol_modes_applied(
         ));
     }
     Ok(())
+}
+
+fn first_json_difference_path(requested: &Value, echoed: &Value, path: &str) -> Option<String> {
+    if requested == echoed {
+        return None;
+    }
+    match (requested, echoed) {
+        (Value::Object(requested), Value::Object(echoed)) => {
+            for (key, value) in requested {
+                let child_path = format!("{path}/{key}");
+                let Some(actual) = echoed.get(key) else {
+                    return Some(child_path);
+                };
+                if let Some(difference) = first_json_difference_path(value, actual, &child_path) {
+                    return Some(difference);
+                }
+            }
+            echoed
+                .keys()
+                .find(|key| !requested.contains_key(*key))
+                .map(|key| format!("{path}/{key}"))
+        }
+        (Value::Array(requested), Value::Array(echoed)) => {
+            for (index, (value, actual)) in requested.iter().zip(echoed).enumerate() {
+                if let Some(difference) =
+                    first_json_difference_path(value, actual, &format!("{path}/{index}"))
+                {
+                    return Some(difference);
+                }
+            }
+            Some(format!("{path}/{}", requested.len().min(echoed.len())))
+        }
+        _ => Some(path.to_string()),
+    }
 }
 
 fn disabled_hosts(payload: &Value) -> HashSet<String> {
@@ -555,7 +601,39 @@ pub(super) async fn sync_host_mappings_runtime(
 
 #[cfg(test)]
 mod failure_class_tests {
-    use super::host_rules_failure_class;
+    use super::{first_json_difference_path, host_rules_failure_class};
+    use serde_json::json;
+
+    #[test]
+    fn advanced_auth_diagnostics_report_only_the_first_field_path() {
+        let requested =
+            json!({"groups": [{"id": "private-id", "conditions": [{"values": ["secret-A"]}]}]});
+        let echoed =
+            json!({"groups": [{"id": "private-id", "conditions": [{"values": ["secret-B"]}]}]});
+        assert_eq!(
+            first_json_difference_path(&requested, &echoed, "/advanced_auth").as_deref(),
+            Some("/advanced_auth/groups/0/conditions/0/values/0")
+        );
+        assert_eq!(
+            first_json_difference_path(&requested, &requested, "/advanced_auth"),
+            None
+        );
+        assert_eq!(
+            first_json_difference_path(&json!([1]), &json!([]), "/groups").as_deref(),
+            Some("/groups/0")
+        );
+        assert_eq!(
+            first_json_difference_path(&json!({"enabled":true}), &json!({}), "/advanced_auth")
+                .as_deref(),
+            Some("/advanced_auth/enabled")
+        );
+        assert_eq!(
+            host_rules_failure_class(
+                "Go backend advanced authentication configuration mismatch for app.example.com"
+            ),
+            "compatibility"
+        );
+    }
 
     #[test]
     fn classifies_host_rules_failures_without_exporting_error_details() {

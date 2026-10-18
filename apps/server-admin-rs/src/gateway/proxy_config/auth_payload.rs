@@ -86,6 +86,7 @@ fn build_host_rules_payload_with_groups(mappings: &[Value], groups: &[Value]) ->
                             .unwrap_or(false)
                     })
                     .cloned()
+                    .map(normalize_gateway_advanced_auth)
                     .unwrap_or_else(|| json!({ "enabled": false }));
                 json!({
                     "host": object.get("host").cloned().unwrap_or(Value::String(String::new())),

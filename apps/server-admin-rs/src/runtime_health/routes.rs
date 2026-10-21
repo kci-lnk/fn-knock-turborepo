@@ -1239,7 +1239,14 @@ mod tests {
         assert!(bytes.len() <= MAX_ARCHIVE_BYTES);
         let mut archive = zip::ZipArchive::new(Cursor::new(bytes)).unwrap();
         let names = (0..archive.len())
-            .map(|index| archive.by_index(index).unwrap().name().to_string())
+            .map(|index| {
+                archive
+                    .by_index(index)
+                    .unwrap()
+                    .name()
+                    .unwrap()
+                    .into_owned()
+            })
             .collect::<Vec<_>>();
         assert!(names.contains(&"manifest.json".to_string()));
         assert!(names.contains(&"diagnostics.json".to_string()));

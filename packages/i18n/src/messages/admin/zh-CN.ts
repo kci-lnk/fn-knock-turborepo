@@ -376,6 +376,8 @@ export const zhCNAdmin = {
       passwordAuth: "密码",
       password: "SSH 密码",
       privateKey: "OpenSSH 私钥",
+      privateKeySecurityHint:
+        "推荐使用 Ed25519 密钥。RSA 私钥登录保留兼容，但所用密码库存在尚未修复的计时侧信道风险（CVE-2023-49092）；仅连接可信 SSH 主机。",
       privateKeyPassphrase: "私钥口令",
       optional: "可选",
       credentialConfigured: "已配置，留空不修改",

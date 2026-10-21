@@ -233,6 +233,7 @@ const deleteEditingTarget = async () => {
               <Textarea
                 id="terminal-target-secret"
                 v-model="editor.draft.secret"
+                aria-describedby="terminal-private-key-security"
                 class="field-sizing-fixed min-h-28 min-w-0 max-w-full resize-y overflow-x-auto whitespace-pre-wrap [overflow-wrap:anywhere] font-mono text-xs"
                 autocomplete="off"
                 spellcheck="false"
@@ -244,6 +245,12 @@ const deleteEditingTarget = async () => {
                 "
               />
             </div>
+            <p
+              id="terminal-private-key-security"
+              class="text-xs leading-5 text-muted-foreground"
+            >
+              {{ t("admin.wol.ssh.privateKeySecurityHint") }}
+            </p>
             <div class="space-y-2">
               <Label for="terminal-target-passphrase">
                 {{ t("admin.wol.ssh.privateKeyPassphrase") }}

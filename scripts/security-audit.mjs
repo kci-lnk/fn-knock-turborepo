@@ -1,6 +1,7 @@
 import { spawnSync } from "node:child_process";
 import path from "node:path";
-import { fileURLToPath } from "node:url";
+import { mkdirSync, writeFileSync } from "node:fs";
+import { fileURLToPath, pathToFileURL } from "node:url";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 
@@ -20,6 +21,9 @@ function runJson(command, args) {
   if (result.error) {
     throw new Error(`failed to run ${command}: ${result.error.message}`);
   }
+  if (![0, 1].includes(result.status)) {
+    throw new Error(`${command} failed (${result.status}): ${result.stderr}`);
+  }
 
   try {
     return JSON.parse(result.stdout);
@@ -31,6 +35,7 @@ function runJson(command, args) {
 
 function auditNodeDependencies() {
   const report = runJson("npm", ["audit", "--json"]);
+  saveReport("npm", report);
   const counts = report.metadata?.vulnerabilities;
   if (!counts || counts.total !== 0) {
     throw new Error(
@@ -64,7 +69,14 @@ const rustAllowlist = new Map([
   ],
 ]);
 
-function rustFindings(report) {
+export function rustFindings(report) {
+  if (
+    !Array.isArray(report.vulnerabilities?.list) ||
+    !report.warnings ||
+    report.error
+  ) {
+    throw new Error("cargo audit returned an incomplete or failed report");
+  }
   const vulnerabilities = (report.vulnerabilities?.list ?? []).map(
     ({ advisory, package: dependency }) =>
       `${advisory.id}:${dependency.name}:${dependency.version}`,
@@ -78,7 +90,7 @@ function rustFindings(report) {
   return { vulnerabilities, warnings };
 }
 
-function assertExactFindings(actual, allowed, label) {
+export function assertExactFindings(actual, allowed, label) {
   const unexpected = actual.filter((finding) => !allowed.has(finding));
   const missing = [...allowed].filter((finding) => !actual.includes(finding));
   if (actual.length !== allowed.size || unexpected.length || missing.length) {
@@ -129,6 +141,21 @@ function auditRustLockfile(lockfile) {
     args.push("--db", advisoryDb, "--no-fetch");
   }
   const report = runJson("cargo", args);
+  if (advisoryDb) {
+    const revision = spawnSync("git", ["-C", advisoryDb, "rev-parse", "HEAD"], {
+      encoding: "utf8",
+    });
+    if (revision.status !== 0)
+      throw new Error("Cannot record the supplied RustSec database revision");
+    report.database = {
+      ...report.database,
+      "last-commit": revision.stdout.trim(),
+    };
+  }
+  saveReport(lockfile.replaceAll("/", "-"), report);
+  console.log(
+    `[security] RustSec database: ${report.database?.["last-commit"] ?? advisoryDb ?? "unknown"}`,
+  );
   const findings = rustFindings(report);
   const policy = rustAllowlist.get(lockfile) ?? {
     vulnerabilities: new Set(),
@@ -155,11 +182,27 @@ function auditRustLockfile(lockfile) {
   }
 }
 
-try {
-  auditNodeDependencies();
-  auditRustLockfile("apps/server-admin-rs/Cargo.lock");
-  auditRustLockfile("apps/fn-knock-desktop/native/Cargo.lock");
-} catch (error) {
-  console.error(`[security] ${error.message}`);
-  process.exitCode = 1;
+function saveReport(name, report) {
+  const directory = process.env.FN_KNOCK_SECURITY_REPORT_DIR;
+  if (!directory) return;
+  mkdirSync(directory, { recursive: true });
+  writeFileSync(
+    path.join(directory, `${name}.json`),
+    `${JSON.stringify(report, null, 2)}\n`,
+  );
+}
+
+if (
+  process.argv[1] &&
+  import.meta.url === pathToFileURL(path.resolve(process.argv[1])).href
+) {
+  try {
+    auditNodeDependencies();
+    auditRustLockfile("apps/server-admin-rs/Cargo.lock");
+    auditRustLockfile("apps/fn-knock-desktop/native/Cargo.lock");
+    auditRustLockfile("packages/wol-protocol-rs/Cargo.lock");
+  } catch (error) {
+    console.error(`[security] ${error.message}`);
+    process.exitCode = 1;
+  }
 }

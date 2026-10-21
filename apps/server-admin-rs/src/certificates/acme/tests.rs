@@ -1,5 +1,69 @@
 use super::*;
 
+#[test]
+fn acme_zip_extraction_does_not_follow_archive_links_or_traversal() {
+    use std::io::Write;
+    let directory = tempfile::tempdir().unwrap();
+    let output = directory.path().join("output");
+    std::fs::create_dir(&output).unwrap();
+    let outside = directory.path().join("outside");
+    std::fs::write(&outside, b"unchanged").unwrap();
+    let archive_path = directory.path().join("acme.zip");
+    let mut archive = zip::ZipWriter::new(std::fs::File::create(&archive_path).unwrap());
+    let options = zip::write::SimpleFileOptions::default();
+    archive.start_file("../outside", options).unwrap();
+    archive.write_all(b"overwrite").unwrap();
+    archive.add_symlink("link", "../outside", options).unwrap();
+    archive.start_file("acmesh/acme.sh", options).unwrap();
+    archive.write_all(b"#!/bin/sh\n").unwrap();
+    archive.finish().unwrap();
+
+    extract_zip_file(&archive_path, &output).unwrap();
+    assert_eq!(std::fs::read(&outside).unwrap(), b"unchanged");
+    assert!(
+        !std::fs::symlink_metadata(output.join("link"))
+            .unwrap()
+            .file_type()
+            .is_symlink()
+    );
+    assert_eq!(
+        std::fs::read(output.join("acmesh/acme.sh")).unwrap(),
+        b"#!/bin/sh\n"
+    );
+}
+
+#[cfg(unix)]
+#[test]
+fn acme_zip_extraction_does_not_restore_privileged_permissions() {
+    use std::io::Write;
+    use std::os::unix::fs::PermissionsExt;
+    let directory = tempfile::tempdir().unwrap();
+    let mut archive = zip::ZipWriter::new(std::io::Cursor::new(Vec::new()));
+    archive
+        .start_file("acme.sh", zip::write::SimpleFileOptions::default())
+        .unwrap();
+    archive.write_all(b"#!/bin/sh\n").unwrap();
+    let mut bytes = archive.finish().unwrap().into_inner();
+    let central = bytes
+        .windows(4)
+        .position(|part| part == b"PK\x01\x02")
+        .unwrap();
+    bytes[central + 5] = 3; // Unix creator; external attributes request SUID/SGID.
+    bytes[central + 38..central + 42].copy_from_slice(&(0o106755_u32 << 16).to_le_bytes());
+    let archive_path = directory.path().join("acme.zip");
+    std::fs::write(&archive_path, bytes).unwrap();
+    let output = directory.path().join("output");
+    extract_zip_file(&archive_path, &output).unwrap();
+    assert_eq!(
+        std::fs::metadata(output.join("acme.sh"))
+            .unwrap()
+            .permissions()
+            .mode()
+            & 0o6000,
+        0
+    );
+}
+
 #[tokio::test]
 async fn external_takeover_disables_acme_renewal_unlinks_and_restores_snapshot() {
     let (_directory, state) = acme_test_state().await;

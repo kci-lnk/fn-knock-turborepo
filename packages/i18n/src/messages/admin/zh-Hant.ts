@@ -328,6 +328,8 @@ export const zhHantAdmin = {
       passwordAuth: "密碼",
       password: "SSH 密碼",
       privateKey: "OpenSSH 私鑰",
+      privateKeySecurityHint:
+        "建議使用 Ed25519 金鑰。RSA 私鑰登入保留相容性，但使用的密碼函式庫存在尚未修復的計時側通道風險（CVE-2023-49092）；僅連線至可信任的 SSH 主機。",
       privateKeyPassphrase: "私鑰密語",
       optional: "選填",
       credentialConfigured: "已設定，留空不變",

@@ -121,7 +121,7 @@ fn write_swagger_ui_assets(out_dir: &Path) {
             .find(|index| {
                 archive
                     .by_index(*index)
-                    .map(|file| file.name().ends_with(source_suffix))
+                    .map(|file| file.name().is_ok_and(|name| name.ends_with(source_suffix)))
                     .unwrap_or(false)
             })
             .unwrap_or_else(|| panic!("vendored Swagger UI is missing {source_suffix}"));

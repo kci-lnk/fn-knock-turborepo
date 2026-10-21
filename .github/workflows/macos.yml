@@ -179,6 +179,11 @@ jobs:
         with:
           toolchain: ${{ env.RUST_VERSION }}
 
+      - name: Set up Node.js for security audit
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
       - name: Set up verified protobuf compiler
         shell: bash
         run: |
@@ -215,6 +220,15 @@ jobs:
           sudo env CI=true GITHUB_RUN_ID="${GITHUB_RUN_ID}" \
             bash ./scripts/fn-knock-macos-launchd-smoke.sh \
               "${GITHUB_WORKSPACE}/dist/fn-knock-macos/fn-knock-macos-${FN_KNOCK_VERSION}-${{ matrix.arch }}.tar.gz"
+
+      - name: Preserve gateway security evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: macos-gateway-security-${{ matrix.arch }}
+          path: dist/security-audit/*.json
+          if-no-files-found: warn
+          retention-days: 30
 
       - name: Upload CI package
         if: github.event_name != 'pull_request'

@@ -412,6 +412,8 @@ export const jaJPAdmin = {
       passwordAuth: "パスワード",
       password: "SSH パスワード",
       privateKey: "OpenSSH 秘密鍵",
+      privateKeySecurityHint:
+        "Ed25519 鍵を推奨します。RSA 秘密鍵でのログインは引き続き利用できますが、暗号ライブラリには未修正のタイミングサイドチャネルのリスクがあります（CVE-2023-49092）。信頼できる SSH ホストにのみ接続してください。",
       privateKeyPassphrase: "秘密鍵のパスフレーズ",
       optional: "任意",
       credentialConfigured: "設定済み。空欄なら変更しません",

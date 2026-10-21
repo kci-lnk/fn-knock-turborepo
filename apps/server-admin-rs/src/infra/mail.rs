@@ -1,4 +1,7 @@
 //! Transport-only mail infrastructure. Callers own configuration and retry policy.
+#[cfg(test)]
+mod security_tests;
+
 use lettre::{
     AsyncSmtpTransport, AsyncTransport, Message, Tokio1Executor,
     message::{Attachment, Mailbox, MultiPart, SinglePart, header::ContentType},

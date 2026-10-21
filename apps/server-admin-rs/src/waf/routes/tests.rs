@@ -511,6 +511,28 @@ fn validates_waf_bundle_paths() {
 }
 
 #[test]
+fn waf_zip_import_rejects_traversal_entries() {
+    use std::io::Write;
+    for (name, valid) in [
+        ("REQUEST-001.conf", true),
+        ("../evil.conf", false),
+        ("/absolute.conf", false),
+    ] {
+        let mut archive = zip::ZipWriter::new(std::io::Cursor::new(Vec::new()));
+        archive
+            .start_file(name, zip::write::SimpleFileOptions::default())
+            .unwrap();
+        archive.write_all(b"# WAF test rule\n").unwrap();
+        let buffer = archive.finish().unwrap().into_inner();
+        assert_eq!(
+            unpack_system_rules_zip(&buffer).is_ok(),
+            valid,
+            "entry {name}"
+        );
+    }
+}
+
+#[test]
 fn resolves_waf_download_urls_without_cache_busting() {
     assert_eq!(
         resolve_waf_url("https://cor.fnknock.cn/waf/manifest.json", None).unwrap(),

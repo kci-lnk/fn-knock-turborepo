@@ -409,6 +409,8 @@ export const enAdmin = {
       passwordAuth: "Password",
       password: "SSH password",
       privateKey: "OpenSSH private key",
+      privateKeySecurityHint:
+        "Ed25519 keys are recommended. RSA private-key login remains supported, but the cryptography library has an unpatched timing side-channel risk (CVE-2023-49092). Only connect to trusted SSH hosts.",
       privateKeyPassphrase: "Private-key passphrase",
       optional: "Optional",
       credentialConfigured: "Configured; leave blank to keep it",

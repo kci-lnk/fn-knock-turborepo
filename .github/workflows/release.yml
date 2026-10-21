@@ -103,7 +103,7 @@ jobs:
       FN_KNOCK_GO_REAUTH_PROXY_DIR: ${{ github.workspace }}/Go-Reauth-Proxy
       FN_KNOCK_RUSTSEC_ADVISORY_DB: ${{ github.workspace }}/rustsec-advisory-db
       # Update deliberately after reviewing new advisories to keep release audits reproducible.
-      RUSTSEC_ADVISORY_DB_REVISION: 309ad29d8fe448bf986019e05d47b9e0e29a2218
+      RUSTSEC_ADVISORY_DB_REVISION: 4b587f00996ebe5c05a73eaef105ef241e876414
 
     steps:
       - name: Checkout fn-knock
@@ -228,6 +228,25 @@ jobs:
             bash ./scripts/build-go-release.sh \
               "${GITHUB_WORKSPACE}/Go-Reauth-Proxy" \
               "${GITHUB_WORKSPACE}/dist/fn-knock-go-release"
+
+      - name: Audit selected gateway source and release binaries
+        env:
+          FN_KNOCK_GO_REAUTH_PROXY_DIR: ${{ github.workspace }}/Go-Reauth-Proxy
+        run: >-
+          node scripts/security-audit-go.mjs --binary
+          dist/fn-knock-go-release/go-reauth-proxy-linux-amd64
+          dist/fn-knock-go-release/go-reauth-proxy-linux-arm64
+          dist/fn-knock-go-release/go-reauth-proxy-linux-arm
+          dist/fn-knock-go-release/go-reauth-proxy-windows-amd64.exe
+
+      - name: Preserve gateway security evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: release-gateway-security
+          path: dist/security-audit/*.json
+          if-no-files-found: warn
+          retention-days: 30
 
       - name: Stage common runtime
         shell: bash
@@ -419,6 +438,15 @@ jobs:
           -SkipChecks
           -RequireCleanTree
           -GoRepository "${{ github.workspace }}\Go-Reauth-Proxy"
+
+      - name: Preserve gateway security evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: release-windows-gateway-security
+          path: dist/security-audit/*.json
+          if-no-files-found: warn
+          retention-days: 30
 
       - name: Verify Windows storage diagnostics and service failure policy
         shell: pwsh
@@ -700,6 +728,38 @@ jobs:
           provenance: mode=max
           sbom: true
 
+      - name: Scan final image operating-system packages
+        env:
+          IMAGE_REF: ${{ env.FN_KNOCK_DOCKER_IMAGE_REPO }}@${{ steps.image.outputs.digest }}
+          IMAGE_ARCH: ${{ matrix.arch }}
+          EVENT_NAME: ${{ github.event_name }}
+        shell: bash
+        run: |
+          mkdir -p dist/security-audit
+          scan_args=("${IMAGE_REF}")
+          if [ "${EVENT_NAME}" = workflow_dispatch ]; then
+            scan_args=(--input "/input/fn-knock-${IMAGE_ARCH}.tar")
+          fi
+          docker run --rm \
+            -v "${PWD}/dist/security-audit:/reports" \
+            -v /tmp:/input:ro \
+            -v "${HOME}/.docker:/root/.docker:ro" \
+            aquasec/trivy:0.76.1@sha256:790fd66d1697395d8693d1acaa1ea702406a20f109b6fc7bac8db623eca6c06c \
+            image --timeout 15m --no-progress --scanners vuln --pkg-types os --severity HIGH,CRITICAL \
+            --db-repository ghcr.io/aquasecurity/trivy-db:2 \
+            --db-repository mirror.gcr.io/aquasec/trivy-db:2 \
+            --exit-code 1 --format json --output /reports/container.json \
+            "${scan_args[@]}"
+
+      - name: Preserve container security report
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: release-container-security-${{ matrix.arch }}
+          path: dist/security-audit/container.json
+          if-no-files-found: warn
+          retention-days: 30
+
       - name: Upload dry-run OCI image
         if: github.event_name == 'workflow_dispatch'
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
@@ -756,7 +816,15 @@ jobs:
 
   publish:
     needs:
-      [preflight, quality, assemble, windows-unsigned, macos, netbsd, docker-manifest]
+      [
+        preflight,
+        quality,
+        assemble,
+        windows-unsigned,
+        macos,
+        netbsd,
+        docker-manifest,
+      ]
     if: >-
       always() &&
       needs.preflight.result == 'success' &&

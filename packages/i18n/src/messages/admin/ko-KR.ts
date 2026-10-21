@@ -407,6 +407,8 @@ export const koKRAdmin = {
       passwordAuth: "비밀번호",
       password: "SSH 비밀번호",
       privateKey: "OpenSSH 개인 키",
+      privateKeySecurityHint:
+        "Ed25519 키를 권장합니다. RSA 개인 키 로그인은 계속 지원되지만, 암호화 라이브러리에 아직 수정되지 않은 타이밍 부채널 위험이 있습니다(CVE-2023-49092). 신뢰할 수 있는 SSH 호스트에만 연결하세요.",
       privateKeyPassphrase: "개인 키 암호",
       optional: "선택 사항",
       credentialConfigured: "설정됨. 비워 두면 유지됩니다",

@@ -627,6 +627,7 @@ const runtimeBadgeClass = (state: string) => {
                   <Textarea
                     :id="`${id}-ssh-private-key`"
                     v-model="sshPrivateKeyValue"
+                    :aria-describedby="`${id}-ssh-private-key-security`"
                     class="min-h-28 font-mono text-xs"
                     autocomplete="off"
                     spellcheck="false"
@@ -662,6 +663,12 @@ const runtimeBadgeClass = (state: string) => {
                     </div>
                   </div>
                 </div>
+                <p
+                  :id="`${id}-ssh-private-key-security`"
+                  class="text-xs leading-5 text-muted-foreground"
+                >
+                  {{ t("admin.wol.ssh.privateKeySecurityHint") }}
+                </p>
                 <div class="space-y-2">
                   <Label :for="`${id}-ssh-passphrase`">{{
                     t("admin.wol.ssh.privateKeyPassphrase")

@@ -84,6 +84,10 @@ if [ "${PREBUILT_ONLY}" != "1" ]; then
   cp "${BUILD_DIR}/cargo-target/${RUST_TARGET}/release/server-admin-rs" "${RUST_BIN}"
 fi
 
+FN_KNOCK_GO_REAUTH_PROXY_DIR="${GO_REPOSITORY}" \
+FN_KNOCK_GATEWAY_COMMIT="${GO_COMMIT}" \
+  node "${ROOT_DIR}/scripts/security-audit-go.mjs" --binary "${GO_BIN}"
+
 validate_macho() {
   local binary="$1" label="$2" info arches minos
   [ -x "${binary}" ] || chmod 0755 "${binary}" 2>/dev/null || true

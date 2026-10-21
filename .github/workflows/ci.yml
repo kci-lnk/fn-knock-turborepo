@@ -20,9 +20,79 @@ env:
   PROTOC_VERSION: "35.1"
   PROTOC_LINUX_X86_64_SHA256: "6930ebf62bd4ea607b98fff052596c6ee564b9835b4ce172c75a3f53ae9d91b7"
   RUST_VERSION: "1.96.0"
-  RUSTSEC_ADVISORY_DB_REVISION: 309ad29d8fe448bf986019e05d47b9e0e29a2218
+  RUSTSEC_ADVISORY_DB_REVISION: 4b587f00996ebe5c05a73eaef105ef241e876414
 
 jobs:
+  security:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    env:
+      FN_KNOCK_GO_REAUTH_PROXY_DIR: ${{ github.workspace }}/Go-Reauth-Proxy
+      FN_KNOCK_RUSTSEC_ADVISORY_DB: ${{ github.workspace }}/rustsec-advisory-db
+      FN_KNOCK_SECURITY_REPORT_DIR: ${{ github.workspace }}/dist/security-audit
+    steps:
+      - name: Checkout fn-knock
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+      - name: Select recorded gateway commit
+        id: gateway
+        run: echo "sha=$(node -p 'require(\"./version.json\").gatewayCommit')" >> "$GITHUB_OUTPUT"
+      - name: Checkout selected gateway
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          repository: kci-lnk/Go-Reauth-Proxy
+          path: Go-Reauth-Proxy
+          ref: ${{ steps.gateway.outputs.sha }}
+          persist-credentials: false
+      - name: Checkout current RustSec database
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          repository: RustSec/advisory-db
+          path: rustsec-advisory-db
+          persist-credentials: false
+      - name: Record vulnerability database revision
+        run: |
+          mkdir -p dist/security-audit
+          git -C rustsec-advisory-db log -1 --format='%H %cI' | tee dist/security-audit/rustsec-revision.txt
+      - name: Set up Node.js
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+      - name: Set up Go
+        uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6
+        with:
+          go-version-file: Go-Reauth-Proxy/go.mod
+          cache-dependency-path: Go-Reauth-Proxy/go.sum
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@4be7066ada62dd38de10e7b70166bc74ed198c30
+        with:
+          toolchain: ${{ env.RUST_VERSION }}
+      - name: Audit dependencies and gate behavior
+        run: |
+          npm install --global "npm@${NPM_VERSION}"
+          cargo install cargo-audit --version 0.22.2 --locked
+          npm run security:test
+          npm run security:audit
+      - name: Build and audit gateway artifacts
+        run: |
+          bash scripts/build-go-release.sh
+          node scripts/security-audit-go.mjs --binary \
+            dist/fn-knock-go-release/go-reauth-proxy-linux-amd64 \
+            dist/fn-knock-go-release/go-reauth-proxy-linux-arm64 \
+            dist/fn-knock-go-release/go-reauth-proxy-linux-arm \
+            dist/fn-knock-go-release/go-reauth-proxy-windows-amd64.exe
+      - name: Preserve security reports even on failure
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: security-audit
+          path: |
+            dist/security-audit/*.json
+            dist/security-audit/*.txt
+          if-no-files-found: warn
+          retention-days: 30
+
   quality:
     if: github.event_name != 'schedule'
     runs-on: ubuntu-24.04

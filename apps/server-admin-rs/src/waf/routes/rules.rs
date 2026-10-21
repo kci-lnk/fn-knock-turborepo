@@ -152,7 +152,8 @@ pub(super) fn unpack_system_rules_zip(buffer: &[u8]) -> anyhow::Result<UnpackedW
         if file.is_dir() {
             continue;
         }
-        let relative_path = safe_bundle_entry_path(file.name())?;
+        let name = file.name()?;
+        let relative_path = safe_bundle_entry_path(&name)?;
         let path_key = relative_path.to_ascii_lowercase();
         if !bundle_path_keys.insert(path_key) {
             anyhow::bail!("Duplicate WAF bundle file: {relative_path}");

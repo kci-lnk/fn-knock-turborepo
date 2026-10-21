@@ -92,6 +92,15 @@ jobs:
           $setup = (Resolve-Path "dist\windows\fn-knock-*-windows-x86_64-unsigned-setup.exe").Path
           ./scripts/fn-knock-windows-installer-smoke.ps1 -SetupPath $setup
 
+      - name: Preserve gateway security evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: windows-gateway-security
+          path: dist/security-audit/*.json
+          if-no-files-found: warn
+          retention-days: 30
+
       - name: Upload Windows failure diagnostics
         if: failure()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1

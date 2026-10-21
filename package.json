@@ -7,7 +7,7 @@
     "clean": "bash ./scripts/fn-knock-clean.sh",
     "lint": "turbo run lint",
     "test": "turbo run test",
-    "quality:check": "npm run i18n:check && npm run lint && npm run check-types && npm run test && npm run rust:clippy && npm run rust:panic-guard && npm run rust:task-lifecycle && npm run security:audit && npm run fn-knock:grpc:check-go && npm run turbo:contract:check && npm run api:check && npm run frontend:budget && npm run source:hotspots && npm run fn-knock:release:test && npm run moo:test",
+    "quality:check": "npm run i18n:check && npm run lint && npm run check-types && npm run test && npm run rust:clippy && npm run rust:panic-guard && npm run rust:task-lifecycle && npm run security:test && npm run security:audit && npm run security:audit:go && npm run fn-knock:grpc:check-go && npm run turbo:contract:check && npm run api:check && npm run frontend:budget && npm run source:hotspots && npm run fn-knock:release:test && npm run moo:test",
     "a11y:audit": "node ./scripts/a11y-runtime-audit.mjs",
     "runtime:build": "cargo build --locked --manifest-path apps/server-admin-rs/Cargo.toml --profile runtime-test --bin server-admin-rs",
     "runtime:auth-assets": "node ./scripts/auth-assets-runtime-test.mjs",
@@ -90,7 +90,9 @@
     "fn-knock:docker:remote-reset-panel-password": "bash ./scripts/fn-knock-docker.sh reset-panel-password-remote",
     "i18n:check": "tsx ./packages/i18n/scripts/check.mjs",
     "i18n:export-server": "tsx ./packages/i18n/scripts/export-server.mjs",
-    "i18n:scan": "node ./packages/i18n/scripts/scan.mjs"
+    "i18n:scan": "node ./packages/i18n/scripts/scan.mjs",
+    "security:audit:go": "node ./scripts/security-audit-go.mjs",
+    "security:test": "node --test ./scripts/tests/security-audit.test.mjs"
   },
   "devDependencies": {
     "@axe-core/playwright": "^4.12.1",
@@ -120,7 +122,9 @@
     "fast-uri": "3.1.4",
     "immutable": "5.1.9",
     "js-yaml": "4.3.2",
-    "uuid": "11.1.1"
+    "uuid": "11.1.1",
+    "vite": "8.1.6",
+    "follow-redirects": "1.16.1"
   },
   "allowScripts": {
     "vue-demi@0.14.10": true,

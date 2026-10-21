@@ -118,6 +118,10 @@ function Invoke-GoChecksAndBuild {
     $output = Join-Path $GoRepository "build\go-reauth-proxy-windows-amd64.exe"
     go build -mod=readonly -trimpath -ldflags "-s -w -X go-reauth-proxy/pkg/version.Version=$Version -X go-reauth-proxy/pkg/version.Commit=$GoCommit" -o $output ./cmd/server
     Assert-LastExitCode "Go Windows build"
+    $env:FN_KNOCK_GO_REAUTH_PROXY_DIR = $GoRepository
+    $env:FN_KNOCK_GATEWAY_COMMIT = $GoCommit
+    node (Join-Path $Root "scripts\security-audit-go.mjs") --binary $output
+    Assert-LastExitCode "Go Windows source and artifact security audit"
   } finally {
     Pop-Location
   }

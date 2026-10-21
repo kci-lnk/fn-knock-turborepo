@@ -5,7 +5,7 @@
     "author": "kci-lnk",
     "homepage": "https://github.com/kci-lnk/fn-knock-turborepo",
     "description": "fn-knock 官方 fnOS 原生 FPK 应用源。",
-    "updated_at": "2026-10-16T19:43:46Z"
+    "updated_at": "2026-10-21T22:35:52Z"
   },
   "apps": {
     "fn-knock": {
@@ -28,23 +28,23 @@
       "license": "MIT",
       "install_type": "root",
       "service_port": 7999,
-      "icon_url": "https://raw.githubusercontent.com/kci-lnk/fn-knock-turborepo/v2.5.4/apps/fn-knock/ICON_256.PNG",
-      "readme_url": "https://raw.githubusercontent.com/kci-lnk/fn-knock-turborepo/v2.5.4/README.md",
-      "updated_at": "2026-10-16T19:43:46Z",
+      "icon_url": "https://raw.githubusercontent.com/kci-lnk/fn-knock-turborepo/v2.5.5/apps/fn-knock/ICON_256.PNG",
+      "readme_url": "https://raw.githubusercontent.com/kci-lnk/fn-knock-turborepo/v2.5.5/README.md",
+      "updated_at": "2026-10-21T22:35:52Z",
       "releases": {
-        "2.5.4": {
-          "changelog": "# fn-knock 2.5.4\n\n- 系统设置中的网关配置新增「映射选择页」开关，可控制是否允许通过 `/__select__` 查看映射入口；关闭后，相关请求按未匹配路由策略处理。\n- 修复退出登录后使用 Passkey 再次登录时的跳转问题，保留正确的登录目标与导航状态。\n- 修复认证服务未匹配路由的处理，使网关能够对这些请求一致应用未匹配路由策略。\n- 加强代理映射目标地址校验，在前后端拒绝格式错误的目标，并完善输入提示。\n- 完善 DDNS 与 ACME 证书申请之间的 DNS 凭据双向复用提示，减少重复填写配置。\n- 修复控制台应用入口链接的生成，正确使用公网网关配置，并应用门户的局域网导航规则。\n- 完善 fnOS 证书同步失败后的批次恢复，恢复时同步核对并修复网关映射，保护共享证书索引引用，避免误清理仍被使用的证书记录。\n- 更新内置 acme.sh 组件。\n",
-          "updated_at": "2026-10-16T19:43:46Z",
+        "2.5.5": {
+          "changelog": "# fn-knock 2.5.5\n\n> [!IMPORTANT]\n> 本次为重要安全更新，建议所有用户尽快升级。\n\n- 升级 Rust 后端、Go 网关及前端构建链中的多项依赖，修复相关依赖中的已知安全问题，涉及 TLS、HTTP、WAF、压缩包处理等组件。\n- 加强发布安全检查：审计依赖、核验各平台 Go 网关二进制与源码的一致性，并扫描最终容器镜像中的系统软件包；发现不符合安全门禁要求的问题时阻止正式发布。\n- 补充证书信任校验、压缩包路径穿越与符号链接处理、WAF 等安全回归测试，并完善 SSH 使用 RSA 密钥时的风险提示。\n- 修复高级认证条件同步到网关前的规范化处理，使认证规则能够按预期生效。\n- 修复 fnOS 证书同步中过期事务的清理与恢复处理，保护仍在使用的证书引用，避免误清理。\n- 新增带保护检查的 fnOS 证书同步诊断与过期事务清理工具，便于排查和处理历史同步问题。",
+          "updated_at": "2026-10-21T22:35:52Z",
           "packages": {
             "x86": {
-              "download_url": "https://github.com/kci-lnk/fn-knock-turborepo/releases/download/v2.5.4/fn-knock-2.5.4-fnos-amd64.fpk",
-              "sha256": "553c8ebe8f93339db98bc604f39ed03f23f52ce475165b7e828ea5b9ba14c298",
-              "size": 30525576
+              "download_url": "https://github.com/kci-lnk/fn-knock-turborepo/releases/download/v2.5.5/fn-knock-2.5.5-fnos-amd64.fpk",
+              "sha256": "2778dbc3da41bf0b40a248ac472985ad3efece167306ba0a7a783fe2668b644d",
+              "size": 30575516
             },
             "arm": {
-              "download_url": "https://github.com/kci-lnk/fn-knock-turborepo/releases/download/v2.5.4/fn-knock-2.5.4-fnos-arm64.fpk",
-              "sha256": "6acf04a29059c852643466975e63766622a05043e6989c2f097727903c7751de",
-              "size": 29454870
+              "download_url": "https://github.com/kci-lnk/fn-knock-turborepo/releases/download/v2.5.5/fn-knock-2.5.5-fnos-arm64.fpk",
+              "sha256": "33b8e2e8ff794fadd411c3391bdf4c310ee25f4086e911cc1e73c7d887a71ad8",
+              "size": 29508862
             }
           }
         }

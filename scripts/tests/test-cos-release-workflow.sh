@@ -63,6 +63,17 @@ job_needs() {
         getline
         sub(/^[[:space:]]*/, "")
       }
+      if ($0 ~ /^\[/ && $0 !~ /\]/) {
+        value = $0
+        while (getline > 0) {
+          sub(/^[[:space:]]*/, "")
+          value = value $0
+          if ($0 ~ /\]/) break
+        }
+        gsub(/,[[:space:]]*\]/, "]", value)
+        gsub(/,[[:space:]]*/, ", ", value)
+        $0 = value
+      }
       print
       exit
     }

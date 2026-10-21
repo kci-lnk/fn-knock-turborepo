@@ -61,7 +61,22 @@ assert_contains "${WORKFLOW}" 'git worktree add --detach' 'base source worktree'
 assert_contains "${WORKFLOW}" 'Go-Reauth-Proxy worktree add --detach' 'base gateway worktree'
 assert_contains "${WORKFLOW}" 'base_gateway_commit="$(git -C Go-Reauth-Proxy rev-parse HEAD)"' 'current gateway baseline'
 assert_contains "${WORKFLOW}" 'sha="$(git -C Go-Reauth-Proxy rev-parse HEAD)"' 'actual gateway commit metadata'
-assert_not_contains "${WORKFLOW}" 'gatewayCommit' 'historical gateway commit must not control CI checkout'
+# Security audits intentionally inspect the recorded release source. Other jobs,
+# including runtime comparisons, must keep using the current gateway checkout.
+node - "${WORKFLOW}" <<'NODE'
+const fs = require("node:fs");
+const workflow = fs.readFileSync(process.argv[2], "utf8");
+const jobs = workflow.split(/^jobs:\s*$/m)[1];
+if (!jobs) throw new Error("Missing CI jobs");
+let job;
+for (const line of jobs.split("\n")) {
+  const heading = /^  ([\w-]+):\s*$/.exec(line);
+  if (heading) job = heading[1];
+  if (line.includes("gatewayCommit") && job !== "security") {
+    throw new Error(`Historical gateway commit must not control ${job} checkout`);
+  }
+}
+NODE
 assert_not_contains "${HARNESS}" 'gatewayCommit' 'historical gateway commit must not control runtime tests'
 assert_contains "${WORKFLOW}" 'FN_KNOCK_RUNTIME_PERF_EXERCISE_MEMORY_CONFIG="0"' 'legacy baseline memory API compatibility'
 assert_contains "${WORKFLOW}" 'base_manifest="${{ steps.baseline.outputs.root }}/apps/server-admin-rs/Cargo.toml"' 'base Rust manifest path'

@@ -2594,7 +2594,7 @@ export const enAdmin = {
     automaticPaused:
       "Automatic certificate sync is paused after an interrupted or failed operation. Backups have been preserved.",
     recoveryNotice:
-      "Manual recovery may briefly interrupt access to fnOS. A successful recovery resumes automatic sync if it is enabled.",
+      "Manual recovery may briefly interrupt access to fnOS. If certificates from an old sync are confirmed deleted and no longer referenced, the obsolete transaction is archived with its backup preserved; deleted certificates are not restored. A successful recovery resumes automatic sync if it is enabled.",
     recover: "Retry recovery",
     recoveryCompleted: "Recovery completed",
 

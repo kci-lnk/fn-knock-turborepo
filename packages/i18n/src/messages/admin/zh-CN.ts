@@ -2401,7 +2401,7 @@ export const zhCNAdmin = {
   fnosCertificateSync: {
     automaticPaused: "证书操作中断或失败，自动同步已暂停，备份已保留。",
     recoveryNotice:
-      "手动恢复可能短暂中断飞牛访问。恢复成功后，已开启的自动同步将继续运行。",
+      "手动恢复可能短暂中断飞牛访问。若确认旧同步涉及的证书已被删除且不再被引用，将保留备份并归档失效事务，不恢复已删除的证书。恢复成功后，已开启的自动同步将继续运行。",
     recover: "重试恢复",
     recoveryCompleted: "恢复完成",
 

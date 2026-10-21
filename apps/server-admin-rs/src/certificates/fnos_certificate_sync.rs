@@ -317,9 +317,8 @@ async fn sync_now(State(state): State<AppState>, Json(body): Json<SyncBody>) -> 
     let requested_ids = ids.iter().map(ToString::to_string).collect::<Vec<_>>();
     match tokio::task::spawn_blocking(move || {
         if body.recovery_only {
-            let rolled_back = lifecycle::pending_recovery(&data_dir)
-                .map_err(|e| SyncExecutionError::new(e, &[]))?;
-            lifecycle::recover(&data_dir).map_err(|e| SyncExecutionError::new(e, &[]))?;
+            let rolled_back =
+                lifecycle::recover(&data_dir).map_err(|e| SyncExecutionError::new(e, &[]))?;
             return Ok(SyncSummary {
                 rolled_back,
                 ..SyncSummary::default()

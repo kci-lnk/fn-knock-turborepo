@@ -5,6 +5,7 @@ mod gateway;
 mod permissions;
 #[cfg(test)]
 mod postgres_tests;
+mod retirement;
 mod schema;
 mod tls_probe;
 mod transaction;
@@ -1016,36 +1017,47 @@ fn process_lock(data_dir: &Path) -> anyhow::Result<fs::File> {
         .map_err(|_| anyhow!("Another fnOS certificate synchronization is running"))?;
     Ok(file)
 }
-pub(super) fn recover(data_dir: &Path) -> anyhow::Result<()> {
-    automatic::run(data_dir, false, || recover_locked(data_dir))
+// True means a rollback actually occurred, not merely that a journal existed.
+pub(super) fn recover(data_dir: &Path) -> anyhow::Result<bool> {
+    automatic::run(data_dir, false, || recover_locked(data_dir, true))
 }
 pub(super) fn recover_automatic(data_dir: &Path) -> anyhow::Result<()> {
-    automatic::run(data_dir, true, || recover_locked(data_dir))
+    automatic::run(data_dir, true, || {
+        recover_locked(data_dir, false).map(|_| ())
+    })
 }
-fn recover_locked(data_dir: &Path) -> anyhow::Result<()> {
+fn recover_locked(data_dir: &Path, allow_retirement: bool) -> anyhow::Result<bool> {
     let root = data_dir.join("fnos-certificate-sync/transactions");
     if !root.exists() {
-        return Ok(());
+        return Ok(false);
     }
+    let mut rolled_back = false;
     let mut paths = fs::read_dir(&root)?.collect::<Result<Vec<_>, _>>()?;
     paths.sort_by_key(|p| p.file_name());
     for path in paths {
         if path.path().extension().and_then(|s| s.to_str()) != Some("json") {
             continue;
         }
-        let mut journal: Journal = serde_json::from_slice(&fs::read(path.path())?)?;
+        let bytes = fs::read(path.path())?;
+        let mut journal: Journal = serde_json::from_slice(&bytes)?;
         if journal.completed {
             continue;
         }
         verify_schema()?;
         automatic::mark_attempt(data_dir)?;
+        // Explicit recovery may retain an external deletion instead of resurrecting
+        // a certificate. Background recovery must never make this decision.
+        if allow_retirement && retirement::try_retire(&path.path(), &journal, &bytes, data_dir)? {
+            continue;
+        }
         rollback(&journal, data_dir).map_err(|error| {
             anyhow!("Unfinished certificate synchronization needs recovery; backup preserved at {}: {error:#}", path.path().display())
         })?;
         journal.completed = true;
         save_journal(&path.path(), &journal, data_dir)?;
+        rolled_back = true;
     }
-    Ok(())
+    Ok(rolled_back)
 }
 pub(super) fn pending_recovery(data_dir: &Path) -> anyhow::Result<bool> {
     let root = data_dir.join("fnos-certificate-sync/transactions");
@@ -1404,7 +1416,7 @@ fn execute_mode(
 ) -> Result<SyncSummary, SyncExecutionError> {
     let mut attempted = action_ids.unwrap_or_default().to_vec();
     let mut work = || -> anyhow::Result<SyncSummary> {
-        recover_locked(data_dir)?;
+        recover_locked(data_dir, false)?;
         let plan = plan(data_dir, config)?;
         if version.is_some_and(|v| v != plan.version) {
             bail!("stale certificate synchronization plan")

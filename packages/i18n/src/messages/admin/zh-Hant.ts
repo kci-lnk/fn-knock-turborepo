@@ -2345,7 +2345,7 @@ export const zhHantAdmin = {
   fnosCertificateSync: {
     automaticPaused: "憑證操作中斷或失敗，自動同步已暫停，備份已保留。",
     recoveryNotice:
-      "手動復原可能短暫中斷飛牛存取。復原成功後，已啟用的自動同步將繼續執行。",
+      "手動復原可能短暫中斷飛牛存取。若確認舊同步涉及的憑證已被刪除且不再被引用，將保留備份並封存失效交易，不復原已刪除的憑證。復原成功後，已啟用的自動同步將繼續執行。",
     recover: "重試復原",
     recoveryCompleted: "復原完成",
 

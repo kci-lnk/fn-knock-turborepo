@@ -732,6 +732,7 @@ jobs:
         env:
           IMAGE_REF: ${{ env.FN_KNOCK_DOCKER_IMAGE_REPO }}@${{ steps.image.outputs.digest }}
           IMAGE_ARCH: ${{ matrix.arch }}
+          IMAGE_PLATFORM: ${{ matrix.platform }}
           EVENT_NAME: ${{ github.event_name }}
         shell: bash
         run: |
@@ -745,7 +746,7 @@ jobs:
             -v /tmp:/input:ro \
             -v "${HOME}/.docker:/root/.docker:ro" \
             aquasec/trivy:0.76.1@sha256:790fd66d1697395d8693d1acaa1ea702406a20f109b6fc7bac8db623eca6c06c \
-            image --timeout 15m --no-progress --scanners vuln --pkg-types os --severity HIGH,CRITICAL \
+            image --platform "${IMAGE_PLATFORM}" --timeout 15m --no-progress --scanners vuln --pkg-types os --severity HIGH,CRITICAL \
             --db-repository ghcr.io/aquasecurity/trivy-db:2 \
             --db-repository mirror.gcr.io/aquasec/trivy-db:2 \
             --exit-code 1 --format json --output /reports/container.json \

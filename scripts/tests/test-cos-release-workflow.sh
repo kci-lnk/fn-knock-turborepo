@@ -51,6 +51,11 @@ grep -Fq 'COS_ACC: ${{ vars.COS_ACC || secrets.COS_ACC }}' "${WORKFLOW}" ||
   fail "COS acceleration endpoint does not support Variables with a Secrets fallback"
 grep -Fq 'COS_SECRETID: ${{ secrets.COS_SECRETID }}' "${WORKFLOW}" ||
   fail "COS SecretId is not sourced from GitHub Secrets"
+scan_block="$(sed -n '/- name: Scan final image operating-system packages/,/- name: Preserve container security report/p' "${WORKFLOW}")"
+printf '%s\n' "${scan_block}" | grep -Fq 'IMAGE_PLATFORM: ${{ matrix.platform }}' ||
+  fail "container scan must select the built architecture"
+printf '%s\n' "${scan_block}" | grep -Fq 'image --platform "${IMAGE_PLATFORM}"' ||
+  fail "Trivy must scan the target platform instead of the runner platform"
 
 job_needs() {
   local job="$1"

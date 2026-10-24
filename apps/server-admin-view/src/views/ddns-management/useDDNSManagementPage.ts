@@ -63,6 +63,7 @@ export const useDDNSManagementPage = () => {
   const togglingTargetId = ref("");
   const {
     applyStatus,
+    updateProxy,
     defaultPublicCheckSources,
     enabled,
     httpTransport,
@@ -82,6 +83,7 @@ export const useDDNSManagementPage = () => {
   });
 
   const {
+    updateProxyDraft,
     httpTransportDraft,
     isSavingPublicCheckSources,
     isSavingUpdateInterval,
@@ -99,6 +101,7 @@ export const useDDNSManagementPage = () => {
     testPublicCheckSources,
     updateIntervalDraft,
   } = useDDNSSettingsDialogs({
+    updateProxy,
     defaultPublicCheckSources,
     httpTransport,
     providerConfig,
@@ -118,7 +121,10 @@ export const useDDNSManagementPage = () => {
     rethrow: true,
     onError: (error) => {
       toast.error(t("admin.ddns.saveTargetFailed"), {
-        description: extractErrorMessage(error, t("admin.ddns.saveTargetFailed")),
+        description: extractErrorMessage(
+          error,
+          t("admin.ddns.saveTargetFailed"),
+        ),
       });
     },
   });
@@ -145,7 +151,10 @@ export const useDDNSManagementPage = () => {
   const { run: runTestTarget } = useAsyncAction({
     onError: (error) => {
       toast.error(t("admin.ddns.testTargetFailed"), {
-        description: extractErrorMessage(error, t("admin.ddns.testTargetFailed")),
+        description: extractErrorMessage(
+          error,
+          t("admin.ddns.testTargetFailed"),
+        ),
       });
     },
   });
@@ -360,14 +369,27 @@ export const useDDNSManagementPage = () => {
     updateTargetDialogNetworkInterface,
   } = useDDNSTargetActions({
     api: {
-      createTarget: (payload) => DDNSAPI.createTarget(payload),
+      createTarget: (payload) => {
+        if (
+          payload.config.update_proxy_mode === "proxy" &&
+          !updateProxy.value.url
+        )
+          throw new Error(t("admin.ddns.updateProxyMissing"));
+        return DDNSAPI.createTarget(payload);
+      },
       deleteTarget: (targetId) => DDNSAPI.deleteTarget(targetId),
       getTarget: (targetId) => DDNSAPI.getTarget(targetId),
       setTargetEnabled: (targetId, nextEnabled) =>
         DDNSAPI.setTargetEnabled(targetId, nextEnabled),
       testTarget: (targetId) => DDNSAPI.testTarget(targetId),
-      updateTarget: (targetId, payload) =>
-        DDNSAPI.updateTarget(targetId, payload),
+      updateTarget: (targetId, payload) => {
+        if (
+          payload.config.update_proxy_mode === "proxy" &&
+          !updateProxy.value.url
+        )
+          throw new Error(t("admin.ddns.updateProxyMissing"));
+        return DDNSAPI.updateTarget(targetId, payload);
+      },
     },
     deletingTargetId,
     loadStatus,
@@ -395,6 +417,13 @@ export const useDDNSManagementPage = () => {
   });
 
   function validateCommonConfig() {
+    if (
+      providerConfig.value.update_proxy_mode === "proxy" &&
+      !updateProxy.value.url
+    ) {
+      toast.error(t("admin.ddns.updateProxyMissing"));
+      return false;
+    }
     const issue = validateDDNSCommonConfig({
       config: providerConfig.value,
       ipSource: effectiveIpSource.value,
@@ -450,7 +479,9 @@ export const useDDNSManagementPage = () => {
         await loadStatus();
         return;
       }
-      toast.error(t("admin.ddns.updateFailed"), { description: result.message });
+      toast.error(t("admin.ddns.updateFailed"), {
+        description: result.message,
+      });
     });
   }
 
@@ -484,6 +515,8 @@ export const useDDNSManagementPage = () => {
   });
 
   return {
+    updateProxy,
+    updateProxyDraft,
     configuredNetworkInterface,
     configuredNetworkInterfaceLabel,
     confirmClearPrimaryConfig,

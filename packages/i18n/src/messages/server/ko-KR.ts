@@ -1768,6 +1768,22 @@ export const koKRServer = {
     issueSucceeded: "인증서가 성공적으로 발급되었습니다.",
   },
   ddns: {
+    updateProxyConnectionFailed: "DDNS 업데이트 프록시에 연결할 수 없습니다. 주소와 가용성을 확인하세요. 직접 연결로 전환하지 않았습니다.",
+    updateProxyTimeout: "DDNS 업데이트 프록시 요청 시간이 초과되었습니다. 직접 연결로 전환하지 않았습니다.",
+    updateProxyTlsFailed: "DDNS 프록시 경로에서 TLS 검증 또는 협상에 실패했습니다. 프록시 및 공급자 인증서를 확인하세요.",
+    updateProxyUnsupported: "시스템 cURL이 이 프록시 프로토콜을 지원하지 않습니다. 내장 HTTP로 전환하거나 cURL을 업그레이드하세요.",
+
+    updateProxyExplicitAddressRequired:
+      "프록시 사용 시 auto 또는 6to4 대신 명시적인 IPv6 접두사를 입력하세요。",
+    updateProxyInvalid:
+      "유효한 HTTP, HTTPS 또는 SOCKS5 주소와 별도의 인증 정보를 입력하세요. SOCKS5는 포트가 필요합니다.",
+    updateProxyMissing:
+      "DDNS 옆 설정 버튼에서 업데이트 프록시를 먼저 설정하세요.",
+    updateProxyAuthFailed:
+      "프록시 인증에 실패했습니다. 사용자 이름과 비밀번호를 확인하세요.",
+    updateProxyRequestFailed:
+      "DDNS 업데이트 프록시의 연결, 인증, TLS 인증서 및 프로토콜 지원을 확인하세요. 직접 연결로 전환하지 않았습니다.",
+
     ipv6OnlyUnavailable:
       "업데이트 범위는 IPv6 전용이지만 사용 가능한 IPv6 주소가 감지되지 않았습니다.",
     ipv4OnlyUnavailable:

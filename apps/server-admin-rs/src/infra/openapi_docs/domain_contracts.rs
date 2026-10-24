@@ -1019,6 +1019,8 @@ struct BackupImportResultData {
     FrpcPollData,
     FrpcInstancePollData,
     DdnsPublicCheckSourcesData,
+    DdnsUpdateProxyData,
+    DdnsUpdateProxyUpdateData,
     DdnsSettingsData,
     DdnsSettingsUpdateData,
     DdnsToggleBodyData,

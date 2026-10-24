@@ -9467,6 +9467,7 @@ export interface components {
             publicDnsProvider: "none" | "alidns" | "tencent" | "cloudflare" | "google";
             /** Format: int64 */
             updateIntervalMinutes: number;
+            updateProxy: components["schemas"]["DdnsUpdateProxyData"];
         };
         DdnsSettingsUpdateData: {
             /** @enum {string|null} */
@@ -9476,6 +9477,7 @@ export interface components {
             publicDnsProvider?: "none" | "alidns" | "tencent" | "cloudflare" | "google" | null;
             /** Format: int64 */
             updateIntervalMinutes?: number | null;
+            updateProxy?: null | components["schemas"]["DdnsUpdateProxyUpdateData"];
         };
         DdnsStatusData: {
             defaultPublicCheckSources: components["schemas"]["DdnsPublicCheckSourcesData"];
@@ -9498,6 +9500,7 @@ export interface components {
             targets: components["schemas"]["DdnsTargetSummaryData"][];
             /** Format: int64 */
             updateIntervalMinutes: number;
+            updateProxy: components["schemas"]["DdnsUpdateProxyData"];
             /** @enum {string} */
             updateScope: "dual_stack" | "ipv6_only" | "ipv4_only";
         };
@@ -9581,6 +9584,19 @@ export interface components {
         };
         DdnsToggleBodyData: {
             enabled: boolean;
+        };
+        DdnsUpdateProxyData: {
+            enabled: boolean;
+            passwordConfigured: boolean;
+            url: string;
+            username: string;
+        };
+        DdnsUpdateProxyUpdateData: {
+            clearPassword?: boolean | null;
+            enabled?: boolean | null;
+            password?: string | null;
+            url?: string | null;
+            username?: string | null;
         };
         DebugCapture: {
             /** Format: int64 */

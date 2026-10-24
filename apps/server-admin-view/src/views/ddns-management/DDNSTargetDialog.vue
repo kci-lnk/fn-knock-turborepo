@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import DDNSUpdateProxyModeField from "./DDNSUpdateProxyModeField.vue";
+import type { DDNSUpdateProxy } from "./ddns-proxy-model";
 import CredentialTransferHint from "@/components/CredentialTransferHint.vue";
 import { useI18n } from "vue-i18n";
 import { RefreshCw } from "lucide-vue-next";
@@ -28,6 +30,7 @@ import DDNSTargetBasicFields from "./DDNSTargetBasicFields.vue";
 import DDNSTargetProviderFields from "./DDNSTargetProviderFields.vue";
 
 defineProps<{
+  updateProxy: DDNSUpdateProxy;
   description: string;
   formatDomainField: () => void;
   formatOptionLabel: (
@@ -100,6 +103,13 @@ const { t } = useI18n();
             :state="state"
             :update-scope="updateScope"
             @update:network-interface="emit('update:networkInterface', $event)"
+          />
+          <DDNSUpdateProxyModeField
+            id="ddns-target-update-proxy-mode"
+            v-model="state.config.update_proxy_mode"
+            :default-enabled="updateProxy.enabled"
+            :configured="Boolean(updateProxy.url)"
+            :disabled="isSaving"
           />
           <CredentialTransferHint
             class="m-4 sm:m-5"

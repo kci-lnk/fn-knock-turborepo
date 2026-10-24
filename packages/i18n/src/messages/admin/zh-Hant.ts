@@ -5513,6 +5513,28 @@ export const zhHantAdmin = {
   },
   ddns: {
     ...zhCNAdmin.ddns,
+    updateProxyTitle: "更新代理",
+    updateProxyHint:
+      "僅影響服務商更新請求，公網 IP 偵測始終直連。代理位址須由執行 DDNS 的伺服器存取。",
+    updateProxyEnabled: "預設使用代理",
+    updateProxyUrl: "代理位址",
+    updateProxyFormats:
+      "支援 HTTP、HTTPS 或 SOCKS5，例如 socks5://127.0.0.1:1080。SOCKS5 由代理解析服務商網域。",
+    updateProxyUsername: "使用者名稱（選填）",
+    updateProxyPassword: "密碼（選填）",
+    updateProxyPasswordSaved: "已儲存，留空保持不變",
+    updateProxyClearPassword: "儲存時清除現有密碼",
+    updateProxyUndoClear: "保留現有密碼",
+    updateProxyMode: "更新連線方式",
+    updateProxyInherit: "跟隨全域（{mode}）",
+    updateProxyDirect: "直連",
+    updateProxyUse: "使用代理",
+    updateProxyModeHint:
+      "適用於服務商查詢和更新，公網 IP 偵測仍直連。連線代理時使用系統路由。",
+    updateProxyInvalid:
+      "請填寫有效的 HTTP、HTTPS 或 SOCKS5 代理位址，認證資訊另行填寫；SOCKS5 必須包含連接埠。",
+    updateProxyMissing: "請先在 DDNS 旁的設定按鈕中設定更新代理位址。",
+
     title: "DDNS 管理",
     enabled: "已開啟自動更新",
     disabled: "已關閉自動更新",
@@ -5657,13 +5679,13 @@ export const zhHantAdmin = {
     credentialTransferDescription:
       "發現 {scope} 中已有 {bridge} 憑據，可補齊 {count} 個字段。",
     updateIntervalLabel: "每 {minutes} 分鐘自動同步",
-    publicCheckSettings: "公網探測設定",
-    publicCheckDialogTitle: "DDNS設定",
+    publicCheckSettings: "DDNS 網路設定",
+    publicCheckDialogTitle: "DDNS 網路設定",
     publicCheckDialogDescription:
-      "配置 DDNS 從公網探測目前 IPv4/IPv6 時使用的地址和請求實作。",
+      "設定 DDNS 的偵測來源、請求方式和更新代理。",
     httpTransportLabel: "請求實作",
     httpTransportHint:
-      "curl 會沿用系統 curl；內建 HTTP 會使用 Rust 後端內建網路請求，並在選擇出站網卡時綁定該網卡的本機地址。",
+      "cURL 呼叫系統 cURL；內建 HTTP 使用 Rust 網路請求。直連時使用所選出站網卡，代理連線使用系統路由。",
     publicDnsProviderLabel: "借助公共DNS",
     publicDnsProviderHint:
       "有些時候會導致無法解析探測地址，所以借助公共DNS可解決這種問題。",
@@ -5689,7 +5711,7 @@ export const zhHantAdmin = {
       "這會用系統內置的 IPv4/IPv6 探測地址覆蓋目前彈窗中的草稿，尚未保存的自訂地址會被替換。",
     restorePublicCheckDefaultsConfirm: "確認恢復",
     publicCheckNoSources: "目前未配置 {family} 探測地址",
-    testPublicCheckSources: "測試地址",
+    testPublicCheckSources: "測試偵測來源（直連）",
     publicCheckTestResultTitle: "測試結果",
     publicCheckTestSuccess: "取得 {ip}",
     publicCheckTestFailed: "取得失敗",

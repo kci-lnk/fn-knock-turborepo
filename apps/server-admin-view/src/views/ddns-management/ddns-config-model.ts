@@ -1,3 +1,4 @@
+import { normalizeUpdateProxyMode } from "./ddns-proxy-model";
 import type {
   DDNSHttpTransport,
   DDNSInterfaceSelector,
@@ -308,6 +309,7 @@ export const normalizeTargetConfigValues = (
   config: Record<string, string> | null | undefined,
 ): Record<string, string> => ({
   ...(config || {}),
+  update_proxy_mode: normalizeUpdateProxyMode(config?.update_proxy_mode),
   [UPDATE_SCOPE_KEY]: normalizeUpdateScope(config?.[UPDATE_SCOPE_KEY]),
   [IP_SOURCE_KEY]: normalizeIpSource(config?.[IP_SOURCE_KEY]),
   [NETWORK_INTERFACE_KEY]: normalizeNetworkInterface(
@@ -336,6 +338,7 @@ export const normalizeTargetConfigValues = (
 export const extractCommonTargetConfig = (
   config: Record<string, string>,
 ): Record<string, string> => ({
+  update_proxy_mode: normalizeUpdateProxyMode(config.update_proxy_mode),
   [UPDATE_SCOPE_KEY]: normalizeUpdateScope(config[UPDATE_SCOPE_KEY]),
   [IP_SOURCE_KEY]: normalizeIpSource(config[IP_SOURCE_KEY]),
   [NETWORK_INTERFACE_KEY]: normalizeNetworkInterface(

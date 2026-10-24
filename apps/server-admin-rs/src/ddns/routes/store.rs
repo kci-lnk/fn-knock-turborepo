@@ -49,6 +49,7 @@ pub(super) async fn build_ddns_status(
 
     Ok(json!({
         "enabled": enabled,
+        "updateProxy": DDNSUpdateProxy::from_settings(&settings).public_value(),
         "provider": primary.meta.provider,
         "updateIntervalMinutes": settings.get("updateIntervalMinutes").cloned().unwrap_or(json!(10)),
         "publicCheckSources": settings.get("publicCheckSources").cloned().unwrap_or_else(default_public_check_sources),

@@ -25,10 +25,7 @@ type Operation = {
     name?: string;
     schema?: Schema;
   }>;
-  responses?: Record<
-    string,
-    { content?: Record<string, { schema?: Schema }> }
-  >;
+  responses?: Record<string, { content?: Record<string, { schema?: Schema }> }>;
 };
 
 const contract = JSON.parse(
@@ -129,8 +126,9 @@ describe("DDNS API contract", () => {
       "^[A-Za-z0-9-]{1,80}$",
     );
     assert.equal(
-      contract.paths["/api/admin/ddns/test"].post.responses?.["200"]
-        ?.content?.["application/json"]?.schema?.$ref,
+      contract.paths["/api/admin/ddns/test"].post.responses?.["200"]?.content?.[
+        "application/json"
+      ]?.schema?.$ref,
       "#/components/schemas/DdnsTestResponseData",
     );
   });
@@ -155,4 +153,23 @@ describe("DDNS API contract", () => {
     assert.match(api, /satisfies DdnsTargetBody/u);
     assert.match(api, /satisfies DdnsPollQuery/u);
   });
+});
+
+it("keeps update proxy secrets write-only and leaves IP detection independent", () => {
+  const schemas = contract.components.schemas;
+  assert.equal(
+    schemas.DdnsUpdateProxyUpdateData.properties?.password?.writeOnly,
+    true,
+  );
+  assert.ok(!schemas.DdnsUpdateProxyData.properties?.password);
+  assert.ok(schemas.DdnsUpdateProxyData.properties?.passwordConfigured);
+  assert.equal(
+    schemas.DdnsSettingsData.properties?.updateProxy?.$ref,
+    "#/components/schemas/DdnsUpdateProxyData",
+  );
+  assert.equal(
+    schemas.DdnsStatusData.properties?.updateProxy?.$ref,
+    "#/components/schemas/DdnsUpdateProxyData",
+  );
+  assert.ok(!schemas.DdnsPublicCheckTestBodyData.properties?.updateProxy);
 });

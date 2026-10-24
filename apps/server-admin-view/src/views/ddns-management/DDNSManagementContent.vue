@@ -17,6 +17,8 @@ import type { DDNSManagementPageController } from "./useDDNSManagementPage";
 
 const props = defineProps<{ controller: DDNSManagementPageController }>();
 const {
+  updateProxy,
+  updateProxyDraft,
   configuredNetworkInterface,
   configuredNetworkInterfaceLabel,
   confirmClearPrimaryConfig,
@@ -181,6 +183,7 @@ const {
     />
 
     <DDNSPrimaryConfigCard
+      :update-proxy="updateProxy"
       :configured="hasProviderConfig"
       :configured-network-interface="configuredNetworkInterface"
       :configured-network-interface-label="configuredNetworkInterfaceLabel"
@@ -252,6 +255,7 @@ const {
     />
 
     <DDNSTargetDialog
+      :update-proxy="updateProxy"
       :open="showTargetDialog"
       :title="targetDialogTitle"
       :description="targetDialogDescription"
@@ -290,6 +294,7 @@ const {
     />
 
     <DDNSPublicCheckDialog
+      v-model:update-proxy-draft="updateProxyDraft"
       v-model:draft="publicCheckDraft"
       v-model:http-transport-draft="httpTransportDraft"
       v-model:public-dns-provider-draft="publicDnsProviderDraft"

@@ -11,6 +11,10 @@ pub(super) fn normalize_and_validate_config(
     provider: &str,
     config: HashMap<String, String>,
 ) -> anyhow::Result<HashMap<String, String>> {
+    anyhow::ensure!(
+        matches!(update_proxy_mode(&config), "inherit" | "direct" | "proxy"),
+        "Invalid DDNS update proxy mode"
+    );
     validate_interface_selector_config(&config)?;
     let mut normalized = normalize_config(provider, config);
     normalize_and_validate_ddns_domain_config(provider, &mut normalized)?;
@@ -22,6 +26,10 @@ pub(super) fn normalize_config_map(
     config: &HashMap<String, String>,
 ) -> HashMap<String, String> {
     let mut data = config.clone();
+    data.insert(
+        "update_proxy_mode".to_string(),
+        update_proxy_mode(config).to_string(),
+    );
     data.insert(
         "update_scope".to_string(),
         normalize_update_scope(data.get(DDNS_UPDATE_SCOPE_FIELD).map(String::as_str)).to_string(),

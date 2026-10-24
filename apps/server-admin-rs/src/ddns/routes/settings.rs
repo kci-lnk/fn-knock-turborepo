@@ -10,6 +10,7 @@ pub(super) fn parse_settings(raw: Option<&str>) -> Value {
         .map(normalize_public_check_sources)
         .unwrap_or_else(default_public_check_sources);
     json!({
+        "updateProxy": DDNSUpdateProxy::from_settings(parsed.as_ref().unwrap_or(&Value::Null)),
         "updateIntervalMinutes": if is_record {
             parsed
                 .as_ref()

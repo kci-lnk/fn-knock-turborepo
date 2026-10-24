@@ -5960,6 +5960,29 @@ export const koKRAdmin = {
     },
   },
   ddns: {
+    updateProxyTitle: "업데이트 프록시",
+    updateProxyHint:
+      "공급자 업데이트 요청에만 적용됩니다. 공인 IP 감지는 항상 직접 연결합니다. DDNS 서버에서 접근할 수 있는 프록시를 지정하세요.",
+    updateProxyEnabled: "기본적으로 프록시 사용",
+    updateProxyUrl: "프록시 주소",
+    updateProxyFormats:
+      "HTTP, HTTPS, SOCKS5 지원 (예: socks5://127.0.0.1:1080). SOCKS5는 프록시에서 공급자 도메인을 확인합니다.",
+    updateProxyUsername: "사용자 이름 (선택)",
+    updateProxyPassword: "비밀번호 (선택)",
+    updateProxyPasswordSaved: "저장됨. 비워두면 유지",
+    updateProxyClearPassword: "저장 시 기존 비밀번호 삭제",
+    updateProxyUndoClear: "기존 비밀번호 유지",
+    updateProxyMode: "업데이트 연결 방식",
+    updateProxyInherit: "전역 설정 따르기 ({mode})",
+    updateProxyDirect: "직접 연결",
+    updateProxyUse: "프록시 사용",
+    updateProxyModeHint:
+      "공급자 조회 및 업데이트에 적용됩니다. 공인 IP 감지는 직접 연결하며 프록시 연결은 시스템 경로를 사용합니다.",
+    updateProxyInvalid:
+      "유효한 HTTP, HTTPS 또는 SOCKS5 주소와 별도의 인증 정보를 입력하세요. SOCKS5는 포트가 필요합니다.",
+    updateProxyMissing:
+      "DDNS 옆 설정 버튼에서 업데이트 프록시를 먼저 설정하세요.",
+
     title: "DDNS 관리",
     enabled: "자동 업데이트 사용",
     disabled: "자동 업데이트 사용 안 함",
@@ -6135,13 +6158,13 @@ export const koKRAdmin = {
     credentialTransferDescription:
       "{bridge} 자격 증명이 {scope}에서 발견되었습니다. {count} 필드를 채울 수 있습니다.",
     updateIntervalLabel: "{minutes} 분마다 동기화",
-    publicCheckSettings: "공인 IP 감지 설정",
-    publicCheckDialogTitle: "DDNS 설정",
+    publicCheckSettings: "DDNS 네트워크 설정",
+    publicCheckDialogTitle: "DDNS 네트워크 설정",
     publicCheckDialogDescription:
-      "DDNS가 현재 공인 IPv4/IPv6를 탐지할 때 사용할 주소와 요청 구현을 설정합니다.",
+      "DDNS 감지 소스, 요청 방식 및 업데이트 프록시를 설정합니다.",
     httpTransportLabel: "요청 방식",
     httpTransportHint:
-      "curl은 시스템 curl을 사용합니다. 내장 HTTP는 Rust 백엔드의 내장 네트워크 요청을 사용하며, 아웃바운드 인터페이스를 선택하면 해당 로컬 주소에 바인딩합니다.",
+      "cURL은 시스템 cURL을, 내장 HTTP는 Rust 네트워크 요청을 사용합니다. 직접 연결은 선택한 인터페이스를, 프록시 연결은 시스템 경로를 사용합니다.",
     publicDnsProviderLabel: "공용 DNS 사용",
     publicDnsProviderHint:
       "탐지 주소를 확인할 수 없는 경우 공용 DNS를 사용하여 문제를 해결할 수 있습니다.",
@@ -6167,7 +6190,7 @@ export const koKRAdmin = {
       "이 대화상자의 현재 초안을 내장 IPv4/IPv6 탐지 주소로 바꿉니다. 저장되지 않은 사용자 지정 주소는 덮어쓰입니다.",
     restorePublicCheckDefaultsConfirm: "복원",
     publicCheckNoSources: "{family} 탐지 주소가 설정되지 않았습니다.",
-    testPublicCheckSources: "주소 테스트",
+    testPublicCheckSources: "감지 소스 테스트 (직접)",
     publicCheckTestResultTitle: "테스트 결과",
     publicCheckTestSuccess: "{ip} 감지됨",
     publicCheckTestFailed: "탐지 실패",

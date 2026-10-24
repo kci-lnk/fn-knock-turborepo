@@ -122,6 +122,10 @@ export const useDDNSTargetActions = ({
   const openCreateTargetDialog = () => {
     targetDialogMode.value = "create";
     resetTargetDialogState({
+      config: {
+        ...extractCommonTargetConfig(providerConfig.value),
+        update_proxy_mode: "inherit",
+      },
       provider: selectedProvider.value,
       enabled: true,
     });

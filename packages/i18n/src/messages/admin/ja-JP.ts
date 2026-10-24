@@ -5998,6 +5998,28 @@ export const jaJPAdmin = {
     },
   },
   ddns: {
+    updateProxyTitle: "更新プロキシ",
+    updateProxyHint:
+      "プロバイダーの更新リクエストにのみ適用されます。公開 IP の検出は常に直接接続します。DDNS サーバーから到達できるプロキシを指定してください。",
+    updateProxyEnabled: "既定でプロキシを使用",
+    updateProxyUrl: "プロキシアドレス",
+    updateProxyFormats:
+      "HTTP、HTTPS、SOCKS5 に対応（例: socks5://127.0.0.1:1080）。SOCKS5 はプロキシ側で名前解決します。",
+    updateProxyUsername: "ユーザー名（任意）",
+    updateProxyPassword: "パスワード（任意）",
+    updateProxyPasswordSaved: "保存済み。空欄で維持",
+    updateProxyClearPassword: "保存時に既存パスワードを削除",
+    updateProxyUndoClear: "既存パスワードを維持",
+    updateProxyMode: "更新の接続方法",
+    updateProxyInherit: "全体設定に従う（{mode}）",
+    updateProxyDirect: "直接接続",
+    updateProxyUse: "プロキシを使用",
+    updateProxyModeHint:
+      "プロバイダーの照会と更新に適用します。公開 IP 検出は直接接続し、プロキシ接続はシステムの経路を使用します。",
+    updateProxyInvalid:
+      "有効な HTTP、HTTPS、SOCKS5 アドレスを入力し、認証情報は別欄に入力してください。SOCKS5 にはポートが必要です。",
+    updateProxyMissing: "DDNS 横の設定ボタンで更新プロキシを設定してください。",
+
     title: "DDNS 管理",
     enabled: "自動更新が有効です",
     disabled: "自動更新が無効です",
@@ -6175,13 +6197,13 @@ export const jaJPAdmin = {
     credentialTransferDescription:
       "{scope} に {bridge} の認証情報があります。{count} 項目を入力できます。",
     updateIntervalLabel: "{minutes} 分ごとに同期",
-    publicCheckSettings: "グローバル IP 検出設定",
-    publicCheckDialogTitle: "DDNS 設定",
+    publicCheckSettings: "DDNS ネットワーク設定",
+    publicCheckDialogTitle: "DDNS ネットワーク設定",
     publicCheckDialogDescription:
-      "DDNS が現在のグローバル IPv4／IPv6 アドレスを検出する際の取得先とリクエスト方式を設定します。",
+      "DDNS の検出元、通信方式、更新プロキシを設定します。",
     httpTransportLabel: "リクエスト実装",
     httpTransportHint:
-      "curl はシステムの curl を使用します。組み込み HTTP は Rust バックエンドの組み込みネットワークリクエストを使用し、送信インターフェース選択時はそのローカルアドレスにバインドします。",
+      "cURL はシステムの cURL、内蔵 HTTP は Rust の通信機能を使用します。直接接続では選択したインターフェース、プロキシ接続ではシステムの経路を使用します。",
     publicDnsProviderLabel: "パブリック DNS を使用",
     publicDnsProviderHint:
       "検出先を名前解決できない場合、パブリック DNS を使うと解決できることがあります。",
@@ -6207,7 +6229,7 @@ export const jaJPAdmin = {
       "このダイアログの内容を、組み込みの IPv4／IPv6 検出元へ置き換えます。未保存のカスタム検出元は上書きされます。",
     restorePublicCheckDefaultsConfirm: "元に戻す",
     publicCheckNoSources: "{family} の検出元が設定されていません",
-    testPublicCheckSources: "検出元をテスト",
+    testPublicCheckSources: "検出元テスト（直接接続）",
     publicCheckTestResultTitle: "テスト結果",
     publicCheckTestSuccess: "{ip} を取得しました",
     publicCheckTestFailed: "取得に失敗しました",

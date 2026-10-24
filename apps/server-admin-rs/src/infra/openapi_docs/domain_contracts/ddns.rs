@@ -12,6 +12,7 @@ pub(super) struct DdnsPublicCheckSourcesData {
 #[derive(Serialize, ToSchema)]
 #[serde(rename_all = "camelCase")]
 pub(super) struct DdnsSettingsData {
+    update_proxy: DdnsUpdateProxyData,
     update_interval_minutes: i64,
     public_check_sources: DdnsPublicCheckSourcesData,
     default_public_check_sources: DdnsPublicCheckSourcesData,
@@ -22,6 +23,7 @@ pub(super) struct DdnsSettingsData {
 #[derive(Serialize, ToSchema)]
 #[serde(rename_all = "camelCase")]
 pub(super) struct DdnsSettingsUpdateData {
+    update_proxy: Option<DdnsUpdateProxyUpdateData>,
     update_interval_minutes: Option<i64>,
     public_check_sources: Option<DdnsPublicCheckSourcesData>,
     http_transport: Option<String>,
@@ -281,6 +283,7 @@ pub(super) struct DdnsTargetListData {
 #[derive(Serialize, ToSchema)]
 #[serde(rename_all = "camelCase")]
 pub(super) struct DdnsStatusData {
+    update_proxy: DdnsUpdateProxyData,
     enabled: bool,
     #[schema(required = true)]
     provider: Option<String>,
@@ -334,4 +337,24 @@ pub(super) struct DdnsPollData {
     reset: bool,
     logs: Vec<DdnsLogEntryData>,
     status: DdnsStatusData,
+}
+
+#[derive(Serialize, ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub(super) struct DdnsUpdateProxyData {
+    enabled: bool,
+    url: String,
+    username: String,
+    password_configured: bool,
+}
+
+#[derive(Serialize, ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub(super) struct DdnsUpdateProxyUpdateData {
+    enabled: Option<bool>,
+    url: Option<String>,
+    username: Option<String>,
+    #[schema(write_only = true)]
+    password: Option<String>,
+    clear_password: Option<bool>,
 }

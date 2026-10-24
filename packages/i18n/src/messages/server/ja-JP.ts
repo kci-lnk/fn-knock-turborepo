@@ -1834,6 +1834,21 @@ export const jaJPServer = {
     issueSucceeded: "証明書を発行しました",
   },
   ddns: {
+    updateProxyConnectionFailed: "DDNS 更新プロキシに接続できません。アドレスと稼働状態を確認してください。直接接続には切り替えていません。",
+    updateProxyTimeout: "DDNS 更新プロキシのリクエストがタイムアウトしました。直接接続には切り替えていません。",
+    updateProxyTlsFailed: "DDNS プロキシ経路の TLS 検証または通信確立に失敗しました。プロキシとプロバイダーの証明書を確認してください。",
+    updateProxyUnsupported: "システムの cURL はこのプロキシ方式に未対応です。内蔵 HTTP に切り替えるか cURL を更新してください。",
+
+    updateProxyExplicitAddressRequired:
+      "プロキシ使用時は auto や 6to4 ではなく、明示的な IPv6 プレフィックスを指定してください。",
+    updateProxyInvalid:
+      "有効な HTTP、HTTPS、SOCKS5 アドレスを入力し、認証情報は別欄に入力してください。SOCKS5 にはポートが必要です。",
+    updateProxyMissing: "DDNS 横の設定ボタンで更新プロキシを設定してください。",
+    updateProxyAuthFailed:
+      "プロキシ認証に失敗しました。ユーザー名とパスワードを確認してください。",
+    updateProxyRequestFailed:
+      "DDNS 更新プロキシの接続、認証、TLS 証明書、対応プロトコルを確認してください。直接接続には切り替えていません。",
+
     ipv6OnlyUnavailable:
       "更新対象は IPv6 のみですが、使用可能な IPv6 アドレスを検出できませんでした",
     ipv4OnlyUnavailable:

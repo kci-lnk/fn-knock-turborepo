@@ -1,3 +1,4 @@
+import { normalizeUpdateProxy } from "./ddns-proxy-model";
 import { ref, type Ref } from "vue";
 import {
   type DDNSHttpTransport,
@@ -30,6 +31,7 @@ interface UseDDNSStatusOptions {
 }
 
 export function useDDNSStatus({ selectedProvider }: UseDDNSStatusOptions) {
+  const updateProxy = ref(normalizeUpdateProxy());
   const enabled = ref(true);
   const savedProvider = ref("");
   const lastIP = ref<LastIP>({ ipv4: null, ipv6: null, updated_at: null });
@@ -83,6 +85,7 @@ export function useDDNSStatus({ selectedProvider }: UseDDNSStatusOptions) {
       status.publicCheckSources,
       defaultPublicCheckSources.value,
     );
+    updateProxy.value = normalizeUpdateProxy(status.updateProxy);
     httpTransport.value = normalizeDDNSHttpTransport(status.httpTransport);
     publicDnsProvider.value = normalizeDDNSPublicDnsProvider(
       status.publicDnsProvider,
@@ -96,6 +99,7 @@ export function useDDNSStatus({ selectedProvider }: UseDDNSStatusOptions) {
   }
 
   return {
+    updateProxy,
     applyStatus,
     defaultPublicCheckSources,
     enabled,

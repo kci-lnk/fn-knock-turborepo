@@ -1754,6 +1754,22 @@ export const enServer = {
     issueSucceeded: "Certificate issued successfully",
   },
   ddns: {
+    updateProxyConnectionFailed: "Cannot connect to the DDNS update proxy. Check its address and availability; no direct fallback was attempted.",
+    updateProxyTimeout: "DDNS update proxy request timed out; no direct fallback was attempted.",
+    updateProxyTlsFailed: "TLS verification or negotiation failed on the DDNS proxy route. Check the proxy and provider certificates.",
+    updateProxyUnsupported: "The system cURL does not support this proxy protocol. Switch to built-in HTTP or upgrade cURL.",
+
+    updateProxyExplicitAddressRequired:
+      "When using a proxy, enter an explicit IPv6 prefix instead of auto or 6to4.",
+    updateProxyInvalid:
+      "Enter a valid HTTP, HTTPS or SOCKS5 proxy address and separate credentials. SOCKS5 requires a port.",
+    updateProxyMissing:
+      "Configure an update proxy using the settings button beside DDNS first.",
+    updateProxyAuthFailed:
+      "Proxy authentication failed. Check the username and password.",
+    updateProxyRequestFailed:
+      "DDNS update proxy request failed. Check proxy connectivity, authentication, TLS certificates and protocol support; no direct fallback was attempted.",
+
     ipv6OnlyUnavailable:
       "Update scope is IPv6 only, but no usable IPv6 address was detected",
     ipv4OnlyUnavailable:

@@ -49,6 +49,14 @@ pub(in crate::ddns::routes) async fn update_dynv6(
         query.push(("ipv6", ipv6.to_string()));
     }
     let ipv6prefix = config_value(config, "ipv6prefix");
+    if http_options.update_proxy.is_some()
+        && matches!(ipv6prefix.to_ascii_lowercase().as_str(), "auto" | "6to4")
+    {
+        anyhow::bail!(
+            "{}",
+            ddns_text(translator, "updateProxyExplicitAddressRequired", &[])
+        );
+    }
     if !ipv6prefix.is_empty() {
         query.push(("ipv6prefix", ipv6prefix));
     }

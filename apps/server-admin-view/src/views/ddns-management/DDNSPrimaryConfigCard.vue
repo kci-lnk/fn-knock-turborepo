@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import DDNSUpdateProxyModeField from "./DDNSUpdateProxyModeField.vue";
+import type { DDNSUpdateProxy } from "./ddns-proxy-model";
 import { useI18n } from "vue-i18n";
 import {
   ChevronDown,
@@ -39,6 +41,7 @@ import DDNSAddressSourceFields from "./DDNSAddressSourceFields.vue";
 import DDNSProviderCredentialsFields from "./DDNSProviderCredentialsFields.vue";
 
 defineProps<{
+  updateProxy: DDNSUpdateProxy;
   configured: boolean;
   configuredNetworkInterface: string;
   configuredNetworkInterfaceLabel: string;
@@ -187,6 +190,14 @@ const { t } = useI18n();
           :update-network-interface="updateNetworkInterface"
         />
 
+        <DDNSUpdateProxyModeField
+          id="ddns-primary-update-proxy-mode"
+          :model-value="providerConfig.update_proxy_mode"
+          :default-enabled="updateProxy.enabled"
+          :configured="Boolean(updateProxy.url)"
+          :disabled="isProviderSelectDisabled || isClearingPrimaryConfig"
+          @update:model-value="setFieldValue('update_proxy_mode', $event)"
+        />
         <DDNSProviderCredentialsFields
           :disabled="isProviderSelectDisabled || isClearingPrimaryConfig"
           :enable-field-editing="enableFieldEditing"

@@ -6014,6 +6014,29 @@ export const enAdmin = {
     },
   },
   ddns: {
+    updateProxyTitle: "Update proxy",
+    updateProxyHint:
+      "Only provider update requests use this proxy. Public IP detection always connects directly. The proxy must be reachable from the server running DDNS.",
+    updateProxyEnabled: "Use proxy by default",
+    updateProxyUrl: "Proxy address",
+    updateProxyFormats:
+      "HTTP, HTTPS or SOCKS5, e.g. socks5://127.0.0.1:1080. SOCKS5 resolves provider domains through the proxy.",
+    updateProxyUsername: "Username (optional)",
+    updateProxyPassword: "Password (optional)",
+    updateProxyPasswordSaved: "Saved; leave blank to keep",
+    updateProxyClearPassword: "Clear saved password on save",
+    updateProxyUndoClear: "Keep saved password",
+    updateProxyMode: "Update connection",
+    updateProxyInherit: "Follow global ({mode})",
+    updateProxyDirect: "Direct",
+    updateProxyUse: "Use proxy",
+    updateProxyModeHint:
+      "Applies to provider queries and updates. Public IP detection remains direct. Proxy connections use the system route.",
+    updateProxyInvalid:
+      "Enter a valid HTTP, HTTPS or SOCKS5 proxy address and separate credentials. SOCKS5 requires a port.",
+    updateProxyMissing:
+      "Configure an update proxy using the settings button beside DDNS first.",
+
     title: "DDNS Management",
     enabled: "Automatic updates enabled",
     disabled: "Automatic updates disabled",
@@ -6190,13 +6213,13 @@ export const enAdmin = {
     credentialTransferDescription:
       "{bridge} credentials were found in {scope}. {count} fields can be filled.",
     updateIntervalLabel: "Sync every {minutes} minutes",
-    publicCheckSettings: "Public detection settings",
-    publicCheckDialogTitle: "DDNS settings",
+    publicCheckSettings: "DDNS network settings",
+    publicCheckDialogTitle: "DDNS network settings",
     publicCheckDialogDescription:
-      "Configure the sources and request implementation DDNS uses to detect the current public IPv4/IPv6 address.",
+      "Configure DDNS detection sources, request transport and update proxy.",
     httpTransportLabel: "Request implementation",
     httpTransportHint:
-      "curl uses the system curl binary. Built-in HTTP uses the Rust backend's built-in network request and binds the selected outbound interface by local address.",
+      "cURL uses the system cURL; built-in HTTP uses Rust networking. Direct connections use the selected outbound interface; proxy connections use the system route.",
     publicDnsProviderLabel: "Use public DNS",
     publicDnsProviderHint:
       "If a detection source cannot be resolved, using a public DNS resolver can solve the problem.",
@@ -6222,7 +6245,7 @@ export const enAdmin = {
       "This replaces the current draft in this dialog with the built-in IPv4/IPv6 detection sources. Unsaved custom sources will be overwritten.",
     restorePublicCheckDefaultsConfirm: "Restore sources",
     publicCheckNoSources: "No {family} detection source is configured",
-    testPublicCheckSources: "Test sources",
+    testPublicCheckSources: "Test sources (direct)",
     publicCheckTestResultTitle: "Test results",
     publicCheckTestSuccess: "Detected {ip}",
     publicCheckTestFailed: "Detection failed",

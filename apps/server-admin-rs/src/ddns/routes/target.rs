@@ -61,6 +61,7 @@ pub(super) async fn create_ddns_target(
     let provider = normalize_provider_name(&body.provider)
         .ok_or_else(|| anyhow::anyhow!("Unknown DDNS provider: {}", body.provider))?;
     let config = normalize_and_validate_config(&provider, body.config.unwrap_or_default())?;
+    validate_target_update_proxy(state, &config).await?;
     assert_no_duplicate_target(state, &provider, &config, None).await?;
     ensure_primary_initialized(state).await?;
     let targets = list_targets(state).await?;
@@ -100,6 +101,7 @@ pub(super) async fn update_ddns_target(
     let provider = normalize_provider_name(&body.provider)
         .ok_or_else(|| anyhow::anyhow!("Unknown DDNS provider: {}", body.provider))?;
     let config = normalize_and_validate_config(&provider, body.config.unwrap_or_default())?;
+    validate_target_update_proxy(state, &config).await?;
     let mut target = find_target_or_err(state, id).await?;
     assert_no_duplicate_target(state, &provider, &config, Some(id)).await?;
     let should_reset = comparable_config_key(target.meta.provider.as_deref(), &target.config)
@@ -168,6 +170,7 @@ pub(super) async fn set_ddns_target_enabled(
     }
     if enabled && let Some(provider) = target.meta.provider.as_deref() {
         validated_ddns_domain_targets(provider, &target.config)?;
+        validate_target_update_proxy(state, &target.config).await?;
     }
     target.meta.enabled = if target.meta.is_primary {
         true
@@ -184,6 +187,7 @@ pub(super) async fn set_primary_provider(state: &AppState, provider: &str) -> an
     let mut primary = primary_target(state).await?;
     if primary.meta.provider.as_deref() == Some(provider.as_str()) {
         validated_ddns_domain_targets(&provider, &primary.config)?;
+        validate_target_update_proxy(state, &primary.config).await?;
         mirror_primary_provider(state, Some(&provider)).await?;
         return Ok(());
     }
@@ -191,6 +195,7 @@ pub(super) async fn set_primary_provider(state: &AppState, provider: &str) -> an
         &provider,
         read_legacy_config_draft(state, &provider).await?,
     )?;
+    validate_target_update_proxy(state, &next_config).await?;
     assert_no_duplicate_target(state, &provider, &next_config, Some(&primary.meta.id)).await?;
     if let Some(previous) = primary.meta.provider.as_deref()
         && previous != provider
@@ -220,6 +225,7 @@ pub(super) async fn save_primary_config(
     let provider = normalize_provider_name(provider)
         .ok_or_else(|| anyhow::anyhow!("Unknown DDNS provider: {provider}"))?;
     let normalized = normalize_and_validate_config(&provider, config)?;
+    validate_target_update_proxy(state, &normalized).await?;
     let mut primary = primary_target(state).await?;
     if primary.meta.provider.as_deref() == Some(provider.as_str()) {
         assert_no_duplicate_target(state, &provider, &normalized, Some(&primary.meta.id)).await?;

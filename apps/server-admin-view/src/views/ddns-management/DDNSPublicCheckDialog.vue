@@ -1,4 +1,9 @@
 <script setup lang="ts">
+import DDNSUpdateProxyFields from "./DDNSUpdateProxyFields.vue";
+import {
+  updateProxyValidationKey,
+  type DDNSUpdateProxyDraft,
+} from "./ddns-proxy-model";
 import { computed } from "vue";
 import { useI18n } from "vue-i18n";
 import {
@@ -43,6 +48,7 @@ import {
 } from "./model";
 
 const props = defineProps<{
+  updateProxyDraft: DDNSUpdateProxyDraft;
   draft: DDNSPublicCheckSourcesPayload;
   httpTransportDraft: DDNSHttpTransport;
   publicDnsProviderDraft: DDNSPublicDnsProvider;
@@ -53,6 +59,7 @@ const props = defineProps<{
 }>();
 
 const emit = defineEmits<{
+  "update:updateProxyDraft": [value: DDNSUpdateProxyDraft];
   "restore-defaults": [];
   save: [
     value: DDNSPublicCheckSourcesPayload,
@@ -133,15 +140,24 @@ const dnsProviderDraft = computed({
 
 <template>
   <Dialog :open="open" @update:open="emit('update:open', $event)">
-    <DialogContent class="max-h-[85vh] overflow-y-auto sm:max-w-[640px]">
-      <DialogHeader>
+    <DialogContent
+      class="flex max-h-[calc(100dvh-2rem)] flex-col overflow-hidden sm:max-w-[640px] [&>[data-slot=dialog-close]]:min-h-11 [&>[data-slot=dialog-close]]:min-w-11 [&>[data-slot=dialog-close]]:right-2 [&>[data-slot=dialog-close]]:top-2"
+    >
+      <DialogHeader class="shrink-0 pr-6">
         <DialogTitle>{{ t("admin.ddns.publicCheckDialogTitle") }}</DialogTitle>
         <DialogDescription>
           {{ t("admin.ddns.publicCheckDialogDescription") }}
         </DialogDescription>
       </DialogHeader>
 
-      <div class="space-y-5 py-2">
+      <div
+        class="min-h-0 min-w-0 flex-1 space-y-5 overflow-y-auto overscroll-contain py-2 pr-1"
+      >
+        <DDNSUpdateProxyFields
+          :model-value="updateProxyDraft"
+          :disabled="isBusy"
+          @update:model-value="emit('update:updateProxyDraft', $event)"
+        />
         <section class="space-y-2">
           <Label for="ddns-http-transport" class="text-sm font-medium">
             {{ t("admin.ddns.httpTransportLabel") }}
@@ -222,6 +238,7 @@ const dnsProviderDraft = computed({
                   updateSource(family.key, index, String($event))
                 "
                 @keydown.enter.prevent="
+                  !updateProxyValidationKey(updateProxyDraft) &&
                   emit(
                     'save',
                     cloneSources(draft),
@@ -287,6 +304,7 @@ const dnsProviderDraft = computed({
                 <div class="min-w-0 flex-1 space-y-1">
                   <p class="break-all font-medium">{{ result.url }}</p>
                   <p
+                    class="break-words"
                     :class="
                       result.success ? 'text-emerald-700' : 'text-destructive'
                     "
@@ -327,7 +345,7 @@ const dnsProviderDraft = computed({
       </div>
 
       <div
-        class="flex flex-col gap-2 border-t pt-4 sm:flex-row sm:items-center sm:justify-between"
+        class="flex shrink-0 flex-col gap-2 border-t pt-3 sm:flex-row sm:items-center sm:justify-between"
       >
         <ConfirmDangerPopover
           :title="t('admin.ddns.restorePublicCheckDefaultsTitle')"
@@ -350,7 +368,9 @@ const dnsProviderDraft = computed({
           </template>
         </ConfirmDangerPopover>
 
-        <DialogFooter class="gap-2">
+        <DialogFooter
+          class="gap-2 max-sm:[&>button]:min-h-11 max-sm:[&>button]:w-full"
+        >
           <Button
             type="button"
             variant="outline"
@@ -380,7 +400,9 @@ const dnsProviderDraft = computed({
           </Button>
           <Button
             type="button"
-            :disabled="isBusy"
+            :disabled="
+              isBusy || Boolean(updateProxyValidationKey(updateProxyDraft))
+            "
             @click="
               emit(
                 'save',

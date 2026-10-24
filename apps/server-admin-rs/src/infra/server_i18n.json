@@ -1989,7 +1989,16 @@
       "publicDnsNoUsableServer": "所选网卡无法连接公共 DNS 服务器",
       "publicCheckTimeout": "公网探测请求超时",
       "publicCheckTooManyRedirects": "公网探测请求重定向次数过多",
-      "interfacePreferredRecoveryDeferred": "{family} 优选地址 {preferred} 已恢复，连续确认 {count}/{required}；暂时保持 {current}，避免频繁回切"
+      "interfacePreferredRecoveryDeferred": "{family} 优选地址 {preferred} 已恢复，连续确认 {count}/{required}；暂时保持 {current}，避免频繁回切",
+      "updateProxyInvalid": "请填写有效的 HTTP、HTTPS 或 SOCKS5 代理地址，认证信息单独填写；SOCKS5 必须包含端口。",
+      "updateProxyMissing": "请先在 DDNS 旁的设置按钮中配置更新代理地址。",
+      "updateProxyAuthFailed": "代理认证失败，请检查用户名和密码。",
+      "updateProxyRequestFailed": "DDNS 更新代理请求失败，请检查代理连接、认证、TLS 证书和协议支持；未回退直连。",
+      "updateProxyExplicitAddressRequired": "使用代理时，请填写明确的 IPv6 前缀，不能使用 auto 或 6to4。",
+      "updateProxyConnectionFailed": "无法连接 DDNS 更新代理，请检查代理地址和可用性；未回退直连。",
+      "updateProxyTimeout": "DDNS 更新代理请求超时；未回退直连。",
+      "updateProxyTlsFailed": "DDNS 代理链路 TLS 校验或协商失败，请检查代理和服务商证书。",
+      "updateProxyUnsupported": "系统 cURL 不支持此代理协议，请切换到内置 HTTP 或升级 cURL。"
     },
     "smartConnect": {
       "runTypes": {
@@ -5255,7 +5264,16 @@
       "publicDnsNoUsableServer": "所選網卡無法連線公共 DNS 伺服器",
       "publicCheckTimeout": "公網探測請求逾時",
       "publicCheckTooManyRedirects": "公網探測請求重新導向次數過多",
-      "interfacePreferredRecoveryDeferred": "{family} 優選位址 {preferred} 已恢復，連續確認 {count}/{required}；暫時維持 {current}，避免頻繁切回"
+      "interfacePreferredRecoveryDeferred": "{family} 優選位址 {preferred} 已恢復，連續確認 {count}/{required}；暫時維持 {current}，避免頻繁切回",
+      "updateProxyInvalid": "請填寫有效的 HTTP、HTTPS 或 SOCKS5 代理位址，認證資訊另行填寫；SOCKS5 必須包含連接埠。",
+      "updateProxyMissing": "請先在 DDNS 旁的設定按鈕中設定更新代理位址。",
+      "updateProxyAuthFailed": "代理認證失敗，請檢查使用者名稱和密碼。",
+      "updateProxyRequestFailed": "DDNS 更新代理請求失敗，請檢查代理連線、認證、TLS 憑證及協定支援；未回退直連。",
+      "updateProxyExplicitAddressRequired": "使用代理時，請填寫明確的 IPv6 前綴，不能使用 auto 或 6to4。",
+      "updateProxyConnectionFailed": "無法連線 DDNS 更新代理，請檢查代理位址和可用性；未回退直連。",
+      "updateProxyTimeout": "DDNS 更新代理請求逾時；未回退直連。",
+      "updateProxyTlsFailed": "DDNS 代理連線的 TLS 驗證或交涉失敗，請檢查代理和服務商憑證。",
+      "updateProxyUnsupported": "系統 cURL 不支援此代理協定，請切換至內建 HTTP 或升級 cURL。"
     },
     "smartConnect": {
       "runTypes": {
@@ -8521,7 +8539,16 @@
       "publicDnsNoUsableServer": "The selected interface cannot reach a public DNS server",
       "publicCheckTimeout": "The public detection request timed out",
       "publicCheckTooManyRedirects": "The public detection request followed too many redirects",
-      "interfacePreferredRecoveryDeferred": "{family} preferred address {preferred} recovered ({count}/{required} consecutive checks); keeping {current} temporarily to prevent flapping"
+      "interfacePreferredRecoveryDeferred": "{family} preferred address {preferred} recovered ({count}/{required} consecutive checks); keeping {current} temporarily to prevent flapping",
+      "updateProxyInvalid": "Enter a valid HTTP, HTTPS or SOCKS5 proxy address and separate credentials. SOCKS5 requires a port.",
+      "updateProxyMissing": "Configure an update proxy using the settings button beside DDNS first.",
+      "updateProxyAuthFailed": "Proxy authentication failed. Check the username and password.",
+      "updateProxyRequestFailed": "DDNS update proxy request failed. Check proxy connectivity, authentication, TLS certificates and protocol support; no direct fallback was attempted.",
+      "updateProxyExplicitAddressRequired": "When using a proxy, enter an explicit IPv6 prefix instead of auto or 6to4.",
+      "updateProxyConnectionFailed": "Cannot connect to the DDNS update proxy. Check its address and availability; no direct fallback was attempted.",
+      "updateProxyTimeout": "DDNS update proxy request timed out; no direct fallback was attempted.",
+      "updateProxyTlsFailed": "TLS verification or negotiation failed on the DDNS proxy route. Check the proxy and provider certificates.",
+      "updateProxyUnsupported": "The system cURL does not support this proxy protocol. Switch to built-in HTTP or upgrade cURL."
     },
     "smartConnect": {
       "runTypes": {
@@ -11787,7 +11814,16 @@
       "publicDnsNoUsableServer": "선택한 인터페이스에서 공용 DNS 서버에 연결할 수 없습니다.",
       "publicCheckTimeout": "공인 IP 감지 요청 시간이 초과되었습니다.",
       "publicCheckTooManyRedirects": "공인 IP 감지 요청이 너무 많이 리디렉션되었습니다.",
-      "interfacePreferredRecoveryDeferred": "{family} 기본 주소 {preferred} 복구를 연속 확인 중입니다({count}/{required}). 반복 전환을 방지하기 위해 현재 {current}을(를) 유지합니다."
+      "interfacePreferredRecoveryDeferred": "{family} 기본 주소 {preferred} 복구를 연속 확인 중입니다({count}/{required}). 반복 전환을 방지하기 위해 현재 {current}을(를) 유지합니다.",
+      "updateProxyInvalid": "유효한 HTTP, HTTPS 또는 SOCKS5 주소와 별도의 인증 정보를 입력하세요. SOCKS5는 포트가 필요합니다.",
+      "updateProxyMissing": "DDNS 옆 설정 버튼에서 업데이트 프록시를 먼저 설정하세요.",
+      "updateProxyAuthFailed": "프록시 인증에 실패했습니다. 사용자 이름과 비밀번호를 확인하세요.",
+      "updateProxyRequestFailed": "DDNS 업데이트 프록시의 연결, 인증, TLS 인증서 및 프로토콜 지원을 확인하세요. 직접 연결로 전환하지 않았습니다.",
+      "updateProxyExplicitAddressRequired": "프록시 사용 시 auto 또는 6to4 대신 명시적인 IPv6 접두사를 입력하세요。",
+      "updateProxyConnectionFailed": "DDNS 업데이트 프록시에 연결할 수 없습니다. 주소와 가용성을 확인하세요. 직접 연결로 전환하지 않았습니다.",
+      "updateProxyTimeout": "DDNS 업데이트 프록시 요청 시간이 초과되었습니다. 직접 연결로 전환하지 않았습니다.",
+      "updateProxyTlsFailed": "DDNS 프록시 경로에서 TLS 검증 또는 협상에 실패했습니다. 프록시 및 공급자 인증서를 확인하세요.",
+      "updateProxyUnsupported": "시스템 cURL이 이 프록시 프로토콜을 지원하지 않습니다. 내장 HTTP로 전환하거나 cURL을 업그레이드하세요."
     },
     "smartConnect": {
       "runTypes": {
@@ -15053,7 +15089,16 @@
       "publicDnsNoUsableServer": "選択したインターフェースからパブリック DNS サーバーに接続できません",
       "publicCheckTimeout": "グローバル IP 検出リクエストがタイムアウトしました",
       "publicCheckTooManyRedirects": "グローバル IP 検出リクエストのリダイレクト回数が多すぎます",
-      "interfacePreferredRecoveryDeferred": "{family} の優先アドレス {preferred} の復旧を連続確認中です（{count}/{required}）。頻繁な切り替えを防ぐため、現在の {current} を一時的に維持します。"
+      "interfacePreferredRecoveryDeferred": "{family} の優先アドレス {preferred} の復旧を連続確認中です（{count}/{required}）。頻繁な切り替えを防ぐため、現在の {current} を一時的に維持します。",
+      "updateProxyInvalid": "有効な HTTP、HTTPS、SOCKS5 アドレスを入力し、認証情報は別欄に入力してください。SOCKS5 にはポートが必要です。",
+      "updateProxyMissing": "DDNS 横の設定ボタンで更新プロキシを設定してください。",
+      "updateProxyAuthFailed": "プロキシ認証に失敗しました。ユーザー名とパスワードを確認してください。",
+      "updateProxyRequestFailed": "DDNS 更新プロキシの接続、認証、TLS 証明書、対応プロトコルを確認してください。直接接続には切り替えていません。",
+      "updateProxyExplicitAddressRequired": "プロキシ使用時は auto や 6to4 ではなく、明示的な IPv6 プレフィックスを指定してください。",
+      "updateProxyConnectionFailed": "DDNS 更新プロキシに接続できません。アドレスと稼働状態を確認してください。直接接続には切り替えていません。",
+      "updateProxyTimeout": "DDNS 更新プロキシのリクエストがタイムアウトしました。直接接続には切り替えていません。",
+      "updateProxyTlsFailed": "DDNS プロキシ経路の TLS 検証または通信確立に失敗しました。プロキシとプロバイダーの証明書を確認してください。",
+      "updateProxyUnsupported": "システムの cURL はこのプロキシ方式に未対応です。内蔵 HTTP に切り替えるか cURL を更新してください。"
     },
     "smartConnect": {
       "runTypes": {

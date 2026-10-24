@@ -18,6 +18,7 @@ mod settings;
 mod store;
 mod target;
 mod tasks;
+mod update_proxy;
 
 use config::*;
 use domain_targets::*;
@@ -31,6 +32,7 @@ use settings::*;
 use store::*;
 use target::*;
 use tasks::*;
+use update_proxy::*;
 
 #[cfg(test)]
 mod tests;
@@ -106,6 +108,7 @@ struct ToggleBody {
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct SettingsBody {
+    update_proxy: Option<DDNSUpdateProxyUpdate>,
     update_interval_minutes: Option<i64>,
     public_check_sources: Option<Value>,
     http_transport: Option<String>,
@@ -358,7 +361,9 @@ async fn get_providers(State(state): State<AppState>) -> Response {
 async fn get_settings(State(state): State<AppState>) -> Response {
     let translator = Translator::from_state(&state).await;
     match state.storage.store.get_string_value(DDNS_SETTINGS).await {
-        Ok(raw) => response::ok(parse_settings(raw.as_deref())).into_response(),
+        Ok(raw) => {
+            response::ok(public_ddns_settings(parse_settings(raw.as_deref()))).into_response()
+        }
         Err(error) => {
             tracing::warn!(%error, "failed to load DDNS settings");
             response::error(
@@ -432,7 +437,21 @@ async fn update_settings(
     let http_transport = merge_http_transport_update(body.http_transport.as_deref(), &current);
     let public_dns_provider =
         merge_public_dns_provider_update(body.public_dns_provider.as_deref(), &current);
+    let proxy = DDNSUpdateProxy::from_settings(&current);
+    let proxy = match body.update_proxy {
+        Some(update) => match proxy.merge(update) {
+            Ok(proxy) => proxy,
+            Err(error) => {
+                return response::error(
+                    StatusCode::BAD_REQUEST,
+                    localize_ddns_error(&translator, &error.to_string()),
+                );
+            }
+        },
+        None => proxy,
+    };
     let stored = json!({
+        "updateProxy": proxy,
         "updateIntervalMinutes": interval,
         "publicCheckSources": public_sources,
         "httpTransport": normalize_http_transport(Some(&Value::String(http_transport.to_string()))),
@@ -447,7 +466,10 @@ async fn update_settings(
     {
         Ok(()) => {
             reload_ddns_schedule(&state);
-            response::ok(parse_settings(Some(serialized.as_str()))).into_response()
+            response::ok(public_ddns_settings(parse_settings(Some(
+                serialized.as_str(),
+            ))))
+            .into_response()
         }
         Err(error) => {
             tracing::warn!(%error, "failed to save DDNS settings");

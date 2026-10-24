@@ -14,6 +14,8 @@ pub(super) fn ddns_error_response(translator: &Translator, error: anyhow::Error)
         || message.contains("Duplicate")
         || message.contains("Primary")
         || message.contains("interval")
+        || message.starts_with("Invalid DDNS update proxy")
+        || message == "DDNS update proxy missing"
         || message.starts_with("Invalid DDNS interface selector:")
     {
         StatusCode::BAD_REQUEST
@@ -27,6 +29,12 @@ pub(super) fn ddns_error_response(translator: &Translator, error: anyhow::Error)
 }
 
 pub(super) fn localize_ddns_error(translator: &Translator, message: &str) -> String {
+    if message.starts_with("Invalid DDNS update proxy") {
+        return ddns_text(translator, "updateProxyInvalid", &[]);
+    }
+    if message == "DDNS update proxy missing" {
+        return ddns_text(translator, "updateProxyMissing", &[]);
+    }
     if message == "DDNS target not found" {
         return ddns_text(translator, "targetNotFound", &[]);
     }

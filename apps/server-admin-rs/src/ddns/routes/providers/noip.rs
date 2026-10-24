@@ -44,14 +44,10 @@ pub(in crate::ddns::routes) async fn update_noip(
         )));
     }
     let mut query = vec![("hostname", hostname)];
-    let combined;
-    if let (Some(ipv4), Some(ipv6)) = (ipv4, ipv6) {
-        combined = format!("{ipv4},{ipv6}");
-        query.push(("myip", combined.clone()));
-    } else if let Some(ipv4) = ipv4 {
-        query.push(("myip", ipv4.to_string()));
-    } else if let Some(ipv6) = ipv6 {
-        query.push(("myipv6", ipv6.to_string()));
+    // https://www.noip.com/integrate/request: myip also accepts IPv6.
+    // Always send it explicitly so No-IP cannot infer the proxy exit IP.
+    if let Some(ip) = noip_ip_parameter(ipv4, ipv6) {
+        query.push(("myip", ip));
     }
     let client = ddns_http_client(translator, http_options)
         .map_err(|error| provider_request_error(translator, "noip", error))?;
@@ -192,4 +188,15 @@ pub(in crate::ddns::routes) fn noip_detail_suffix(statuses: &[(String, String)])
 
 pub(in crate::ddns::routes) fn noip_user_agent() -> String {
     format!("fn-knock/{APP_LOCAL_VERSION} ({APP_GITHUB_URL})")
+}
+
+pub(in crate::ddns::routes) fn noip_ip_parameter(
+    ipv4: Option<&str>,
+    ipv6: Option<&str>,
+) -> Option<String> {
+    match (ipv4, ipv6) {
+        (Some(v4), Some(v6)) => Some(format!("{v4},{v6}")),
+        (Some(ip), None) | (None, Some(ip)) => Some(ip.to_string()),
+        (None, None) => None,
+    }
 }

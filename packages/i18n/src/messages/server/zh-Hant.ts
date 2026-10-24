@@ -1553,6 +1553,20 @@ export const zhHantServer = {
     issueSucceeded: "證書簽發成功",
   },
   ddns: {
+    updateProxyConnectionFailed: "無法連線 DDNS 更新代理，請檢查代理位址和可用性；未回退直連。",
+    updateProxyTimeout: "DDNS 更新代理請求逾時；未回退直連。",
+    updateProxyTlsFailed: "DDNS 代理連線的 TLS 驗證或交涉失敗，請檢查代理和服務商憑證。",
+    updateProxyUnsupported: "系統 cURL 不支援此代理協定，請切換至內建 HTTP 或升級 cURL。",
+
+    updateProxyExplicitAddressRequired:
+      "使用代理時，請填寫明確的 IPv6 前綴，不能使用 auto 或 6to4。",
+    updateProxyInvalid:
+      "請填寫有效的 HTTP、HTTPS 或 SOCKS5 代理位址，認證資訊另行填寫；SOCKS5 必須包含連接埠。",
+    updateProxyMissing: "請先在 DDNS 旁的設定按鈕中設定更新代理位址。",
+    updateProxyAuthFailed: "代理認證失敗，請檢查使用者名稱和密碼。",
+    updateProxyRequestFailed:
+      "DDNS 更新代理請求失敗，請檢查代理連線、認證、TLS 憑證及協定支援；未回退直連。",
+
     ipv6OnlyUnavailable:
       "目前更新範圍為僅更新 IPv6，但未檢測到可用的 IPv6 地址",
     ipv4OnlyUnavailable:

@@ -1,3 +1,9 @@
+import {
+  createUpdateProxyDraft,
+  normalizeUpdateProxy,
+  updateProxyValidationKey,
+  type DDNSUpdateProxy,
+} from "./ddns-proxy-model";
 import { ref, type Ref } from "vue";
 import { useI18n } from "vue-i18n";
 import { toast } from "@admin-shared/utils/toast";
@@ -28,6 +34,7 @@ import {
 } from "./model";
 
 export const useDDNSSettingsDialogs = ({
+  updateProxy,
   defaultPublicCheckSources,
   httpTransport,
   providerConfig,
@@ -35,6 +42,7 @@ export const useDDNSSettingsDialogs = ({
   publicDnsProvider,
   updateIntervalMinutes,
 }: {
+  updateProxy: Ref<DDNSUpdateProxy>;
   defaultPublicCheckSources: Ref<DDNSPublicCheckSourcesPayload>;
   httpTransport: Ref<DDNSHttpTransport>;
   providerConfig: Ref<Record<string, string>>;
@@ -43,6 +51,7 @@ export const useDDNSSettingsDialogs = ({
   updateIntervalMinutes: Ref<number>;
 }) => {
   const { t } = useI18n();
+  const updateProxyDraft = ref(createUpdateProxyDraft());
   const updateIntervalDraft = ref(String(DEFAULT_DDNS_UPDATE_INTERVAL_MINUTES));
   const publicCheckDraft = ref<DDNSPublicCheckSourcesPayload>(
     normalizePublicCheckSources(undefined),
@@ -130,6 +139,7 @@ export const useDDNSSettingsDialogs = ({
   };
 
   const openPublicCheckDialog = () => {
+    updateProxyDraft.value = createUpdateProxyDraft(updateProxy.value);
     publicCheckDraft.value = normalizePublicCheckSources(
       publicCheckSources.value,
     );
@@ -151,9 +161,18 @@ export const useDDNSSettingsDialogs = ({
     nextHttpTransport: DDNSHttpTransport,
     nextPublicDnsProvider: DDNSPublicDnsProvider,
   ) => {
+    const error = updateProxyValidationKey(updateProxyDraft.value);
+    if (error) {
+      toast.error(t(error));
+      return;
+    }
+    const { enabled, url, username, password, clearPassword } =
+      updateProxyDraft.value;
+    const proxyUpdate = { enabled, url, username, password, clearPassword };
     await runSavePublicCheckSources(
       () =>
         DDNSAPI.saveSettings({
+          updateProxy: proxyUpdate,
           publicCheckSources: normalizePublicCheckSources(nextSources),
           httpTransport: normalizeDDNSHttpTransport(nextHttpTransport),
           publicDnsProvider: normalizeDDNSPublicDnsProvider(
@@ -162,6 +181,8 @@ export const useDDNSSettingsDialogs = ({
         }),
       {
         onSuccess: (settings) => {
+          updateProxy.value = normalizeUpdateProxy(settings.updateProxy);
+          updateProxyDraft.value = createUpdateProxyDraft(updateProxy.value);
           defaultPublicCheckSources.value = normalizePublicCheckSources(
             settings.defaultPublicCheckSources,
           );
@@ -236,6 +257,7 @@ export const useDDNSSettingsDialogs = ({
   };
 
   return {
+    updateProxyDraft,
     httpTransportDraft,
     isSavingPublicCheckSources,
     isSavingUpdateInterval,

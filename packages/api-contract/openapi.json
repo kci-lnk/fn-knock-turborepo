@@ -7773,9 +7773,13 @@
             "maximum": 1440,
             "minimum": 2,
             "type": "integer"
+          },
+          "updateProxy": {
+            "$ref": "#/components/schemas/DdnsUpdateProxyData"
           }
         },
         "required": [
+          "updateProxy",
           "updateIntervalMinutes",
           "publicCheckSources",
           "defaultPublicCheckSources",
@@ -7827,6 +7831,16 @@
             "type": [
               "integer",
               "null"
+            ]
+          },
+          "updateProxy": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/DdnsUpdateProxyUpdateData"
+              }
             ]
           }
         },
@@ -7913,6 +7927,9 @@
             "minimum": 2,
             "type": "integer"
           },
+          "updateProxy": {
+            "$ref": "#/components/schemas/DdnsUpdateProxyData"
+          },
           "updateScope": {
             "enum": [
               "dual_stack",
@@ -7923,6 +7940,7 @@
           }
         },
         "required": [
+          "updateProxy",
           "enabled",
           "provider",
           "updateIntervalMinutes",
@@ -8276,6 +8294,65 @@
         "required": [
           "enabled"
         ],
+        "type": "object"
+      },
+      "DdnsUpdateProxyData": {
+        "properties": {
+          "enabled": {
+            "type": "boolean"
+          },
+          "passwordConfigured": {
+            "type": "boolean"
+          },
+          "url": {
+            "type": "string"
+          },
+          "username": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "enabled",
+          "url",
+          "username",
+          "passwordConfigured"
+        ],
+        "type": "object"
+      },
+      "DdnsUpdateProxyUpdateData": {
+        "properties": {
+          "clearPassword": {
+            "type": [
+              "boolean",
+              "null"
+            ]
+          },
+          "enabled": {
+            "type": [
+              "boolean",
+              "null"
+            ]
+          },
+          "password": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "writeOnly": true
+          },
+          "url": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "username": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
         "type": "object"
       },
       "DebugCapture": {

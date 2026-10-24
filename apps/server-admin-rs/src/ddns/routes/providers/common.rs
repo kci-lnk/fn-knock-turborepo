@@ -44,6 +44,7 @@ pub(in crate::ddns::routes) fn provider_request_error(
 pub(in crate::ddns::routes) struct DDNSHttpClientOptions {
     pub(in crate::ddns::routes) transport: &'static str,
     pub(in crate::ddns::routes) network_interface: String,
+    pub(in crate::ddns::routes) update_proxy: Option<DDNSUpdateProxy>,
 }
 
 impl DDNSHttpClientOptions {
@@ -51,7 +52,14 @@ impl DDNSHttpClientOptions {
         settings: &Value,
         config: &HashMap<String, String>,
     ) -> Self {
+        let proxy = DDNSUpdateProxy::from_settings(settings);
+        let use_proxy = match update_proxy_mode(config) {
+            "direct" => false,
+            "proxy" => true,
+            _ => proxy.enabled,
+        };
         Self {
+            update_proxy: use_proxy.then_some(proxy),
             transport: normalize_http_transport(settings.get("httpTransport")),
             network_interface: normalize_network_interface(
                 config.get(DDNS_NETWORK_INTERFACE_FIELD).map(String::as_str),
@@ -69,6 +77,7 @@ impl DDNSHttpClientOptions {
 pub(in crate::ddns::routes) struct DDNSHttpClient {
     transport: &'static str,
     network_interface: String,
+    update_proxy: Option<DDNSUpdateProxy>,
     timeout_ms: u64,
     follow_redirects: bool,
     reqwest_attempts: Vec<reqwest::Client>,
@@ -171,6 +180,14 @@ impl DDNSHttpRequestBuilder {
             match request.send().await {
                 Ok(response) => {
                     let status = response.status();
+                    if self.client.update_proxy.is_some()
+                        && status == reqwest::StatusCode::PROXY_AUTHENTICATION_REQUIRED
+                    {
+                        anyhow::bail!(
+                            "{}",
+                            ddns_text(&self.client.translator, "updateProxyAuthFailed", &[])
+                        );
+                    }
                     let status_text = status.canonical_reason().unwrap_or_default().to_string();
                     let body = crate::http_body::read_response_bytes_limited(
                         response,
@@ -188,18 +205,22 @@ impl DDNSHttpRequestBuilder {
                 }
             }
         }
+        if self.client.update_proxy.is_some() {
+            let key = last_error
+                .as_ref()
+                .map(proxy_reqwest_error_key)
+                .unwrap_or("updateProxyRequestFailed");
+            anyhow::bail!("{}", ddns_text(&self.client.translator, key, &[]));
+        }
         Err(last_error
             .map(anyhow::Error::from)
             .unwrap_or_else(|| anyhow::anyhow!("null")))
     }
 
     async fn send_via_curl(self) -> anyhow::Result<DDNSHttpResponse> {
-        let temp_dir = env::temp_dir().join(format!(
-            "ddns-curl-{}-{}",
-            std::process::id(),
-            Uuid::new_v4()
-        ));
-        create_private_curl_temp_dir(&temp_dir).await?;
+        // Own the directory for the entire future so cancellation also removes secrets.
+        let temp_guard = create_private_curl_temp_dir()?;
+        let temp_dir = temp_guard.path();
         let request_header_path = temp_dir.join("request-headers.txt");
         let response_header_path = temp_dir.join("response-headers.txt");
         let body_path = temp_dir.join("body.bin");
@@ -212,6 +233,11 @@ impl DDNSHttpRequestBuilder {
                 MAX_DDNS_PROVIDER_RESPONSE_BYTES,
                 self.client.follow_redirects,
             );
+            if let Some(proxy) = &self.client.update_proxy {
+                let proxy_path = temp_dir.join("proxy.conf");
+                write_private_curl_file(&proxy_path, proxy.curl_config()?.as_bytes()).await?;
+                command.arg("--config").arg(proxy_path);
+            }
             command
                 .arg("--dump-header")
                 .arg(&response_header_path)
@@ -240,6 +266,8 @@ impl DDNSHttpRequestBuilder {
             }
             command.arg(&self.url);
 
+            // A cancelled update must not leave curl running with a credential file.
+            command.kill_on_drop(true);
             let mut child = command.spawn()?;
             if let Some(body) = self.body
                 && let Some(mut stdin) = child.stdin.take()
@@ -248,6 +276,22 @@ impl DDNSHttpRequestBuilder {
             }
             let output = child.wait_with_output().await?;
             if !output.status.success() {
+                if self.client.update_proxy.is_some() {
+                    let headers = tokio::fs::read_to_string(&response_header_path)
+                        .await
+                        .unwrap_or_default();
+                    let authentication_failed =
+                        parse_curl_headers_for_response(&self.client.translator, &headers)
+                            .is_ok_and(|(status, _)| {
+                                status == StatusCode::PROXY_AUTHENTICATION_REQUIRED
+                            });
+                    let key = if authentication_failed {
+                        "updateProxyAuthFailed"
+                    } else {
+                        proxy_curl_failure_key(output.status.code(), &output.stderr)
+                    };
+                    anyhow::bail!("{}", ddns_text(&self.client.translator, key, &[]));
+                }
                 let detail =
                     super::super::curl_transport::failure_detail(output.status, &output.stderr);
                 anyhow::bail!(
@@ -262,6 +306,14 @@ impl DDNSHttpRequestBuilder {
             let raw_headers = tokio::fs::read_to_string(&response_header_path).await?;
             let (status, status_text) =
                 parse_curl_headers_for_response(&self.client.translator, &raw_headers)?;
+            if self.client.update_proxy.is_some()
+                && status == reqwest::StatusCode::PROXY_AUTHENTICATION_REQUIRED
+            {
+                anyhow::bail!(
+                    "{}",
+                    ddns_text(&self.client.translator, "updateProxyAuthFailed", &[])
+                );
+            }
             let body = read_ddns_curl_body(&body_path).await?;
             Ok(DDNSHttpResponse {
                 status,
@@ -270,8 +322,7 @@ impl DDNSHttpRequestBuilder {
             })
         }
         .await;
-        let cleanup = tokio::fs::remove_dir_all(&temp_dir).await;
-        if let Err(error) = cleanup {
+        if let Err(error) = temp_guard.close() {
             tracing::debug!(%error, "failed to cleanup DDNS curl temp dir");
         }
         result
@@ -295,11 +346,15 @@ pub(in crate::ddns::routes) async fn read_ddns_curl_body(
     Ok(tokio::fs::read(path).await?)
 }
 
-async fn create_private_curl_temp_dir(path: &std::path::Path) -> std::io::Result<()> {
-    let mut options = tokio::fs::DirBuilder::new();
+fn create_private_curl_temp_dir() -> std::io::Result<tempfile::TempDir> {
+    let mut options = tempfile::Builder::new();
+    options.prefix("ddns-curl-");
     #[cfg(unix)]
-    options.mode(0o700);
-    options.create(path).await
+    {
+        use std::os::unix::fs::PermissionsExt;
+        options.permissions(std::fs::Permissions::from_mode(0o700));
+    }
+    options.tempdir()
 }
 
 pub(in crate::ddns::routes) async fn write_private_curl_headers(
@@ -307,12 +362,16 @@ pub(in crate::ddns::routes) async fn write_private_curl_headers(
     headers: &[(String, String)],
 ) -> anyhow::Result<()> {
     let contents = serialize_curl_headers(headers)?;
+    write_private_curl_file(path, &contents).await
+}
+
+async fn write_private_curl_file(path: &std::path::Path, contents: &[u8]) -> anyhow::Result<()> {
     let mut options = tokio::fs::OpenOptions::new();
     options.write(true).create_new(true);
     #[cfg(unix)]
     options.mode(0o600);
     let mut file = options.open(path).await?;
-    file.write_all(&contents).await?;
+    file.write_all(contents).await?;
     file.flush().await?;
     Ok(())
 }
@@ -712,6 +771,13 @@ fn ddns_http_client_with_redirects(
     options: &DDNSHttpClientOptions,
     follow_redirects: bool,
 ) -> anyhow::Result<DDNSHttpClient> {
+    let mut options = options.clone();
+    if let Some(proxy) = options.update_proxy.as_mut() {
+        proxy.validate(true).map_err(|error| {
+            anyhow::anyhow!(localize_ddns_error(translator, &error.to_string()))
+        })?;
+        options.network_interface.clear();
+    }
     let normalized_interface = options.network_interface.trim();
     if !normalized_interface.is_empty() {
         let exists = list_ddns_network_interfaces()
@@ -730,9 +796,10 @@ fn ddns_http_client_with_redirects(
     }
     let timeout_ms = provider_timeout_ms_like_node()?;
     let reqwest_attempts =
-        ddns_reqwest_clients_for_options(translator, options, timeout_ms, follow_redirects)?;
+        ddns_reqwest_clients_for_options(translator, &options, timeout_ms, follow_redirects)?;
     Ok(DDNSHttpClient {
         transport: options.transport,
+        update_proxy: options.update_proxy.clone(),
         network_interface: options
             .bindable_interface()
             .map(str::to_string)
@@ -761,6 +828,18 @@ fn ddns_reqwest_clients_for_options(
     timeout_ms: u64,
     follow_redirects: bool,
 ) -> anyhow::Result<Vec<reqwest::Client>> {
+    if let Some(proxy) = &options.update_proxy {
+        if options.transport == "curl" {
+            return Ok(Vec::new());
+        }
+        return Ok(vec![
+            ddns_reqwest_client_builder(timeout_ms, follow_redirects)
+                .proxy(proxy.reqwest_proxy().map_err(|_| {
+                    anyhow::anyhow!(ddns_text(translator, "updateProxyInvalid", &[]))
+                })?)
+                .build()?,
+        ]);
+    }
     if options.transport != "node" {
         return Ok(vec![
             ddns_reqwest_client_builder(timeout_ms, follow_redirects).build()?,
@@ -903,3 +982,7 @@ pub(in crate::ddns::routes) async fn response_text(
 ) -> anyhow::Result<String> {
     Ok(response.text().await?.trim().to_string())
 }
+
+#[cfg(all(test, unix))]
+#[path = "common_proxy_tls_tests.rs"]
+mod proxy_tls_tests;

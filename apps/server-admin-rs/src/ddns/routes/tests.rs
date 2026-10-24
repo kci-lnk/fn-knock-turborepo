@@ -3985,3 +3985,6 @@ async fn changed_config_resets_runtime_before_write_and_stops_when_reset_fails()
     .unwrap();
     assert_eq!(*steps.lock().unwrap(), vec!["write"]);
 }
+
+#[path = "update_proxy_tests.rs"]
+mod update_proxy_tests;

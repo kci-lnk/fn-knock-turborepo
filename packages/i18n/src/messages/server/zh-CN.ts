@@ -1553,6 +1553,20 @@ export const zhCNServer = {
     issueSucceeded: "证书签发成功",
   },
   ddns: {
+    updateProxyConnectionFailed: "无法连接 DDNS 更新代理，请检查代理地址和可用性；未回退直连。",
+    updateProxyTimeout: "DDNS 更新代理请求超时；未回退直连。",
+    updateProxyTlsFailed: "DDNS 代理链路 TLS 校验或协商失败，请检查代理和服务商证书。",
+    updateProxyUnsupported: "系统 cURL 不支持此代理协议，请切换到内置 HTTP 或升级 cURL。",
+
+    updateProxyExplicitAddressRequired:
+      "使用代理时，请填写明确的 IPv6 前缀，不能使用 auto 或 6to4。",
+    updateProxyInvalid:
+      "请填写有效的 HTTP、HTTPS 或 SOCKS5 代理地址，认证信息单独填写；SOCKS5 必须包含端口。",
+    updateProxyMissing: "请先在 DDNS 旁的设置按钮中配置更新代理地址。",
+    updateProxyAuthFailed: "代理认证失败，请检查用户名和密码。",
+    updateProxyRequestFailed:
+      "DDNS 更新代理请求失败，请检查代理连接、认证、TLS 证书和协议支持；未回退直连。",
+
     ipv6OnlyUnavailable:
       "当前更新范围为仅更新 IPv6，但未检测到可用的 IPv6 地址",
     ipv4OnlyUnavailable:

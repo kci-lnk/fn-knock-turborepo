@@ -5578,6 +5578,28 @@ export const zhCNAdmin = {
     },
   },
   ddns: {
+    updateProxyTitle: "更新代理",
+    updateProxyHint:
+      "仅影响服务商更新请求，公网 IP 检测始终直连。代理地址须由运行 DDNS 的服务器访问。",
+    updateProxyEnabled: "默认使用代理",
+    updateProxyUrl: "代理地址",
+    updateProxyFormats:
+      "支持 HTTP、HTTPS 或 SOCKS5，例如 socks5://127.0.0.1:1080。SOCKS5 由代理解析服务商域名。",
+    updateProxyUsername: "用户名（可选）",
+    updateProxyPassword: "密码（可选）",
+    updateProxyPasswordSaved: "已保存，留空保持不变",
+    updateProxyClearPassword: "保存时清除已存密码",
+    updateProxyUndoClear: "保留已存密码",
+    updateProxyMode: "更新连接方式",
+    updateProxyInherit: "跟随全局（{mode}）",
+    updateProxyDirect: "直连",
+    updateProxyUse: "使用代理",
+    updateProxyModeHint:
+      "作用于服务商查询和更新，公网 IP 检测仍直连。连接代理时使用系统路由。",
+    updateProxyInvalid:
+      "请填写有效的 HTTP、HTTPS 或 SOCKS5 代理地址，认证信息单独填写；SOCKS5 必须包含端口。",
+    updateProxyMissing: "请先在 DDNS 旁的设置按钮中配置更新代理地址。",
+
     title: "DDNS 管理",
     enabled: "已开启自动更新",
     disabled: "已关闭自动更新",
@@ -5740,13 +5762,13 @@ export const zhCNAdmin = {
     credentialTransferDescription:
       "发现 {scope} 中已有 {bridge} 凭据，可补齐 {count} 个字段。",
     updateIntervalLabel: "每 {minutes} 分钟自动同步",
-    publicCheckSettings: "公网探测设置",
-    publicCheckDialogTitle: "DDNS设定",
+    publicCheckSettings: "DDNS 网络设置",
+    publicCheckDialogTitle: "DDNS 网络设置",
     publicCheckDialogDescription:
-      "配置 DDNS 从公网探测当前 IPv4/IPv6 时使用的地址和请求实现。",
+      "配置 DDNS 的检测来源、请求方式和更新代理。",
     httpTransportLabel: "请求实现",
     httpTransportHint:
-      "curl 会沿用系统 curl；内置 HTTP 会使用 Rust 后端内置网络请求，并在选择出站网卡时绑定该网卡的本地地址。",
+      "cURL 调用系统 cURL；内置 HTTP 使用 Rust 网络请求。直连时使用所选出站网卡，代理连接使用系统路由。",
     publicDnsProviderLabel: "借助公共DNS",
     publicDnsProviderHint:
       "有些时候会导致无法解析探测地址，所以借助公共DNS可解决这种问题。",
@@ -5772,7 +5794,7 @@ export const zhCNAdmin = {
       "这会用系统内置的 IPv4/IPv6 探测地址覆盖当前弹窗中的草稿，尚未保存的自定义地址会被替换。",
     restorePublicCheckDefaultsConfirm: "确认恢复",
     publicCheckNoSources: "当前未配置 {family} 探测地址",
-    testPublicCheckSources: "测试地址",
+    testPublicCheckSources: "测试检测源（直连）",
     publicCheckTestResultTitle: "测试结果",
     publicCheckTestSuccess: "获取到 {ip}",
     publicCheckTestFailed: "获取失败",

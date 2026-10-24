@@ -129,7 +129,9 @@ const handleScroll = (event: Event) => {
             :collapsed="isSectionCollapsed(section)"
             :has-selectable-mappings="
               section.mappings.some(
-                (mapping) => !model.isAuthServiceTarget(mapping.target),
+                (mapping) =>
+                  mapping.service_role !== 'auth' &&
+                  !model.isAuthServiceTarget(mapping.target),
               )
             "
             :model="model"
@@ -151,7 +153,10 @@ const handleScroll = (event: Event) => {
             :mapping="mapping"
             :model="model"
             :selected="isMappingSelected(mapping.host)"
-            :selectable="!model.isAuthServiceTarget(mapping.target)"
+            :selectable="
+              mapping.service_role !== 'auth' &&
+              !model.isAuthServiceTarget(mapping.target)
+            "
             :selection-checkbox-class="selectionCheckboxClass"
             :selection-visibility-class="selectionVisibilityClass"
             :selection-mode="selectionMode"

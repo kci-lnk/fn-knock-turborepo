@@ -28,9 +28,6 @@ const searchModel = computed({
   get: () => props.searchQuery,
   set: (value: string) => emit("update:searchQuery", value),
 });
-const showGroupedView = computed(
-  () => props.groups.length > 0 && props.groupedView,
-);
 const proxyMappingsCount = computed(
   () => props.allRegularMappings.filter(isProxyHostMapping).length,
 );
@@ -52,6 +49,10 @@ const tableActions: SubdomainMappingsTableActions = {
   batchDelete: (hosts, onComplete) => emit("batch-delete", hosts, onComplete),
   batchDisable: (hosts, onComplete) => emit("batch-disable", hosts, onComplete),
   batchEnable: (hosts, onComplete) => emit("batch-enable", hosts, onComplete),
+  batchRequireAuth: (hosts, onComplete) =>
+    emit("batch-require-auth", hosts, onComplete),
+  batchPublicAccess: (hosts, onComplete) =>
+    emit("batch-public-access", hosts, onComplete),
   batchSchedule: (hosts, onComplete) =>
     emit("batch-schedule", hosts, onComplete),
   clearDefault: (mapping) => emit("clear-default", mapping),
@@ -124,7 +125,7 @@ const tableActions: SubdomainMappingsTableActions = {
         ref="mappingsTable"
         :actions="tableActions"
         :model="props"
-        :show-grouped-view="showGroupedView"
+        :show-grouped-view="groups.length > 0 && groupedView"
       >
         <template #notices>
           <SubdomainMappingNotices

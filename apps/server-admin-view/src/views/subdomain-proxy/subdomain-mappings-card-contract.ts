@@ -71,6 +71,8 @@ export type SubdomainMappingsCardEmits = {
   "batch-delete": [hosts: string[], onComplete: () => void];
   "batch-disable": [hosts: string[], onComplete: () => void];
   "batch-enable": [hosts: string[], onComplete: () => void];
+  "batch-require-auth": [hosts: string[], onComplete: () => void];
+  "batch-public-access": [hosts: string[], onComplete: () => void];
   "batch-schedule": [hosts: string[], onComplete: () => void];
   "clear-default": [mapping: HostMapping];
   "copy-host": [mapping: HostMapping];
@@ -113,6 +115,8 @@ export interface SubdomainMappingsTableActions {
   batchDelete: (hosts: string[], onComplete: () => void) => void;
   batchDisable: (hosts: string[], onComplete: () => void) => void;
   batchEnable: (hosts: string[], onComplete: () => void) => void;
+  batchRequireAuth: (hosts: string[], onComplete: () => void) => void;
+  batchPublicAccess: (hosts: string[], onComplete: () => void) => void;
   batchSchedule: (hosts: string[], onComplete: () => void) => void;
   copyHost: (mapping: HostMapping) => void;
   deleteMapping: (host: string) => void;

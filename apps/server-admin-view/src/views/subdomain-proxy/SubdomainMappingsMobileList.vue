@@ -104,7 +104,9 @@ const updateMappings = (key: string, mappings: HostMapping[]) =>
           :collapsed="isSectionCollapsed(section)"
           :has-selectable-mappings="
             section.mappings.some(
-              (mapping) => !model.isAuthServiceTarget(mapping.target),
+              (mapping) =>
+                mapping.service_role !== 'auth' &&
+                !model.isAuthServiceTarget(mapping.target),
             )
           "
           :model="model"
@@ -148,7 +150,10 @@ const updateMappings = (key: string, mappings: HostMapping[]) =>
             :mapping="mapping"
             :model="model"
             :selected="isMappingSelected(mapping.host)"
-            :selectable="!model.isAuthServiceTarget(mapping.target)"
+            :selectable="
+              mapping.service_role !== 'auth' &&
+              !model.isAuthServiceTarget(mapping.target)
+            "
             :selection-checkbox-class="selectionCheckboxClass"
             :selection-mode="selectionMode"
             @select="setMappingSelected(mapping.host, $event)"

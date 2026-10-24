@@ -49,10 +49,7 @@ test("mobile mapping cards keep summary data and the shared interaction surfaces
   assert.match(mobileRowSource, /:as-cell="false"/u);
   assert.match(mobileRowSource, /\bcompact\b/u);
   assert.doesNotMatch(mobileRowSource, /<dl\b|rounded-md bg-muted\/25/u);
-  assert.match(
-    mobileRowSource,
-    /justify-between[^"]*border-t[^"]*pt-2/u,
-  );
+  assert.match(mobileRowSource, /justify-between[^"]*border-t[^"]*pt-2/u);
   assert.match(mobileRowSource, /@click="actions\.copyHost\(mapping\)"/u);
   assert.match(mobileRowSource, /selectionMode && selectable/u);
   assert.match(
@@ -67,7 +64,7 @@ test("mobile mapping cards keep summary data and the shared interaction surfaces
   assert.match(mobileRowSource, /:trigger-aria-label=/u);
   assert.match(
     mobileListSource,
-    /:selectable="!model\.isAuthServiceTarget\(mapping\.target\)"/u,
+    /:selectable="[\s\S]*mapping\.service_role !== 'auth'[\s\S]*!model\.isAuthServiceTarget\(mapping\.target\)/u,
   );
 });
 

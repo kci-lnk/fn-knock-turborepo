@@ -54,6 +54,7 @@ const {
   searchQuery: () => props.model.searchQuery,
   showGroupedView: () => props.showGroupedView,
   isMappingSelectable: (mapping) =>
+    mapping.service_role !== "auth" &&
     !props.model.isAuthServiceTarget(mapping.target),
   ungroupedLabel: () => t("admin.subdomainProxy.ungrouped"),
   onSaveFlatOrder: props.actions.saveFlatOrder,
@@ -78,6 +79,8 @@ defineExpose({ clearSelection, setSelectionMode });
     @delete="runBatchAction(actions.batchDelete)"
     @disable="runBatchAction(actions.batchDisable)"
     @enable="runBatchAction(actions.batchEnable)"
+    @require-auth="runBatchAction(actions.batchRequireAuth)"
+    @public-access="runBatchAction(actions.batchPublicAccess)"
     @move="moveSelected"
     @schedule="runBatchAction(actions.batchSchedule)"
   />

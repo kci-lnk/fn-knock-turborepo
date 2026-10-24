@@ -16,6 +16,8 @@ const emit = defineEmits<{
   edit: [];
   disable: [];
   enable: [];
+  "require-auth": [];
+  "public-access": [];
   move: [groupId: string | null];
   schedule: [];
   delete: [];
@@ -79,6 +81,8 @@ const { t } = useI18n();
         :saving="saving"
         :selected-count="selectedCount"
         @enable="emit('enable')"
+        @require-auth="emit('require-auth')"
+        @public-access="emit('public-access')"
         @disable="emit('disable')"
         @schedule="emit('schedule')"
         @delete="emit('delete')"

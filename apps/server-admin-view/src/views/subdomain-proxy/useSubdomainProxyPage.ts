@@ -315,7 +315,14 @@ export const useSubdomainProxyPage = () => {
     isAuthServiceTarget,
     isSavingMappings,
     runSaveMappings,
-    saveHostMappings: (mappings) => configStore.saveHostMappings(mappings),
+    saveHostMappings: (mappings, beforeSave) =>
+      configStore.saveHostMappings(
+        mappings,
+        undefined,
+        undefined,
+        undefined,
+        beforeSave,
+      ),
     translate: (key, params) => (params ? t(key, params) : t(key)),
   });
   const batchEdit = useSubdomainBatchEdit({

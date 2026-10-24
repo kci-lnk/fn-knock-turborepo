@@ -131,7 +131,7 @@ describe("batch mapping editor", () => {
         expect.stringContaining("Delete"),
       ]),
     );
-    expect(items).toHaveLength(4);
+    expect(items).toHaveLength(6);
     expect(
       items.some((item) =>
         item.textContent?.includes(en.subdomainProxy.batchEdit.shortAction),

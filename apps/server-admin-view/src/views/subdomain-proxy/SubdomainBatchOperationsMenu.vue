@@ -3,6 +3,8 @@ import { useI18n } from "vue-i18n";
 import {
   CalendarClock,
   Ellipsis,
+  LockKeyhole,
+  Globe2,
   Power,
   PowerOff,
   Trash2,
@@ -24,6 +26,8 @@ defineProps<{
 const emit = defineEmits<{
   disable: [];
   enable: [];
+  "require-auth": [];
+  "public-access": [];
   schedule: [];
   delete: [];
 }>();
@@ -49,7 +53,10 @@ const { t } = useI18n();
         <Ellipsis class="size-4 shrink-0" />
       </Button>
     </DropdownMenuTrigger>
-    <DropdownMenuContent align="end">
+    <DropdownMenuContent
+      align="end"
+      class="max-w-[calc(100vw-2rem)] [&_[role=menuitem]]:min-h-11 [&_[role=menuitem]]:whitespace-normal [&_[role=menuitem]]:break-words sm:[&_[role=menuitem]]:min-h-0"
+    >
       <DropdownMenuItem :disabled="saving" @select="emit('enable')">
         <Power class="mr-2 h-4 w-4" />{{
           t("admin.subdomainProxy.enableMapping")
@@ -64,6 +71,27 @@ const { t } = useI18n();
         <CalendarClock class="mr-2 h-4 w-4" />{{
           t("admin.subdomainProxy.scheduleAvailability")
         }}
+      </DropdownMenuItem>
+      <DropdownMenuSeparator />
+      <DropdownMenuItem
+        :disabled="saving"
+        data-testid="batch-require-auth"
+        @select="emit('require-auth')"
+      >
+        <LockKeyhole class="mr-2 h-4 w-4" />
+        <span class="min-w-0">{{
+          t("admin.subdomainProxy.authRequired")
+        }}</span>
+      </DropdownMenuItem>
+      <DropdownMenuItem
+        :disabled="saving"
+        data-testid="batch-public-access"
+        @select="emit('public-access')"
+      >
+        <Globe2 class="mr-2 h-4 w-4" />
+        <span class="min-w-0">{{
+          t("admin.subdomainProxy.publicAccess")
+        }}</span>
       </DropdownMenuItem>
       <DropdownMenuSeparator />
       <DropdownMenuItem

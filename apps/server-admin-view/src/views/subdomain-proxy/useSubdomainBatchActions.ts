@@ -2,8 +2,10 @@ import { computed, ref, shallowRef, type ComputedRef, type Ref } from "vue";
 import { toast } from "@admin-shared/utils/toast";
 import type { HostMapping, HostMappingAvailability } from "@/types";
 import { getAvailabilityWindowValidationError } from "./model";
+import { batchMappingSignature } from "./subdomain-batch-edit-model";
 
-type BatchMutation = "enable" | "disable" | "delete";
+type BatchMutation =
+  "enable" | "disable" | "delete" | "require-auth" | "public-access";
 type AsyncActionRun = <T>(action: () => Promise<T>) => Promise<T | undefined>;
 type Translate = (key: string, params?: Record<string, number>) => string;
 
@@ -22,7 +24,10 @@ export const useSubdomainBatchActions = ({
   isAuthServiceTarget: (target: string) => boolean;
   isSavingMappings: Ref<boolean>;
   runSaveMappings: AsyncActionRun;
-  saveHostMappings: (mappings: HostMapping[]) => Promise<unknown>;
+  saveHostMappings: (
+    mappings: HostMapping[],
+    beforeSave: () => void,
+  ) => Promise<unknown>;
   translate: Translate;
 }) => {
   const batchMutation = ref<BatchMutation | null>(null);
@@ -37,49 +42,67 @@ export const useSubdomainBatchActions = ({
     const hosts = new Set(batchHosts.value);
     return allMappings.value.filter(
       (mapping) =>
-        hosts.has(mapping.host) && !isAuthServiceTarget(mapping.target),
+        hosts.has(mapping.host) &&
+        mapping.service_role !== "auth" &&
+        !isAuthServiceTarget(mapping.target),
     );
   });
   const selectedCount = computed(() => selectedMappings.value.length);
   const isBatchMutationOpen = computed(
     () => batchMutation.value !== null && selectedCount.value > 0,
   );
-  const batchMutationTitle = computed(() => {
-    switch (batchMutation.value) {
-      case "enable":
-        return translate("admin.subdomainProxy.batchEnableTitle", {
+  const mutationMessages = {
+    enable: {
+      title: "admin.subdomainProxy.batchEnableTitle",
+      description: "admin.subdomainProxy.batchEnableDescription",
+      confirm: "admin.subdomainProxy.confirmBatchEnable",
+      success: "admin.subdomainProxy.batchMappingsEnabled",
+    },
+    disable: {
+      title: "admin.subdomainProxy.batchDisableTitle",
+      description: "admin.subdomainProxy.batchDisableDescription",
+      confirm: "admin.subdomainProxy.confirmBatchDisable",
+      success: "admin.subdomainProxy.batchMappingsDisabled",
+    },
+    delete: {
+      title: "admin.subdomainProxy.batchDeleteTitle",
+      description: "admin.subdomainProxy.batchDeleteDescription",
+      confirm: "admin.subdomainProxy.confirmBatchDelete",
+      success: "admin.subdomainProxy.batchMappingsDeleted",
+    },
+    "require-auth": {
+      title: "admin.subdomainProxy.batchRequireAuthTitle",
+      description: "admin.subdomainProxy.batchRequireAuthDescription",
+      confirm: "admin.subdomainProxy.confirmBatchRequireAuth",
+      success: "admin.subdomainProxy.batchMappingsAuthRequired",
+    },
+    "public-access": {
+      title: "admin.subdomainProxy.batchPublicAccessTitle",
+      description: "admin.subdomainProxy.batchPublicAccessDescription",
+      confirm: "admin.subdomainProxy.confirmBatchPublicAccess",
+      success: "admin.subdomainProxy.batchMappingsPublic",
+    },
+  } satisfies Record<
+    BatchMutation,
+    Record<"title" | "description" | "confirm" | "success", string>
+  >;
+  const mutationMessage = (field: "title" | "description" | "confirm") =>
+    batchMutation.value
+      ? translate(mutationMessages[batchMutation.value][field], {
           count: selectedCount.value,
-        });
-      case "disable":
-        return translate("admin.subdomainProxy.batchDisableTitle", {
-          count: selectedCount.value,
-        });
-      default:
-        return translate("admin.subdomainProxy.batchDeleteTitle", {
-          count: selectedCount.value,
-        });
-    }
-  });
-  const batchMutationDescription = computed(() => {
-    const key =
-      batchMutation.value === "enable"
-        ? "admin.subdomainProxy.batchEnableDescription"
-        : batchMutation.value === "disable"
-          ? "admin.subdomainProxy.batchDisableDescription"
-          : "admin.subdomainProxy.batchDeleteDescription";
-    return translate(key, { count: selectedCount.value });
-  });
-  const batchMutationConfirmLabel = computed(() => {
-    const key =
-      batchMutation.value === "enable"
-        ? "admin.subdomainProxy.confirmBatchEnable"
-        : batchMutation.value === "disable"
-          ? "admin.subdomainProxy.confirmBatchDisable"
-          : "admin.subdomainProxy.confirmBatchDelete";
-    return translate(key, { count: selectedCount.value });
-  });
-  const batchMutationConfirmVariant = computed<"default" | "destructive">(
-    () => (batchMutation.value === "enable" ? "default" : "destructive"),
+        })
+      : "";
+  const batchMutationTitle = computed(() => mutationMessage("title"));
+  const batchMutationDescription = computed(() =>
+    mutationMessage("description"),
+  );
+  const batchMutationConfirmLabel = computed(() => mutationMessage("confirm"));
+  const batchMutationConfirmVariant = computed<"default" | "destructive">(() =>
+    batchMutation.value === "disable" ||
+    batchMutation.value === "delete" ||
+    batchMutation.value === "public-access"
+      ? "destructive"
+      : "default",
   );
   const availabilityValidationMessage = computed(() => {
     if (!availabilityFormEnabled.value) return "";
@@ -101,6 +124,7 @@ export const useSubdomainBatchActions = ({
     onComplete.value = complete;
   };
   const closeBatchMutation = () => {
+    if (isSavingMappings.value) return;
     batchMutation.value = null;
     batchHosts.value = [];
     onComplete.value = null;
@@ -143,37 +167,46 @@ export const useSubdomainBatchActions = ({
     closeBatchMutation();
     closeBatchAvailability();
   };
+  const saveBatchMappings = (mappings: HostMapping[]) => {
+    const baseline = batchMappingSignature(allMappings.value);
+    return saveHostMappings(mappings, () => {
+      if (batchMappingSignature(allMappings.value) !== baseline) {
+        throw new Error(
+          translate("admin.subdomainProxy.batchConfigurationChanged"),
+        );
+      }
+    });
+  };
   const confirmBatchMutation = async () => {
     const mutation = batchMutation.value;
-    const hosts = new Set(selectedMappings.value.map((mapping) => mapping.host));
+    const hosts = new Set(
+      selectedMappings.value.map((mapping) => mapping.host),
+    );
     if (!mutation || hosts.size === 0 || isSavingMappings.value) return;
 
     const saved = await runSaveMappings(async () => {
       const nextMappings =
         mutation === "delete"
           ? allMappings.value.filter((mapping) => !hosts.has(mapping.host))
-          : allMappings.value.map((mapping) =>
-              hosts.has(mapping.host)
-                ? { ...mapping, disabled: mutation === "disable" }
-                : mapping,
-            );
-      await saveHostMappings(nextMappings);
+          : allMappings.value.map((mapping) => {
+              if (!hosts.has(mapping.host)) return mapping;
+              if (mutation === "require-auth" || mutation === "public-access") {
+                return { ...mapping, use_auth: mutation === "require-auth" };
+              }
+              return { ...mapping, disabled: mutation === "disable" };
+            });
+      await saveBatchMappings(nextMappings);
       toast.success(
-        translate(
-          mutation === "delete"
-            ? "admin.subdomainProxy.batchMappingsDeleted"
-            : mutation === "disable"
-              ? "admin.subdomainProxy.batchMappingsDisabled"
-              : "admin.subdomainProxy.batchMappingsEnabled",
-          { count: hosts.size },
-        ),
+        translate(mutationMessages[mutation].success, { count: hosts.size }),
       );
       return true;
     });
     if (saved) finishSuccessfulAction();
   };
   const saveBatchAvailability = async () => {
-    const hosts = new Set(selectedMappings.value.map((mapping) => mapping.host));
+    const hosts = new Set(
+      selectedMappings.value.map((mapping) => mapping.host),
+    );
     if (
       hosts.size === 0 ||
       isSavingMappings.value ||
@@ -190,7 +223,7 @@ export const useSubdomainBatchActions = ({
           }
         : null;
     const saved = await runSaveMappings(async () => {
-      await saveHostMappings(
+      await saveBatchMappings(
         allMappings.value.map((mapping) =>
           hosts.has(mapping.host) ? { ...mapping, availability } : mapping,
         ),

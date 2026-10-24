@@ -192,6 +192,14 @@ const {
       @batch-enable="
         (hosts, onComplete) => openBatchMutation(hosts, 'enable', onComplete)
       "
+      @batch-require-auth="
+        (hosts, onComplete) =>
+          openBatchMutation(hosts, 'require-auth', onComplete)
+      "
+      @batch-public-access="
+        (hosts, onComplete) =>
+          openBatchMutation(hosts, 'public-access', onComplete)
+      "
       @batch-edit="openBatchEdit"
       @batch-schedule="openBatchAvailability"
       @clear-default="clearDefaultMapping"

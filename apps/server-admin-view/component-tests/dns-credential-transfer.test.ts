@@ -471,6 +471,12 @@ describe("credential fill entry points", () => {
         description: "",
         title: "Target",
         isSaving: false,
+        updateProxy: {
+          enabled: false,
+          url: "",
+          username: "",
+          passwordConfigured: false,
+        },
         formatDomainField: () => {},
         formatOptionLabel: () => "",
         getFieldAutocomplete: () => "off",

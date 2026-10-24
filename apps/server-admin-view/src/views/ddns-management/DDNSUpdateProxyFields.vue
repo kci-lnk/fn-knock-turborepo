@@ -131,5 +131,6 @@ const update = (patch: Partial<DDNSUpdateProxyDraft>) =>
     >
       {{ t(error) }}
     </p>
+    <slot />
   </section>
 </template>

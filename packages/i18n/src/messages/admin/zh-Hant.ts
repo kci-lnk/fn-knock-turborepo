@@ -5522,6 +5522,11 @@ export const zhHantAdmin = {
   },
   ddns: {
     ...zhCNAdmin.ddns,
+    updateProxyTest: "測試代理",
+    updateProxyTesting: "正在測試代理…",
+    updateProxyTestSuccess: "代理連線成功（{ms} 毫秒）",
+    updateProxyTestFailed: "代理測試失敗",
+    updateProxyTestHint: "使用目前設定存取 https://www.cloudflare.com/cdn-cgi/trace，不儲存設定、不修改 DNS。僅驗證代理連通性，不驗證服務商 API 權限。",
     updateProxyTitle: "更新代理",
     updateProxyHint:
       "僅影響服務商更新請求，公網 IP 偵測始終直連。代理位址須由執行 DDNS 的伺服器存取。",

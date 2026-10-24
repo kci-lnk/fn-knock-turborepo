@@ -205,6 +205,7 @@ function validateContract(openapiPath) {
     ["get /api/admin/ddns/settings", null],
     ["post /api/admin/ddns/settings", "DdnsSettingsUpdateData"],
     ["post /api/admin/ddns/public-check/test", "DdnsPublicCheckTestBodyData"],
+    ["post /api/admin/ddns/update-proxy/test", "DdnsUpdateProxyTestBodyData"],
     ["get /api/admin/ddns/interfaces", null],
     [
       "post /api/admin/ddns/interfaces/resolve",

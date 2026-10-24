@@ -1564,6 +1564,7 @@ export const zhCNServer = {
       "请填写有效的 HTTP、HTTPS 或 SOCKS5 代理地址，认证信息单独填写；SOCKS5 必须包含端口。",
     updateProxyMissing: "请先在 DDNS 旁的设置按钮中配置更新代理地址。",
     updateProxyAuthFailed: "代理认证失败，请检查用户名和密码。",
+    updateProxyTestHttpFailed: "代理测试地址返回 HTTP {status}，请检查代理设置或更换节点。",
     updateProxyRequestFailed:
       "DDNS 更新代理请求失败，请检查代理连接、认证、TLS 证书和协议支持；未回退直连。",
 

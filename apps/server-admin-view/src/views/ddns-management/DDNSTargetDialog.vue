@@ -106,6 +106,7 @@ const { t } = useI18n();
           />
           <DDNSUpdateProxyModeField
             id="ddns-target-update-proxy-mode"
+            layout="target"
             v-model="state.config.update_proxy_mode"
             :default-enabled="updateProxy.enabled"
             :configured="Boolean(updateProxy.url)"

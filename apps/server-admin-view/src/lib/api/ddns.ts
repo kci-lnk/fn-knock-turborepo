@@ -8,6 +8,10 @@ type DdnsSchemas = ApiContractComponents["schemas"];
 
 export type DDNSLogEntry = DdnsSchemas["DdnsLogEntryData"];
 export type DDNSStatusPayload = DdnsSchemas["DdnsStatusData"];
+export type DDNSUpdateProxyTestResult =
+  DdnsSchemas["DdnsUpdateProxyTestResultData"];
+export type DDNSUpdateProxyTestBody =
+  DdnsSchemas["DdnsUpdateProxyTestBodyData"];
 export type DDNSSettingsPayload = DdnsSchemas["DdnsSettingsData"];
 export type DDNSSettingsUpdatePayload = DdnsSchemas["DdnsSettingsUpdateData"];
 export type DDNSTargetSummaryPayload = DdnsSchemas["DdnsTargetSummaryData"];
@@ -68,6 +72,15 @@ export const DDNSAPI = {
     payload: DDNSSettingsUpdatePayload,
   ): Promise<DDNSSettingsPayload> {
     const res = await apiClient.post("/ddns/settings", payload);
+    return res.data.data;
+  },
+  async testUpdateProxy(
+    payload: DDNSUpdateProxyTestBody,
+    signal?: AbortSignal,
+  ): Promise<DDNSUpdateProxyTestResult> {
+    const res = await apiClient.post("/ddns/update-proxy/test", payload, {
+      signal,
+    });
     return res.data.data;
   },
   async testPublicCheckSources(

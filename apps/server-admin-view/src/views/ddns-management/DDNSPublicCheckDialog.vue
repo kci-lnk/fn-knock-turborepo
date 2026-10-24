@@ -1,10 +1,11 @@
 <script setup lang="ts">
+import DDNSUpdateProxyTest from "./DDNSUpdateProxyTest.vue";
 import DDNSUpdateProxyFields from "./DDNSUpdateProxyFields.vue";
 import {
   updateProxyValidationKey,
   type DDNSUpdateProxyDraft,
 } from "./ddns-proxy-model";
-import { computed } from "vue";
+import { computed, ref } from "vue";
 import { useI18n } from "vue-i18n";
 import {
   CheckCircle2,
@@ -122,7 +123,10 @@ const groupedResults = computed(() => ({
 }));
 
 const hasResults = computed(() => props.testResults.length > 0);
-const isBusy = computed(() => props.isSaving || props.isTesting);
+const isTestingProxy = ref(false);
+const isBusy = computed(
+  () => props.isSaving || props.isTesting || isTestingProxy.value,
+);
 const transportDraft = computed({
   get: () => props.httpTransportDraft,
   set: (value: string) =>
@@ -157,7 +161,14 @@ const dnsProviderDraft = computed({
           :model-value="updateProxyDraft"
           :disabled="isBusy"
           @update:model-value="emit('update:updateProxyDraft', $event)"
-        />
+        >
+          <DDNSUpdateProxyTest
+            :draft="updateProxyDraft"
+            :transport="httpTransportDraft"
+            :disabled="isSaving || isTesting"
+            @busy="isTestingProxy = $event"
+          />
+        </DDNSUpdateProxyFields>
         <section class="space-y-2">
           <Label for="ddns-http-transport" class="text-sm font-medium">
             {{ t("admin.ddns.httpTransportLabel") }}

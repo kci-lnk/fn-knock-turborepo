@@ -1781,6 +1781,7 @@ export const koKRServer = {
       "DDNS 옆 설정 버튼에서 업데이트 프록시를 먼저 설정하세요.",
     updateProxyAuthFailed:
       "프록시 인증에 실패했습니다. 사용자 이름과 비밀번호를 확인하세요.",
+    updateProxyTestHttpFailed: "프록시 테스트 주소가 HTTP {status}를 반환했습니다. 프록시 설정을 확인하거나 다른 서버를 사용하세요.",
     updateProxyRequestFailed:
       "DDNS 업데이트 프록시의 연결, 인증, TLS 인증서 및 프로토콜 지원을 확인하세요. 직접 연결로 전환하지 않았습니다.",
 

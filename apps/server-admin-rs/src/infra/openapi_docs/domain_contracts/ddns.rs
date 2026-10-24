@@ -358,3 +358,22 @@ pub(super) struct DdnsUpdateProxyUpdateData {
     password: Option<String>,
     clear_password: Option<bool>,
 }
+
+#[derive(Serialize, ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub(super) struct DdnsUpdateProxyTestBodyData {
+    update_proxy: DdnsUpdateProxyUpdateData,
+    http_transport: Option<String>,
+}
+
+#[derive(Serialize, ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub(super) struct DdnsUpdateProxyTestResultData {
+    success: bool,
+    elapsed_ms: u64,
+    url: String,
+    #[schema(required = true)]
+    status: Option<u16>,
+    #[schema(required = true)]
+    error: Option<String>,
+}

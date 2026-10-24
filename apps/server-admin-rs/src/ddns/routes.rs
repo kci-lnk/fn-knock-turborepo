@@ -19,6 +19,7 @@ mod store;
 mod target;
 mod tasks;
 mod update_proxy;
+mod update_proxy_test;
 
 use config::*;
 use domain_targets::*;
@@ -33,6 +34,7 @@ use store::*;
 use target::*;
 use tasks::*;
 use update_proxy::*;
+use update_proxy_test::{__path_test_update_proxy, test_update_proxy};
 
 #[cfg(test)]
 mod tests;
@@ -219,6 +221,7 @@ pub(crate) fn ddns_openapi_routes() -> OpenApiRouter<AppState> {
         .routes(routes!(get_settings))
         .routes(routes!(update_settings))
         .routes(routes!(test_public_check_sources))
+        .routes(routes!(test_update_proxy))
         .routes(routes!(get_interfaces))
         .routes(routes!(resolve_interface_selector_preview))
         .routes(routes!(set_provider))

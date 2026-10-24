@@ -25,18 +25,29 @@ import { zhCNAdmin } from '../../../packages/i18n/src/messages/admin/zh-CN';
 import { enAdmin } from '../../../packages/i18n/src/messages/admin/en';
 import DDNSPublicCheckDialog from './views/ddns-management/DDNSPublicCheckDialog.vue';
 import DDNSUpdateProxyModeField from './views/ddns-management/DDNSUpdateProxyModeField.vue';
+import DDNSProviderCredentialsFields from './views/ddns-management/DDNSProviderCredentialsFields.vue';
+import DDNSTargetProviderFields from './views/ddns-management/DDNSTargetProviderFields.vue';
 import { createUpdateProxyDraft } from './views/ddns-management/ddns-proxy-model';
 import './assets/index.css';
 const App = defineComponent({
-  components: { DDNSPublicCheckDialog, DDNSUpdateProxyModeField },
+  components: { DDNSPublicCheckDialog, DDNSUpdateProxyModeField, DDNSProviderCredentialsFields, DDNSTargetProviderFields },
   setup() {
     const proxy = ref(createUpdateProxyDraft({enabled:true,url:'https://' + 'proxy-'.repeat(25) + 'example.com:7890',username:'demo',passwordConfigured:true}));
-    return { proxy, open: ref(true), sources: ref({ipv4:['https://example.com/ip'],ipv6:['https://example.com/ipv6']}), transport:ref('node'), dns:ref('none'), primary:ref('inherit'), target:ref('proxy'),
+    const provider = {name:'fixture',label:'Example DNS',fields:[{key:'zone',label:'Zone ID',type:'text',required:true}]};
+    const credentials = {providerDef:provider,providerConfig:{zone:'example-zone'},fieldVisibility:{},formatDomainField:()=>{},enableFieldEditing:()=>{},getFieldAutocomplete:()=> 'off',getFieldDescription:()=> 'DNS zone identifier',getFieldDomId:()=> 'primary-reference',getFieldInputName:()=> 'zone',isFieldEditReady:()=>true,setFieldValue:()=>{},toggleFieldVisibility:()=>{}};
+    const targetCredentials = {providerDef:provider,state:{config:{zone:'example-zone'}},formatDomainField:()=>{},getFieldAutocomplete:()=> 'off',getFieldDescription:()=> 'DNS zone identifier',isFieldVisible:()=>false,toggleFieldVisibility:()=>{}};
+    return { credentials, targetCredentials, proxy, open: ref(true), sources: ref({ipv4:['https://example.com/ip'],ipv6:['https://example.com/ipv6']}), transport:ref('node'), dns:ref('none'), primary:ref('inherit'), target:ref('proxy'),
       results: [{family:'ipv4',url:'https://'+'very-long-domain-'.repeat(16)+'example.com/ip',success:false,error:'连接失败：'+'检测错误说明'.repeat(30)}] };
   },
-  template: \`<main class="mx-auto max-w-3xl p-4"><h1>DDNS</h1><button id="open-settings" @click="open=true">网络设置</button>
+  template: \`<main class="mx-auto max-w-7xl p-4"><h1>DDNS</h1><button id="open-settings" @click="open=true">网络设置</button>
+    <section id="primary-form" class="my-4 divide-y rounded-lg border">
     <DDNSUpdateProxyModeField id="primary-mode" v-model="primary" :default-enabled="proxy.enabled" :configured="true" />
-    <DDNSUpdateProxyModeField id="target-mode" v-model="target" :default-enabled="proxy.enabled" :configured="true" />
+    <DDNSProviderCredentialsFields v-bind="credentials" />
+    </section>
+    <section id="target-form" class="my-4 max-w-[712px] divide-y rounded-lg border">
+    <DDNSUpdateProxyModeField id="target-mode" layout="target" v-model="target" :default-enabled="proxy.enabled" :configured="true" />
+    <DDNSTargetProviderFields v-bind="targetCredentials" />
+    </section>
     <DDNSPublicCheckDialog v-model:open="open" v-model:draft="sources" v-model:http-transport-draft="transport" v-model:public-dns-provider-draft="dns" v-model:update-proxy-draft="proxy" :is-saving="false" :is-testing="false" :test-results="results" @save="open=false" />
   </main>\`
 });
@@ -59,6 +70,23 @@ createApp(App).use(createI18n({legacy:false,locale:'${locale}',messages:{en:{adm
   const page = await browser.newPage({ reducedMotion: "reduce" });
   page.setDefaultTimeout(10000);
   page.on("pageerror", (error) => errors.push(error.message));
+  await page.route("**/ddns/update-proxy/test", async (route) => {
+    assert.equal(route.request().method(), "POST");
+    const body = route.request().postDataJSON();
+    assert.equal(body.updateProxy.password, "");
+    assert.equal(body.httpTransport, "node");
+    await route.fulfill({
+      json: {
+        data: {
+          success: true,
+          elapsedMs: 42,
+          status: 200,
+          error: null,
+          url: "https://www.cloudflare.com/cdn-cgi/trace",
+        },
+      },
+    });
+  });
   const results = [];
   for (const [width, height] of [
     [375, 812],
@@ -120,6 +148,34 @@ createApp(App).use(createI18n({legacy:false,locale:'${locale}',messages:{en:{adm
         animations: "disabled",
         path: path.join(output, `settings-${width}-${height}-${theme}.png`),
       });
+      await page
+        .getByRole("button", {
+          name: locale === "en" ? "Test proxy" : "测试代理",
+          exact: true,
+        })
+        .click();
+      await page
+        .getByRole("status")
+        .filter({
+          hasText: locale === "en" ? "Proxy connected" : "代理连接成功",
+        })
+        .waitFor();
+      await page.screenshot({
+        animations: "disabled",
+        path: path.join(output, `proxy-test-${width}-${height}-${theme}.png`),
+      });
+      await page
+        .locator("#ddns-update-proxy-url")
+        .fill("http://localhost:7890");
+      assert.equal(
+        await page
+          .getByRole("status")
+          .filter({
+            hasText: locale === "en" ? "Proxy connected" : "代理连接成功",
+          })
+          .count(),
+        0,
+      );
       // Scroll long detection errors; actions must remain visible and no content may overflow.
       const scroller = dialog.locator(".overflow-y-auto");
       await scroller.evaluate((el) => {
@@ -145,16 +201,54 @@ createApp(App).use(createI18n({legacy:false,locale:'${locale}',messages:{en:{adm
               .map((a) => a.finished.catch(() => {})),
           );
         });
+        await page.screenshot({
+          animations: "disabled",
+          path: path.join(output, `keyboard-${width}-${height}-${theme}.png`),
+        });
         const keyboardSave = await save.boundingBox();
         assert(
           keyboardSave.y >= 0 && keyboardSave.y + keyboardSave.height <= 481,
-          "save obscured in reduced mobile viewport",
+          JSON.stringify({
+            message: "save obscured in reduced mobile viewport",
+            width,
+            height,
+            theme,
+            keyboardSave,
+          }),
         );
         await page.setViewportSize({ width, height });
       }
       await page.keyboard.press("Escape");
       await dialog.waitFor({ state: "hidden" });
-      await page.getByRole("combobox").first().click();
+      for (const [modeId, referenceId] of [
+        ["primary-mode", "primary-reference"],
+        ["target-mode", "ddns-target-field-zone"],
+      ]) {
+        const modeBox = await page.locator(`#${modeId}`).boundingBox();
+        const referenceBox = await page
+          .locator(`#${referenceId}`)
+          .boundingBox();
+        const labelBox = await page
+          .locator(`label[for="${modeId}"]`)
+          .boundingBox();
+        assert(
+          Math.abs(modeBox.x - referenceBox.x) <= 1,
+          `${modeId} field alignment`,
+        );
+        assert(
+          Math.abs(modeBox.width - referenceBox.width) <= 1,
+          `${modeId} field width`,
+        );
+        assert(modeBox.width <= 449, `${modeId} overly wide`);
+        if (width >= 640)
+          assert(labelBox.x < modeBox.x, `${modeId} label not in left column`);
+        else assert(labelBox.y < modeBox.y, `${modeId} mobile label order`);
+      }
+      await page.screenshot({
+        animations: "disabled",
+        path: path.join(output, `routing-form-${width}-${height}-${theme}.png`),
+      });
+      await page.locator("#primary-mode").click();
       await page
         .getByRole("option", {
           name: locale === "en" ? "Direct" : "直连",

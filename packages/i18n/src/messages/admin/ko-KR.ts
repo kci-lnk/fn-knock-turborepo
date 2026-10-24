@@ -5969,6 +5969,11 @@ export const koKRAdmin = {
     },
   },
   ddns: {
+    updateProxyTest: "프록시 테스트",
+    updateProxyTesting: "프록시 테스트 중…",
+    updateProxyTestSuccess: "프록시 연결 성공 ({ms}ms)",
+    updateProxyTestFailed: "프록시 테스트 실패",
+    updateProxyTestHint: "현재 설정으로 https://www.cloudflare.com/cdn-cgi/trace 에 요청합니다. 설정을 저장하거나 DNS를 변경하지 않습니다. 연결만 확인하며 공급자 API 권한은 확인하지 않습니다.",
     updateProxyTitle: "업데이트 프록시",
     updateProxyHint:
       "공급자 업데이트 요청에만 적용됩니다. 공인 IP 감지는 항상 직접 연결합니다. DDNS 서버에서 접근할 수 있는 프록시를 지정하세요.",

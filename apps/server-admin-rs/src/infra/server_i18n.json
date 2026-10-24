@@ -1998,7 +1998,8 @@
       "updateProxyConnectionFailed": "无法连接 DDNS 更新代理，请检查代理地址和可用性；未回退直连。",
       "updateProxyTimeout": "DDNS 更新代理请求超时；未回退直连。",
       "updateProxyTlsFailed": "DDNS 代理链路 TLS 校验或协商失败，请检查代理和服务商证书。",
-      "updateProxyUnsupported": "系统 cURL 不支持此代理协议，请切换到内置 HTTP 或升级 cURL。"
+      "updateProxyUnsupported": "系统 cURL 不支持此代理协议，请切换到内置 HTTP 或升级 cURL。",
+      "updateProxyTestHttpFailed": "代理测试地址返回 HTTP {status}，请检查代理设置或更换节点。"
     },
     "smartConnect": {
       "runTypes": {
@@ -5273,7 +5274,8 @@
       "updateProxyConnectionFailed": "無法連線 DDNS 更新代理，請檢查代理位址和可用性；未回退直連。",
       "updateProxyTimeout": "DDNS 更新代理請求逾時；未回退直連。",
       "updateProxyTlsFailed": "DDNS 代理連線的 TLS 驗證或交涉失敗，請檢查代理和服務商憑證。",
-      "updateProxyUnsupported": "系統 cURL 不支援此代理協定，請切換至內建 HTTP 或升級 cURL。"
+      "updateProxyUnsupported": "系統 cURL 不支援此代理協定，請切換至內建 HTTP 或升級 cURL。",
+      "updateProxyTestHttpFailed": "代理測試位址傳回 HTTP {status}，請檢查代理設定或更換節點。"
     },
     "smartConnect": {
       "runTypes": {
@@ -8548,7 +8550,8 @@
       "updateProxyConnectionFailed": "Cannot connect to the DDNS update proxy. Check its address and availability; no direct fallback was attempted.",
       "updateProxyTimeout": "DDNS update proxy request timed out; no direct fallback was attempted.",
       "updateProxyTlsFailed": "TLS verification or negotiation failed on the DDNS proxy route. Check the proxy and provider certificates.",
-      "updateProxyUnsupported": "The system cURL does not support this proxy protocol. Switch to built-in HTTP or upgrade cURL."
+      "updateProxyUnsupported": "The system cURL does not support this proxy protocol. Switch to built-in HTTP or upgrade cURL.",
+      "updateProxyTestHttpFailed": "The proxy test endpoint returned HTTP {status}. Check the proxy settings or try another server."
     },
     "smartConnect": {
       "runTypes": {
@@ -11823,7 +11826,8 @@
       "updateProxyConnectionFailed": "DDNS 업데이트 프록시에 연결할 수 없습니다. 주소와 가용성을 확인하세요. 직접 연결로 전환하지 않았습니다.",
       "updateProxyTimeout": "DDNS 업데이트 프록시 요청 시간이 초과되었습니다. 직접 연결로 전환하지 않았습니다.",
       "updateProxyTlsFailed": "DDNS 프록시 경로에서 TLS 검증 또는 협상에 실패했습니다. 프록시 및 공급자 인증서를 확인하세요.",
-      "updateProxyUnsupported": "시스템 cURL이 이 프록시 프로토콜을 지원하지 않습니다. 내장 HTTP로 전환하거나 cURL을 업그레이드하세요."
+      "updateProxyUnsupported": "시스템 cURL이 이 프록시 프로토콜을 지원하지 않습니다. 내장 HTTP로 전환하거나 cURL을 업그레이드하세요.",
+      "updateProxyTestHttpFailed": "프록시 테스트 주소가 HTTP {status}를 반환했습니다. 프록시 설정을 확인하거나 다른 서버를 사용하세요."
     },
     "smartConnect": {
       "runTypes": {
@@ -15098,7 +15102,8 @@
       "updateProxyConnectionFailed": "DDNS 更新プロキシに接続できません。アドレスと稼働状態を確認してください。直接接続には切り替えていません。",
       "updateProxyTimeout": "DDNS 更新プロキシのリクエストがタイムアウトしました。直接接続には切り替えていません。",
       "updateProxyTlsFailed": "DDNS プロキシ経路の TLS 検証または通信確立に失敗しました。プロキシとプロバイダーの証明書を確認してください。",
-      "updateProxyUnsupported": "システムの cURL はこのプロキシ方式に未対応です。内蔵 HTTP に切り替えるか cURL を更新してください。"
+      "updateProxyUnsupported": "システムの cURL はこのプロキシ方式に未対応です。内蔵 HTTP に切り替えるか cURL を更新してください。",
+      "updateProxyTestHttpFailed": "プロキシのテスト先が HTTP {status} を返しました。設定を確認するか、別のサーバーをお試しください。"
     },
     "smartConnect": {
       "runTypes": {

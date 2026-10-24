@@ -1564,6 +1564,7 @@ export const zhHantServer = {
       "請填寫有效的 HTTP、HTTPS 或 SOCKS5 代理位址，認證資訊另行填寫；SOCKS5 必須包含連接埠。",
     updateProxyMissing: "請先在 DDNS 旁的設定按鈕中設定更新代理位址。",
     updateProxyAuthFailed: "代理認證失敗，請檢查使用者名稱和密碼。",
+    updateProxyTestHttpFailed: "代理測試位址傳回 HTTP {status}，請檢查代理設定或更換節點。",
     updateProxyRequestFailed:
       "DDNS 更新代理請求失敗，請檢查代理連線、認證、TLS 憑證及協定支援；未回退直連。",
 

@@ -1965,6 +1965,15 @@ pub(crate) fn build_openapi_document() -> Value {
         None,
         Some("DdnsPublicCheckTestBodyData"),
     );
+    insert_typed_enveloped_operation(
+        &mut paths,
+        &typed_ddns,
+        "/api/admin/ddns/update-proxy/test",
+        "post",
+        "DdnsUpdateProxyTestResultData",
+        None,
+        Some("DdnsUpdateProxyTestBodyData"),
+    );
     insert_typed_json_enveloped_operation(
         &mut paths,
         &typed_ddns,

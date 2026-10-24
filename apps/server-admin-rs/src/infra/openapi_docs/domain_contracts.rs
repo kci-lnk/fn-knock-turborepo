@@ -1020,6 +1020,8 @@ struct BackupImportResultData {
     FrpcInstancePollData,
     DdnsPublicCheckSourcesData,
     DdnsUpdateProxyData,
+    DdnsUpdateProxyTestBodyData,
+    DdnsUpdateProxyTestResultData,
     DdnsUpdateProxyUpdateData,
     DdnsSettingsData,
     DdnsSettingsUpdateData,
@@ -2905,6 +2907,7 @@ pub(super) fn components() -> Map<String, Value> {
             &["none", "alidns", "tencent", "cloudflare", "google"],
         );
     }
+    set_property_enum(&mut schemas, "DdnsUpdateProxyTestBodyData", "httpTransport", &["curl", "node", "fetch"]);
     for schema in ["DdnsSettingsUpdateData", "DdnsPublicCheckTestBodyData"] {
         set_property_enum(
             &mut schemas,

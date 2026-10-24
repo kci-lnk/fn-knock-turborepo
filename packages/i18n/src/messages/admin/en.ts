@@ -6023,6 +6023,11 @@ export const enAdmin = {
     },
   },
   ddns: {
+    updateProxyTest: "Test proxy",
+    updateProxyTesting: "Testing proxy…",
+    updateProxyTestSuccess: "Proxy connected ({ms} ms)",
+    updateProxyTestFailed: "Proxy test failed",
+    updateProxyTestHint: "Uses the current settings to request https://www.cloudflare.com/cdn-cgi/trace without saving settings or changing DNS. Tests connectivity only, not provider API permissions.",
     updateProxyTitle: "Update proxy",
     updateProxyHint:
       "Only provider update requests use this proxy. Public IP detection always connects directly. The proxy must be reachable from the server running DDNS.",

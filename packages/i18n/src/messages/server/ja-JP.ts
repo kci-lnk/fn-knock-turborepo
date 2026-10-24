@@ -1846,6 +1846,7 @@ export const jaJPServer = {
     updateProxyMissing: "DDNS 横の設定ボタンで更新プロキシを設定してください。",
     updateProxyAuthFailed:
       "プロキシ認証に失敗しました。ユーザー名とパスワードを確認してください。",
+    updateProxyTestHttpFailed: "プロキシのテスト先が HTTP {status} を返しました。設定を確認するか、別のサーバーをお試しください。",
     updateProxyRequestFailed:
       "DDNS 更新プロキシの接続、認証、TLS 証明書、対応プロトコルを確認してください。直接接続には切り替えていません。",
 

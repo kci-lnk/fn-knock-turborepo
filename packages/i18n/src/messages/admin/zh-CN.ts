@@ -5587,6 +5587,11 @@ export const zhCNAdmin = {
     },
   },
   ddns: {
+    updateProxyTest: "测试代理",
+    updateProxyTesting: "正在测试代理…",
+    updateProxyTestSuccess: "代理连接成功（{ms} 毫秒）",
+    updateProxyTestFailed: "代理测试失败",
+    updateProxyTestHint: "使用当前配置访问 https://www.cloudflare.com/cdn-cgi/trace，不保存设置、不修改 DNS。仅验证代理连通性，不验证服务商 API 权限。",
     updateProxyTitle: "更新代理",
     updateProxyHint:
       "仅影响服务商更新请求，公网 IP 检测始终直连。代理地址须由运行 DDNS 的服务器访问。",

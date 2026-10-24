@@ -1767,6 +1767,7 @@ export const enServer = {
       "Configure an update proxy using the settings button beside DDNS first.",
     updateProxyAuthFailed:
       "Proxy authentication failed. Check the username and password.",
+    updateProxyTestHttpFailed: "The proxy test endpoint returned HTTP {status}. Check the proxy settings or try another server.",
     updateProxyRequestFailed:
       "DDNS update proxy request failed. Check proxy connectivity, authentication, TLS certificates and protocol support; no direct fallback was attempted.",
 

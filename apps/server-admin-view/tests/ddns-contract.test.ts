@@ -44,6 +44,7 @@ describe("DDNS API contract", () => {
       ["get", "/api/admin/ddns/settings"],
       ["post", "/api/admin/ddns/settings"],
       ["post", "/api/admin/ddns/public-check/test"],
+      ["post", "/api/admin/ddns/update-proxy/test"],
       ["get", "/api/admin/ddns/interfaces"],
       ["post", "/api/admin/ddns/interfaces/resolve"],
       ["post", "/api/admin/ddns/provider"],
@@ -172,4 +173,21 @@ it("keeps update proxy secrets write-only and leaves IP detection independent", 
     "#/components/schemas/DdnsUpdateProxyData",
   );
   assert.ok(!schemas.DdnsPublicCheckTestBodyData.properties?.updateProxy);
+});
+
+it("keeps proxy connectivity tests typed and separate from public IP detection", () => {
+  const schemas = contract.components.schemas;
+  assert.equal(
+    schemas.DdnsUpdateProxyTestBodyData.properties?.updateProxy?.$ref,
+    "#/components/schemas/DdnsUpdateProxyUpdateData",
+  );
+  assert.ok(!schemas.DdnsUpdateProxyTestBodyData.properties?.url);
+  assert.deepEqual(
+    schemas.DdnsUpdateProxyTestBodyData.properties?.httpTransport?.enum,
+    ["curl", "node", "fetch"],
+  );
+  assert.ok(
+    schemas.DdnsUpdateProxyTestResultData.required?.includes("success"),
+  );
+  assert.ok(!schemas.DdnsUpdateProxyTestResultData.properties?.password);
 });

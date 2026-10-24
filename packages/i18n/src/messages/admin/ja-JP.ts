@@ -6007,6 +6007,11 @@ export const jaJPAdmin = {
     },
   },
   ddns: {
+    updateProxyTest: "プロキシをテスト",
+    updateProxyTesting: "プロキシをテスト中…",
+    updateProxyTestSuccess: "プロキシ接続成功（{ms} ミリ秒）",
+    updateProxyTestFailed: "プロキシのテストに失敗",
+    updateProxyTestHint: "現在の設定で https://www.cloudflare.com/cdn-cgi/trace にアクセスします。設定の保存や DNS の変更は行いません。接続のみを確認し、プロバイダーの API 権限は確認しません。",
     updateProxyTitle: "更新プロキシ",
     updateProxyHint:
       "プロバイダーの更新リクエストにのみ適用されます。公開 IP の検出は常に直接接続します。DDNS サーバーから到達できるプロキシを指定してください。",

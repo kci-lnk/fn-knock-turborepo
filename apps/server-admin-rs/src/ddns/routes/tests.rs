@@ -1,6 +1,6 @@
 use super::*;
 
-async fn ddns_test_state() -> (tempfile::TempDir, AppState) {
+pub(super) async fn ddns_test_state() -> (tempfile::TempDir, AppState) {
     let directory = tempfile::tempdir().unwrap();
     let mut settings = {
         let _environment = crate::test_support::EnvGuard::new(&[]);

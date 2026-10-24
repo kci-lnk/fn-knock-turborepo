@@ -12,11 +12,8 @@ import {
   useAsyncAction,
 } from "@admin-shared/composables/useAsyncAction";
 import {
-  createDefaultModeForm,
   getMappingDisplayTitle,
-  isHttpTargetUrl,
   normalizeHostLike,
-  parseTargetPort,
 } from "./model";
 import { useAccessEntryPort } from "@/composables/useAccessEntryPort";
 import { useSubdomainAvailabilityActions } from "./useSubdomainAvailabilityActions";
@@ -108,6 +105,7 @@ export const useSubdomainProxyPage = () => {
     authServicePublicPort,
     formatAuthServiceHostWithPublicPort,
     formatHostWithAccessEntryPort,
+    isAuthServiceTarget,
     isEdgeClientIPModeEditable,
     omitPublicPortConfiguration,
     savedEdgeClientIpProvider,
@@ -118,15 +116,6 @@ export const useSubdomainProxyPage = () => {
     getConfig: () => configStore.config,
     modeForm,
   });
-  const authServicePort = computed(
-    () =>
-      parseTargetPort(currentModeConfig.value.auth_target) ??
-      parseTargetPort(createDefaultModeForm().auth_target) ??
-      7997,
-  );
-  const isAuthServiceTarget = (target: string): boolean =>
-    isHttpTargetUrl(target) &&
-    parseTargetPort(target) === authServicePort.value;
   const savedEdgeClientIpProviderLabel = computed(() =>
     savedEdgeClientIpProvider.value
       ? t("admin.subdomainProxy.edgeRealIpSummary", {

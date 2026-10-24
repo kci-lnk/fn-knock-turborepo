@@ -41,7 +41,7 @@
     "@vue/test-utils": "2.4.11",
     "@vue/tsconfig": "^0.8.1",
     "eslint": "^10.8.0",
-    "happy-dom": "20.11.1",
+    "happy-dom": "21.0.4",
     "sass": "^1.97.3",
     "sass-embedded": "^1.97.3",
     "tailwindcss": "^4.2.1",

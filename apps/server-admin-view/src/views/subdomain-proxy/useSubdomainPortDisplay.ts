@@ -5,9 +5,12 @@ import {
   isReverseProxySubdomainMode,
 } from "@/lib/reverse-proxy-submode";
 import {
+  createDefaultModeForm,
   formatHostWithOptionalPort,
   isDefaultPublicPort,
+  isHttpTargetUrl,
   normalizePublicPort,
+  parseTargetPort,
   resolveConfiguredAccessEntryPublicPort,
   resolveConfiguredAuthServicePublicPort,
   resolveEdgeClientIpProvider,
@@ -26,6 +29,15 @@ export const useSubdomainPortDisplay = ({
   getConfig: () => AppConfig | null;
   modeForm: SubdomainModeConfig;
 }) => {
+  const authServicePort = computed(
+    () =>
+      parseTargetPort(currentModeConfig.value.auth_target) ??
+      parseTargetPort(createDefaultModeForm().auth_target) ??
+      7997,
+  );
+  const isAuthServiceTarget = (target: string): boolean =>
+    isHttpTargetUrl(target) &&
+    parseTargetPort(target) === authServicePort.value;
   const defaultAuthServicePublicPort = computed(
     () => normalizePublicPort(accessEntryPort.value) || 7999,
   );
@@ -142,6 +154,7 @@ export const useSubdomainPortDisplay = ({
     authServicePublicPort,
     formatAuthServiceHostWithPublicPort,
     formatHostWithAccessEntryPort,
+    isAuthServiceTarget,
     isEdgeClientIPModeEditable,
     omitPublicPortConfiguration,
     savedEdgeClientIpProvider,

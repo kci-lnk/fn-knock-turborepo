@@ -3152,7 +3152,7 @@ export interface paths {
         get?: never;
         put?: never;
         /**
-         * 测试动态 DNSupdate proxy
+         * 测试动态 DNS更新代理
          * @description 管理 DDNS 提供者、目标、网络接口、日志和任务状态。。`POST /api/admin/ddns/update-proxy/test` 用于提交操作或创建、更新服务状态；执行结果以响应中的数据和消息为准。 请求体字段、必填项和可选值请以 Swagger 展开的 schema 为准。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
          */
         post: operations["post_api_admin_ddns_update_proxy_test"];
@@ -21917,7 +21917,7 @@ export interface operations {
             };
         };
         responses: {
-            /** @description 「测试动态 DNSupdate proxy」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
+            /** @description 「测试动态 DNS更新代理」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
             200: {
                 headers: {
                     [name: string]: unknown;

@@ -3,7 +3,7 @@ import path from "node:path";
 import process from "node:process";
 
 const sourceRoot = path.resolve("apps/server-admin-rs/src");
-const maxDirectSpawnCallSites = 130;
+const maxDirectSpawnCallSites = 143;
 
 // Direct spawns are limited to explicitly audited owners, request-scoped
 // fan-out, subprocess pipe/wait tasks, platform entry points, and tests.
@@ -25,6 +25,12 @@ const auditedBudgets = new Map(
     "certificates/auto_https.rs": 1,
     "config/runtime/tests.rs": 5,
     "ddns/routes/tests.rs": 2,
+    // Test-only proxy/origin fixtures; every handle is awaited by its test.
+    "ddns/routes/providers/common_proxy_tls_tests.rs": 1,
+    "ddns/routes/update_proxy_tests.rs": 8,
+    "ddns/routes/update_proxy_test_tests.rs": 2,
+    // Test-only auth fixture is awaited; cancellation probe is aborted and joined.
+    "ddns/routes/update_proxy_audit_tests.rs": 2,
     "discovery/cidr.rs": 1,
     "discovery/scan_assets/tests.rs": 6,
     "gateway/proxy_config.rs": 1,

@@ -25,6 +25,8 @@ use crate::gateway_settings::{
 };
 use crate::{app_version::APP_LOCAL_VERSION, response, state::AppState, time_utils};
 
+mod startup_logs;
+
 const MAX_ARCHIVE_BYTES: usize = 4 * 1024 * 1024;
 const MAX_LOG_EXPORT_BYTES: usize = 512 * 1024;
 const MAX_CRASH_EXPORT_BYTES: usize = 256 * 1024;
@@ -521,10 +523,13 @@ async fn build_archive(state: &AppState) -> anyhow::Result<Vec<u8>> {
             files.push((archive_name.to_string(), data));
         }
     }
+    if matches!(state.settings.runtime_target.as_str(), "fpk" | "fpk-lite") {
+        startup_logs::append(&state.settings.data_dir, &mut files)?;
+    }
     files.push((
         "README.txt".to_string(),
         format!(
-            "fn-knock diagnostics\nGenerated: {}\n\nContains only component health, runtime lifecycle events, and bounded fn-knock operational logs.\nRequest logs, WAF details, authentication/session records, raw configuration, environment variables, certificates, databases, and complete platform logs are excluded.\nAll structured records are defensively redacted during export. Log coverage is limited to the latest 24 hours and may be shorter after rotation. Exit-code availability depends on the platform supervisor.\n",
+            "fn-knock diagnostics\nGenerated: {}\n\nContains component health, runtime lifecycle events, bounded operational logs, and sanitized FPK startup log tails when applicable.\nRaw configuration, environment dumps, certificates, databases, and complete platform logs are not collected separately. Sensitive text in collected logs is defensively redacted.\nStructured operational logs cover the latest 24 hours and may be shorter after rotation. FPK startup logs (info.log, gateway-runtime.log and their .1 rotations) retain up to the last 256 KiB per file without a time filter; each sanitized line is limited to 512 bytes. logs/startup-collection.json records missing/unreadable files and truncation. These tails may include incomplete final lines from active writers. Kernel OOM and platform service logs are not included. Exit-code availability depends on the platform supervisor.\n",
             time_utils::now_iso()
         )
         .into_bytes(),
@@ -728,7 +733,11 @@ pub(super) fn redact_string(value: &str) -> String {
     {
         return "[redacted]".to_string();
     }
-    if let Ok(parsed) = url::Url::parse(trimmed) {
+    // Free-form startup messages such as "Error: Address already in use" are
+    // syntactically valid opaque URLs. Only normalize actual host URLs.
+    if let Ok(parsed) = url::Url::parse(trimmed)
+        && parsed.host().is_some()
+    {
         return truncate_string(
             format!("{}://[host]{}", parsed.scheme(), parsed.path()),
             512,
@@ -848,6 +857,7 @@ mod tests {
     async fn diagnostics_test_state() -> (tempfile::TempDir, AppState) {
         let directory = tempfile::tempdir().unwrap();
         let mut settings = crate::settings::Settings::from_env();
+        settings.runtime_target = "fpk".to_string();
         settings.data_dir = directory.path().join("data");
         settings.sqlite_path = directory.path().join("fn-knock.sqlite3");
         settings.gateway_config_dir = directory.path().join("gateway");
@@ -1212,6 +1222,18 @@ mod tests {
     async fn archive_has_fixed_members_hashes_limits_and_redaction() {
         let (_directory, state) = diagnostics_test_state().await;
         let logs = state.runtime_health.logs_dir();
+        for name in [
+            "info.log",
+            "info.log.1",
+            "gateway-runtime.log",
+            "gateway-runtime.log.1",
+        ] {
+            std::fs::write(
+                state.settings.data_dir.join(name),
+                "2020-01-01 startup failed: Address already in use\n[debug] wait_result: exited with code 137\nclient_secret = startup-secret-canary\n",
+            )
+            .unwrap();
+        }
         std::fs::write(
             logs.join("gateway.jsonl"),
             format!(
@@ -1253,6 +1275,23 @@ mod tests {
         assert!(names.contains(&"logs/gateway.jsonl".to_string()));
         assert!(names.contains(&"crash/gateway.log".to_string()));
         assert!(names.contains(&"README.txt".to_string()));
+        assert!(names.contains(&"logs/startup-collection.json".to_string()));
+        for name in [
+            "info.log",
+            "info.log.1",
+            "gateway-runtime.log",
+            "gateway-runtime.log.1",
+        ] {
+            let mut text = String::new();
+            archive
+                .by_name(&format!("logs/{name}"))
+                .unwrap()
+                .read_to_string(&mut text)
+                .unwrap();
+            assert!(text.contains("2020-01-01 startup failed: Address already in use"));
+            assert!(text.contains("exited with code 137"));
+            assert!(text.len() <= 256 * 1024);
+        }
         assert!(
             names
                 .iter()
@@ -1282,6 +1321,7 @@ mod tests {
             let text = String::from_utf8_lossy(&data);
             assert!(!text.contains("example.com"));
             assert!(!text.contains("crash-canary"));
+            assert!(!text.contains("startup-secret-canary"));
             assert!(!text.contains("/Users/example"));
         }
         let mut gateway_log = String::new();

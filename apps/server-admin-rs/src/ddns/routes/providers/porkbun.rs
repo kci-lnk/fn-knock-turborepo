@@ -151,7 +151,7 @@ pub(in crate::ddns::routes) async fn porkbun_request(
     let (_status, value, _text) = response_json(
         translator,
         client
-            .post(format!("https://porkbun.com/api/json/v3/dns{path}"))
+            .post(format!("https://api.porkbun.com/api/json/v3/dns{path}"))
             .json(&Value::Object(payload))
             .send()
             .await?,

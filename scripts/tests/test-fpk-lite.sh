@@ -30,6 +30,14 @@ assert_tree_does_not_contain() {
   fi
 }
 
+container_payload_paths() {
+  # These two shared panel-auth chunks retain historical Docker names but
+  # contain no container runtime. Allow only their hashed frontend assets.
+  sed 's#^\./##' \
+    | rg -i '(^|/)[^/]*(docker|compose|container)[^/]*($|/)' \
+    | rg -v '^ui/www/assets/v[0-9]+\.[0-9]+\.[0-9]+/(DockerAdminAccessGate|docker-admin-password)-[A-Za-z0-9_-]+\.js(\.br|\.gz)?$'
+}
+
 assert_fpk_has_no_container_paths() {
   local fpk="$1"
   local matches
@@ -38,11 +46,26 @@ assert_fpk_has_no_container_paths() {
   matches="$(
     tar -xzOf "${fpk}" app.tgz \
       | tar -tzf - \
-      | rg -i '(^|/)[^/]*(docker|compose|container)[^/]*($|/)' \
+      | container_payload_paths \
       || true
   )"
   [ -z "${matches}" ] || fail "${fpk} contains container-related paths: ${matches}"
 }
+
+if printf '%s\n' \
+  './ui/www/assets/v2.5.7/DockerAdminAccessGate-abc123.js.br' \
+  'ui/www/assets/v2.5.7/docker-admin-password-abc123.js' \
+  | container_payload_paths > "${WORK_DIR}/allowed-paths"; then
+  fail "shared panel-auth assets were mistaken for container payloads"
+fi
+printf '%s\n' \
+  'server/docker' \
+  'docker-compose.yml' \
+  'ui/www/assets/v2.5.7/container-runtime-abc123.js' \
+  'server/DockerAdminAccessGate-abc123.js' \
+  | container_payload_paths > "${WORK_DIR}/blocked-paths"
+[ "$(wc -l < "${WORK_DIR}/blocked-paths" | tr -d ' ')" = 4 ] || \
+  fail "container payload detection no longer rejects unexpected files"
 
 [ ! -e apps/fn-knock-docker ] || fail "legacy apps/fn-knock-docker still exists"
 [ ! -e scripts/fn-knock-docker-fpk.sh ] || fail "legacy Docker FPK deploy script still exists"

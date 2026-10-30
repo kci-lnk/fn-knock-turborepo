@@ -9068,6 +9068,7 @@ export interface components {
             grouping?: components["schemas"]["GroupingConfig"];
             name: string;
             provider: components["schemas"]["PanelProvider"];
+            sync_icons?: boolean;
         };
         ConnectionTestResult: {
             /** Format: int64 */
@@ -9084,6 +9085,7 @@ export interface components {
             credential?: string | null;
             grouping?: components["schemas"]["GroupingConfig"];
             name: string;
+            sync_icons?: boolean | null;
         };
         CreateAttachmentInput: {
             /** Format: int32 */
@@ -12003,6 +12005,7 @@ export interface components {
             name: string;
             next_sync_at?: string | null;
             provider: components["schemas"]["PanelProvider"];
+            sync_icons?: boolean;
             updated_at: string;
             verified_at?: string | null;
             verified_version?: string | null;

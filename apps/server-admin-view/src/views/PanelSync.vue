@@ -60,6 +60,7 @@ const toggleAuto = async (connection: PanelConnection, enabled: boolean) => {
     base_url: connection.base_url,
     api_path: connection.api_path,
     allow_invalid_tls: connection.allow_invalid_tls ?? false,
+    sync_icons: connection.sync_icons ?? true,
     grouping: {
       mode: connection.grouping?.mode ?? "mirror",
       namespace: connection.grouping?.namespace ?? "fn-knock",

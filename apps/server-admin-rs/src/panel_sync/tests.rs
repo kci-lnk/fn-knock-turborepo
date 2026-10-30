@@ -20,6 +20,7 @@ fn connection(provider: PanelProvider, base_url: String, api_path: &str) -> Pane
         base_url,
         api_path: api_path.to_string(),
         allow_invalid_tls: false,
+        sync_icons: true,
         grouping: GroupingConfig::default(),
         auto_sync: AutoSyncConfig::default(),
         credential_configured: true,
@@ -143,6 +144,7 @@ fn projection_filters_auth_and_disabled_mappings_and_never_exports_targets() {
             namespace: "fn-knock".to_string(),
             single_group_name: "NAS".to_string(),
         },
+        true,
     );
     assert_eq!(projection.links.len(), 1);
     assert_eq!(projection.links[0].title, "App");
@@ -180,6 +182,7 @@ fn mirror_projection_never_exports_an_ungrouped_placeholder() {
             namespace: "NAS".to_string(),
             single_group_name: String::new(),
         },
+        true,
     );
 
     assert_eq!(projection.groups.len(), 2);
@@ -200,6 +203,151 @@ fn mirror_projection_never_exports_an_ungrouped_placeholder() {
             .unwrap()
             .contains("未分组")
     );
+}
+
+#[test]
+fn icon_setting_changes_projection_and_invalidates_even_an_empty_preview() {
+    let config = json!({"host_mappings": [{
+        "host": "files.example.test", "service_role": "app",
+        "sync_id": "11111111-1111-4111-8111-111111111111"
+    }]});
+    let grouping = GroupingConfig::default();
+    let enabled = project(&config, &grouping, true);
+    let disabled = project(&config, &grouping, false);
+    assert!(enabled.links[0].icon.is_some());
+    assert!(disabled.links[0].icon.is_none());
+    assert_ne!(enabled.revision, disabled.revision);
+    assert_eq!(enabled.links[0].url, disabled.links[0].url);
+    assert_eq!(enabled.revision, project(&config, &grouping, true).revision);
+
+    let mut connection = connection(PanelProvider::SunPanel, String::new(), "/openapi/v1");
+    let adapter = AdapterRegistry::resolve(connection.provider);
+    let empty = project(&json!({}), &grouping, true);
+    let previous = adapter.plan(
+        &connection,
+        empty.clone(),
+        ManagedState::default(),
+        RemoteSnapshot::default(),
+    );
+    connection.sync_icons = false;
+    let current = adapter.plan(
+        &connection,
+        empty,
+        ManagedState::default(),
+        RemoteSnapshot::default(),
+    );
+    assert_ne!(previous.preview.plan_hash, current.preview.plan_hash);
+}
+
+#[tokio::test]
+async fn icon_sync_clears_once_and_restores_for_both_icon_providers() {
+    for provider in [PanelProvider::SunPanel, PanelProvider::VanNav] {
+        let mut connection = connection(provider, String::new(), provider.default_api_path());
+        connection.grouping = GroupingConfig {
+            mode: GroupMode::Single,
+            namespace: "NAS".to_string(),
+            single_group_name: "NAS".to_string(),
+        };
+        let config = json!({"host_mappings": [{
+            "host": "files.example.test", "service_role": "app", "title": "Files",
+            "sync_id": "11111111-1111-4111-8111-111111111111"
+        }]});
+        let original = project(&config, &connection.grouping, true);
+        let group = &original.groups[0];
+        let link = &original.links[0];
+        let mut managed = ManagedState::default();
+        managed.groups.insert(
+            group.source_id.clone(),
+            ManagedObject {
+                remote_id: "2".to_string(),
+                fingerprint: fingerprint(group),
+                title: group.name.clone(),
+                ..ManagedObject::default()
+            },
+        );
+        managed.links.insert(
+            link.sync_id.clone(),
+            ManagedObject {
+                remote_id: "4".to_string(),
+                remote_group_id: Some("2".to_string()),
+                fingerprint: fingerprint(link),
+                title: link.title.clone(),
+            },
+        );
+        let adapter = AdapterRegistry::resolve(provider);
+        let mut remote_icon = link.icon.clone();
+        for (sync_icons, should_update) in
+            [(false, true), (false, false), (true, true), (true, false)]
+        {
+            connection.sync_icons = sync_icons;
+            let projection = project(&config, &connection.grouping, sync_icons);
+            // Sun-Panel 1.8.x can return an empty icon even when one is stored.
+            let mut responses = match provider {
+                PanelProvider::SunPanel => vec![
+                    json!({"code": 0, "data": {"itemGroupID": 2, "title": group.name}}).to_string(),
+                    json!({"code": 0, "data": {
+                        "onlyName": "4", "itemGroupID": 2, "title": link.title,
+                        "url": link.url, "iconUrl": ""
+                    }})
+                    .to_string(),
+                ],
+                PanelProvider::VanNav => {
+                    vec![json!({"success": true, "data": {
+                    "categories": [{"id": 2, "name": group.name}],
+                    "tools": [
+                        {"id": 4, "catelogId": 2, "name": link.title,
+                         "url": link.url, "logo": remote_icon.as_deref().unwrap_or_default()},
+                        {"id": 99, "catelogId": 2, "name": "Unmanaged",
+                         "url": "https://unmanaged.example.test", "logo": "keep.ico"}
+                    ]
+                }}).to_string()]
+                }
+                PanelProvider::OneNav => unreachable!(),
+            };
+            if should_update {
+                responses.push(json!({"code": 0, "success": true}).to_string());
+            }
+            let expected_requests = responses.len();
+            let (base_url, requests) = mock_json_responses(responses).await;
+            connection.base_url = base_url;
+            let context = AdapterContext {
+                connection: connection.clone(),
+                credential: "secret".to_string(),
+            };
+            let remote = adapter
+                .inspect(&context, &managed, &projection)
+                .await
+                .unwrap();
+            let plan = adapter.plan(&connection, projection, managed.clone(), remote);
+            assert_eq!(plan.preview.counts.update, usize::from(should_update));
+            assert_eq!(plan.preview.counts.create, 0);
+            assert_eq!(plan.preview.counts.delete, 0);
+            assert_eq!(plan.preview.counts.conflict, 0);
+            managed = adapter
+                .apply(&context, &plan, &ApplyCheckpoint::new(managed))
+                .await
+                .unwrap();
+            let requests = requests.await.unwrap();
+            assert_eq!(requests.len(), expected_requests);
+            if should_update {
+                let request = requests.last().unwrap();
+                let body: serde_json::Value =
+                    serde_json::from_str(request.split_once("\r\n\r\n").unwrap().1).unwrap();
+                let key = if provider == PanelProvider::SunPanel {
+                    "iconUrl"
+                } else {
+                    "logo"
+                };
+                remote_icon = if sync_icons { link.icon.clone() } else { None };
+                assert_eq!(body[key], remote_icon.as_deref().unwrap_or_default());
+                assert!(request.starts_with(if provider == PanelProvider::SunPanel {
+                    "POST /openapi/v1/item/update "
+                } else {
+                    "PUT /api/admin/tool/4 "
+                }));
+            }
+        }
+    }
 }
 
 #[tokio::test]
@@ -775,105 +923,119 @@ async fn provider_probes_use_documented_paths_and_authentication() {
 
 #[tokio::test]
 async fn sun_panel_apply_uses_official_item_group_and_item_contract() {
-    let (base_url, requests) = mock_json_responses(vec![
-        json!({"code": 0}).to_string(),
-        json!({"code": 0, "data": {"itemGroupID": 45, "title": "NAS"}}).to_string(),
-        json!({"code": 0}).to_string(),
-    ])
-    .await;
-    let context = AdapterContext {
-        connection: connection(PanelProvider::SunPanel, base_url, "/openapi/v1"),
-        credential: "sun-secret".to_string(),
-    };
-    let projection = PanelLinkProjection {
-        revision: "revision".to_string(),
-        groups: vec![ProjectedGroup {
-            source_id: "single".to_string(),
-            name: "NAS".to_string(),
-        }],
-        links: vec![ProjectedLink {
-            sync_id: "mapping-1".to_string(),
-            group_source_id: "single".to_string(),
-            title: "Files".to_string(),
-            url: "https://files.example.test".to_string(),
-            icon: Some("https://files.example.test/favicon.ico".to_string()),
-        }],
-        warnings: Vec::new(),
-    };
-    let plan = build_plan(
-        &context.connection,
-        projection,
-        ManagedState::default(),
-        RemoteSnapshot::default(),
-        &AdapterRegistry::resolve(PanelProvider::SunPanel).capabilities(),
-    );
-    let checkpoint = ApplyCheckpoint::new(ManagedState::default());
-    let managed = AdapterRegistry::resolve(PanelProvider::SunPanel)
-        .apply(&context, &plan, &checkpoint)
-        .await
-        .unwrap();
-    assert_eq!(managed.groups["single"].remote_id, "45");
-    assert!(managed.links.contains_key("mapping-1"));
+    for icon in [
+        Some("https://files.example.test/favicon.ico".to_string()),
+        None,
+    ] {
+        let (base_url, requests) = mock_json_responses(vec![
+            json!({"code": 0}).to_string(),
+            json!({"code": 0, "data": {"itemGroupID": 45, "title": "NAS"}}).to_string(),
+            json!({"code": 0}).to_string(),
+        ])
+        .await;
+        let context = AdapterContext {
+            connection: connection(PanelProvider::SunPanel, base_url, "/openapi/v1"),
+            credential: "sun-secret".to_string(),
+        };
+        let projection = PanelLinkProjection {
+            revision: "revision".to_string(),
+            groups: vec![ProjectedGroup {
+                source_id: "single".to_string(),
+                name: "NAS".to_string(),
+            }],
+            links: vec![ProjectedLink {
+                sync_id: "mapping-1".to_string(),
+                group_source_id: "single".to_string(),
+                title: "Files".to_string(),
+                url: "https://files.example.test".to_string(),
+                icon: icon.clone(),
+            }],
+            warnings: Vec::new(),
+        };
+        let plan = build_plan(
+            &context.connection,
+            projection,
+            ManagedState::default(),
+            RemoteSnapshot::default(),
+            &AdapterRegistry::resolve(PanelProvider::SunPanel).capabilities(),
+        );
+        let checkpoint = ApplyCheckpoint::new(ManagedState::default());
+        let managed = AdapterRegistry::resolve(PanelProvider::SunPanel)
+            .apply(&context, &plan, &checkpoint)
+            .await
+            .unwrap();
+        assert_eq!(managed.groups["single"].remote_id, "45");
+        assert!(managed.links.contains_key("mapping-1"));
 
-    let requests = requests.await.unwrap();
-    assert!(requests[0].starts_with("POST /openapi/v1/itemGroup/create "));
-    assert!(requests[0].contains("\"title\":\"NAS\""));
-    assert!(requests[0].contains("\"onlyName\":"));
-    assert!(requests[1].starts_with("POST /openapi/v1/itemGroup/getInfo "));
-    assert!(requests[2].starts_with("POST /openapi/v1/item/create "));
-    assert!(requests[2].contains("\"itemGroupID\":45"));
-    assert!(requests[2].contains("\"iconUrl\":\"https://files.example.test/favicon.ico\""));
+        let requests = requests.await.unwrap();
+        assert!(requests[0].starts_with("POST /openapi/v1/itemGroup/create "));
+        assert!(requests[0].contains("\"title\":\"NAS\""));
+        assert!(requests[0].contains("\"onlyName\":"));
+        assert!(requests[1].starts_with("POST /openapi/v1/itemGroup/getInfo "));
+        assert!(requests[2].starts_with("POST /openapi/v1/item/create "));
+        assert!(requests[2].contains("\"itemGroupID\":45"));
+        let body: serde_json::Value =
+            serde_json::from_str(requests[2].split_once("\r\n\r\n").unwrap().1).unwrap();
+        assert_eq!(body["iconUrl"], icon.as_deref().unwrap_or_default());
+    }
 }
 
 #[tokio::test]
 async fn van_nav_apply_uses_catelog_contract_and_preserves_partial_ownership() {
-    let (base_url, requests) = mock_json_responses(vec![
-        json!({"success": true, "data": {"id": 3}}).to_string(),
-        json!({"success": false, "message": "rejected"}).to_string(),
-    ])
-    .await;
-    let context = AdapterContext {
-        connection: connection(PanelProvider::VanNav, base_url, "/api"),
-        credential: "van-secret".to_string(),
-    };
-    let projection = PanelLinkProjection {
-        revision: "revision".to_string(),
-        groups: vec![ProjectedGroup {
-            source_id: "single".to_string(),
-            name: "NAS".to_string(),
-        }],
-        links: vec![ProjectedLink {
-            sync_id: "mapping-1".to_string(),
-            group_source_id: "single".to_string(),
-            title: "Files".to_string(),
-            url: "https://files.example.test".to_string(),
-            icon: Some("https://files.example.test/favicon.ico".to_string()),
-        }],
-        warnings: Vec::new(),
-    };
-    let plan = build_plan(
-        &context.connection,
-        projection,
-        ManagedState::default(),
-        RemoteSnapshot::default(),
-        &AdapterRegistry::resolve(PanelProvider::VanNav).capabilities(),
-    );
-    let checkpoint = ApplyCheckpoint::new(ManagedState::default());
-    assert!(
-        AdapterRegistry::resolve(PanelProvider::VanNav)
-            .apply(&context, &plan, &checkpoint)
-            .await
-            .is_err()
-    );
-    let partial = checkpoint.latest();
-    assert_eq!(partial.groups["single"].remote_id, "3");
-    assert!(partial.links.is_empty());
+    for icon in [
+        Some("https://files.example.test/favicon.ico".to_string()),
+        None,
+    ] {
+        let (base_url, requests) = mock_json_responses(vec![
+            json!({"success": true, "data": {"id": 3}}).to_string(),
+            json!({"success": false, "message": "rejected"}).to_string(),
+        ])
+        .await;
+        let context = AdapterContext {
+            connection: connection(PanelProvider::VanNav, base_url, "/api"),
+            credential: "van-secret".to_string(),
+        };
+        let projection = PanelLinkProjection {
+            revision: "revision".to_string(),
+            groups: vec![ProjectedGroup {
+                source_id: "single".to_string(),
+                name: "NAS".to_string(),
+            }],
+            links: vec![ProjectedLink {
+                sync_id: "mapping-1".to_string(),
+                group_source_id: "single".to_string(),
+                title: "Files".to_string(),
+                url: "https://files.example.test".to_string(),
+                icon: icon.clone(),
+            }],
+            warnings: Vec::new(),
+        };
+        let plan = build_plan(
+            &context.connection,
+            projection,
+            ManagedState::default(),
+            RemoteSnapshot::default(),
+            &AdapterRegistry::resolve(PanelProvider::VanNav).capabilities(),
+        );
+        let checkpoint = ApplyCheckpoint::new(ManagedState::default());
+        assert!(
+            AdapterRegistry::resolve(PanelProvider::VanNav)
+                .apply(&context, &plan, &checkpoint)
+                .await
+                .is_err()
+        );
+        let partial = checkpoint.latest();
+        assert_eq!(partial.groups["single"].remote_id, "3");
+        assert!(partial.links.is_empty());
 
-    let requests = requests.await.unwrap();
-    assert!(requests[0].starts_with("POST /api/admin/catelog "));
-    assert!(requests[1].starts_with("POST /api/admin/tool "));
-    assert!(requests[1].contains("\"catelogId\":3"));
-    assert!(requests[1].contains("\"logo\":\"https://files.example.test/favicon.ico\""));
+        let requests = requests.await.unwrap();
+        assert!(requests[0].starts_with("POST /api/admin/catelog "));
+        assert!(requests[1].starts_with("POST /api/admin/tool "));
+        assert!(requests[1].contains("\"catelogId\":3"));
+        let body: serde_json::Value =
+            serde_json::from_str(requests[1].split_once("\r\n\r\n").unwrap().1).unwrap();
+        assert_eq!(body["logo"], icon.as_deref().unwrap_or_default());
+    }
 }
 
 #[tokio::test]

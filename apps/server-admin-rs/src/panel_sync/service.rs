@@ -75,6 +75,7 @@ pub async fn create(
         base_url: normalized_base_url(&input.base_url)?,
         api_path: normalize_api_path(input.provider, input.api_path.as_deref())?,
         allow_invalid_tls: input.allow_invalid_tls,
+        sync_icons: input.sync_icons,
         grouping: normalize_grouping(input.grouping)?,
         auto_sync: input.auto_sync,
         credential_configured: false,
@@ -151,6 +152,9 @@ pub async fn update(
     connection.base_url = base_url;
     connection.api_path = api_path;
     connection.allow_invalid_tls = input.allow_invalid_tls;
+    if let Some(sync_icons) = input.sync_icons {
+        connection.sync_icons = sync_icons;
+    }
     connection.grouping = normalize_grouping(input.grouping)?;
     connection.auto_sync = input.auto_sync;
     connection.updated_at = now();
@@ -337,6 +341,7 @@ pub async fn test(
                 base_url: normalized_base_url(&draft.base_url)?,
                 api_path: normalize_api_path(draft.provider, draft.api_path.as_deref())?,
                 allow_invalid_tls: draft.allow_invalid_tls,
+                sync_icons: draft.sync_icons,
                 grouping: normalize_grouping(draft.grouping)?,
                 auto_sync: draft.auto_sync,
                 credential_configured: false,
@@ -426,7 +431,7 @@ pub async fn preview(
             "有 {missing_sync_ids} 条可同步映射缺少稳定 sync_id；主机映射身份迁移尚未完成"
         )));
     }
-    let mut projected = projection::project(&config, &connection.grouping);
+    let mut projected = projection::project(&config, &connection.grouping, connection.sync_icons);
     let capabilities = adapter.capabilities();
     if cleanup_remote {
         if !capabilities.can_delete {
@@ -1030,6 +1035,7 @@ mod tests {
             base_url: "https://nav.example.test".to_string(),
             api_path: "/index.php?c=api".to_string(),
             allow_invalid_tls: false,
+            sync_icons: true,
             grouping: GroupingConfig::default(),
             auto_sync: AutoSyncConfig::default(),
             credential_configured: true,
@@ -1039,6 +1045,87 @@ mod tests {
             updated_at: updated_at.to_string(),
             last_run: None,
             next_sync_at: None,
+        }
+    }
+
+    #[test]
+    fn legacy_connections_and_create_requests_default_to_syncing_icons() {
+        let mut legacy = serde_json::to_value(saved_connection("legacy")).unwrap();
+        legacy.as_object_mut().unwrap().remove("sync_icons");
+        assert!(
+            serde_json::from_value::<PanelConnection>(legacy)
+                .unwrap()
+                .sync_icons
+        );
+        let input = serde_json::json!({
+            "name": "NAS", "provider": "sun_panel", "base_url": "https://nav.example.test"
+        });
+        assert!(
+            serde_json::from_value::<ConnectionInput>(input.clone())
+                .unwrap()
+                .sync_icons
+        );
+        let mut disabled = input;
+        disabled["sync_icons"] = false.into();
+        assert!(
+            !serde_json::from_value::<ConnectionInput>(disabled)
+                .unwrap()
+                .sync_icons
+        );
+    }
+
+    #[tokio::test]
+    async fn icon_updates_persist_without_resetting_verification_or_ownership() {
+        let (_directory, state) = test_state().await;
+        let repository = Repository::new(&state);
+        let mut connection = saved_connection("before-change");
+        connection.verified_at = Some("2026-08-19T00:00:00Z".to_string());
+        repository
+            .save_connections(&[connection.clone()])
+            .await
+            .unwrap();
+        credential_store(&state)
+            .write(&connection.id, "saved-secret")
+            .unwrap();
+        let mut managed = ManagedState::default();
+        managed.links.insert(
+            "link".to_string(),
+            ManagedObject {
+                remote_id: "4".to_string(),
+                ..ManagedObject::default()
+            },
+        );
+        repository
+            .save_managed(&connection.id, &managed)
+            .await
+            .unwrap();
+
+        for (setting, expected) in [(Some(false), false), (None, false), (Some(true), true)] {
+            let mut body = serde_json::json!({
+                "name": connection.name, "base_url": connection.base_url,
+                "api_path": connection.api_path
+            });
+            if let Some(setting) = setting {
+                body["sync_icons"] = setting.into();
+            }
+            let input: ConnectionUpdateInput = serde_json::from_value(body).unwrap();
+            assert_eq!(input.sync_icons, setting);
+            let updated = update(&state, &connection.id, input).await.unwrap();
+            assert_eq!(updated.sync_icons, expected);
+            assert_eq!(updated.verified_at, connection.verified_at);
+            assert_eq!(
+                repository
+                    .connection(&connection.id)
+                    .await
+                    .unwrap()
+                    .unwrap()
+                    .sync_icons,
+                expected
+            );
+            assert_eq!(
+                repository.managed(&connection.id).await.unwrap().links["link"].remote_id,
+                "4"
+            );
         }
     }
 
@@ -1092,6 +1179,7 @@ mod tests {
                 base_url: "https://other.example.test".to_string(),
                 api_path: Some("/api".to_string()),
                 allow_invalid_tls: false,
+                sync_icons: None,
                 grouping: GroupingConfig::default(),
                 auto_sync: AutoSyncConfig::default(),
                 credential: None,
@@ -1127,6 +1215,7 @@ mod tests {
                 base_url: "https://changed.example.test".to_string(),
                 api_path: Some("/index.php?c=api".to_string()),
                 allow_invalid_tls: false,
+                sync_icons: None,
                 grouping: GroupingConfig::default(),
                 auto_sync: AutoSyncConfig::default(),
                 credential: None,

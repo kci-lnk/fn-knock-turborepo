@@ -216,6 +216,11 @@ export const enAdmin = {
       invalidTls: "Allow invalid TLS certificates",
       invalidTlsWarning:
         "Only use for a self-signed environment when you understand the risk.",
+      syncIcons: "Sync icons",
+      syncIconsHint:
+        "When disabled, the next sync clears icons from links synced by this connection. Enable again to restore icon syncing.",
+      syncIconsAutoFetchHint:
+        "Van-Nav may fetch website icons itself. This option only stops syncing icons from fn-knock.",
       autoHint:
         "Automatically syncs after each subdomain mapping change and reconciles remote state at the interval below.",
       draftTested:

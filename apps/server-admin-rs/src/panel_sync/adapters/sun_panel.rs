@@ -328,7 +328,7 @@ impl PanelAdapter for SunPanelAdapter {
                 "itemGroupID": numeric_id(&group_id),
                 "title": link.title,
                 "url": link.url,
-                "iconUrl": link.icon,
+                "iconUrl": link.icon.as_deref().unwrap_or_default(),
             });
             let endpoint = if kind == PlanActionKind::Update {
                 "item/update"

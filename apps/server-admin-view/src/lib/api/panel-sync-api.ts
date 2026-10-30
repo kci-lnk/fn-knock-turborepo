@@ -12,6 +12,7 @@ export type PanelSyncRun = Schemas["SyncRun"];
 export type PanelProbeResult = Schemas["ProbeResult"];
 export type PanelConnectionInput = Omit<
   Schemas["ConnectionInput"],
+  | "sync_icons"
   | "allow_invalid_tls"
   | "api_path"
   | "auto_sync"
@@ -19,6 +20,7 @@ export type PanelConnectionInput = Omit<
   | "credential"
   | "grouping"
 > & {
+  sync_icons: boolean;
   allow_invalid_tls: boolean;
   api_path: string;
   auto_sync: Required<Schemas["AutoSyncConfig"]>;

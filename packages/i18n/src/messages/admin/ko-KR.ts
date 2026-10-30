@@ -220,6 +220,11 @@ export const koKRAdmin = {
       invalidTls: "유효하지 않은 TLS 인증서 허용",
       invalidTlsWarning:
         "위험을 이해한 자체 서명 인증서 환경에서만 사용하세요.",
+      syncIcons: "아이콘 동기화",
+      syncIconsHint:
+        "끄면 다음 동기화 시 이 연결로 동기화하는 링크의 아이콘이 지워집니다. 다시 켜면 아이콘 동기화가 재개됩니다.",
+      syncIconsAutoFetchHint:
+        "Van-Nav가 웹사이트 아이콘을 자체적으로 가져올 수 있습니다. 이 옵션은 fn-knock에서의 아이콘 동기화만 중지합니다.",
       autoHint:
         "서브도메인 매핑이 변경될 때마다 자동 동기화하고 아래 주기에 따라 원격 상태를 조정합니다.",
       draftTested:

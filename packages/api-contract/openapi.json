@@ -6024,6 +6024,9 @@
           },
           "provider": {
             "$ref": "#/components/schemas/PanelProvider"
+          },
+          "sync_icons": {
+            "type": "boolean"
           }
         },
         "required": [
@@ -6085,6 +6088,12 @@
           },
           "name": {
             "type": "string"
+          },
+          "sync_icons": {
+            "type": [
+              "boolean",
+              "null"
+            ]
           }
         },
         "required": [
@@ -18138,6 +18147,9 @@
           },
           "provider": {
             "$ref": "#/components/schemas/PanelProvider"
+          },
+          "sync_icons": {
+            "type": "boolean"
           },
           "updated_at": {
             "type": "string"

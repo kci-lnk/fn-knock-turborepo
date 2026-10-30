@@ -24,7 +24,7 @@ pub fn eligible_mappings_missing_sync_id(config: &Value) -> usize {
         .count()
 }
 
-pub fn project(config: &Value, grouping: &GroupingConfig) -> PanelLinkProjection {
+pub fn project(config: &Value, grouping: &GroupingConfig, sync_icons: bool) -> PanelLinkProjection {
     let context = crate::proxy_config::public_host_link_context(config);
     let group_names = config
         .get("host_mapping_groups")
@@ -102,9 +102,9 @@ pub fn project(config: &Value, grouping: &GroupingConfig) -> PanelLinkProjection
             group_source_id,
             title: crate::proxy_config::resolve_public_host_title(object, host),
             url: crate::proxy_config::public_host_url(&context, host),
-            icon: Some(crate::proxy_config::public_panel_icon_url(
-                &context, object, host, sync_id,
-            )),
+            icon: sync_icons.then(|| {
+                crate::proxy_config::public_panel_icon_url(&context, object, host, sync_id)
+            }),
         });
     }
     let mut projection = PanelLinkProjection {

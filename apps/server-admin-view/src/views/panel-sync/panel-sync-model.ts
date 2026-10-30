@@ -73,6 +73,7 @@ export const createPanelSyncForm = (
   provider: "sun_panel",
   endpoint_url: "",
   allow_invalid_tls: false,
+  sync_icons: true,
   grouping: {
     mode: "mirror",
     namespace: "fn-knock",
@@ -93,6 +94,7 @@ export const panelConnectionToForm = (
     connection.api_path,
   ),
   allow_invalid_tls: connection.allow_invalid_tls ?? false,
+  sync_icons: connection.sync_icons ?? true,
   grouping: {
     mode: connection.grouping?.mode ?? "mirror",
     namespace: connection.grouping?.namespace ?? "fn-knock",
@@ -127,6 +129,7 @@ export const panelFormToUpdate = (
   name: form.name,
   ...endpointPartsForSave(form, existing),
   allow_invalid_tls: form.allow_invalid_tls,
+  sync_icons: form.sync_icons,
   grouping: {
     ...form.grouping,
     namespace: form.grouping.namespace.trim() || "fn-knock",

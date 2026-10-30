@@ -217,6 +217,11 @@ export const jaJPAdmin = {
       invalidTls: "無効な TLS 証明書を許可",
       invalidTlsWarning:
         "リスクを理解した自己署名証明書環境でのみ使用してください。",
+      syncIcons: "アイコンを同期",
+      syncIconsHint:
+        "オフにすると、次回の同期時にこの接続で同期するリンクのアイコンが消去されます。再度オンにするとアイコンの同期が再開されます。",
+      syncIconsAutoFetchHint:
+        "Van-Nav が独自にサイトのアイコンを取得する場合があります。この設定は fn-knock からのアイコン同期のみを停止します。",
       autoHint:
         "サブドメインマッピングの変更後に自動同期し、下記の周期でリモート状態を整合します。",
       draftTested:

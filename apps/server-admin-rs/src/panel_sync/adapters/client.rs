@@ -257,6 +257,7 @@ mod tests {
             base_url: "https://panel.example.test/reverse-proxy".to_string(),
             api_path: "/index.php?c=api".to_string(),
             allow_invalid_tls: false,
+            sync_icons: true,
             grouping: GroupingConfig::default(),
             auto_sync: AutoSyncConfig::default(),
             credential_configured: true,

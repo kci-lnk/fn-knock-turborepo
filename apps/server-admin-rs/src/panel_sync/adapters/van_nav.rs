@@ -119,7 +119,8 @@ impl PanelAdapter for VanNavAdapter {
                         group_source_id,
                         title: remote_string(object, &["name", "title"]).unwrap_or_default(),
                         url: remote_string(object, &["url", "href"]).unwrap_or_default(),
-                        icon: remote_string(object, &["logo", "icon", "iconUrl", "icon_url"]),
+                        icon: remote_string(object, &["logo", "icon", "iconUrl", "icon_url"])
+                            .filter(|icon| !icon.trim().is_empty()),
                     })
                 })
                 .unwrap_or_default();
@@ -192,7 +193,8 @@ impl PanelAdapter for VanNavAdapter {
                     group_source_id,
                     title: remote_string(object, &["name", "title"]).unwrap_or_default(),
                     url: remote_string(object, &["url", "href"]).unwrap_or_default(),
-                    icon: remote_string(object, &["logo", "icon", "iconUrl", "icon_url"]),
+                    icon: remote_string(object, &["logo", "icon", "iconUrl", "icon_url"])
+                        .filter(|icon| !icon.trim().is_empty()),
                 };
                 let remote_fingerprint = fingerprint(&remote_link);
                 snapshot.links.insert(
@@ -343,7 +345,7 @@ impl PanelAdapter for VanNavAdapter {
                 "catelogId": numeric_id(&category_id),
                 "name": link.title,
                 "url": link.url,
-                "logo": link.icon,
+                "logo": link.icon.as_deref().unwrap_or_default(),
                 "desc": ownership_marker(&context.connection.id, "link", &link.sync_id),
             });
             if kind == PlanActionKind::Update {

@@ -199,6 +199,11 @@ export const zhCNAdmin = {
       apiPath: "API 根路径",
       invalidTls: "允许无效 TLS 证书",
       invalidTlsWarning: "仅用于明确知晓风险的自签名证书环境。",
+      syncIcons: "同步图标",
+      syncIconsHint:
+        "关闭后，下次同步会清空本连接所同步链接的图标；重新开启后恢复同步。",
+      syncIconsAutoFetchHint:
+        "Van-Nav 可能自行抓取网站图标；此选项只停止从 fn-knock 同步图标。",
       autoHint: "每次修改子域映射后会自动同步，并按下方周期校准远端状态。",
       draftTested: "当前填写已测试成功；保存后连接会完成验证，自动同步将生效。",
       unverifiedHint:

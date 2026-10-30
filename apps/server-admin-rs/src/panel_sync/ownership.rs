@@ -228,6 +228,7 @@ pub fn build_plan(
     let source_revision = projection.revision.clone();
     let hash_input = serde_json::json!({
         "connection_id": connection.id,
+        "sync_icons": connection.sync_icons,
         "source_revision": source_revision,
         "actions": actions,
     });

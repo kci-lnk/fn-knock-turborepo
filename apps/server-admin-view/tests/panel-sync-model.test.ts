@@ -8,6 +8,7 @@ import {
   nextPanelConnectionName,
   panelApiPaths,
   panelConnectionToForm,
+  panelFormToInput,
   panelFormToUpdate,
   splitPanelEndpointUrl,
 } from "../src/views/panel-sync/panel-sync-model";
@@ -40,9 +41,22 @@ describe("panel synchronization editor model", () => {
     assert.equal(form.name, "Sun-Panel-2");
     assert.equal(form.endpoint_url, "");
     assert.equal(form.auto_sync.enabled, true);
+    assert.equal(form.sync_icons, true);
     assert.equal(form.auto_sync.interval_minutes, 60);
     assert.equal(form.grouping.namespace, "fn-knock");
     assert.equal(nextPanelConnectionName("one_nav", ["OneNav-1"]), "OneNav-2");
+  });
+
+  it("defaults legacy connections to icon syncing and preserves explicit opt-out in all payloads", () => {
+    assert.equal(panelConnectionToForm(connection).sync_icons, true);
+    const disabled = { ...connection, sync_icons: false };
+    const form = panelConnectionToForm(disabled);
+    assert.equal(form.sync_icons, false);
+    assert.equal(panelFormToInput(form, disabled).sync_icons, false);
+    assert.equal(panelFormToUpdate(form, disabled).sync_icons, false);
+    assert.equal(isPanelAutoSyncReady(disabled, form), true);
+    form.sync_icons = true;
+    assert.equal(panelFormToUpdate(form, disabled).sync_icons, true);
   });
 
   it("combines and splits the complete API endpoint URL", () => {

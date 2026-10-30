@@ -165,6 +165,38 @@ const endpointPlaceholder = (provider: PanelProvider) =>
             />
           </div>
         </div>
+        <div
+          v-if="
+            providers.some(
+              (provider) =>
+                provider.provider === form.provider && provider.supports_icon,
+            )
+          "
+          class="flex items-center justify-between gap-4 rounded-lg border p-3"
+        >
+          <div class="space-y-1">
+            <Label :for="`${id}-sync-icons`">{{
+              t("admin.panelSync.editor.syncIcons")
+            }}</Label>
+            <p
+              :id="`${id}-sync-icons-hint`"
+              class="text-xs text-muted-foreground"
+            >
+              {{ t("admin.panelSync.editor.syncIconsHint") }}
+              <span
+                v-if="form.provider === 'van_nav' && !form.sync_icons"
+                class="mt-1 block"
+              >
+                {{ t("admin.panelSync.editor.syncIconsAutoFetchHint") }}
+              </span>
+            </p>
+          </div>
+          <Switch
+            :id="`${id}-sync-icons`"
+            v-model="form.sync_icons"
+            :aria-describedby="`${id}-sync-icons-hint`"
+          />
+        </div>
         <div class="rounded-lg border p-3">
           <div class="flex items-center justify-between gap-4">
             <div>

@@ -73,6 +73,10 @@ fn default_interval() -> u32 {
     60
 }
 
+fn default_sync_icons() -> bool {
+    true
+}
+
 fn default_auto_sync_enabled() -> bool {
     true
 }
@@ -103,6 +107,8 @@ pub struct PanelConnection {
     pub api_path: String,
     #[serde(default)]
     pub allow_invalid_tls: bool,
+    #[serde(default = "default_sync_icons")]
+    pub sync_icons: bool,
     #[serde(default)]
     pub grouping: GroupingConfig,
     #[serde(default)]
@@ -124,6 +130,8 @@ pub struct ConnectionInput {
     pub api_path: Option<String>,
     #[serde(default)]
     pub allow_invalid_tls: bool,
+    #[serde(default = "default_sync_icons")]
+    pub sync_icons: bool,
     #[serde(default)]
     pub grouping: GroupingConfig,
     #[serde(default)]
@@ -140,6 +148,7 @@ pub struct ConnectionUpdateInput {
     pub api_path: Option<String>,
     #[serde(default)]
     pub allow_invalid_tls: bool,
+    pub sync_icons: Option<bool>,
     #[serde(default)]
     pub grouping: GroupingConfig,
     #[serde(default)]

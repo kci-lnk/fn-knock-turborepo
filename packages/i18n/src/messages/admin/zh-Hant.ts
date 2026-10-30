@@ -191,6 +191,11 @@ export const zhHantAdmin = {
       advanced: "進階設定",
       invalidTls: "允許無效 TLS 憑證",
       invalidTlsWarning: "僅用於明確理解風險的自簽憑證環境。",
+      syncIcons: "同步圖示",
+      syncIconsHint:
+        "關閉後，下次同步會清空此連線所同步連結的圖示；重新開啟後恢復同步。",
+      syncIconsAutoFetchHint:
+        "Van-Nav 可能自行擷取網站圖示；此選項只停止從 fn-knock 同步圖示。",
       autoHint: "每次修改子域映射後會自動同步，並按下方週期校準遠端狀態。",
       draftTested: "目前填寫已測試成功；儲存後連線會完成驗證，自動同步將生效。",
       unverifiedHint:

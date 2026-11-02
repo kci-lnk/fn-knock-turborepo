@@ -292,9 +292,11 @@ npm run quality:check
 
 推送与 `version.json` 一致的 `vX.Y.Z` Tag 后，发布工作流会冻结当前源码和 Go 网关提交，完成质量门禁、多平台构建、架构校验、校验清单、SBOM / provenance 及 GitHub Release 发布。
 
-稳定版 Tag 发布流程在 GitHub Release 正式发布成功后，自动执行 `update-moo-index` 任务，按本次 Tag 的两个 FPK 资产摘要和字节大小生成索引，并使用 `GITHUB_TOKEN` 单独提交默认分支的根目录 `moo.json`。Beta、手动试构建和失败的发布不会更新索引。任务使用冻结的发布源码和应用 manifest，只保留最新稳定版；同一内容重跑不会重复提交，重跑旧版本不会覆盖较新索引，并发写入冲突会重新读取后重试。
+稳定版 Tag 发布流程在 GitHub Release 正式发布成功后，自动执行 `update-moo-index` 任务，按本次 Tag 的两个 FPK 资产摘要和字节大小生成索引，并使用 `GITHUB_TOKEN` 单独提交默认分支的根目录 `moo.json`。Beta、手动试构建和失败的发布不会更新索引。任务使用冻结的发布源码和应用 manifest，合并已有索引并默认保留最近两个稳定版；同一内容重跑不会重复提交，重跑旧版本不会覆盖较新索引，并发写入冲突会重新读取后重试。
 
-若自动更新失败，可在 Actions 中重跑失败的 `update-moo-index` 任务，无需重新构建或发布 Release。该任务需要默认分支允许 `GITHUB_TOKEN` 写入；分支保护拒绝提交时任务会明确失败，不会绕过规则。也可运行 `npm run moo:update` 手动刷新后提交；用 `npm run moo:update -- --tag vX.Y.Z` 指定已发布版本，或用 `npm run moo:update -- /path/to/release.json` 从保存的 GitHub Release API 响应离线生成。生成器拒绝草稿、预发布、缺失安装包或缺失 SHA-256 的数据，校验失败时保留原索引。
+若自动更新失败，可在 Actions 中重跑失败的 `update-moo-index` 任务，无需重新构建或发布 Release。该任务需要默认分支允许 `GITHUB_TOKEN` 写入；分支保护拒绝提交时任务会明确失败，不会绕过规则。也可运行 `npm run moo:update` 手动刷新后提交；用 `npm run moo:update -- --tag vX.Y.Z` 指定已发布版本，或用 `npm run moo:update -- /path/to/release.json` 从保存的 GitHub Release API 响应离线生成。生成器拒绝草稿、预发布、缺失安装包或缺失 SHA-256 的数据，校验失败时保留原索引。本地更新与 CI 发布使用同一套合并与校验规则，保留其他应用及生成器未管理的自定义字段（生成器管理的展示字段仍从 manifest 同步）。
+
+同版本、同架构的 SHA-256 发生变化时，默认报错并保留原索引。正常修复应递增版本号，不能覆盖已发布安装包；只有确认需要替换时才显式传入 `--allow-republish`，此参数仅允许更新索引，不能消除客户端或镜像旧缓存造成的校验失败。CI 不启用此覆盖选项。使用 `--keep N` 调整保留数量（默认 `2`，`0` 表示保留全部已有版本）；该选项不会自动补回已删除的历史节点。保留历史版本用于查验与排障，不保证应用数据支持降级。
 
 ## 支持项目
 

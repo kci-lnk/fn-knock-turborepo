@@ -142,21 +142,118 @@ function compareVersions(left, right) {
   return 0;
 }
 
-export async function publishMooIndex(index, branch, request = githubRequest) {
+// Shared by local updates and remote publication so neither path bypasses policy.
+export function mergeMooIndex(
+  index,
+  previous,
+  { keep = 2, allowRepublish = false } = {},
+) {
+  if (!Number.isSafeInteger(keep) || keep < 0)
+    throw new Error(
+      "--keep must be a nonnegative safe integer (0 keeps all versions)",
+    );
+  const app = index.apps["fn-knock"];
+  const versions = Object.keys(app.releases);
+  if (versions.length !== 1 || !/^\d+\.\d+\.\d+$/.test(versions[0]))
+    throw new Error("expected one stable version in the generated Moo index");
+  const version = versions[0];
+  const previousApp = previous?.apps?.["fn-knock"];
+  const previousReleases = previousApp?.releases ?? {};
+  if (previous !== undefined) {
+    const previousVersions = Object.keys(previousReleases);
+    if (
+      previous?.schema_version !== "moo" ||
+      previousVersions.length === 0 ||
+      previousVersions.some((v) => !/^\d+\.\d+\.\d+$/.test(v))
+    )
+      throw new Error(
+        "existing moo.json has an invalid stable version index; refusing to overwrite it",
+      );
+    if (previousVersions.some((v) => compareVersions(v, version) > 0))
+      return { status: "skipped-newer-version", version, index: previous };
+  }
+
+  const incoming = app.releases[version];
+  const existing = previousReleases[version];
+  for (const [architecture, pkg] of Object.entries(incoming.packages)) {
+    const old = existing?.packages?.[architecture];
+    if (
+      old !== undefined &&
+      old?.sha256?.toLowerCase() !== pkg.sha256.toLowerCase() &&
+      !allowRepublish
+    )
+      throw new Error(
+        `refusing to replace v${version} ${architecture}: SHA-256 changed (${old?.sha256 ?? "missing"} -> ${pkg.sha256}); publish a new version or explicitly use --allow-republish`,
+      );
+  }
+  const packages = { ...existing?.packages };
+  for (const [architecture, pkg] of Object.entries(incoming.packages))
+    packages[architecture] = { ...packages[architecture], ...pkg };
+  const releases = {
+    ...previousReleases,
+    [version]: { ...existing, ...incoming, packages },
+  };
+  const sorted = Object.keys(releases).sort((a, b) => compareVersions(b, a));
+  const retained = keep === 0 ? sorted : sorted.slice(0, keep);
+  return {
+    status: "ready",
+    version,
+    index: {
+      ...previous,
+      ...index,
+      source_info: { ...previous?.source_info, ...index.source_info },
+      apps: {
+        ...previous?.apps,
+        ...index.apps,
+        "fn-knock": {
+          ...previousApp,
+          ...app,
+          releases: Object.fromEntries(retained.map((v) => [v, releases[v]])),
+        },
+      },
+    },
+  };
+}
+
+export async function updateMooIndexFile(index, output, options = {}) {
+  let previousContent;
+  try {
+    previousContent = await readFile(output, "utf8");
+  } catch (error) {
+    if (error.code !== "ENOENT") throw error;
+  }
+  const merged = mergeMooIndex(
+    index,
+    previousContent === undefined ? undefined : JSON.parse(previousContent),
+    options,
+  );
+  if (merged.status === "skipped-newer-version")
+    return { status: merged.status, version: merged.version };
+  const content = `${JSON.stringify(merged.index, null, 2)}\n`;
+  if (previousContent === content)
+    return { status: "unchanged", version: merged.version };
+  const temporary = `${output instanceof URL ? fileURLToPath(output) : output}.${process.pid}.tmp`;
+  await writeFile(temporary, content);
+  await rename(temporary, output);
+  return { status: "updated", version: merged.version };
+}
+
+export async function publishMooIndex(
+  index,
+  branch,
+  request = githubRequest,
+  options = {},
+) {
   if (!branch)
     throw new Error("a target branch is required to publish the Moo index");
-  const versions = Object.keys(index.apps["fn-knock"].releases);
-  if (versions.length !== 1 || !/^\d+\.\d+\.\d+$/.test(versions[0])) {
-    throw new Error("expected one stable version in the generated Moo index");
-  }
-  const version = versions[0];
-  const content = `${JSON.stringify(index, null, 2)}\n`;
+  const { version } = mergeMooIndex(index, undefined, options);
   const endpoint = "contents/moo.json";
   for (let attempt = 0; attempt < 3; attempt++) {
     const current = await request(
       `${endpoint}?ref=${encodeURIComponent(branch)}`,
     );
     let sha;
+    let previousContent;
     if (current.status === 200) {
       if (
         current.body.type !== "file" ||
@@ -166,32 +263,24 @@ export async function publishMooIndex(index, branch, request = githubRequest) {
         throw new Error("remote moo.json is not an editable file");
       }
       sha = current.body.sha;
-      const previousContent = Buffer.from(
-        current.body.content,
-        "base64",
-      ).toString("utf8");
-      if (previousContent === content) return { status: "unchanged", version };
-      const previous = JSON.parse(previousContent);
-      const previousVersions = Object.keys(
-        previous.apps?.["fn-knock"]?.releases ?? {},
+      previousContent = Buffer.from(current.body.content, "base64").toString(
+        "utf8",
       );
-      if (
-        previous.schema_version !== "moo" ||
-        previousVersions.length === 0 ||
-        previousVersions.some((v) => !/^\d+\.\d+\.\d+$/.test(v))
-      ) {
-        throw new Error(
-          "remote moo.json has an invalid stable version index; refusing to overwrite it",
-        );
-      }
-      if (previousVersions.some((v) => compareVersions(v, version) > 0)) {
-        return { status: "skipped-newer-version", version };
-      }
     } else if (current.status !== 404) {
       throw new Error(
         `GitHub moo.json read failed: HTTP ${current.status}: ${current.body?.message ?? "unknown error"}`,
       );
     }
+    // Recompute against every fresh read, including after a write conflict.
+    const merged = mergeMooIndex(
+      index,
+      previousContent === undefined ? undefined : JSON.parse(previousContent),
+      options,
+    );
+    if (merged.status === "skipped-newer-version")
+      return { status: merged.status, version };
+    const content = `${JSON.stringify(merged.index, null, 2)}\n`;
+    if (previousContent === content) return { status: "unchanged", version };
 
     const updated = await request(endpoint, {
       method: "PUT",
@@ -227,6 +316,8 @@ async function main() {
       tag: { type: "string" },
       publish: { type: "boolean" },
       branch: { type: "string" },
+      keep: { type: "string", default: "2" },
+      "allow-republish": { type: "boolean", default: false },
     },
     allowPositionals: true,
   });
@@ -244,6 +335,14 @@ async function main() {
   ) {
     throw new Error("publishing requires --tag, --branch, and GITHUB_TOKEN");
   }
+  if (!/^\d+$/.test(values.keep) || !Number.isSafeInteger(Number(values.keep)))
+    throw new Error(
+      "--keep must be a nonnegative safe integer (0 keeps all versions)",
+    );
+  const options = {
+    keep: Number(values.keep),
+    allowRepublish: values["allow-republish"],
+  };
   const releaseFile = positionals[0];
   let release;
   if (releaseFile) {
@@ -257,18 +356,21 @@ async function main() {
   );
   const index = buildMooIndex(release, manifest);
   if (values.publish) {
-    const result = await publishMooIndex(index, values.branch);
+    const result = await publishMooIndex(
+      index,
+      values.branch,
+      githubRequest,
+      options,
+    );
     console.log(
       `[moo-index] ${result.status}: ${release.tag_name} on ${values.branch}${result.commit ? ` (${result.commit})` : ""}`,
     );
     return;
   }
   const output = new URL("moo.json", ROOT);
-  const temporary = new URL(`moo.json.${process.pid}.tmp`, ROOT);
-  await writeFile(temporary, `${JSON.stringify(index, null, 2)}\n`);
-  await rename(temporary, output);
+  const result = await updateMooIndexFile(index, output, options);
   console.log(
-    `[moo-index] updated ${fileURLToPath(output)} from ${release.tag_name}`,
+    `[moo-index] ${result.status}: ${fileURLToPath(output)} from ${release.tag_name}`,
   );
 }
 

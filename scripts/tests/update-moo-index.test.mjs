@@ -1,9 +1,21 @@
 import assert from "node:assert/strict";
-import { readFile } from "node:fs/promises";
+import {
+  mkdir,
+  mkdtemp,
+  readFile,
+  realpath,
+  rm,
+  writeFile,
+} from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { spawnSync } from "node:child_process";
 import test from "node:test";
 
 import {
   buildMooIndex,
+  mergeMooIndex,
+  updateMooIndexFile,
   publishMooIndex,
   readRelease,
 } from "../update-moo-index.mjs";
@@ -153,7 +165,7 @@ test("commits only moo.json to the chosen branch with the current file SHA", asy
       assert.equal(options.body.message, "chore: update Moo index for v3.4.5");
       assert.deepEqual(
         JSON.parse(Buffer.from(options.body.content, "base64").toString()),
-        index,
+        mergeMooIndex(index, previousIndex("3.4.4")).index,
       );
       return {
         status: 200,
@@ -264,4 +276,263 @@ test("refuses to overwrite malformed remote indexes", async () => {
       }),
     );
   }
+});
+
+test("rejects same-version checksum changes on either architecture before writing", async () => {
+  for (const arch of ["x86", "arm"]) {
+    const previous = generatedIndex();
+    previous.apps["fn-knock"].releases["3.4.5"].packages[arch].sha256 =
+      "a".repeat(64);
+    await assert.rejects(
+      publishMooIndex(generatedIndex(), "main", async (_endpoint, options) => {
+        assert.equal(options, undefined, "must not submit a commit");
+        return remoteFile(previous);
+      }),
+      new RegExp(`v3\\.4\\.5 ${arch}: SHA-256 changed.*--allow-republish`),
+    );
+  }
+});
+
+test("allows an explicit republish and metadata-only updates", async () => {
+  const previous = generatedIndex();
+  previous.apps["fn-knock"].releases["3.4.5"].packages.x86.sha256 = "a".repeat(
+    64,
+  );
+  const result = await publishMooIndex(
+    generatedIndex(),
+    "main",
+    async (_endpoint, options) => {
+      if (!options) return remoteFile(previous);
+      const written = JSON.parse(Buffer.from(options.body.content, "base64"));
+      assert.equal(
+        written.apps["fn-knock"].releases["3.4.5"].packages.x86.sha256,
+        "1".repeat(64),
+      );
+      return { status: 200, body: {} };
+    },
+    { allowRepublish: true },
+  );
+  assert.equal(result.status, "updated");
+  const changedNotes = generatedIndex();
+  changedNotes.apps["fn-knock"].releases["3.4.5"].changelog = "Corrected notes";
+  assert.equal(
+    mergeMooIndex(changedNotes, generatedIndex()).index.apps["fn-knock"]
+      .releases["3.4.5"].changelog,
+    "Corrected notes",
+  );
+});
+
+test("retains the newest versions numerically and preserves unrelated fields", () => {
+  const previous = previousIndex("3.4.4");
+  const app = previous.apps["fn-knock"];
+  for (const v of ["3.3.9", "3.3.10", "3.2.0"])
+    app.releases[v] = structuredClone(app.releases["3.4.4"]);
+  previous.custom = "source extension";
+  previous.source_info.custom = "source info extension";
+  previous.apps.other = { display_name: "Another app" };
+  app.custom = "app extension";
+  app.releases["3.4.5"] = generatedIndex().apps["fn-knock"].releases["3.4.5"];
+  app.releases["3.4.5"].custom = "release extension";
+  app.releases["3.4.5"].packages.x86.custom = "package extension";
+  const result = mergeMooIndex(generatedIndex(), previous).index;
+  assert.deepEqual(Object.keys(result.apps["fn-knock"].releases), [
+    "3.4.5",
+    "3.4.4",
+  ]);
+  assert.deepEqual(
+    result.apps["fn-knock"].releases["3.4.4"],
+    app.releases["3.4.4"],
+  );
+  assert.deepEqual(result.apps.other, previous.apps.other);
+  assert.equal(result.custom, previous.custom);
+  assert.equal(result.source_info.custom, previous.source_info.custom);
+  assert.equal(result.apps["fn-knock"].custom, app.custom);
+  assert.equal(
+    result.apps["fn-knock"].releases["3.4.5"].custom,
+    "release extension",
+  );
+  assert.equal(
+    result.apps["fn-knock"].releases["3.4.5"].packages.x86.custom,
+    "package extension",
+  );
+  for (const [keep, expected] of [
+    [1, ["3.4.5"]],
+    [3, ["3.4.5", "3.4.4", "3.3.10"]],
+    [0, ["3.4.5", "3.4.4", "3.3.10", "3.3.9", "3.2.0"]],
+  ])
+    assert.deepEqual(
+      Object.keys(
+        mergeMooIndex(generatedIndex(), previous, { keep }).index.apps[
+          "fn-knock"
+        ].releases,
+      ),
+      expected,
+    );
+  for (const keep of [-1, 1.5, NaN, Infinity, "2", Number.MAX_SAFE_INTEGER + 1])
+    assert.throws(
+      () => mergeMooIndex(generatedIndex(), previous, { keep }),
+      /--keep/,
+    );
+});
+
+test("a repeat publication with history is unchanged", async () => {
+  const previous = mergeMooIndex(
+    generatedIndex(),
+    previousIndex("3.4.4"),
+  ).index;
+  const result = await publishMooIndex(
+    generatedIndex(),
+    "main",
+    async (_endpoint, options) => {
+      assert.equal(options, undefined);
+      return remoteFile(previous);
+    },
+  );
+  assert.equal(result.status, "unchanged");
+});
+
+test("conflict retries merge fresh history and recheck republished checksums", async () => {
+  for (const changedChecksum of [false, true]) {
+    let reads = 0;
+    let writes = 0;
+    const refreshed = previousIndex("3.4.3");
+    if (changedChecksum) {
+      refreshed.apps["fn-knock"].releases["3.4.5"] =
+        generatedIndex().apps["fn-knock"].releases["3.4.5"];
+      refreshed.apps["fn-knock"].releases["3.4.5"].packages.arm.sha256 =
+        "a".repeat(64);
+    }
+    const operation = publishMooIndex(
+      generatedIndex(),
+      "main",
+      async (_endpoint, options) => {
+        if (!options)
+          return remoteFile(++reads === 1 ? previousIndex("3.4.4") : refreshed);
+        if (++writes === 1) return { status: 409, body: {} };
+        const written = JSON.parse(Buffer.from(options.body.content, "base64"));
+        assert.deepEqual(Object.keys(written.apps["fn-knock"].releases), [
+          "3.4.5",
+          "3.4.3",
+        ]);
+        return { status: 200, body: {} };
+      },
+    );
+    if (changedChecksum) {
+      await assert.rejects(operation, /SHA-256 changed/);
+      assert.equal(writes, 1);
+    } else {
+      assert.equal((await operation).status, "updated");
+      assert.equal(writes, 2);
+    }
+  }
+});
+
+test("local updates preserve history and leave files intact on rejection or downgrade", async (t) => {
+  const dir = await mkdtemp(join(tmpdir(), "moo-index-test-"));
+  t.after(() => rm(dir, { recursive: true, force: true }));
+  const output = join(dir, "moo.json");
+  assert.equal(
+    (await updateMooIndexFile(previousIndex("3.4.4"), output)).status,
+    "updated",
+  );
+  assert.equal(
+    (await updateMooIndexFile(generatedIndex(), output)).status,
+    "updated",
+  );
+  const original = await readFile(output, "utf8");
+  assert.deepEqual(
+    Object.keys(JSON.parse(original).apps["fn-knock"].releases),
+    ["3.4.5", "3.4.4"],
+  );
+  assert.equal(
+    (await updateMooIndexFile(generatedIndex(), output)).status,
+    "unchanged",
+  );
+  assert.equal(
+    (await updateMooIndexFile(previousIndex("3.4.3"), output)).status,
+    "skipped-newer-version",
+  );
+  const republish = generatedIndex();
+  republish.apps["fn-knock"].releases["3.4.5"].packages.arm.sha256 = "b".repeat(
+    64,
+  );
+  await assert.rejects(
+    updateMooIndexFile(republish, output),
+    /SHA-256 changed/,
+  );
+  assert.equal(await readFile(output, "utf8"), original);
+  await updateMooIndexFile(republish, output, {
+    allowRepublish: true,
+    keep: 1,
+  });
+  const replaced = JSON.parse(await readFile(output, "utf8"));
+  assert.deepEqual(Object.keys(replaced.apps["fn-knock"].releases), ["3.4.5"]);
+  assert.equal(
+    replaced.apps["fn-knock"].releases["3.4.5"].packages.arm.sha256,
+    "b".repeat(64),
+  );
+  for (const malformed of [
+    "not-json",
+    "null",
+    '{"schema_version":"moo","apps":{}}',
+  ]) {
+    await writeFile(output, malformed);
+    await assert.rejects(updateMooIndexFile(generatedIndex(), output));
+    assert.equal(await readFile(output, "utf8"), malformed);
+  }
+});
+
+test("CLI rejects invalid retention arguments before reading a release", () => {
+  for (const keep of ["-1", "1.5", "", "abc", "9007199254740992"]) {
+    const result = spawnSync(
+      process.execPath,
+      [
+        new URL("../update-moo-index.mjs", import.meta.url).pathname,
+        `--keep=${keep}`,
+        "/nonexistent-release.json",
+      ],
+      { encoding: "utf8" },
+    );
+    assert.equal(result.status, 1);
+    assert.match(result.stderr, /--keep must be a nonnegative safe integer/);
+  }
+});
+
+test("CLI applies retention and explicit republish options to local files", async (t) => {
+  const dir = await realpath(await mkdtemp(join(tmpdir(), "moo-cli-test-")));
+  t.after(() => rm(dir, { recursive: true, force: true }));
+  await mkdir(join(dir, "scripts"));
+  await mkdir(join(dir, "apps/fn-knock"), { recursive: true });
+  const script = join(dir, "scripts/update-moo-index.mjs");
+  await writeFile(
+    script,
+    await readFile(new URL("../update-moo-index.mjs", import.meta.url)),
+  );
+  await writeFile(join(dir, "apps/fn-knock/manifest"), manifest);
+  const release = join(dir, "release.json");
+  const output = join(dir, "moo.json");
+  await writeFile(release, JSON.stringify(fixture()));
+  await writeFile(output, JSON.stringify(previousIndex("3.4.4")));
+  const run = (...args) =>
+    spawnSync(process.execPath, [script, release, ...args], {
+      encoding: "utf8",
+    });
+  assert.equal(run().status, 0);
+  const original = await readFile(output, "utf8");
+  assert.deepEqual(
+    Object.keys(JSON.parse(original).apps["fn-knock"].releases),
+    ["3.4.5", "3.4.4"],
+  );
+  const replacement = fixture();
+  replacement.assets[0].digest = `sha256:${"a".repeat(64)}`;
+  await writeFile(release, JSON.stringify(replacement));
+  assert.equal(run().status, 1);
+  assert.equal(await readFile(output, "utf8"), original);
+  assert.equal(run("--allow-republish", "--keep", "1").status, 0);
+  const updated = JSON.parse(await readFile(output, "utf8"));
+  assert.deepEqual(Object.keys(updated.apps["fn-knock"].releases), ["3.4.5"]);
+  assert.equal(
+    updated.apps["fn-knock"].releases["3.4.5"].packages.x86.sha256,
+    "a".repeat(64),
+  );
 });

@@ -130,10 +130,13 @@ pub(super) async fn ca_init(State(state): State<AppState>) -> Response {
     let translator = Translator::from_state(&state).await;
     match init_root_ca(&state) {
         Ok(info) => response::ok(info).into_response(),
-        Err(error) => response::error(
-            StatusCode::INTERNAL_SERVER_ERROR,
-            ssl_error_or_route_text(&translator, "caInitFailed", &error),
-        ),
+        Err(error) => {
+            tracing::warn!(error = %format!("{error:#}"), "failed to initialize local CA");
+            response::error(
+                StatusCode::INTERNAL_SERVER_ERROR,
+                ssl_error_or_route_text(&translator, "caInitFailed", &error),
+            )
+        }
     }
 }
 

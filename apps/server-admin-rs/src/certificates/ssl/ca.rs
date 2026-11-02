@@ -264,10 +264,19 @@ pub(super) fn run_openssl(args: Vec<String>) -> anyhow::Result<()> {
 }
 
 pub(super) fn run_openssl_capture(args: Vec<String>) -> anyhow::Result<String> {
-    let output = Command::new("openssl")
-        .args(&args)
-        .stdin(Stdio::null())
-        .output()?;
+    run_openssl_command(Command::new("openssl").args(&args))
+}
+
+#[derive(Debug, thiserror::Error)]
+#[error("OpenSSL command could not be executed")]
+pub(super) struct OpenSslCommandUnavailable(#[source] pub(super) std::io::Error);
+
+pub(super) fn run_openssl_command(command: &mut Command) -> anyhow::Result<String> {
+    let output = command.stdin(Stdio::null()).output().map_err(|error| {
+        // Do not log command arguments: they can contain certificate paths.
+        tracing::warn!(%error, "failed to execute OpenSSL command");
+        OpenSslCommandUnavailable(error)
+    })?;
     if output.status.success() {
         return Ok(String::from_utf8_lossy(&output.stdout).to_string());
     }
@@ -316,14 +325,18 @@ pub(super) fn validate_ssl_cert_pair(cert: &str, key: &str) -> Result<(), SslVal
             "-noout".to_string(),
             "-pubkey".to_string(),
         ])
-        .map_err(|error| SslValidationError::CertFormatInvalid(error.to_string()))?;
+        .map_err(|error| {
+            SslValidationError::from_openssl(error, SslValidationError::CertFormatInvalid)
+        })?;
         let key_public_key = run_openssl_capture(vec![
             "pkey".to_string(),
             "-in".to_string(),
             key_path.to_string_lossy().to_string(),
             "-pubout".to_string(),
         ])
-        .map_err(|error| SslValidationError::KeyFormatInvalid(error.to_string()))?;
+        .map_err(|error| {
+            SslValidationError::from_openssl(error, SslValidationError::KeyFormatInvalid)
+        })?;
 
         if normalize_public_key_pem(&cert_public_key) != normalize_public_key_pem(&key_public_key) {
             return Err(SslValidationError::CertKeyMismatch);

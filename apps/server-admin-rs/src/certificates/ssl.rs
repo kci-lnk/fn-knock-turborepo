@@ -119,14 +119,26 @@ pub(crate) fn validate_ssl_cert_for_response(
 
 #[derive(Debug)]
 enum SslValidationError {
+    OpenSslUnavailable,
     CertFormatInvalid(String),
     KeyFormatInvalid(String),
     CertKeyMismatch,
     CertKeyCheckFailed(String),
 }
 
+impl SslValidationError {
+    fn from_openssl(error: anyhow::Error, invalid: fn(String) -> Self) -> Self {
+        if error.is::<OpenSslCommandUnavailable>() {
+            Self::OpenSslUnavailable
+        } else {
+            invalid(error.to_string())
+        }
+    }
+}
+
 fn ssl_validation_error_message(translator: &Translator, error: &SslValidationError) -> String {
     match error {
+        SslValidationError::OpenSslUnavailable => ssl_route_text(translator, "opensslUnavailable"),
         SslValidationError::CertFormatInvalid(message) => ssl_text_params(
             translator,
             "certFormatInvalid",
@@ -148,6 +160,9 @@ fn ssl_validation_error_message(translator: &Translator, error: &SslValidationEr
 
 fn ssl_validation_error_plain(error: SslValidationError) -> String {
     match error {
+        SslValidationError::OpenSslUnavailable => {
+            "OpenSSL command could not be executed".to_string()
+        }
         SslValidationError::CertFormatInvalid(_) => "Certificate format is invalid".to_string(),
         SslValidationError::KeyFormatInvalid(_) => "Private key format is invalid".to_string(),
         SslValidationError::CertKeyMismatch => {
@@ -169,6 +184,7 @@ fn localize_ssl_error(translator: &Translator, error: &dyn std::fmt::Display) ->
         return ssl_route_text(translator, "certOrKeyInvalid");
     }
     match message.as_str() {
+        "OpenSSL command could not be executed" => ssl_route_text(translator, "opensslUnavailable"),
         "Root CA not initialized" => ssl_route_text(translator, "rootCaNotInitialized"),
         "No hosts configured" => ssl_route_text(translator, "emptyDomains"),
         "Certificate format is invalid" | "Private key format is invalid" => {

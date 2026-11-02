@@ -11,6 +11,26 @@ LuCI 的敲门 Knock 页面提供“防火墙来源区域”和“放行防火�
 撤销放行请在 LuCI 原生防火墙页面删除 `Allow-FnKnock-Gateway` 规则。
 服务安装、升级、启动、停止、重启、配置保存和卸载均不会自动增删该规则。
 
+## SSL 运行依赖
+
+证书上传校验和本地 CA 初始化、签发需要 `openssl` 命令，由 OpenWrt 的
+`openssl-util` 软件包提供。IPK/APK 安装包会声明此依赖；自定义
+`FN_KNOCK_OPENWRT_DEPENDS` 时也需要保留它。
+
+旧版本若在上传证书时提示 `证书格式无效: No such file or directory (os error 2)`，
+或初始化本地 CA 失败，可通过 SSH 以 root 安装缺失依赖：
+
+```sh
+# 使用 opkg 的系统
+opkg update && opkg install openssl-util
+# 使用 apk 的系统（与上面二选一）
+apk update && apk add openssl-util
+
+PATH=/usr/sbin:/usr/bin:/sbin:/bin openssl version
+```
+
+确认输出版本号后，在面板重试原操作，通常无需重启服务。
+
 ## 实现约定
 
 - `/usr/libexec/fn-knock-firewall status` 只读取已提交配置，返回 JSON，包括

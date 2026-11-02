@@ -202,6 +202,103 @@ fn ca_issue_save_payload_matches_node_fields() {
 }
 
 #[test]
+fn missing_openssl_reports_runtime_dependency_instead_of_invalid_certificate() {
+    let dir = tempfile::tempdir().unwrap();
+    let error =
+        run_openssl_command(&mut Command::new(dir.path().join("missing-openssl"))).unwrap_err();
+    assert_eq!(
+        error
+            .downcast_ref::<OpenSslCommandUnavailable>()
+            .unwrap()
+            .0
+            .kind(),
+        std::io::ErrorKind::NotFound
+    );
+
+    // The CA path must retain the actionable message instead of its generic fallback.
+    for locale in ["zh-CN", "zh-Hant", "en", "ko-KR", "ja-JP"] {
+        let translator = Translator::new(locale);
+        let expected = ssl_route_text(&translator, "opensslUnavailable");
+        assert!(expected.contains("openssl-util"), "{locale}: {expected}");
+        assert_eq!(
+            ssl_error_or_route_text(&translator, "caInitFailed", &error),
+            expected
+        );
+    }
+
+    let validation = SslValidationError::from_openssl(error, SslValidationError::CertFormatInvalid);
+    assert!(matches!(validation, SslValidationError::OpenSslUnavailable));
+    let zh = Translator::new("zh-CN");
+    assert_eq!(
+        ssl_validation_error_message(&zh, &validation),
+        ssl_route_text(&zh, "opensslUnavailable")
+    );
+    assert_eq!(
+        ssl_error_or_route_text(
+            &zh,
+            "certSaveFailed",
+            &ssl_validation_error_plain(validation)
+        ),
+        ssl_route_text(&zh, "opensslUnavailable")
+    );
+}
+
+#[cfg(unix)]
+#[test]
+fn non_executable_openssl_reports_runtime_dependency_for_private_key_check() {
+    use std::os::unix::fs::PermissionsExt;
+
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("openssl");
+    std::fs::write(&path, "#!/bin/sh\nexit 0\n").unwrap();
+    std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o600)).unwrap();
+    let error = run_openssl_command(&mut Command::new(path)).unwrap_err();
+    assert_eq!(
+        error
+            .downcast_ref::<OpenSslCommandUnavailable>()
+            .unwrap()
+            .0
+            .kind(),
+        std::io::ErrorKind::PermissionDenied
+    );
+    assert!(matches!(
+        SslValidationError::from_openssl(error, SslValidationError::KeyFormatInvalid),
+        SslValidationError::OpenSslUnavailable
+    ));
+}
+
+#[cfg(unix)]
+#[test]
+fn openssl_command_failure_retains_certificate_and_private_key_errors() {
+    // A program that starts and rejects its input is distinct from a spawn failure.
+    for (invalid, is_cert) in [
+        (
+            SslValidationError::CertFormatInvalid as fn(String) -> SslValidationError,
+            true,
+        ),
+        (
+            SslValidationError::KeyFormatInvalid as fn(String) -> SslValidationError,
+            false,
+        ),
+    ] {
+        let error = run_openssl_command(
+            Command::new("/bin/sh").args(["-c", "echo 'invalid PEM input' >&2; exit 1"]),
+        )
+        .unwrap_err();
+        assert!(!error.is::<OpenSslCommandUnavailable>());
+        match SslValidationError::from_openssl(error, invalid) {
+            SslValidationError::CertFormatInvalid(message) if is_cert => {
+                assert_eq!(message, "invalid PEM input")
+            }
+            SslValidationError::KeyFormatInvalid(message) if !is_cert => {
+                assert_eq!(message, "invalid PEM input")
+            }
+            other => panic!("unexpected validation error: {other:?}"),
+        }
+    }
+}
+
+#[test]
 fn localizes_ssl_route_errors_and_default_labels() {
     let zh = Translator::new("zh-CN");
     assert_eq!(

@@ -16,8 +16,8 @@ sh -n deploy/openwrt/usr/libexec/fn-knock-firewall
 unset FN_KNOCK_OPENWRT_DEPENDS
 source "${ROOT_DIR}/scripts/build-openwrt-ipk.sh"
 
-EXPECTED_IPK_DEPENDS="libc, bash, curl, unzip, ca-bundle, ca-certificates, luci-base"
-EXPECTED_APK_DEPENDS="libc bash curl unzip ca-bundle ca-certificates luci-base"
+EXPECTED_IPK_DEPENDS="libc, bash, curl, unzip, ca-bundle, ca-certificates, openssl-util, luci-base"
+EXPECTED_APK_DEPENDS="libc bash curl unzip ca-bundle ca-certificates openssl-util luci-base"
 FORBIDDEN_DEPENDENCIES=(
   iptables
   iptables-nft

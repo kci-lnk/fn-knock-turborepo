@@ -90,6 +90,8 @@ do
   rm -rf "${PAYLOAD_EXTRACT_DIR}"
   mkdir -p "${PAYLOAD_EXTRACT_DIR}"
   tar -xzf "${PACKAGE_TGZ}" -C "${PAYLOAD_EXTRACT_DIR}"
+  cmp -s "${PAYLOAD_EXTRACT_DIR}/ui/images/icon.png" "${ROOT_DIR}/apps/fn-knock/app/ui/images/ICON.PNG" || \
+    fail "${synology_arch} DSM launcher must retain the 192 px icon"
   PAYLOAD_EXTRACT_DIR="${PAYLOAD_EXTRACT_DIR}" node <<'NODE'
 const fs = require("node:fs");
 const path = require("node:path");

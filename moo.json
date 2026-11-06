@@ -5,7 +5,7 @@
     "author": "kci-lnk",
     "homepage": "https://github.com/kci-lnk/fn-knock-turborepo",
     "description": "fn-knock 官方 fnOS 原生 FPK 应用源。",
-    "updated_at": "2026-10-27T13:24:36Z"
+    "updated_at": "2026-11-06T18:09:34Z"
   },
   "apps": {
     "fn-knock": {
@@ -28,10 +28,26 @@
       "license": "MIT",
       "install_type": "root",
       "service_port": 7999,
-      "icon_url": "https://raw.githubusercontent.com/kci-lnk/fn-knock-turborepo/v2.5.7/apps/fn-knock/ICON_256.PNG",
-      "readme_url": "https://raw.githubusercontent.com/kci-lnk/fn-knock-turborepo/v2.5.7/README.md",
-      "updated_at": "2026-10-27T13:24:36Z",
+      "icon_url": "https://raw.githubusercontent.com/kci-lnk/fn-knock-turborepo/v2.5.8/apps/fn-knock/ICON_256.PNG",
+      "readme_url": "https://raw.githubusercontent.com/kci-lnk/fn-knock-turborepo/v2.5.8/README.md",
+      "updated_at": "2026-11-06T18:09:34Z",
       "releases": {
+        "2.5.8": {
+          "changelog": "# fn-knock 2.5.8\n\n- 申请 ACME 证书时可先检查 DNS 验证所需的 TXT 记录，提前发现域名解析问题。签发遇到频率限制时，面板会显示可重试时间，并在冷却期内阻止重复申请。\n- 修复首次加载认证页面时并发预检请求可能失败的问题。请求现在会在各自的超时期限内排队处理。认证服务连接失败后，网关会重新预检。\n- 面板同步新增“同步图标”开关，可为每个连接单独选择是否从 fn-knock 同步图标。\n- 飞牛完整版和 Lite 版按显示尺寸提供圆角方形图标，并修正 Lite 版应用清单的版本号。\n- OpenWrt 安装包新增 OpenSSL 命令行工具依赖，修复证书操作因缺少 openssl 命令而失败的问题。\n- Moo 应用索引默认保留最近两个稳定版本，并校验同版本、同架构安装包的摘要，防止意外覆盖已发布的记录。\n",
+          "updated_at": "2026-11-06T18:09:34Z",
+          "packages": {
+            "x86": {
+              "download_url": "https://github.com/kci-lnk/fn-knock-turborepo/releases/download/v2.5.8/fn-knock-2.5.8-fnos-amd64.fpk",
+              "sha256": "309ec637277fa63c579b17482439c274c3bf7a2d957f109f4b6e1f1faf3bb9b6",
+              "size": 30827506
+            },
+            "arm": {
+              "download_url": "https://github.com/kci-lnk/fn-knock-turborepo/releases/download/v2.5.8/fn-knock-2.5.8-fnos-arm64.fpk",
+              "sha256": "b59f566531a1d3cc1b6905b700a56844e5616005bcc66fcf843e84b66ab5e7c2",
+              "size": 29745305
+            }
+          }
+        },
         "2.5.7": {
           "changelog": "# fn-knock 2.5.7\n\n- 修复 Porkbun DDNS 接口地址，恢复域名解析记录更新。\n- 改进飞牛完整版与 Lite 版的诊断包，补充经过脱敏和大小限制处理的启动日志，便于排查启动失败、端口占用及进程异常退出等问题，并记录日志缺失、读取失败或截断情况。\n",
           "updated_at": "2026-10-27T13:24:36Z",
@@ -45,22 +61,6 @@
               "download_url": "https://github.com/kci-lnk/fn-knock-turborepo/releases/download/v2.5.7/fn-knock-2.5.7-fnos-arm64.fpk",
               "sha256": "7892a39f64edb7a4374ae915ba47373c198a27aa772d78a367d4e4e5e61fca03",
               "size": 29561859
-            }
-          }
-        },
-        "2.5.6": {
-          "changelog": "# fn-knock 2.5.6\n\n- 新增 DDNS 更新代理配置，支持 HTTP、HTTPS 和 SOCKS5 代理，可为不同更新目标选择跟随默认设置、直连或使用代理；公网 IP 检测仍保持直连。\n- 新增子域名批量访问控制，可对选中的映射批量设置登录要求与公开访问，并在操作前确认影响范围。\n- 修复部分系统缺少 MARK 扩展时的防火墙兼容性问题，增加兼容回退处理。\n- 修复 iptables-nft 将不存在的规则链报告为不兼容时的清理异常，通过核实规则链是否存在，避免误报，同时保留真实异常提示。\n",
-          "updated_at": "2026-10-24T13:46:32Z",
-          "packages": {
-            "x86": {
-              "download_url": "https://github.com/kci-lnk/fn-knock-turborepo/releases/download/v2.5.6/fn-knock-2.5.6-fnos-amd64.fpk",
-              "sha256": "3dc792c5029235ad254653691a27ac01c1c42ca676f80d003627f879a446df05",
-              "size": 30623445
-            },
-            "arm": {
-              "download_url": "https://github.com/kci-lnk/fn-knock-turborepo/releases/download/v2.5.6/fn-knock-2.5.6-fnos-arm64.fpk",
-              "sha256": "449740d4e34967abca0a884968b60d9371643ec552dad3aa3cc45768655415ad",
-              "size": 29550516
             }
           }
         }

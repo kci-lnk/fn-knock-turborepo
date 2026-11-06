@@ -265,7 +265,7 @@ build_package() {
 
   cp "${ROOT_DIR}/apps/fn-knock/ICON_64.PNG" "${spk_root}/PACKAGE_ICON.PNG"
   cp "${ROOT_DIR}/apps/fn-knock/ICON_256.PNG" "${spk_root}/PACKAGE_ICON_256.PNG"
-  cp "${ROOT_DIR}/apps/fn-knock/ICON.PNG" "${payload_dir}/ui/images/icon.png"
+  cp "${ROOT_DIR}/apps/fn-knock/app/ui/images/ICON.PNG" "${payload_dir}/ui/images/icon.png"
   for icon_size in 16 24 32 48 64 72; do
     cp "${ROOT_DIR}/apps/fn-knock/ICON_64.PNG" "${payload_dir}/ui/images/icon_${icon_size}.png"
   done

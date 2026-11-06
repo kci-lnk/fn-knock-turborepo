@@ -9,7 +9,7 @@
       },
       "protocol": "http",
       "title": "敲门knock Lite",
-      "icon": "images/ICON.PNG",
+      "icon": "images/ICON_{0}.PNG",
       "type": "iframe",
       "url": "/cgi/ThirdParty/fn-knock-lite/index.cgi/"
     }

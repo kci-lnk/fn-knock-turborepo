@@ -20,6 +20,16 @@ pub(super) async fn preflight(
         let client_ip = client_ip_for_auth(&headers);
         let forwarded_path = preflight_forwarded_path(&headers);
         tracing::warn!(%error, %client_ip, %forwarded_path, "auth preflight failed");
+        let mut unavailable = StatusCode::SERVICE_UNAVAILABLE.into_response();
+        apply_no_store_headers(unavailable.headers_mut());
+        insert_header_value(&mut unavailable, "Retry-After", "1");
+        insert_header_value(&mut unavailable, "X-Option", "Deny");
+        insert_header_value(
+            &mut unavailable,
+            REAUTH_ACCESS_DENIED_HEADER,
+            "auth_service_unavailable",
+        );
+        return unavailable;
     }
     response
 }

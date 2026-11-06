@@ -100,16 +100,9 @@ impl BridgeRequestKind {
             Self::AuthorizeHttp {
                 run_preflight,
                 run_verify,
-            } => {
-                let mut response = empty_authorize_http_response();
-                if run_preflight {
-                    response.preflight = Some(preflight_auth_unavailable_response());
-                }
-                if run_verify {
-                    response.verify = Some(verify_auth_unavailable_response());
-                }
-                auth_bridge_envelope::Payload::AuthorizeHttpResponse(response)
-            }
+            } => auth_bridge_envelope::Payload::AuthorizeHttpResponse(
+                authorize_http_unavailable_response(run_preflight, run_verify),
+            ),
         };
         AuthBridgeEnvelope {
             request_id,
@@ -175,14 +168,30 @@ fn auth_bridge_request_deadlines_at(
     AuthBridgeDeadlines { handler, response }
 }
 
+#[derive(Debug, PartialEq, Eq)]
+enum BridgeAdmissionError {
+    Stopped,
+    TimedOut,
+}
+
 async fn acquire_auth_bridge_capacity(
     limiter: Arc<Semaphore>,
     deadline: tokio::time::Instant,
-) -> Option<tokio::sync::OwnedSemaphorePermit> {
-    tokio::time::timeout_at(deadline, limiter.acquire_owned())
-        .await
-        .ok()?
-        .ok()
+    shutdown: &CancellationToken,
+) -> Result<tokio::sync::OwnedSemaphorePermit, BridgeAdmissionError> {
+    tokio::select! {
+        biased;
+        _ = shutdown.cancelled() => Err(BridgeAdmissionError::Stopped),
+        result = tokio::time::timeout_at(deadline, limiter.acquire_owned()) => {
+            let permit = result.map_err(|_| BridgeAdmissionError::TimedOut)?
+                .map_err(|_| BridgeAdmissionError::Stopped)?;
+            // timeout_at can yield a ready permit even when its timer has elapsed.
+            if tokio::time::Instant::now() >= deadline {
+                return Err(BridgeAdmissionError::TimedOut);
+            }
+            Ok(permit)
+        }
+    }
 }
 
 async fn send_auth_bridge_response(
@@ -194,24 +203,20 @@ async fn send_auth_bridge_response(
     // Do not let an already-expired request consume response-queue capacity.
     // The Go caller has stopped waiting by this point, so enqueuing a stale
     // response can only amplify bridge backpressure for live requests.
+    let permit = tokio::select! {
+        biased;
+        _ = shutdown.cancelled() => return BridgeResponseSendOutcome::Cancelled,
+        _ = tokio::time::sleep_until(deadline) => return BridgeResponseSendOutcome::TimedOut,
+        slot = tx.reserve() => match slot {
+            Ok(permit) => permit,
+            Err(_) => return BridgeResponseSendOutcome::Closed,
+        }
+    };
     if tokio::time::Instant::now() >= deadline {
         return BridgeResponseSendOutcome::TimedOut;
     }
-    let response = match tx.try_send(response) {
-        Ok(()) => return BridgeResponseSendOutcome::Sent,
-        Err(mpsc::error::TrySendError::Closed(_)) => {
-            return BridgeResponseSendOutcome::Closed;
-        }
-        Err(mpsc::error::TrySendError::Full(response)) => response,
-    };
-    tokio::select! {
-        _ = shutdown.cancelled() => BridgeResponseSendOutcome::Cancelled,
-        result = tokio::time::timeout_at(deadline, tx.send(response)) => match result {
-            Ok(Ok(())) => BridgeResponseSendOutcome::Sent,
-            Ok(Err(_)) => BridgeResponseSendOutcome::Closed,
-            Err(_) => BridgeResponseSendOutcome::TimedOut,
-        },
-    }
+    permit.send(response);
+    BridgeResponseSendOutcome::Sent
 }
 
 fn record_bridge_pressure(
@@ -275,7 +280,6 @@ async fn run_auth_bridge_once(state: AppState, shutdown: &CancellationToken) -> 
         .max_encoding_message_size(INTERNAL_GRPC_MAX_MESSAGE_SIZE);
     let max_in_flight = state.settings.auth_bridge_max_in_flight;
     let (tx, rx) = mpsc::channel::<AuthBridgeEnvelope>(max_in_flight);
-    let limiter = Arc::new(Semaphore::new(max_in_flight));
     tracing::info!(
         runtime_target = %crate::runtime_profile::deployment_target(&state),
         max_in_flight,
@@ -317,20 +321,31 @@ async fn run_auth_bridge_once(state: AppState, shutdown: &CancellationToken) -> 
         );
     }
 
-    let mut stream = client
+    let stream = client
         .connect_auth_bridge(request)
         .await
         .context("connect auth bridge stream")?
         .into_inner();
 
-    // Keep the response stream in this task. Capacity admission happens inside
-    // a bounded worker set so a saturated handler cannot stop the stream reader.
+    serve_auth_bridge_stream(state, stream, tx, shutdown, max_in_flight).await
+}
+
+async fn serve_auth_bridge_stream(
+    state: AppState,
+    mut stream: impl tokio_stream::Stream<Item = Result<AuthBridgeEnvelope, tonic::Status>> + Unpin,
+    tx: mpsc::Sender<AuthBridgeEnvelope>,
+    shutdown: &CancellationToken,
+    max_in_flight: usize,
+) -> anyhow::Result<()> {
+    let limiter = Arc::new(Semaphore::new(max_in_flight));
+    // When all workers are occupied, hold one envelope in the reader until a
+    // worker finishes. gRPC continues sending their responses independently.
     let dispatch_limiter = Arc::new(Semaphore::new(max_in_flight.saturating_mul(2)));
     let mut workers = JoinSet::new();
     loop {
         let message = tokio::select! {
             _ = shutdown.cancelled() => break,
-            result = stream.message() => result.context("read auth bridge message")?,
+            result = stream.next() => result.transpose().context("read auth bridge message")?,
             Some(result) = workers.join_next(), if !workers.is_empty() => {
                 if let Err(error) = result {
                     tracing::debug!(%error, "auth bridge worker stopped unexpectedly");
@@ -351,31 +366,47 @@ async fn run_auth_bridge_once(state: AppState, shutdown: &CancellationToken) -> 
             request_started,
             state.settings.request_timeout,
         );
-        let Ok(dispatch_permit) = dispatch_limiter.clone().try_acquire_owned() else {
-            record_bridge_pressure(
-                &state,
-                "request_rejected",
-                "dispatch_queue_full",
-                kind,
-                request_started.elapsed(),
-                max_in_flight,
-            );
-            let response = kind.unavailable_envelope(request_id);
-            match send_auth_bridge_response(&tx, response, shutdown, deadlines.response).await {
-                BridgeResponseSendOutcome::Sent => {}
-                BridgeResponseSendOutcome::TimedOut => {
-                    record_bridge_pressure(
-                        &state,
-                        "response_dropped",
-                        "response_queue_timeout",
-                        kind,
-                        request_started.elapsed(),
-                        max_in_flight,
-                    );
+        let dispatch_permit = match acquire_auth_bridge_capacity(
+            dispatch_limiter.clone(),
+            deadlines.handler,
+            shutdown,
+        )
+        .await
+        {
+            Ok(permit) => permit,
+            Err(BridgeAdmissionError::Stopped) => break,
+            Err(BridgeAdmissionError::TimedOut) => {
+                record_bridge_pressure(
+                    &state,
+                    "request_rejected",
+                    if request_started >= deadlines.handler {
+                        "request_deadline_expired"
+                    } else {
+                        "dispatch_wait_timeout"
+                    },
+                    kind,
+                    request_started.elapsed(),
+                    max_in_flight,
+                );
+                let response = kind.unavailable_envelope(request_id);
+                match send_auth_bridge_response(&tx, response, shutdown, deadlines.response).await {
+                    BridgeResponseSendOutcome::Sent => {}
+                    BridgeResponseSendOutcome::TimedOut => {
+                        record_bridge_pressure(
+                            &state,
+                            "response_dropped",
+                            "response_queue_timeout",
+                            kind,
+                            request_started.elapsed(),
+                            max_in_flight,
+                        );
+                    }
+                    BridgeResponseSendOutcome::Closed | BridgeResponseSendOutcome::Cancelled => {
+                        break;
+                    }
                 }
-                BridgeResponseSendOutcome::Closed | BridgeResponseSendOutcome::Cancelled => break,
+                continue;
             }
-            continue;
         };
         let tx = tx.clone();
         let state = state.clone();
@@ -384,41 +415,43 @@ async fn run_auth_bridge_once(state: AppState, shutdown: &CancellationToken) -> 
         workers.spawn(async move {
             let _dispatch_permit = dispatch_permit;
             let expired_before_capacity = tokio::time::Instant::now() >= deadlines.handler;
-            let permit = tokio::select! {
-                _ = worker_shutdown.cancelled() => return,
-                permit = acquire_auth_bridge_capacity(limiter, deadlines.handler) => permit,
-            };
-            let Some(permit) = permit else {
-                record_bridge_pressure(
-                    &state,
-                    "request_rejected",
-                    if expired_before_capacity {
-                        "request_deadline_expired"
-                    } else {
-                        "capacity_wait_timeout"
-                    },
-                    kind,
-                    request_started.elapsed(),
-                    max_in_flight,
-                );
-                let response = kind.unavailable_envelope(request_id);
-                match send_auth_bridge_response(&tx, response, &worker_shutdown, deadlines.response)
-                    .await
-                {
-                    BridgeResponseSendOutcome::Sent | BridgeResponseSendOutcome::Cancelled => {}
-                    BridgeResponseSendOutcome::Closed => {
-                        tracing::debug!("failed to send auth bridge response: stream closed");
-                    }
-                    BridgeResponseSendOutcome::TimedOut => record_bridge_pressure(
+            let permit = match acquire_auth_bridge_capacity(limiter, deadlines.handler, &worker_shutdown)
+                .await
+            {
+                Ok(permit) => permit,
+                Err(BridgeAdmissionError::Stopped) => return,
+                Err(BridgeAdmissionError::TimedOut) => {
+                    record_bridge_pressure(
                         &state,
-                        "response_dropped",
-                        "response_queue_timeout",
+                        "request_rejected",
+                        if expired_before_capacity {
+                            "request_deadline_expired"
+                        } else {
+                            "capacity_wait_timeout"
+                        },
                         kind,
                         request_started.elapsed(),
                         max_in_flight,
-                    ),
+                    );
+                    let response = kind.unavailable_envelope(request_id);
+                    match send_auth_bridge_response(&tx, response, &worker_shutdown, deadlines.response)
+                        .await
+                    {
+                        BridgeResponseSendOutcome::Sent | BridgeResponseSendOutcome::Cancelled => {}
+                        BridgeResponseSendOutcome::Closed => {
+                            tracing::debug!("failed to send auth bridge response: stream closed");
+                        }
+                        BridgeResponseSendOutcome::TimedOut => record_bridge_pressure(
+                            &state,
+                            "response_dropped",
+                            "response_queue_timeout",
+                            kind,
+                            request_started.elapsed(),
+                            max_in_flight,
+                        ),
+                    }
+                    return;
                 }
-                return;
             };
             let capacity_wait = request_started.elapsed();
             if capacity_wait >= Duration::from_millis(1) {
@@ -442,26 +475,22 @@ async fn run_auth_bridge_once(state: AppState, shutdown: &CancellationToken) -> 
                 ));
                 tokio::pin!(handler);
                 tokio::select! {
+                    biased;
                     _ = worker_shutdown.cancelled() => None,
-                    response = tokio::time::timeout_at(
-                        deadlines.handler,
-                        &mut handler,
-                    ) => match response {
-                        Ok(response) => response,
-                        Err(_) => {
-                            // The borrowed handler is still alive here, so its
-                            // innermost pending phase survives timeout cancellation.
-                            let mut fields = diagnostics.fields();
-                            fields.insert("operation".into(), json!(kind.operation()));
-                            fields.insert("duration_ms".into(), json!(request_started.elapsed().as_millis()));
-                            fields.insert("max_in_flight".into(), json!(max_in_flight));
-                            state.runtime_health.operational_log(
-                                "WARN", "auth_bridge", "request_timeout",
-                                "handler_deadline_exceeded", fields,
-                            );
-                            Some(kind.unavailable_envelope(request_id))
-                        }
-                    },
+                    _ = tokio::time::sleep_until(deadlines.handler) => {
+                        // The borrowed handler is still alive here, so its
+                        // innermost pending phase survives timeout cancellation.
+                        let mut fields = diagnostics.fields();
+                        fields.insert("operation".into(), json!(kind.operation()));
+                        fields.insert("duration_ms".into(), json!(request_started.elapsed().as_millis()));
+                        fields.insert("max_in_flight".into(), json!(max_in_flight));
+                        state.runtime_health.operational_log(
+                            "WARN", "auth_bridge", "request_timeout",
+                            "handler_deadline_exceeded", fields,
+                        );
+                        Some(kind.unavailable_envelope(request_id))
+                    }
+                    response = &mut handler => response,
                 }
             };
             if let Some(response) = response {
@@ -650,7 +679,7 @@ async fn handle_authorize_http(
             Ok(access) => access,
             Err(error) => {
                 tracing::warn!(%error, "auth bridge authorize HTTP normal access resolution failed");
-                return authorize_http_preparation_error(&translator, run_preflight, run_verify);
+                return authorize_http_unavailable_response(run_preflight, run_verify);
             }
         }
     };
@@ -680,6 +709,7 @@ async fn handle_authorize_http(
             }
             Err(error) => {
                 tracing::warn!(%error, "auth bridge authorize HTTP preflight failed");
+                return authorize_http_unavailable_response(run_preflight, run_verify);
             }
         }
         let mut preflight = preflight_auth_response_from_http(&preflight);
@@ -735,17 +765,16 @@ fn empty_authorize_http_response() -> AuthorizeHttpResponse {
     }
 }
 
-fn authorize_http_preparation_error(
-    translator: &Translator,
+fn authorize_http_unavailable_response(
     run_preflight: bool,
     run_verify: bool,
 ) -> AuthorizeHttpResponse {
     let mut response = empty_authorize_http_response();
     if run_preflight {
-        response.preflight = Some(preflight_auth_response_from_http(&new_preflight_response()));
+        response.preflight = Some(preflight_auth_unavailable_response());
     }
     if run_verify {
-        response.verify = Some(verify_auth_error_response(translator));
+        response.verify = Some(verify_auth_unavailable_response());
     }
     response
 }
@@ -914,6 +943,7 @@ async fn handle_preflight_auth(
     .await
     {
         tracing::warn!(%error, "auth bridge preflight failed");
+        return preflight_auth_unavailable_response();
     }
     preflight_auth_response_from_http(&response)
 }
@@ -1370,6 +1400,7 @@ mod tests {
             acquire_auth_bridge_capacity(
                 waiting_limiter,
                 tokio::time::Instant::now() + Duration::from_secs(1),
+                &CancellationToken::new(),
             )
             .await
         });
@@ -1395,13 +1426,15 @@ mod tests {
             .await
             .expect("first bridge permit");
 
-        assert!(
+        assert_eq!(
             acquire_auth_bridge_capacity(
                 limiter,
                 tokio::time::Instant::now() + Duration::from_millis(20),
+                &CancellationToken::new(),
             )
             .await
-            .is_none()
+            .unwrap_err(),
+            BridgeAdmissionError::TimedOut
         );
     }
 
@@ -1415,20 +1448,121 @@ mod tests {
             .expect("first bridge permit");
         let shared_deadline = tokio::time::Instant::now() + Duration::from_millis(60);
 
-        let first_waiter = tokio::spawn(acquire_auth_bridge_capacity(
-            limiter.clone(),
-            shared_deadline,
-        ));
+        let first_limiter = limiter.clone();
+        let first_waiter = tokio::spawn(async move {
+            acquire_auth_bridge_capacity(first_limiter, shared_deadline, &CancellationToken::new())
+                .await
+        });
         tokio::time::sleep(Duration::from_millis(30)).await;
         let second_started = tokio::time::Instant::now();
-        let second_waiter = tokio::spawn(acquire_auth_bridge_capacity(limiter, shared_deadline));
+        let second_waiter = tokio::spawn(async move {
+            acquire_auth_bridge_capacity(limiter, shared_deadline, &CancellationToken::new()).await
+        });
 
-        assert!(first_waiter.await.expect("first waiter task").is_none());
-        assert!(second_waiter.await.expect("second waiter task").is_none());
+        assert_eq!(
+            first_waiter.await.unwrap().unwrap_err(),
+            BridgeAdmissionError::TimedOut
+        );
+        assert_eq!(
+            second_waiter.await.unwrap().unwrap_err(),
+            BridgeAdmissionError::TimedOut
+        );
         assert!(
             second_started.elapsed() < Duration::from_millis(55),
             "later waiter received a fresh timeout instead of the shared deadline"
         );
+    }
+
+    #[tokio::test]
+    async fn saturated_dispatch_resumes_each_preflight_once_when_responses_drain() {
+        let (_dir, state) = super::super::tests::auth_route_test_state("dispatch-burst").await;
+        let shutdown = CancellationToken::new();
+        let (requests, stream) = mpsc::channel(4);
+        let (responses, mut received) = mpsc::channel(1);
+        // Hold both dispatch slots with workers that cannot deliver their responses.
+        responses.try_send(AuthBridgeEnvelope::default()).unwrap();
+        for id in 1..=4 {
+            requests
+                .try_send(Ok(AuthBridgeEnvelope {
+                    request_id: id.to_string(),
+                    payload: Some(auth_bridge_envelope::Payload::PreflightAuthRequest(
+                        PreflightAuthRequest::default(),
+                    )),
+                    ..Default::default()
+                }))
+                .unwrap();
+        }
+
+        let (reads, mut read_ids) = mpsc::unbounded_channel();
+        let stream = ReceiverStream::new(stream).map(move |item| {
+            let message: &AuthBridgeEnvelope = item.as_ref().unwrap();
+            reads.send(message.request_id.clone()).unwrap();
+            item
+        });
+        let task_shutdown = shutdown.clone();
+        let task = tokio::spawn(async move {
+            serve_auth_bridge_stream(state, stream, responses, &task_shutdown, 1).await
+        });
+        tokio::time::timeout(Duration::from_secs(3), async {
+            for expected in ["1", "2", "3"] {
+                assert_eq!(read_ids.recv().await.unwrap(), expected);
+            }
+            assert!(read_ids.try_recv().is_err());
+            assert!(received.recv().await.unwrap().request_id.is_empty());
+            let mut ids = Vec::new();
+            for _ in 0..4 {
+                let message = received.recv().await.unwrap();
+                let Some(auth_bridge_envelope::Payload::PreflightAuthResponse(response)) =
+                    message.payload
+                else {
+                    panic!("expected preflight response")
+                };
+                assert!(!response.deny);
+                assert!(response.access_denied_reason.is_empty());
+                ids.push(message.request_id);
+            }
+            ids.sort();
+            assert_eq!(ids, ["1", "2", "3", "4"]);
+            shutdown.cancel();
+            task.await.unwrap().unwrap();
+        })
+        .await
+        .expect("bridge stalled while draining the burst");
+    }
+
+    #[tokio::test]
+    async fn expired_admission_cannot_consume_a_ready_slot() {
+        let limiter = Arc::new(Semaphore::new(1));
+        let result = acquire_auth_bridge_capacity(
+            limiter.clone(),
+            tokio::time::Instant::now(),
+            &CancellationToken::new(),
+        )
+        .await;
+        assert_eq!(result.unwrap_err(), BridgeAdmissionError::TimedOut);
+        assert_eq!(limiter.available_permits(), 1);
+    }
+
+    #[tokio::test]
+    async fn shutdown_stops_a_pending_admission() {
+        let limiter = Arc::new(Semaphore::new(1));
+        let occupied = limiter.clone().acquire_owned().await.unwrap();
+        let shutdown = CancellationToken::new();
+        let waiter = acquire_auth_bridge_capacity(
+            limiter.clone(),
+            tokio::time::Instant::now() + Duration::from_secs(60),
+            &shutdown,
+        );
+        tokio::pin!(waiter);
+        tokio::select! {
+            biased;
+            _ = &mut waiter => panic!("admitted while full"),
+            _ = std::future::ready(()) => {}
+        }
+        shutdown.cancel();
+        drop(occupied);
+        assert_eq!(waiter.await.unwrap_err(), BridgeAdmissionError::Stopped);
+        assert_eq!(limiter.available_permits(), 1);
     }
 
     #[tokio::test]
@@ -1479,6 +1613,90 @@ mod tests {
             BridgeResponseSendOutcome::TimedOut
         );
         assert!(rx.try_recv().is_err());
+    }
+
+    #[tokio::test]
+    async fn expired_waiter_leaves_response_slot_for_live_requests() {
+        let (tx, mut rx) = mpsc::channel(1);
+        tx.try_send(AuthBridgeEnvelope::default()).unwrap();
+        let shutdown = CancellationToken::new();
+        let deadline = tokio::time::Instant::now() + Duration::from_millis(20);
+        let send =
+            send_auth_bridge_response(&tx, AuthBridgeEnvelope::default(), &shutdown, deadline);
+        tokio::pin!(send);
+        tokio::select! {
+            biased;
+            _ = &mut send => panic!("sent to full channel"),
+            _ = std::future::ready(()) => {}
+        }
+        tokio::time::sleep_until(deadline).await;
+        rx.try_recv().unwrap();
+        assert_eq!(send.await, BridgeResponseSendOutcome::TimedOut);
+        assert!(rx.try_recv().is_err());
+    }
+
+    #[tokio::test]
+    async fn session_read_failure_rejects_preflight_across_transports() {
+        let (dir, state) =
+            super::super::tests::auth_route_test_state("preflight-unavailable").await;
+        // Inject a storage error into the test database while keeping the bridge connected.
+        let db = tokio_rusqlite::rusqlite::Connection::open(dir.path().join("fn-knock.sqlite3"))
+            .unwrap();
+        db.execute_batch("ALTER TABLE kv_strings RENAME TO unavailable_strings")
+            .unwrap();
+        let context = AuthContext {
+            client_ip: "203.0.113.7".into(),
+            cookie: format!("{}=test-session", cookies::SESSION_COOKIE_NAME),
+            forwarded_host: "app.example.com".into(),
+            forwarded_path: "/protected.js".into(),
+            ..Default::default()
+        };
+        let legacy = handle_preflight_auth(
+            state.clone(),
+            PreflightAuthRequest {
+                context: Some(context.clone()),
+                ..Default::default()
+            },
+        )
+        .await;
+        assert_eq!(legacy, preflight_auth_unavailable_response());
+
+        for mode in [
+            HttpAuthMode::PreflightOnly,
+            HttpAuthMode::PreflightAndVerify,
+        ] {
+            let combined = handle_authorize_http(
+                state.clone(),
+                AuthorizeHttpRequest {
+                    context: Some(context.clone()),
+                    mode: mode as i32,
+                    matched: true,
+                    ..Default::default()
+                },
+            )
+            .await;
+            assert_eq!(
+                combined.preflight,
+                Some(preflight_auth_unavailable_response())
+            );
+            assert_eq!(combined.preflight_cache_scope, AuthCacheScope::None as i32);
+            if mode == HttpAuthMode::PreflightAndVerify {
+                assert_eq!(combined.verify, Some(verify_auth_unavailable_response()));
+            }
+        }
+        let headers = headers_from_auth_context(Some(&context));
+        let http = super::super::preflight::preflight(
+            State(state),
+            headers,
+            Uri::from_static("/protected.js"),
+        )
+        .await;
+        assert_eq!(http.status(), StatusCode::SERVICE_UNAVAILABLE);
+        assert_eq!(
+            http.headers()[REAUTH_ACCESS_DENIED_HEADER],
+            "auth_service_unavailable"
+        );
+        assert_eq!(http.headers()[header::RETRY_AFTER], "1");
     }
 
     #[test]

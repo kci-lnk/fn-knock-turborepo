@@ -148,7 +148,7 @@ fn-knock is self-hosted by design. The official Privacy Policy distinguishes dat
 | --------------------------------- | --------------------------------------------------------------------------------- |
 | Rust `1.96.0`                     | Rust control plane and the native Windows manager                                 |
 | Go                                | Building the `Go-Reauth-Proxy` gateway; see its `go.mod` for the required version |
-| Node.js `^20.19.0` or `>=22.12.0` | Vue frontend builds, tests, and Turborepo task orchestration only                 |
+| Node.js `^22.22.2 \|\| ^24.15.0 \|\| >=26.0.0` | Vue frontend builds, tests, and Turborepo task orchestration only                 |
 | npm `10.8.2`                      | Workspace package management                                                      |
 | Docker / Buildx                   | Multi-architecture images and selected cross-platform artifacts                   |
 

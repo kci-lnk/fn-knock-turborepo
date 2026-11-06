@@ -134,6 +134,7 @@ export default defineConfig({
   define: {
     __VUE_I18N_LEGACY_API__: false,
     __VUE_I18N_FULL_INSTALL__: false,
+    __INTLIFY_PROD_DEVTOOLS__: false,
   },
   publicDir: path.resolve(__dirname, "../../packages/icons"),
   plugins: [
@@ -146,10 +147,17 @@ export default defineConfig({
   optimizeDeps: {
     exclude: ["qrcode.vue"],
   },
+  // Compact CSS whitespace while preserving declarations and identifiers.
+  esbuild: {
+    minifyWhitespace: true,
+    minifySyntax: false,
+    minifyIdentifiers: false,
+  },
   build: {
     manifest: true,
     target: "chrome109",
-    cssMinify: false,
+    cssMinify: "esbuild",
+    cssTarget: "esnext",
     // fnOS WebViews can retain an immutable module response across an FPK
     // replacement. Namespacing every generated asset by the package version
     // guarantees that an upgrade cannot reuse a representation from an older

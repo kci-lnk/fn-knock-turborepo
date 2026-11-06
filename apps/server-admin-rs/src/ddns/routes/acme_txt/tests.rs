@@ -94,8 +94,7 @@ async fn scenario(kind: &'static str, deny: bool) {
     let router = Router::new().fallback(any(serve)).with_state(mock.clone());
     let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
     let addr = listener.local_addr().unwrap();
-    let server = tokio::spawn(async move { axum::serve(listener, router).await.unwrap() });
-    TEST_PROVIDER_ENDPOINT.scope(addr,async {
+    let requests = TEST_PROVIDER_ENDPOINT.scope(addr,async {
         let t=Translator::new("en");
         let creds=json!({"CF_Token":"test","CF_Zone_ID":"zone","DP_Id":"test","DP_Key":"test","Ali_Key":"test","Ali_Secret":"test","Tencent_SecretId":"test","Tencent_SecretKey":"test"});
         let provider=TxtProvider::new(&t,kind,&creds).unwrap();
@@ -113,8 +112,11 @@ async fn scenario(kind: &'static str, deny: bool) {
             assert_eq!(provider.delete_selected(&record,true).await.unwrap(),"absent");
             assert_eq!(*mock.values.lock().unwrap(),vec![(1,"first".into()),(3,"last".into())]);
         }
-    }).await;
-    server.abort();
+    });
+    tokio::select! {
+        () = requests => {}
+        result = axum::serve(listener, router).into_future() => panic!("mock server stopped: {result:?}"),
+    }
 }
 
 #[tokio::test]

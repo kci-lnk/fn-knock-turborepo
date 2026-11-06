@@ -1483,27 +1483,25 @@ mod tests {
         responses.try_send(AuthBridgeEnvelope::default()).unwrap();
         for id in 1..=4 {
             requests
-                .try_send(Ok(AuthBridgeEnvelope {
+                .try_send(AuthBridgeEnvelope {
                     request_id: id.to_string(),
                     payload: Some(auth_bridge_envelope::Payload::PreflightAuthRequest(
                         PreflightAuthRequest::default(),
                     )),
                     ..Default::default()
-                }))
+                })
                 .unwrap();
         }
 
         let (reads, mut read_ids) = mpsc::unbounded_channel();
-        let stream = ReceiverStream::new(stream).map(move |item| {
-            let message: &AuthBridgeEnvelope = item.as_ref().unwrap();
-            reads.send(message.request_id.clone()).unwrap();
-            item
-        });
-        let task_shutdown = shutdown.clone();
-        let task = tokio::spawn(async move {
-            serve_auth_bridge_stream(state, stream, responses, &task_shutdown, 1).await
-        });
-        tokio::time::timeout(Duration::from_secs(3), async {
+        let stream = ReceiverStream::new(stream)
+            .map(move |message| {
+                reads.send(message.request_id.clone()).unwrap();
+                message
+            })
+            .map(Ok);
+        let bridge = serve_auth_bridge_stream(state, stream, responses, &shutdown, 1);
+        let drain = async {
             for expected in ["1", "2", "3"] {
                 assert_eq!(read_ids.recv().await.unwrap(), expected);
             }
@@ -1524,10 +1522,13 @@ mod tests {
             ids.sort();
             assert_eq!(ids, ["1", "2", "3", "4"]);
             shutdown.cancel();
-            task.await.unwrap().unwrap();
+        };
+        let (result, ()) = tokio::time::timeout(Duration::from_secs(3), async {
+            tokio::join!(bridge, drain)
         })
         .await
         .expect("bridge stalled while draining the burst");
+        result.unwrap();
     }
 
     #[tokio::test]

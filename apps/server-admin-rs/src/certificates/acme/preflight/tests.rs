@@ -61,7 +61,7 @@ async fn manual_review_releases_lease_and_never_creates_a_job() {
     let mut app = test_application("review", &["example.test", "*.example.test"]);
     // No real provider credentials or network writes in this test.
     app["credentials"] = json!({});
-    write_acme_applications(&state, &[app.clone()])
+    write_acme_applications(&state, std::slice::from_ref(&app))
         .await
         .unwrap();
     let t = Translator::new("en");
@@ -175,7 +175,7 @@ async fn cooldown_survives_app_reload_and_is_enforced_before_job_creation() {
     let (_dir, state) = acme_test_state().await;
     install_fixture(&state).await;
     let app = test_application("limited", &["example.test"]);
-    write_acme_applications(&state, &[app.clone()])
+    write_acme_applications(&state, std::slice::from_ref(&app))
         .await
         .unwrap();
     record_cooldown(
@@ -319,7 +319,7 @@ async fn restart_keeps_cooldown_and_recovers_dns_leftovers_from_stopped_job() {
             .set_string_value(ACME_MIGRATION_VERSION_KEY, "1")
             .await
             .unwrap();
-        write_acme_applications(&state, &[app.clone()])
+        write_acme_applications(&state, std::slice::from_ref(&app))
             .await
             .unwrap();
         let job = build_queued_acme_job(&app, "manual_request", &t).unwrap();
@@ -368,7 +368,7 @@ async fn restart_keeps_cooldown_and_recovers_dns_leftovers_from_stopped_job() {
 async fn reads_stop_and_startup_cannot_steal_another_instances_lease() {
     let (_dir, state) = acme_test_state().await;
     let app = test_application("remote", &["remote.test"]);
-    write_acme_applications(&state, &[app.clone()])
+    write_acme_applications(&state, std::slice::from_ref(&app))
         .await
         .unwrap();
     let t = Translator::new("en");
@@ -512,7 +512,7 @@ async fn scheduled_scan_renews_after_dns_recovers_and_rate_deadline_expires() {
     app["latestJobStatus"] = json!("failed");
     app["latestJobId"] = json!("previous");
     app["latestJobAt"] = json!(now_node_iso());
-    write_acme_applications(&state, &[app.clone()])
+    write_acme_applications(&state, std::slice::from_ref(&app))
         .await
         .unwrap();
     let mut info = test_cert_info(&["example.test"], "old");

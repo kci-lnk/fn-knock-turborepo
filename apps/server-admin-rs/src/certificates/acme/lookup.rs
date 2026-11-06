@@ -400,6 +400,18 @@ pub(super) async fn get_active_acme_runtime_lock(
         let status = job.get("status").and_then(Value::as_str);
         let terminal = matches!(status, Some("succeeded" | "failed"));
         let control = state.acme_job_control(job_id).await;
+        // The executor registry is process-local. Another instance may own
+        // this database lease, even when its job has just become terminal.
+        if control.is_none()
+            && state
+                .storage
+                .store
+                .ttl_seconds(ACME_RUNTIME_LOCK_KEY)
+                .await?
+                >= 0
+        {
+            return Ok(lock);
+        }
         let executor_finished = control
             .as_ref()
             .is_some_and(|control| control.finished.is_cancelled());
@@ -408,7 +420,7 @@ pub(super) async fn get_active_acme_runtime_lock(
         }
         let abandoned = matches!(status, Some("queued" | "running" | "stopped"))
             && (control.is_none() || executor_finished);
-        if terminal || abandoned {
+        if (terminal && control.is_none()) || executor_finished || abandoned {
             if abandoned && matches!(status, Some("queued" | "running")) {
                 let t = Translator::from_state(state).await;
                 let message = t.t("server.acmeJobRunner.manualStop");

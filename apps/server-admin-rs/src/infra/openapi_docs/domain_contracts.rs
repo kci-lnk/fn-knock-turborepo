@@ -542,6 +542,14 @@ struct BackupImportResultData {
     AcmeApplicationData,
     AcmeRuntimeLockData,
     AcmeJobData,
+    crate::certificates::acme::preflight::PreflightReport,
+    crate::certificates::acme::preflight::ChallengeGroup,
+    crate::certificates::acme::preflight::Cooldown,
+    crate::certificates::acme::preflight::ConfirmRequest,
+    crate::certificates::acme::preflight::DeleteSelection,
+    crate::certificates::acme::preflight::SelectedValue,
+    AcmeTxtDeleteOutcome,
+    AcmeTxtDeletion,
     AcmeApplicationMutationData,
     AcmeApplicationRequestData,
     AcmeApplicationDeleteData,
@@ -1310,6 +1318,7 @@ pub(super) fn components() -> Map<String, Value> {
             "dns_credentials_invalid",
             "dns_credentials_invalid_email",
             "dns_api_rate_limited",
+            "unknown_rate_limited",
             "acme_frequency_limited",
             "unknown",
         ],
@@ -2907,7 +2916,12 @@ pub(super) fn components() -> Map<String, Value> {
             &["none", "alidns", "tencent", "cloudflare", "google"],
         );
     }
-    set_property_enum(&mut schemas, "DdnsUpdateProxyTestBodyData", "httpTransport", &["curl", "node", "fetch"]);
+    set_property_enum(
+        &mut schemas,
+        "DdnsUpdateProxyTestBodyData",
+        "httpTransport",
+        &["curl", "node", "fetch"],
+    );
     for schema in ["DdnsSettingsUpdateData", "DdnsPublicCheckTestBodyData"] {
         set_property_enum(
             &mut schemas,
@@ -4888,9 +4902,21 @@ const OPERATIONS: &[DomainOperation] = &[
         response: ResponseSchema::DirectJson("AcmeActionMessageData"),
     },
     DomainOperation {
+        method: "get",
+        path: "/api/admin/acme/applications/{id}/preflight",
+        request: None,
+        response: ResponseSchema::Ref("PreflightReport"),
+    },
+    DomainOperation {
+        method: "post",
+        path: "/api/admin/acme/applications/{id}/preflight/delete",
+        request: Some("DeleteSelection"),
+        response: ResponseSchema::Ref("AcmeTxtDeletion"),
+    },
+    DomainOperation {
         method: "post",
         path: "/api/admin/acme/applications/{id}/request",
-        request: None,
+        request: Some("?ConfirmRequest"),
         response: ResponseSchema::Ref("AcmeApplicationRequestData"),
     },
     DomainOperation {
@@ -5147,6 +5173,23 @@ pub(super) fn apply(paths: &mut Map<String, Value>) -> usize {
             .as_object_mut()
             .expect("responses is generated as an object")
             .insert("200".to_string(), success);
+        if matches!(
+            (contract.method, contract.path),
+            (
+                "post",
+                "/api/admin/acme/applications"
+                    | "/api/admin/acme/applications/{id}/request"
+                    | "/api/admin/acme/request"
+                    | "/api/admin/acme/applications/{id}/preflight/delete"
+            ) | ("patch", "/api/admin/acme/applications/{id}")
+        ) {
+            let review = json!({"type":"object","required":["errorCode","data"],"properties":{"errorCode":{"type":"string","enum":["preflight_required","rate_limited"]},"data":schema_ref("PreflightReport")}});
+            operation["responses"]["409"] = json!({"description":"DNS review required or operation busy","content":{"application/json":{"schema":{"anyOf":[review,schema_ref("ApiErrorEnvelope")]}}}});
+            operation["responses"]["429"] = json!({"description":"Issuance cooldown","headers":{"Retry-After":{"schema":{"type":"integer"}}},"content":{"application/json":{"schema":review}}});
+        }
+        if contract.method == "post" && contract.path == "/api/admin/acme/client-settings" {
+            operation["responses"]["429"] = json!({"description":"证书机构注册限流，请在指定时间后重试","headers":{"Retry-After":{"schema":{"type":"integer","minimum":0}}},"content":{"application/json":{"schema":schema_ref("ApiErrorEnvelope")}}});
+        }
         if matches!(contract.response, ResponseSchema::BinaryPayload)
             || (matches!(contract.response, ResponseSchema::ZipAttachment)
                 && contract.path == "/api/admin/deep-monitor/sessions/{session_id}/download")
@@ -5651,6 +5694,8 @@ fn refine_path_parameters(operation: &mut Map<String, Value>, contract: &DomainO
         | "/api/admin/acme/applications/{id}/library/sync"
         | "/api/admin/acme/applications/{id}/file-output/sync"
         | "/api/admin/acme/applications/{id}/deploy"
+        | "/api/admin/acme/applications/{id}/preflight"
+        | "/api/admin/acme/applications/{id}/preflight/delete"
         | "/api/admin/acme/applications/{id}/request" => &[(
             "id",
             json!({

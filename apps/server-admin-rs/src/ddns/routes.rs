@@ -6,6 +6,7 @@ use std::{
     time::Duration,
 };
 
+pub(crate) mod acme_txt;
 mod config;
 mod curl_transport;
 mod domain_targets;
@@ -27,6 +28,7 @@ use i18n::*;
 use interface_selector::*;
 use providers::*;
 use public_check::*;
+pub(crate) use public_check::{is_global_ipv4, is_global_ipv6};
 use route_actions::*;
 use route_actions::{__path_clear_logs, __path_poll};
 use settings::*;

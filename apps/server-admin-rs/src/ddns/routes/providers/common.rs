@@ -75,6 +75,7 @@ impl DDNSHttpClientOptions {
 
 #[derive(Clone)]
 pub(in crate::ddns::routes) struct DDNSHttpClient {
+    pub(in crate::ddns::routes) report_rate_limits: bool,
     transport: &'static str,
     network_interface: String,
     update_proxy: Option<DDNSUpdateProxy>,
@@ -116,6 +117,11 @@ impl DDNSHttpClient {
     }
 }
 
+#[cfg(test)]
+tokio::task_local! {
+    pub(in crate::ddns::routes) static TEST_PROVIDER_ENDPOINT: std::net::SocketAddr;
+}
+
 pub(in crate::ddns::routes) struct DDNSHttpRequestBuilder {
     client: DDNSHttpClient,
     method: reqwest::Method,
@@ -154,10 +160,19 @@ impl DDNSHttpRequestBuilder {
     }
 
     pub(in crate::ddns::routes) async fn send(self) -> anyhow::Result<DDNSHttpResponse> {
-        if self.client.transport == "curl" {
-            self.send_via_curl().await
+        #[cfg(test)]
+        let mut request = self;
+        #[cfg(test)]
+        if let Ok(addr) = TEST_PROVIDER_ENDPOINT.try_with(|a| *a) {
+            let parsed = url::Url::parse(&request.url)?;
+            request.url = format!("http://{addr}{}", &parsed[url::Position::BeforePath..]);
+        }
+        #[cfg(not(test))]
+        let request = self;
+        if request.client.transport == "curl" {
+            request.send_via_curl().await
         } else {
-            self.send_via_reqwest().await
+            request.send_via_reqwest().await
         }
     }
 
@@ -180,6 +195,11 @@ impl DDNSHttpRequestBuilder {
             match request.send().await {
                 Ok(response) => {
                     let status = response.status();
+                    if self.client.report_rate_limits && status == StatusCode::TOO_MANY_REQUESTS {
+                        return Err(acme_txt::ProviderLimit::from_response(response)
+                            .await
+                            .into());
+                    }
                     if self.client.update_proxy.is_some()
                         && status == reqwest::StatusCode::PROXY_AUTHENTICATION_REQUIRED
                     {
@@ -798,6 +818,7 @@ fn ddns_http_client_with_redirects(
     let reqwest_attempts =
         ddns_reqwest_clients_for_options(translator, &options, timeout_ms, follow_redirects)?;
     Ok(DDNSHttpClient {
+        report_rate_limits: false,
         transport: options.transport,
         update_proxy: options.update_proxy.clone(),
         network_interface: options

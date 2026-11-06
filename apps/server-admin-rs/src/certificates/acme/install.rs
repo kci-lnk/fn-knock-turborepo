@@ -616,16 +616,16 @@ impl Drop for AcmeCommandWorkspace {
 pub(super) async fn switch_certificate_authority(
     state: &AppState,
     certificate_authority: &str,
+    email: Option<&str>,
     t: &Translator,
 ) -> anyhow::Result<String> {
     if crate::runtime_profile::deployment_target(state) == "windows" {
-        save_client_settings(state, certificate_authority).await?;
-        return Ok(resolve_account_email(state, None).await);
+        return Ok(resolve_account_email(state, email).await);
     }
     if !acme_executable_path(state).is_file() {
         anyhow::bail!(t.t("server.acmeService.installFirst"));
     }
-    let account_email = register_acme_account(state, None, Some(certificate_authority), t).await?;
+    let account_email = register_acme_account(state, email, Some(certificate_authority), t).await?;
     set_default_certificate_authority(state, certificate_authority, t).await?;
     Ok(account_email)
 }
@@ -643,36 +643,87 @@ pub(super) async fn register_acme_account_for_job(
     state: &AppState,
     certificate_authority: &str,
     control: &AcmeJobControl,
+    job_id: &str,
     t: &Translator,
 ) -> anyhow::Result<String> {
-    register_acme_account_inner(state, None, Some(certificate_authority), Some(control), t).await
+    register_acme_account_inner(
+        state,
+        None,
+        Some(certificate_authority),
+        Some((control, job_id)),
+        t,
+    )
+    .await
 }
+
+#[derive(Debug, thiserror::Error)]
+#[error("CA registration is rate limited")]
+pub(super) struct RegistrationLimited(pub preflight::Cooldown);
 
 async fn register_acme_account_inner(
     state: &AppState,
     email: Option<&str>,
     certificate_authority: Option<&str>,
-    control: Option<&AcmeJobControl>,
+    job: Option<(&AcmeJobControl, &str)>,
     t: &Translator,
 ) -> anyhow::Result<String> {
     let account_email = resolve_account_email(state, email).await;
     if crate::runtime_profile::deployment_target(state) == "windows" {
         return Ok(account_email);
     }
+    let ca = match certificate_authority {
+        Some(value) => value.to_string(),
+        None => issuance_ca(state).await?,
+    };
+    if let Some(limit) = registration_cooldown(state, &ca).await? {
+        return Err(RegistrationLimited(limit).into());
+    }
     let mut args = vec![
         "--register-account".to_string(),
         "-m".to_string(),
         account_email.clone(),
     ];
-    args.extend(shared_acme_args(state, certificate_authority));
+    args.extend(shared_acme_args(state, Some(&ca)));
     args.push("--debug".to_string());
-    let result = if let Some(control) = control {
+    let result = if let Some((control, _)) = job {
         run_acme_command_for_job(state, args, control, t).await?
     } else {
         run_acme_command(state, args, None).await?
     };
     if result.exit_code == 0 {
         return Ok(account_email);
+    }
+    let lines: Vec<_> = result
+        .stdout
+        .lines()
+        .chain(result.stderr.lines())
+        .map(str::to_string)
+        .collect();
+    if let Some((mut limit, _)) = analysis::detect_limit(&lines, time_utils::now_ms() / 1000) {
+        // The registration command only contacts the selected CA. This limit
+        // applies to settings changes, initialization and issuance alike.
+        limit.source = "ca".into();
+        persist_registration_limit(state, &ca, &limit).await?;
+        if let Some((_, job_id)) = job {
+            append_acme_log(
+                state,
+                job_id,
+                "CA registration: urn:ietf:params:acme:error:rateLimited",
+            )
+            .await?;
+            if !limit.estimated {
+                append_acme_log(
+                    state,
+                    job_id,
+                    &format!(
+                        "Retry-After: {}",
+                        (limit.retry_at - time_utils::now_ms() / 1000).max(0)
+                    ),
+                )
+                .await?;
+            }
+        }
+        return Err(RegistrationLimited(limit).into());
     }
     let merged = format!("{}\n{}", result.stdout, result.stderr).to_ascii_lowercase();
     if (merged.contains("already") && merged.contains("account"))

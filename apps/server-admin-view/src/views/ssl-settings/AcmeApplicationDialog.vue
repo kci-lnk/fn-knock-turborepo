@@ -247,7 +247,7 @@
           :disabled="!canSubmit || props.pending || props.runtimeLocked"
           @click="submit(true)"
         >
-          {{ t("admin.acmeApplicationDialog.saveAndApply") }}
+          {{ t(props.checkingDns ? "admin.acmeDns.checking" : "admin.acmeApplicationDialog.saveAndApply") }}
         </Button>
       </DialogFooter>
     </DialogContent>

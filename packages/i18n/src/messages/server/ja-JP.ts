@@ -895,6 +895,9 @@ export const jaJPServer = {
       "Cloudflare API のリクエストヘッダーが不正です。API キーまたはメールアドレスを確認してください。",
     acmeFrequencyLimited:
       "申請回数の制限に達しました（Retry-After={seconds}秒。600秒を超える場合は自動再試行しません）。しばらく待ってから再試行してください。",
+    caRateLimited: "認証局の回数制限",
+    unknownRateLimited: "制限元は不明",
+    dnsCleanupTimeout: "削除失敗",
     dnsApiRateLimited:
       "DNS API のレート制限に達しました（429）。後でもう一度お試しください。",
     logUnknownFailure:

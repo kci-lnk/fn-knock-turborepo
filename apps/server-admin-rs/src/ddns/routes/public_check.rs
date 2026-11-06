@@ -1147,7 +1147,7 @@ pub(super) fn is_private_interface_address(value: &Value) -> bool {
     }
 }
 
-pub(super) fn is_global_ipv4(ip: Ipv4Addr) -> bool {
+pub(crate) fn is_global_ipv4(ip: Ipv4Addr) -> bool {
     let octets = ip.octets();
     !(ip.is_unspecified()
         || ip.is_private()
@@ -1163,7 +1163,7 @@ pub(super) fn is_global_ipv4(ip: Ipv4Addr) -> bool {
         || matches!(octets, [198, second, _, _] if second == 18 || second == 19))
 }
 
-pub(super) fn is_global_ipv6(ip: Ipv6Addr) -> bool {
+pub(crate) fn is_global_ipv6(ip: Ipv6Addr) -> bool {
     let segments = ip.segments();
     segments[0] & 0xe000 == 0x2000
         && !(segments[0] == 0x2001 && segments[1] == 0x0db8)

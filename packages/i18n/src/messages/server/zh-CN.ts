@@ -754,6 +754,9 @@ export const zhCNServer = {
       "Cloudflare API 请求头无效，通常是 API 密钥/邮箱不正确导致",
     acmeFrequencyLimited:
       "申请频率受限（Retry-After={seconds} 秒，超过 600 秒将不再重试），请等待后再试",
+    caRateLimited: "证书机构限流",
+    unknownRateLimited: "限流来源待确认",
+    dnsCleanupTimeout: "删除失败",
     dnsApiRateLimited: "DNS API 触发限流（429/Rate limit），稍后重试",
     logUnknownFailure: "日志中检测到错误，但未能自动归因",
     installingRetryLater: "acme.sh 安装中，请稍后再试",

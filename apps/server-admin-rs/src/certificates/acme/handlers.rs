@@ -116,7 +116,7 @@ pub(super) async fn overview(State(state): State<AppState>) -> Response {
             );
         }
     };
-    let lock = match get_active_acme_runtime_lock(&state).await {
+    let mut lock = match get_active_acme_runtime_lock(&state).await {
         Ok(value) => value,
         Err(error) => {
             tracing::warn!(%error, "failed to load active ACME lock");
@@ -136,6 +136,13 @@ pub(super) async fn overview(State(state): State<AppState>) -> Response {
     } else {
         None
     };
+    // A reservation can still be checking DNS. Expose its job only after a
+    // pollable record exists; the lease itself continues to serialize writers.
+    if running_job.is_none()
+        && let Some(fields) = lock.as_object_mut()
+    {
+        fields.remove("jobId");
+    }
     let applications = match build_application_overview(&state, &t).await {
         Ok(value) => value,
         Err(error) => {
@@ -225,7 +232,7 @@ pub(super) async fn init_acme(State(state): State<AppState>) -> Response {
     .into_response()
 }
 
-#[utoipa::path(post, path = "/api/admin/acme/client-settings", tag = "acme", responses((status = 200, description = "Updated ACME client settings")))]
+#[utoipa::path(post, path = "/api/admin/acme/client-settings", tag = "acme", responses((status = 200, description = "Updated ACME client settings"),(status=429,description="证书机构注册限流，请在指定时间后重试",headers(("Retry-After"=u64,description="再次尝试注册前的等待秒数")))))]
 pub(super) async fn save_client_settings_route(
     State(state): State<AppState>,
     req: Request<Body>,
@@ -251,54 +258,70 @@ pub(super) async fn save_client_settings_route(
     if account_email.is_some_and(|value| !is_valid_email(value)) {
         return response::error(StatusCode::BAD_REQUEST, "ACME account email is invalid");
     }
-    let previous = match ensure_client_settings(&state).await {
-        Ok(value) => value,
-        Err(error) => {
-            tracing::warn!(%error, "failed to load ACME client settings before save");
-            return response::error(
-                StatusCode::INTERNAL_SERVER_ERROR,
-                acme_route_text(&t, "loadClientSettingsFailed"),
-            );
-        }
-    };
-    let next = match save_client_settings_with_email(&state, &certificate_authority, account_email)
-        .await
+    if crate::runtime_profile::deployment_target(&state) != "windows"
+        && acme_executable_path(&state).is_file()
     {
-        Ok(value) => value,
+        match registration_cooldown(&state, &certificate_authority).await {
+            Ok(Some(limit)) => return registration_limited_reply(&t, &limit),
+            Err(error) => {
+                return response::error(StatusCode::SERVICE_UNAVAILABLE, error.to_string());
+            }
+            Ok(None) => {}
+        }
+    }
+    let installed = current_acme_install_state(&state, &t).await["status"] == "installed";
+    let registered = if installed {
+        match switch_certificate_authority(&state, &certificate_authority, account_email, &t).await
+        {
+            Ok(email) => Some(email),
+            Err(error) => {
+                if let Some(RegistrationLimited(limit)) =
+                    error.downcast_ref::<RegistrationLimited>()
+                {
+                    return registration_limited_reply(&t, limit);
+                }
+                return response::error(StatusCode::INTERNAL_SERVER_ERROR, error.to_string());
+            }
+        }
+    } else {
+        None
+    };
+    // Publish the new CA and email only after registration succeeds. Another
+    // issuance must never use a temporary CA from a failed settings change.
+    match save_client_settings_with_email(&state, &certificate_authority, account_email).await {
+        Ok(mut settings) => {
+            settings["synced"] = json!(installed);
+            if let Some(email) = registered {
+                settings["accountEmail"] = json!(email);
+                settings["state"] = current_acme_install_state(&state, &t).await;
+            }
+            response::ok(settings).into_response()
+        }
         Err(error) => {
-            tracing::warn!(%error, "failed to save ACME client settings");
-            return response::error(
+            tracing::warn!(%error,"failed to save ACME client settings");
+            response::error(
                 StatusCode::INTERNAL_SERVER_ERROR,
                 acme_route_text(&t, "saveClientSettingsFailed"),
-            );
-        }
-    };
-
-    let install_state = current_acme_install_state(&state, &t).await;
-    if install_state.get("status").and_then(Value::as_str) != Some("installed") {
-        let mut data = next;
-        data["synced"] = json!(false);
-        return response::ok(data).into_response();
-    }
-
-    match switch_certificate_authority(&state, &certificate_authority, &t).await {
-        Ok(account_email) => {
-            let mut data = next;
-            data["synced"] = json!(true);
-            data["accountEmail"] = json!(account_email);
-            data["state"] = current_acme_install_state(&state, &t).await;
-            response::ok(data).into_response()
-        }
-        Err(error) => {
-            let previous_ca = previous
-                .get("certificateAuthority")
-                .and_then(Value::as_str)
-                .unwrap_or(DEFAULT_ACME_CERTIFICATE_AUTHORITY);
-            save_client_settings(&state, previous_ca).await.ok();
-            tracing::warn!(%error, "failed to switch ACME certificate authority");
-            response::error(StatusCode::INTERNAL_SERVER_ERROR, error.to_string())
+            )
         }
     }
+}
+
+fn registration_limited_reply(t: &Translator, limit: &preflight::Cooldown) -> Response {
+    let mut reply = response::error(
+        StatusCode::TOO_MANY_REQUESTS,
+        acme_route_text(t, "caRateLimited"),
+    );
+    if let Ok(header) = (limit.retry_at - time_utils::now_ms() / 1000)
+        .max(0)
+        .to_string()
+        .parse()
+    {
+        reply
+            .headers_mut()
+            .insert(axum::http::header::RETRY_AFTER, header);
+    }
+    reply
 }
 
 #[utoipa::path(get, path = "/api/admin/acme/config", tag = "acme", responses((status = 200, description = "ACME configuration")))]
@@ -415,6 +438,7 @@ pub(super) async fn create_application(
                     state.clone(),
                     saved.application.clone(),
                     "manual_request",
+                    None,
                     t.clone(),
                 )
                 .await
@@ -425,7 +449,7 @@ pub(super) async fn create_application(
                         "lock": lock,
                     }))
                     .into_response(),
-                    Err(error) => response::error(StatusCode::CONFLICT, error.to_string()),
+                    Err(error) => preflight::gate_error(error),
                 };
             }
             response::ok(json!({ "application": saved.application })).into_response()
@@ -463,11 +487,16 @@ pub(super) async fn update_application(
         Ok(value) => value,
         Err(message) => return response::error(StatusCode::BAD_REQUEST, message),
     };
+    let mut needs_review = None;
     let mut reservation = if submit_now {
         let pending = build_pending_acme_application_for_update(&existing, &body, &normalized);
-        match reserve_acme_application_job(&state, &pending, "manual_request", &t).await {
+        match reserve_acme_application_job(&state, &pending, "manual_request", None, &t).await {
             Ok(reservation) => Some(reservation),
-            Err(error) => return response::error(StatusCode::CONFLICT, error.to_string()),
+            Err(error) if error.is::<preflight::NeedsReview>() => {
+                needs_review = Some(error);
+                None
+            }
+            Err(error) => return preflight::gate_error(error),
         }
     } else {
         None
@@ -495,6 +524,9 @@ pub(super) async fn update_application(
     .await
     {
         Ok(saved) => {
+            if let Some(error) = needs_review {
+                return preflight::gate_error(error);
+            }
             if let Some((job, lock)) = reservation.take() {
                 return match run_reserved_acme_application_job(
                     state.clone(),
@@ -694,10 +726,11 @@ pub(super) async fn deploy_application_certificate(
     }
 }
 
-#[utoipa::path(post, path = "/api/admin/acme/applications/{id}/request", tag = "acme", params(("id" = String, Path, description = "ACME application identifier")), responses((status = 200, description = "Requested ACME application certificate")))]
+#[utoipa::path(post, path = "/api/admin/acme/applications/{id}/request", tag = "acme", request_body(content=Option<preflight::ConfirmRequest>), params(("id" = String, Path, description = "ACME application identifier")), responses((status = 200, description = "Requested ACME application certificate"),(status=409, description="DNS confirmation or active job"),(status=429, description="Rate limit cooldown")))]
 pub(super) async fn request_application_certificate(
     State(state): State<AppState>,
     AxumPath(id): AxumPath<String>,
+    body: Option<Json<preflight::ConfirmRequest>>,
 ) -> Response {
     let t = Translator::from_state(&state).await;
     let application = match find_acme_application(&state, &id).await {
@@ -713,9 +746,17 @@ pub(super) async fn request_application_certificate(
             );
         }
     };
-    match start_acme_application_job(state.clone(), application, "manual_request", t).await {
+    match start_acme_application_job(
+        state.clone(),
+        application,
+        "manual_request",
+        body.as_ref().and_then(|b| b.snapshot.as_deref()),
+        t,
+    )
+    .await
+    {
         Ok((job, lock)) => response::ok(json!({ "job": job, "lock": lock })).into_response(),
-        Err(error) => response::error(StatusCode::CONFLICT, error.to_string()),
+        Err(error) => preflight::gate_error(error),
     }
 }
 
@@ -777,11 +818,17 @@ pub(super) async fn request_certificate(
     .await
     {
         Ok(saved) => {
-            match start_acme_application_job(state.clone(), saved.application, "manual_request", t)
-                .await
+            match start_acme_application_job(
+                state.clone(),
+                saved.application,
+                "manual_request",
+                body["snapshot"].as_str(),
+                t,
+            )
+            .await
             {
                 Ok((job, _lock)) => response::ok(json!({ "jobId": job["id"] })).into_response(),
-                Err(error) => response::error(StatusCode::CONFLICT, error.to_string()),
+                Err(error) => preflight::gate_error(error),
             }
         }
         Err(error) => response::error(StatusCode::BAD_REQUEST, error.to_string()),
@@ -866,6 +913,9 @@ pub(super) async fn build_application_overview(
         });
 
         let mut item = Map::new();
+        if let Some(report) = preflight::last_report(state, &application_id).await? {
+            item.insert("preflight".into(), report);
+        }
         item.insert(
             "fileOutput".into(),
             normalize_file_output(application.get("fileOutput")),
@@ -1070,13 +1120,14 @@ pub(super) async fn job_poll(
     } else {
         "desc"
     };
-    match get_acme_logs(&state, &id, limit, order).await {
-        Ok(logs) => response::ok(json!({
-            "job": job,
-            "logs": logs,
-            "analysis": analyze_acme_logs(&job, &logs, &t),
-        }))
-        .into_response(),
+    match get_acme_logs(&state, &id, limit, "asc").await {
+        Ok(mut logs) => {
+            let analysis = analyze_acme_logs(&job, &logs, &t);
+            if order == "desc" {
+                logs.reverse();
+            }
+            response::ok(json!({"job":job,"logs":logs,"analysis":analysis})).into_response()
+        }
         Err(error) => {
             tracing::warn!(%error, "failed to load ACME job poll data");
             response::error(

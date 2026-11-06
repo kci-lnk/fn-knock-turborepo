@@ -709,7 +709,10 @@
       "success": "成功",
       "dns01Only": "仅支持 DNS-01 验证方式",
       "certNotFound": "证书不存在",
-      "certOrKeyInvalid": "证书或私钥无效"
+      "certOrKeyInvalid": "证书或私钥无效",
+      "caRateLimited": "证书机构限流",
+      "unknownRateLimited": "限流来源待确认",
+      "dnsCleanupTimeout": "删除失败"
     },
     "acmeDnsProviders": {
       "groups": {
@@ -3986,7 +3989,10 @@
       "success": "成功",
       "dns01Only": "僅支持 DNS-01 驗證方式",
       "certNotFound": "證書不存在",
-      "certOrKeyInvalid": "證書或私鑰無效"
+      "certOrKeyInvalid": "證書或私鑰無效",
+      "caRateLimited": "憑證機構限流",
+      "unknownRateLimited": "限流來源待確認",
+      "dnsCleanupTimeout": "刪除失敗"
     },
     "acmeDnsProviders": {
       "groups": {
@@ -7263,7 +7269,10 @@
       "success": "Succeeded",
       "dns01Only": "Only DNS-01 verification is supported",
       "certNotFound": "Certificate not found",
-      "certOrKeyInvalid": "Certificate or private key is invalid"
+      "certOrKeyInvalid": "Certificate or private key is invalid",
+      "caRateLimited": "Certificate authority rate limit",
+      "unknownRateLimited": "Rate limit source unknown",
+      "dnsCleanupTimeout": "Deletion failed"
     },
     "acmeDnsProviders": {
       "groups": {
@@ -10540,7 +10549,10 @@
       "success": "성공함",
       "dns01Only": "DNS-01 확인만 지원됩니다.",
       "certNotFound": "인증서를 찾을 수 없습니다.",
-      "certOrKeyInvalid": "인증서 또는 개인 키가 유효하지 않습니다."
+      "certOrKeyInvalid": "인증서 또는 개인 키가 유효하지 않습니다.",
+      "caRateLimited": "인증 기관 요청 제한",
+      "unknownRateLimited": "요청 제한 출처 미확인",
+      "dnsCleanupTimeout": "삭제 실패"
     },
     "acmeDnsProviders": {
       "groups": {
@@ -13817,7 +13829,10 @@
       "success": "成功",
       "dns01Only": "DNS-01 検証だけに対応しています",
       "certNotFound": "証明書が存在しません",
-      "certOrKeyInvalid": "証明書または秘密鍵が無効です"
+      "certOrKeyInvalid": "証明書または秘密鍵が無効です",
+      "caRateLimited": "認証局の回数制限",
+      "unknownRateLimited": "制限元は不明",
+      "dnsCleanupTimeout": "削除失敗"
     },
     "acmeDnsProviders": {
       "groups": {

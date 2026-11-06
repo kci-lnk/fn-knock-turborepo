@@ -754,6 +754,9 @@ export const zhHantServer = {
       "Cloudflare API 請求頭無效，通常是 API 密鑰/郵箱不正確導致",
     acmeFrequencyLimited:
       "申請頻率受限（Retry-After={seconds} 秒，超過 600 秒將不再重試），請等待後再試",
+    caRateLimited: "憑證機構限流",
+    unknownRateLimited: "限流來源待確認",
+    dnsCleanupTimeout: "刪除失敗",
     dnsApiRateLimited: "DNS API 觸發限流（429/Rate limit），稍後重試",
     logUnknownFailure: "日誌中檢測到錯誤，但未能自動歸因",
     installingRetryLater: "acme.sh 安裝中，請稍後再試",

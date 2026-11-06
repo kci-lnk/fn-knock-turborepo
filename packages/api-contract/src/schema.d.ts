@@ -176,6 +176,46 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/admin/acme/applications/{id}/preflight": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * 检查ACME 验证记录
+         * @description 管理 ACME 客户端、证书申请、部署和运行任务。。`GET /api/admin/acme/applications/{id}/preflight` 用于读取当前状态、配置或导出内容，不会主动修改服务配置。 该操作不要求 JSON 请求体。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
+         */
+        get: operations["check_dns"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/acme/applications/{id}/preflight/delete": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * 删除选定的 ACME 验证记录
+         * @description 管理 ACME 客户端、证书申请、部署和运行任务。。`POST /api/admin/acme/applications/{id}/preflight/delete` 用于提交操作或创建、更新服务状态；执行结果以响应中的数据和消息为准。 请求体字段、必填项和可选值请以 Swagger 展开的 schema 为准。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
+         */
+        post: operations["delete_txt"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/admin/acme/applications/{id}/request": {
         parameters: {
             query?: never;
@@ -187,7 +227,7 @@ export interface paths {
         put?: never;
         /**
          * 提交ACME 证书管理申请
-         * @description 管理 ACME 客户端、证书申请、部署和运行任务。。`POST /api/admin/acme/applications/{id}/request` 用于提交操作或创建、更新服务状态；执行结果以响应中的数据和消息为准。 该操作不要求 JSON 请求体。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
+         * @description 管理 ACME 客户端、证书申请、部署和运行任务。。`POST /api/admin/acme/applications/{id}/request` 用于提交操作或创建、更新服务状态；执行结果以响应中的数据和消息为准。 请求体字段、必填项和可选值请以 Swagger 展开的 schema 为准。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
          */
         post: operations["request_application_certificate"];
         delete?: never;
@@ -7743,6 +7783,7 @@ export interface components {
             latestJob: null | components["schemas"]["AcmeLatestJobData"];
             library: components["schemas"]["AcmeOverviewLibraryData"];
             name?: string | null;
+            preflight?: null | components["schemas"]["PreflightReport"];
             primaryDomain: string;
             providerLabel: string;
             renewEnabled: boolean;
@@ -7863,6 +7904,7 @@ export interface components {
         };
         AcmeJobData: {
             applicationId?: string | null;
+            cleanupPending?: boolean | null;
             /** Format: date-time */
             createdAt: string;
             domains: string[];
@@ -7907,6 +7949,7 @@ export interface components {
             /** @enum {string|null} */
             method?: "dns" | null;
             provider?: string | null;
+            snapshot?: string | null;
         } & ({
             dnsType: string;
         } | {
@@ -7924,7 +7967,7 @@ export interface components {
             message: string;
             provider?: string | null;
             /** @enum {string} */
-            reason: "dns_credentials_invalid" | "dns_credentials_invalid_email" | "dns_api_rate_limited" | "acme_frequency_limited" | "unknown";
+            reason: "dns_credentials_invalid" | "dns_credentials_invalid_email" | "dns_api_rate_limited" | "unknown_rate_limited" | "acme_frequency_limited" | "unknown";
         };
         AcmeOverviewCertificateData: {
             dnsNames?: string[] | null;
@@ -8030,6 +8073,15 @@ export interface components {
             summary: string;
             uncovered_hosts: string[];
             warnings: string[];
+        };
+        AcmeTxtDeleteOutcome: {
+            name: string;
+            outcome: string;
+            value: string;
+        };
+        AcmeTxtDeletion: {
+            report: components["schemas"]["PreflightReport"];
+            results: components["schemas"]["AcmeTxtDeleteOutcome"][];
         };
         AdapterCapabilities: {
             can_create: boolean;
@@ -8494,6 +8546,15 @@ export interface components {
         };
         /** @enum {string} */
         CaptureStatus: "idle" | "running" | "completed" | "stopped";
+        ChallengeGroup: {
+            delegation: string[];
+            domains: string[];
+            name: string;
+            selectable: string[];
+            status: string;
+            values: string[];
+            zone: string;
+        };
         CidrCapabilitiesData: {
             operatorFiltering: components["schemas"]["CidrOperatorCapabilityData"];
             /** @enum {string} */
@@ -9058,6 +9119,9 @@ export interface components {
             /** Format: int64 */
             uptimeMs: number;
         };
+        ConfirmRequest: {
+            snapshot?: string | null;
+        };
         ConnectionInput: {
             allow_invalid_tls?: boolean;
             api_path?: string | null;
@@ -9086,6 +9150,12 @@ export interface components {
             grouping?: components["schemas"]["GroupingConfig"];
             name: string;
             sync_icons?: boolean | null;
+        };
+        Cooldown: {
+            estimated: boolean;
+            /** Format: int64 */
+            retryAt: number;
+            source: string;
         };
         CreateAttachmentInput: {
             /** Format: int32 */
@@ -9856,6 +9926,10 @@ export interface components {
         DefaultTunnelUpdateData: {
             /** @enum {string} */
             tunnel: "frp" | "cloudflared";
+        };
+        DeleteSelection: {
+            records: components["schemas"]["SelectedValue"][];
+            snapshot: string;
         };
         DnsmasqInstallStateData: {
             message: string;
@@ -12064,6 +12138,15 @@ export interface components {
             unchanged: number;
             update: number;
         };
+        PreflightReport: {
+            applicationId: string;
+            checkedAt: string;
+            cooldown?: null | components["schemas"]["Cooldown"];
+            groups: components["schemas"]["ChallengeGroup"][];
+            renewalPending?: boolean;
+            snapshot: string;
+            status: string;
+        };
         PreviewRequest: {
             cleanup_remote?: boolean;
             refresh_remote?: boolean | null;
@@ -12646,6 +12729,10 @@ export interface components {
             failedLogins: number;
             /** Format: int64 */
             wafEvents: number;
+        };
+        SelectedValue: {
+            name: string;
+            value: string;
         };
         SessionAttachmentData: {
             createdAt: string;
@@ -14743,6 +14830,33 @@ export interface operations {
                     };
                 };
             };
+            /** @description 当前资源状态与操作冲突；请刷新状态后重试。 */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        data: components["schemas"]["PreflightReport"];
+                        /** @enum {string} */
+                        errorCode: "preflight_required" | "rate_limited";
+                    } | components["schemas"]["ApiErrorEnvelope"];
+                };
+            };
+            /** @description 请求过于频繁；请遵循响应提示的退避时间后重试。 */
+            429: {
+                headers: {
+                    "Retry-After"?: number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        data: components["schemas"]["PreflightReport"];
+                        /** @enum {string} */
+                        errorCode: "preflight_required" | "rate_limited";
+                    };
+                };
+            };
             /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
             default: {
                 headers: {
@@ -14858,6 +14972,33 @@ export interface operations {
                         success: true;
                     } & {
                         [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description 当前资源状态与操作冲突；请刷新状态后重试。 */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        data: components["schemas"]["PreflightReport"];
+                        /** @enum {string} */
+                        errorCode: "preflight_required" | "rate_limited";
+                    } | components["schemas"]["ApiErrorEnvelope"];
+                };
+            };
+            /** @description 请求过于频繁；请遵循响应提示的退避时间后重试。 */
+            429: {
+                headers: {
+                    "Retry-After"?: number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        data: components["schemas"]["PreflightReport"];
+                        /** @enum {string} */
+                        errorCode: "preflight_required" | "rate_limited";
                     };
                 };
             };
@@ -15010,7 +15151,7 @@ export interface operations {
             };
         };
     };
-    request_application_certificate: {
+    check_dns: {
         parameters: {
             query?: never;
             header?: never;
@@ -15020,6 +15161,117 @@ export interface operations {
             cookie?: never;
         };
         requestBody?: never;
+        responses: {
+            /** @description 「检查ACME 验证记录」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        data: components["schemas"]["PreflightReport"];
+                        message?: string | null;
+                        /** @constant */
+                        success: true;
+                    } & {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorEnvelope"];
+                };
+            };
+        };
+    };
+    delete_txt: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DeleteSelection"];
+            };
+        };
+        responses: {
+            /** @description 「删除选定的 ACME 验证记录」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        data: components["schemas"]["AcmeTxtDeletion"];
+                        message?: string | null;
+                        /** @constant */
+                        success: true;
+                    } & {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description 当前资源状态与操作冲突；请刷新状态后重试。 */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        data: components["schemas"]["PreflightReport"];
+                        /** @enum {string} */
+                        errorCode: "preflight_required" | "rate_limited";
+                    } | components["schemas"]["ApiErrorEnvelope"];
+                };
+            };
+            /** @description 请求过于频繁；请遵循响应提示的退避时间后重试。 */
+            429: {
+                headers: {
+                    "Retry-After"?: number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        data: components["schemas"]["PreflightReport"];
+                        /** @enum {string} */
+                        errorCode: "preflight_required" | "rate_limited";
+                    };
+                };
+            };
+            /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorEnvelope"];
+                };
+            };
+        };
+    };
+    request_application_certificate: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["ConfirmRequest"];
+            };
+        };
         responses: {
             /** @description 「提交ACME 证书管理申请」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
             200: {
@@ -15034,6 +15286,33 @@ export interface operations {
                         success: true;
                     } & {
                         [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description 当前资源状态与操作冲突；请刷新状态后重试。 */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        data: components["schemas"]["PreflightReport"];
+                        /** @enum {string} */
+                        errorCode: "preflight_required" | "rate_limited";
+                    } | components["schemas"]["ApiErrorEnvelope"];
+                };
+            };
+            /** @description 请求过于频繁；请遵循响应提示的退避时间后重试。 */
+            429: {
+                headers: {
+                    "Retry-After"?: number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        data: components["schemas"]["PreflightReport"];
+                        /** @enum {string} */
+                        errorCode: "preflight_required" | "rate_limited";
                     };
                 };
             };
@@ -15208,6 +15487,16 @@ export interface operations {
                     } & {
                         [key: string]: unknown;
                     };
+                };
+            };
+            /** @description 证书机构注册限流，请在指定时间后重试 */
+            429: {
+                headers: {
+                    "Retry-After"?: number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorEnvelope"];
                 };
             };
             /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
@@ -15584,6 +15873,33 @@ export interface operations {
                         success: true;
                     } & {
                         [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description 当前资源状态与操作冲突；请刷新状态后重试。 */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        data: components["schemas"]["PreflightReport"];
+                        /** @enum {string} */
+                        errorCode: "preflight_required" | "rate_limited";
+                    } | components["schemas"]["ApiErrorEnvelope"];
+                };
+            };
+            /** @description 请求过于频繁；请遵循响应提示的退避时间后重试。 */
+            429: {
+                headers: {
+                    "Retry-After"?: number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        data: components["schemas"]["PreflightReport"];
+                        /** @enum {string} */
+                        errorCode: "preflight_required" | "rate_limited";
                     };
                 };
             };

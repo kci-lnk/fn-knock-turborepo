@@ -30,7 +30,7 @@ import type { AcmeCertificateController } from "./acme-certificate-contract";
 
 const props = defineProps<{ controller: AcmeCertificateController }>();
 const {
-  applications,
+  applications, dnsReport, cooling,
   certificateBadgeVariant,
   certificateStatusLabel,
   deleteApplicationDescription,
@@ -182,6 +182,9 @@ const {
 
                   <TableCell class="align-top whitespace-normal break-words">
                     <div class="grid gap-1">
+                      <Button v-if="application.preflight && application.preflight.status !== 'ready'" variant="link" size="sm" class="h-auto justify-start whitespace-normal p-0" @click="dnsReport=application.preflight">
+                        {{t(application.preflight.renewalPending ? "admin.acmeDns.renewalPending" : `admin.acmeDns.${application.preflight.status === "cooldown" && !cooling(application.preflight) ? "recheck" : application.preflight.status}`)}}
+                      </Button>
                       <div class="flex flex-wrap gap-1">
                         <Badge :variant="certificateBadgeVariant(application)">
                           {{ certificateStatusLabel(application) }}
@@ -241,7 +244,7 @@ const {
                           type="button"
                           size="sm"
                           class="rounded-r-none"
-                          :disabled="isActionBlocked()"
+                          :disabled="isActionBlocked() || cooling(application.preflight)"
                           @click="requestCertificate(application.id)"
                         >
                           {{ primaryActionLabel(application) }}

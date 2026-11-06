@@ -177,7 +177,6 @@ impl Store {
         Ok(())
     }
 
-    #[cfg(test)]
     pub(crate) async fn ttl_seconds(&self, key: &str) -> crate::storage::StorageResult<i64> {
         let mut conn = self.conn();
         conn.ttl(key).await

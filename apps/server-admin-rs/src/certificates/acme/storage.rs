@@ -338,6 +338,7 @@ pub(super) async fn delete_acme_application_internal(
         .filter(|item| item.get("id").and_then(Value::as_str) != Some(id))
         .collect::<Vec<_>>();
     write_acme_applications(state, &next_applications).await?;
+    state.storage.store.delete_key(&preflight::key(id)).await?;
     if next_applications.is_empty() {
         state
             .storage

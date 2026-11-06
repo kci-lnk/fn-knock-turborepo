@@ -4258,6 +4258,8 @@ pub(crate) fn build_openapi_document() -> Value {
             ("/api/admin/acme/applications/{id}/file-output/sync", "post"),
             ("/api/admin/acme/applications/{id}/deploy", "post"),
             ("/api/admin/acme/applications/{id}/request", "post"),
+            ("/api/admin/acme/applications/{id}/preflight", "get"),
+            ("/api/admin/acme/applications/{id}/preflight/delete", "post"),
             ("/api/admin/acme/request", "post"),
             ("/api/admin/acme/jobs/active/stop", "post"),
             ("/api/admin/acme/jobs/{id}", "get"),
@@ -5167,7 +5169,7 @@ mod tests {
                 }
             }
         }
-        assert_eq!(operations, 470);
+        assert_eq!(operations, 472);
         assert_eq!(documented_tags, operation_tags);
         assert!(documented_tags.iter().all(|tag| {
             tags.iter().any(|item| {
@@ -5913,13 +5915,13 @@ mod tests {
             .filter_map(Value::as_object)
             .flat_map(|path| path.values())
             .collect::<Vec<_>>();
-        assert_eq!(operations.len(), 470);
+        assert_eq!(operations.len(), 472);
         assert!(
             operations
                 .iter()
                 .all(|operation| { operation["x-fn-knock-contract-source"] == json!("utoipa") })
         );
-        assert_eq!(domain_contracts::expected_operation_count(), 77);
+        assert_eq!(domain_contracts::expected_operation_count(), 79);
 
         assert_eq!(
             document.pointer(

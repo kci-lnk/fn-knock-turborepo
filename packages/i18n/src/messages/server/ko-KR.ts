@@ -868,6 +868,9 @@ export const koKRServer = {
       "Cloudflare API 요청 헤더가 유효하지 않습니다. 일반적으로 API 키 또는 이메일이 올바르지 않기 때문입니다.",
     acmeFrequencyLimited:
       "요청 빈도는 제한되어 있습니다(Retry-After={seconds} 초, 600초 이상 재시도 중지). 기다렸다가 다시 시도해 보세요.",
+    caRateLimited: "인증 기관 요청 제한",
+    unknownRateLimited: "요청 제한 출처 미확인",
+    dnsCleanupTimeout: "삭제 실패",
     dnsApiRateLimited:
       "DNS API 요청 한도에 도달했습니다(HTTP 429/Rate limit). 잠시 후 다시 시도하세요.",
     logUnknownFailure:

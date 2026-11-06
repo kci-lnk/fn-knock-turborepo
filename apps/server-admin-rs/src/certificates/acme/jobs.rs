@@ -23,9 +23,11 @@ pub(super) async fn start_acme_application_job(
     state: AppState,
     application: Value,
     trigger: &str,
+    confirmed: Option<&str>,
     t: Translator,
 ) -> anyhow::Result<(Value, Value)> {
-    let (job, lock) = reserve_acme_application_job(&state, &application, trigger, &t).await?;
+    let (job, lock) =
+        reserve_acme_application_job(&state, &application, trigger, confirmed, &t).await?;
     match run_reserved_acme_application_job(
         state.clone(),
         application.clone(),
@@ -67,10 +69,33 @@ pub(super) async fn ensure_acme_installed_for_request(
     anyhow::bail!(acme_route_text(t, "installFirst"));
 }
 
+/// Release an in-progress reservation even when an HTTP request is dropped
+/// while it awaits an authority. The lock ID prevents releasing a later job.
+struct ReservationGuard {
+    state: AppState,
+    lock: Option<Value>,
+    job_id: String,
+}
+impl Drop for ReservationGuard {
+    fn drop(&mut self) {
+        let Some(lock) = self.lock.take() else { return };
+        let state = self.state.clone();
+        let job_id = self.job_id.clone();
+        self.state
+            .spawn_background("acme-reservation-release", async move {
+                if let Err(error) = release_acme_runtime_lock(&state, &lock).await {
+                    tracing::warn!(%error,%job_id,"could not release cancelled ACME reservation");
+                }
+                state.finish_acme_job_control(&job_id).await;
+            });
+    }
+}
+
 pub(super) async fn reserve_acme_application_job(
     state: &AppState,
     application: &Value,
     trigger: &str,
+    confirmed: Option<&str>,
     t: &Translator,
 ) -> anyhow::Result<(Value, Value)> {
     ensure_acme_installed_for_request(state, t).await?;
@@ -91,6 +116,11 @@ pub(super) async fn reserve_acme_application_job(
         .ok_or_else(|| anyhow::anyhow!(t.t("server.acmeJobRunner.activeTaskRunning")))?;
     let lock = build_acme_runtime_lock(application, &job, trigger);
     let leased_lock = with_runtime_lock_lease(lock);
+    let mut guard = ReservationGuard {
+        state: state.clone(),
+        lock: Some(leased_lock.clone()),
+        job_id: job_id.clone(),
+    };
     let acquired = match state
         .storage
         .store
@@ -104,15 +134,36 @@ pub(super) async fn reserve_acme_application_job(
         Ok(acquired) => acquired,
         Err(error) => {
             state.finish_acme_job_control(&job_id).await;
+            guard.lock = None;
             return Err(error.into());
         }
     };
     if !acquired {
         state.finish_acme_job_control(&job_id).await;
+        guard.lock = None;
         anyhow::bail!(t.t("server.acmeJobRunner.activeTaskRunning"));
     }
 
     if let Err(error) = async {
+        // This process owns the new lease. Repair interrupted jobs before
+        // checking cooldowns, including when startup deferred to a live lease.
+        let report = tokio_time::timeout(std::time::Duration::from_secs(90), async {
+            recover_orphaned_acme_jobs(state, t).await?;
+            preflight::guard(state, application, trigger, confirmed, t).await
+        })
+        .await??;
+        let mut baseline = serde_json::to_value(report)?;
+        baseline["issuanceCa"] = json!(issuance_ca(state).await?);
+        baseline["configSignature"] = json!(preflight::config_signature(application));
+        state
+            .storage
+            .store
+            .set_json_value_ex(
+                &format!("fn_knock:acme:dns-baseline:{job_id}"),
+                &baseline,
+                ACME_JOB_TTL_SECONDS,
+            )
+            .await?;
         create_acme_job(state, &job, t).await?;
         clear_acme_logs(state, &job_id).await?;
         update_acme_application_job_state(state, application, &job).await
@@ -121,15 +172,18 @@ pub(super) async fn reserve_acme_application_job(
     {
         release_acme_runtime_lock(state, &leased_lock).await.ok();
         state.finish_acme_job_control(&job_id).await;
+        guard.lock = None;
         return Err(error);
     }
 
     if control.cancellation.is_cancelled() {
         release_acme_runtime_lock(state, &leased_lock).await.ok();
         state.finish_acme_job_control(&job_id).await;
+        guard.lock = None;
         anyhow::bail!(t.t("server.acmeJobRunner.manualStop"));
     }
 
+    guard.lock = None;
     Ok((job, leased_lock))
 }
 
@@ -608,17 +662,35 @@ async fn execute_acme_application_job_inner(
     let mut previous_issued_certificate = None;
     let mut issued_certificate_commit_started = false;
     let mut commit_guard = None;
+    let mut attempted_ca = None;
     let result = async {
-        let client_settings = ensure_client_settings(&state).await?;
-        let certificate_authority = client_settings
-            .get("certificateAuthority")
-            .and_then(Value::as_str)
-            .unwrap_or(DEFAULT_ACME_CERTIFICATE_AUTHORITY)
-            .to_string();
+        let certificate_authority = issuance_ca(&state).await?;
+        // Settings may have changed since the request was admitted. Check the
+        // CA that this child will actually use, and attribute failures to it.
+        if let Some(limit) = cooldown_for_ca(&state, &application, &certificate_authority).await? {
+            mark_limited_job(&state, &job_id, &limit).await?;
+            anyhow::bail!(acme_route_text(
+                &t,
+                match limit.source.as_str() {
+                    "dns" => "dnsApiRateLimited",
+                    "ca" => "caRateLimited",
+                    _ => "unknownRateLimited",
+                }
+            ));
+        }
+        attempted_ca = Some(certificate_authority.clone());
         let application_id = application
             .get("id")
             .and_then(Value::as_str)
             .ok_or_else(|| anyhow::anyhow!(t.t("server.store.acme.jobDataInvalid")))?;
+        let latest = find_acme_application(&state, application_id).await?;
+        anyhow::ensure!(
+            latest
+                .as_ref()
+                .is_some_and(|app| preflight::config_signature(app)
+                    == preflight::config_signature(&application)),
+            "ACME configuration changed, check DNS again"
+        );
         issue_acme_certificate(
             &state,
             &application,
@@ -799,6 +871,41 @@ async fn execute_acme_application_job_inner(
             _ => {}
         }
     }
+    if result.is_ok()
+        && let Err(error) = apply_job_rates(&state, &job_id).await
+    {
+        tracing::error!(%job_id,%error,"could not finalize ACME rate evidence");
+    }
+    if let Err(issue_error) = &result
+        && let Some(ca) = attempted_ca
+    {
+        let mut logs = get_acme_logs(&state, &job_id, MAX_ACME_LOG_LIMIT, "asc")
+            .await
+            .unwrap_or_else(|error| {
+                tracing::warn!(%error,%job_id,"could not read ACME diagnostics");
+                Vec::new()
+            });
+        logs.push(json!(issue_error.to_string()));
+        let persisted = async {
+            if !apply_job_rates(&state, &job_id).await?
+                && let Some(limit) =
+                    record_cooldown_for_ca(&state, &application, &ca, &logs).await?
+            {
+                mark_limited_job(&state, &job_id, &limit).await?;
+            }
+            Ok::<_, anyhow::Error>(())
+        }
+        .await;
+        if let Err(error) = persisted {
+            tracing::error!(%job_id,%error,"could not persist issuance cooldown");
+        }
+    }
+    if let Err(error) = preflight::finish(&state, &application, &job_id, &t).await {
+        tracing::warn!(%job_id,%error,"ACME DNS cleanup inspection failed");
+        update_acme_job(&state, &job_id, json!({"cleanupPending":true}))
+            .await
+            .ok();
+    }
     async {
         match result {
             Ok(()) => {
@@ -919,9 +1026,22 @@ pub(super) fn start_acme_lock_heartbeat(
                 .await
             {
                 Ok(true) => {}
-                Ok(false) => break,
+                Ok(false) => {
+                    if let Some(id) = lock["jobId"].as_str()
+                        && let Some(control) = state.acme_job_control(id).await
+                    {
+                        control.cancellation.cancel();
+                    }
+                    break;
+                }
                 Err(error) => {
                     tracing::warn!(%error, "failed to refresh ACME runtime lock");
+                    if let Some(id) = lock["jobId"].as_str()
+                        && let Some(control) = state.acme_job_control(id).await
+                    {
+                        control.cancellation.cancel();
+                    }
+                    break;
                 }
             }
         }
@@ -966,8 +1086,26 @@ pub(super) async fn issue_acme_certificate(
         .await;
     }
     let acme_home = acme_home_dir(state);
+    let hardened = hook::prepare(state, &dns_type).await?;
+    if let Some(baseline) = state
+        .storage
+        .store
+        .get_json_value(&format!("fn_knock:acme:dns-baseline:{job_id}"))
+        .await?
+        && baseline["groups"].as_array().is_some_and(|groups| {
+            groups.iter().any(|g| {
+                g["status"] == "existing"
+                    || g["delegation"].as_array().is_some_and(|v| !v.is_empty())
+            })
+        })
+    {
+        anyhow::ensure!(
+            hardened && hook::audited_hook(state, &dns_type).await,
+            "ACME client changed after DNS review"
+        );
+    }
     apply_acme_dns_provider_patches(state, &dns_type, job_id, t).await?;
-    register_acme_account_for_job(state, certificate_authority, control, t).await?;
+    register_acme_account_for_job(state, certificate_authority, control, job_id, t).await?;
     let mut args = vec![
         "--issue".to_string(),
         "--home".to_string(),
@@ -1015,10 +1153,26 @@ pub(super) async fn issue_acme_certificate(
     if let Some(workspace) = &workspace {
         workspace.configure_command(&mut command);
     }
+    if hardened {
+        command.env("FN_KNOCK_ACME_PARSER", std::env::current_exe()?);
+    }
     let mut child = command.spawn()?;
     control.set_pid(child.id().unwrap_or(0));
-    let stdout_task = spawn_acme_log_stream(state.clone(), job_id.to_string(), child.stdout.take());
-    let stderr_task = spawn_acme_log_stream(state.clone(), job_id.to_string(), child.stderr.take());
+    let rates = JobRates::new(state, job_id, application, certificate_authority);
+    let stdout_task = spawn_acme_log_stream(
+        state.clone(),
+        job_id.to_string(),
+        child.stdout.take(),
+        application.get("credentials"),
+        rates.clone(),
+    );
+    let stderr_task = spawn_acme_log_stream(
+        state.clone(),
+        job_id.to_string(),
+        child.stderr.take(),
+        application.get("credentials"),
+        rates,
+    );
     let status = wait_for_acme_child(&mut child, control, t).await;
     wait_for_acme_output_task(stdout_task).await;
     wait_for_acme_output_task(stderr_task).await;
@@ -1099,8 +1253,21 @@ async fn issue_windows_acme_certificate(
     }
     let mut child = command.spawn()?;
     control.set_pid(child.id().unwrap_or(0));
-    let stdout_task = spawn_acme_log_stream(state.clone(), job_id.to_string(), child.stdout.take());
-    let stderr_task = spawn_acme_log_stream(state.clone(), job_id.to_string(), child.stderr.take());
+    let rates = JobRates::new(state, job_id, application, "letsencrypt");
+    let stdout_task = spawn_acme_log_stream(
+        state.clone(),
+        job_id.to_string(),
+        child.stdout.take(),
+        application.get("credentials"),
+        rates.clone(),
+    );
+    let stderr_task = spawn_acme_log_stream(
+        state.clone(),
+        job_id.to_string(),
+        child.stderr.take(),
+        application.get("credentials"),
+        rates,
+    );
     let status = wait_for_acme_child(&mut child, control, t).await;
     wait_for_acme_output_task(stdout_task).await;
     wait_for_acme_output_task(stderr_task).await;
@@ -1225,13 +1392,23 @@ fn spawn_acme_log_stream<R>(
     state: AppState,
     job_id: String,
     stream: Option<R>,
+    credentials: Option<&Value>,
+    rates: JobRates,
 ) -> tokio::task::JoinHandle<()>
 where
     R: AsyncRead + Unpin + Send + 'static,
 {
+    let secrets = credentials
+        .and_then(Value::as_object)
+        .into_iter()
+        .flat_map(|o| o.values())
+        .filter_map(Value::as_str)
+        .filter(|s| !s.is_empty())
+        .map(str::to_string)
+        .collect();
     tokio::spawn(async move {
         if let Some(stream) = stream {
-            append_acme_stream_lines(state, job_id, stream).await;
+            append_acme_stream_lines(state, job_id, stream, secrets, rates).await;
         }
     })
 }
@@ -1275,12 +1452,60 @@ fn acme_stop_grace_period() -> std::time::Duration {
     std::time::Duration::from_secs(3)
 }
 
-pub(super) async fn append_acme_stream_lines<R>(state: AppState, job_id: String, stream: R)
-where
+async fn append_acme_stream_lines<R>(
+    state: AppState,
+    job_id: String,
+    stream: R,
+    secrets: Vec<String>,
+    rates: JobRates,
+) where
     R: AsyncRead + Unpin,
 {
     let mut lines = BufReader::new(stream).lines();
-    while let Ok(Some(line)) = lines.next_line().await {
+    while let Ok(Some(mut line)) = lines.next_line().await {
+        // Credential fields can also contain a zone name or a number such
+        // as 429. Classify in memory first; only decisions and sanitized logs
+        // may reach persistent storage.
+        if let Err(error) = rates.observe(&line).await {
+            tracing::warn!(%error,%job_id,"failed to journal ACME rate evidence");
+        }
+        for secret in &secrets {
+            line = line.replace(secret, "[redacted]");
+        }
         append_acme_log(&state, &job_id, &line).await.ok();
+    }
+}
+
+#[cfg(test)]
+mod rate_stream_tests {
+    use super::*;
+    #[tokio::test]
+    async fn numeric_credential_redaction_preserves_429_evidence() {
+        let (_dir, state) = super::super::tests::acme_test_state().await;
+        let app = super::super::tests::test_application("redact", &["example.test"]);
+        state
+            .storage
+            .store
+            .set_json_value_ex(
+                ACME_RUNTIME_LOCK_KEY,
+                &json!({"locked":true,"lockId":"owner","jobId":"stream"}),
+                300,
+            )
+            .await
+            .unwrap();
+        let rates = JobRates::new(&state, "stream", &app, "letsencrypt");
+        append_acme_stream_lines(
+            state.clone(),
+            "stream".into(),
+            &b"HTTP/2 429\nRetry-After: 45\n"[..],
+            vec!["429".into()],
+            rates,
+        )
+        .await;
+        let logs = get_acme_logs(&state, "stream", 10, "asc").await.unwrap();
+        assert_eq!(logs[0], "HTTP/2 [redacted]");
+        let limit = active_cooldown(&state, &app).await.unwrap().unwrap();
+        assert!(!limit.estimated);
+        assert!((44..=45).contains(&(limit.retry_at - time_utils::now_ms() / 1000)));
     }
 }

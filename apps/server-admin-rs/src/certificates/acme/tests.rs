@@ -158,10 +158,7 @@ async fn acme_library_deploy_cannot_reclaim_external_owned_domain() {
     assert!(error.to_string().contains("overlapping SAN"));
 }
 
-pub(super) async fn acme_test_state_with_data_dir(
-    data_dir: PathBuf,
-    runtime_target: &str,
-) -> AppState {
+async fn acme_test_state_with_data_dir(data_dir: PathBuf, runtime_target: &str) -> AppState {
     let mut settings = {
         let _environment = crate::test_support::EnvGuard::new(&[]);
         crate::settings::Settings::from_env()
@@ -486,7 +483,7 @@ async fn save_test_ssl_config(state: &AppState, ssl: Value) {
         .expect("save test SSL config");
 }
 
-pub(super) fn generate_acme_test_cert_pair(common_name: &str) -> Option<(String, String)> {
+fn generate_acme_test_cert_pair(common_name: &str) -> Option<(String, String)> {
     use std::process::{Command as StdCommand, Stdio as StdStdio};
 
     if !StdCommand::new("openssl")
@@ -2133,7 +2130,7 @@ fn analyzes_cloudflare_invalid_key_like_node() {
 }
 
 #[test]
-fn retry_after_abort_without_an_endpoint_has_unknown_origin() {
+fn analyzes_retry_after_frequency_limit_like_node() {
     let t = Translator::new("en");
     let logs = vec![
         json!("server asks retryafter=601, too large, will not retry"),
@@ -2141,8 +2138,9 @@ fn retry_after_abort_without_an_endpoint_has_unknown_origin() {
     ];
     let analysis = analyze_acme_logs(&json!({ "provider": "dns_ali" }), &logs, &t);
 
-    assert_eq!(analysis["reason"], json!("unknown_rate_limited"));
+    assert_eq!(analysis["reason"], json!("acme_frequency_limited"));
     assert_eq!(analysis["provider"], json!("dns_ali"));
+    assert!(analysis["message"].as_str().unwrap().contains("601"));
     assert_eq!(analysis["evidence"].as_array().unwrap().len(), 1);
 }
 

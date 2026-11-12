@@ -66,8 +66,6 @@ describe("ACME API contract", () => {
       ["post", "/api/admin/acme/applications/{id}/library/sync"],
       ["post", "/api/admin/acme/applications/{id}/file-output/sync"],
       ["post", "/api/admin/acme/applications/{id}/deploy"],
-      ["get", "/api/admin/acme/applications/{id}/preflight"],
-      ["post", "/api/admin/acme/applications/{id}/preflight/delete"],
       ["post", "/api/admin/acme/applications/{id}/request"],
       ["post", "/api/admin/acme/request"],
       ["post", "/api/admin/acme/jobs/active/stop"],
@@ -84,19 +82,6 @@ describe("ACME API contract", () => {
         "utoipa",
         `${method.toUpperCase()} ${path}`,
       );
-    }
-  });
-
-  it("documents decisions and cooldowns for all issuance entry points", () => {
-    for (const [method, path] of [
-      ["post", "/api/admin/acme/applications"],
-      ["patch", "/api/admin/acme/applications/{id}"],
-      ["post", "/api/admin/acme/applications/{id}/request"],
-      ["post", "/api/admin/acme/request"],
-    ]) {
-      const responses = contract.paths[path!]![method!]!.responses!;
-      assert.ok(responses["409"]?.content?.["application/json"]);
-      assert.ok(responses["429"]?.headers?.["Retry-After"]);
     }
   });
 

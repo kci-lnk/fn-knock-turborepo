@@ -6,92 +6,69 @@ pub(super) async fn recover_orphaned_acme_runtime_job(
     state: &AppState,
     t: &Translator,
 ) -> anyhow::Result<bool> {
-    // Only recover while owning the same lease used by issuance and deletion.
-    // Finite TTLs cover live workers in other processes as well as restarts.
-    let store = &state.storage.store;
-    let previous = store.get_json_value(ACME_RUNTIME_LOCK_KEY).await?;
-    if let Some(raw) = &previous {
-        if store.ttl_seconds(ACME_RUNTIME_LOCK_KEY).await? >= 0 {
-            return Ok(false);
+    let recovered = recover_orphaned_acme_jobs(state, t).await?;
+    let Some(raw_lock) = state
+        .storage
+        .store
+        .get_json_value(ACME_RUNTIME_LOCK_KEY)
+        .await?
+    else {
+        return Ok(recovered);
+    };
+    let lock = normalize_runtime_lock(&raw_lock);
+    if lock.get("locked").and_then(Value::as_bool) != Some(true) {
+        state
+            .storage
+            .store
+            .delete_key(ACME_RUNTIME_LOCK_KEY)
+            .await?;
+        return Ok(true);
+    }
+
+    let message = t.t("server.acmeJobRunner.manualStop");
+    if let Some(job_id) = lock.get("jobId").and_then(Value::as_str) {
+        let status = get_acme_job(state, job_id).await?.and_then(|job| {
+            job.get("status")
+                .and_then(Value::as_str)
+                .map(str::to_string)
+        });
+        if matches!(status.as_deref(), Some("queued" | "running") | None) {
+            mark_acme_job_stopped(state, job_id, &message).await?;
+            tracing::warn!(%job_id, "recovered an orphaned ACME job after restart");
         }
-        // Non-expiring legacy leases can only be removed by exact value.
-        store
-            .delete_key_if_value(ACME_RUNTIME_LOCK_KEY, &raw.to_string())
+    }
+
+    if let Some(lock_id) = lock.get("lockId").and_then(Value::as_str) {
+        state
+            .storage
+            .store
+            .delete_lock_if_owned(ACME_RUNTIME_LOCK_KEY, lock_id)
+            .await?;
+    } else {
+        // This process has not started any ACME executor yet, so a malformed
+        // persisted lease can only be leftover state from an interrupted run.
+        state
+            .storage
+            .store
+            .delete_key(ACME_RUNTIME_LOCK_KEY)
             .await?;
     }
-    let recovery = with_runtime_lock_lease(
-        json!({"locked":true,"lockId":uuid::Uuid::new_v4().to_string(),"startedAt":now_node_iso()}),
-    );
-    if !store
-        .set_json_value_nx_ex(
-            ACME_RUNTIME_LOCK_KEY,
-            &recovery,
-            acme_runtime_lock_ttl_seconds(),
-        )
-        .await?
-    {
-        return Ok(false);
-    }
-    let result = tokio_time::timeout(std::time::Duration::from_secs(120), async {
-        let recovered = recover_orphaned_acme_jobs(state, t).await?;
-        let Some(raw) = previous else {
-            return Ok(recovered);
-        };
-        let lock = normalize_runtime_lock(&raw);
-        let message = t.t("server.acmeJobRunner.manualStop");
-        if let Some(job_id) = lock.get("jobId").and_then(Value::as_str) {
-            let status = get_acme_job(state, job_id).await?.and_then(|job| {
-                job.get("status")
-                    .and_then(Value::as_str)
-                    .map(str::to_string)
-            });
-            if matches!(status.as_deref(), Some("queued" | "running") | None) {
-                mark_acme_job_stopped(state, job_id, &message).await?;
-                tracing::warn!(%job_id, "recovered an orphaned ACME job after restart");
-            }
-            if let Some(id) = lock["applicationId"].as_str()
-                && let Some(application) = find_acme_application(state, id).await?
-                && let Err(error) = preflight::finish(state, &application, job_id, t).await
-            {
-                tracing::warn!(%error,%job_id,"could not recheck DNS after restart");
-            }
-        }
-
-        Ok(true)
-    })
-    .await;
-    release_acme_runtime_lock(state, &recovery).await?;
-    result?
+    Ok(true)
 }
 
-pub(super) async fn recover_orphaned_acme_jobs(
-    state: &AppState,
-    t: &Translator,
-) -> anyhow::Result<bool> {
-    flush_interrupted_rates(state).await?;
+async fn recover_orphaned_acme_jobs(state: &AppState, t: &Translator) -> anyhow::Result<bool> {
     let message = t.t("server.acmeJobRunner.manualStop");
     let mut recovered = false;
     for application in read_acme_applications(state).await? {
+        if !matches!(
+            application.get("latestJobStatus").and_then(Value::as_str),
+            Some("queued" | "running")
+        ) {
+            continue;
+        }
         let Some(job_id) = application.get("latestJobId").and_then(Value::as_str) else {
             continue;
         };
-        let baseline = state
-            .storage
-            .store
-            .get_json_value(&format!("fn_knock:acme:dns-baseline:{job_id}"))
-            .await?;
-        if let Some(baseline) = &baseline {
-            restore_interrupted_limit(state, &application, job_id, baseline).await?;
-        }
-        if !matches!(
-            application["latestJobStatus"].as_str(),
-            Some("queued" | "running")
-        ) {
-            if baseline.is_some() {
-                preflight::finish(state, &application, job_id, t).await?;
-            }
-            continue;
-        }
         let job = if let Some(job) = get_acme_job(state, job_id).await? {
             job
         } else {
@@ -119,9 +96,6 @@ pub(super) async fn recover_orphaned_acme_jobs(
             job.get("status").and_then(Value::as_str),
             Some("queued" | "running")
         ) {
-            if let Err(error) = preflight::finish(state, &application, job_id, t).await {
-                tracing::warn!(%error,%job_id,"interrupted DNS cleanup check failed");
-            }
             recovered |= mark_acme_job_stopped(state, job_id, &message)
                 .await?
                 .is_some();
@@ -152,20 +126,9 @@ pub(super) async fn stop_active_acme_job(
         .and_then(Value::as_str)
         .unwrap_or_default()
         .to_string();
-    anyhow::ensure!(!job_id.is_empty(), "DNS cleanup is in progress");
     // Cancellation must reach the executor before status updates wait for the
     // commit/output lock. Retain the control even if it finishes meanwhile.
     let control = state.acme_job_control(&job_id).await;
-    if control.is_none()
-        && state
-            .storage
-            .store
-            .ttl_seconds(ACME_RUNTIME_LOCK_KEY)
-            .await?
-            >= 0
-    {
-        anyhow::bail!(t.t("server.acmeJobRunner.activeTaskRunning"));
-    }
     if let Some(control) = &control {
         control.cancellation.cancel();
     }

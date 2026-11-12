@@ -41,12 +41,10 @@ mod analysis;
 mod certificates;
 mod file_output;
 mod handlers;
-pub(crate) mod hook;
 mod install;
 mod jobs;
 mod lookup;
 mod normalization;
-pub(crate) mod preflight;
 mod providers;
 mod resource;
 mod runtime;
@@ -127,9 +125,7 @@ pub fn acme_routes() -> Router<AppState> {
 }
 
 pub(crate) fn acme_openapi_routes() -> OpenApiRouter<AppState> {
-    handlers::openapi_routes()
-        .merge(resource::openapi_routes())
-        .merge(preflight::preflight_routes())
+    handlers::openapi_routes().merge(resource::openapi_routes())
 }
 
 pub async fn start_acme_tasks(state: AppState) {

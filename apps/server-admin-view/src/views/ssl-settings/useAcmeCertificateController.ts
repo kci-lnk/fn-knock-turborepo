@@ -1,5 +1,3 @@
-import { isAxiosError } from "axios";
-import { useIntervalFn, useNow } from "@vueuse/core";
 import { computed, onMounted, ref } from "vue";
 import { useI18n } from "vue-i18n";
 import { useRouter } from "vue-router";
@@ -10,7 +8,6 @@ import {
   type AcmeApplicationRecord,
   type AcmeDnsProvider,
   type AcmeOverview,
-  type AcmePreflight,
 } from "@/lib/api/acme";
 import { acmeCertificateArchiveFilename } from "@/lib/acme-download";
 import { useConfigStore } from "@/store/config";
@@ -35,25 +32,6 @@ export function useAcmeCertificateController() {
   const deleteCandidate = ref<AcmeApplicationOverviewItem | null>(null);
   const deletingApplicationId = ref("");
 
-  const dnsReport = ref<AcmePreflight | null>(null);
-  const checkingDns = ref(false);
-  const now = useNow({ interval: 1000 });
-  const cooling = (report?: AcmePreflight | null) =>
-    !!report?.cooldown && now.value.getTime() < report.cooldown.retryAt * 1000;
-  const showDnsError = (error: unknown) => {
-    if (!isAxiosError(error)) return false;
-    const body = error.response?.data;
-    if (
-      !["preflight_required", "rate_limited"].includes(body?.errorCode) ||
-      !body.data?.applicationId
-    )
-      return false;
-    dnsReport.value = body.data;
-    isDialogOpen.value = false;
-    editingApplication.value = null;
-    void fetchOverview({ silent: true, preserveSelection: true });
-    return true;
-  };
   const { isPending: isOverviewLoading, run: runLoadOverview } =
     useAsyncAction();
   const { isPending: isProvidersLoading, run: runLoadProviders } =
@@ -61,7 +39,6 @@ export function useAcmeCertificateController() {
   const { isPending: isDialogSubmitting, run: runDialogSubmit } =
     useAsyncAction({
       onError: (error) => {
-        if (showDnsError(error)) return;
         toast.error(
           extractErrorMessage(error, t("admin.acmeCert.saveApplicationFailed")),
         );
@@ -69,7 +46,6 @@ export function useAcmeCertificateController() {
     });
   const { isPending: isMutating, run: runMutating } = useAsyncAction({
     onError: (error) => {
-      if (showDnsError(error)) return;
       toast.error(
         extractErrorMessage(error, t("admin.acmeCert.operationFailed")),
       );
@@ -103,10 +79,7 @@ export function useAcmeCertificateController() {
         if (runningJobId) {
           // Poll completion already has this job's current status. Reselecting
           // it restarts the poller and can turn lock cleanup into a tight loop.
-          if (
-            !opts?.preserveSelection ||
-            selectedJobId.value !== runningJobId
-          ) {
+          if (!opts?.preserveSelection || selectedJobId.value !== runningJobId) {
             await selectJob(runningJobId, true);
           }
           return;
@@ -284,58 +257,40 @@ export function useAcmeCertificateController() {
   };
 
   const submitDialog = async (payload: AcmeApplicationPayload) => {
-    checkingDns.value = !!payload.submitNow;
-    try {
-      await runDialogSubmit(async () => {
-        const response =
-          dialogMode.value === "edit" && editingApplication.value
-            ? await AcmeAPI.updateApplication(
-                editingApplication.value.id,
-                payload,
-              )
-            : await AcmeAPI.createApplication(payload);
+    await runDialogSubmit(async () => {
+      const response =
+        dialogMode.value === "edit" && editingApplication.value
+          ? await AcmeAPI.updateApplication(
+              editingApplication.value.id,
+              payload,
+            )
+          : await AcmeAPI.createApplication(payload);
 
-        toast.success(
-          payload.submitNow
-            ? t("admin.acmeCert.taskSubmitted")
-            : t("admin.acmeCert.saved"),
-        );
-        if (response.application.fileOutputStatus?.status === "error") {
-          toast.warning(t("admin.acmeFileOutput.failed"), {
-            description:
-              response.application.fileOutputStatus.error || undefined,
-          });
-        }
-        isDialogOpen.value = false;
-        editingApplication.value = null;
-        await fetchOverview({ silent: true, preserveSelection: true });
+      toast.success(
+        payload.submitNow
+          ? t("admin.acmeCert.taskSubmitted")
+          : t("admin.acmeCert.saved"),
+      );
+      if (response.application.fileOutputStatus?.status === "error") {
+        toast.warning(t("admin.acmeFileOutput.failed"), {
+          description: response.application.fileOutputStatus.error || undefined,
+        });
+      }
+      isDialogOpen.value = false;
+      editingApplication.value = null;
+      await fetchOverview({ silent: true, preserveSelection: true });
 
-        if (response.job?.id) await selectJob(response.job.id, true);
-      });
-    } finally {
-      checkingDns.value = false;
-    }
+      if (response.job?.id) await selectJob(response.job.id, true);
+    });
   };
 
-  const requestCertificate = async (
-    applicationId: string,
-    snapshot?: string,
-  ) => {
-    checkingDns.value = true;
-    try {
-      await runMutating(async () => {
-        const response = await AcmeAPI.requestApplication(
-          applicationId,
-          snapshot,
-        );
-        dnsReport.value = null;
-        toast.success(t("admin.acmeCert.taskSubmitted"));
-        await fetchOverview({ silent: true, preserveSelection: true });
-        await selectJob(response.job.id, true);
-      });
-    } finally {
-      checkingDns.value = false;
-    }
+  const requestCertificate = async (applicationId: string) => {
+    await runMutating(async () => {
+      const response = await AcmeAPI.requestApplication(applicationId);
+      toast.success(t("admin.acmeCert.taskSubmitted"));
+      await fetchOverview({ silent: true, preserveSelection: true });
+      await selectJob(response.job.id, true);
+    });
   };
 
   const syncFileOutput = async (application: AcmeApplicationOverviewItem) => {
@@ -469,25 +424,11 @@ export function useAcmeCertificateController() {
     primaryActionLabel,
   } = useAcmeCertificateDisplay({ isConfigurationEditBlocked });
 
-  useIntervalFn(() => {
-    if (
-      overview.value?.lock.locked &&
-      !overview.value.runningJob &&
-      !isOverviewLoading.value
-    ) {
-      void fetchOverview({ silent: true, preserveSelection: true });
-    }
-  }, 3000);
   onMounted(async () => {
     await Promise.all([fetchOverview({ silent: true }), loadProviders()]);
   });
 
   return {
-    dnsReport,
-    checkingDns,
-    cooling,
-    showDnsError,
-    fetchOverview,
     acmeStatusBadgeVariant,
     acmeStatusLabel,
     analysis,

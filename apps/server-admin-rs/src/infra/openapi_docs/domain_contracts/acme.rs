@@ -182,7 +182,6 @@ pub(super) struct AcmeRuntimeLockData {
 #[derive(Serialize, ToSchema)]
 #[serde(rename_all = "camelCase")]
 pub(super) struct AcmeJobData {
-    cleanup_pending: Option<bool>,
     id: String,
     application_id: Option<String>,
     domains: Vec<String>,
@@ -225,7 +224,6 @@ pub(super) struct AcmeLibrarySyncData {
 #[derive(Serialize, ToSchema)]
 #[serde(rename_all = "camelCase")]
 pub(super) struct AcmeLegacyRequestBodyData {
-    snapshot: Option<String>,
     domains: Vec<String>,
     dns_type: Option<String>,
     provider: Option<String>,
@@ -313,7 +311,6 @@ pub(super) struct AcmeOverviewLibraryData {
 #[derive(Serialize, ToSchema)]
 #[serde(rename_all = "camelCase")]
 pub(super) struct AcmeApplicationOverviewData {
-    preflight: Option<crate::certificates::acme::preflight::PreflightReport>,
     file_output: Option<AcmeFileOutputData>,
     file_output_status: Option<AcmeFileOutputStatusData>,
     id: String,
@@ -410,17 +407,4 @@ pub(super) struct AcmeFileOutputStatusData {
     private_key_path: Option<String>,
     last_success_at: Option<String>,
     error: Option<String>,
-}
-
-#[derive(Serialize, ToSchema)]
-pub(super) struct AcmeTxtDeleteOutcome {
-    name: String,
-    value: String,
-    outcome: String,
-}
-
-#[derive(Serialize, ToSchema)]
-pub(super) struct AcmeTxtDeletion {
-    results: Vec<AcmeTxtDeleteOutcome>,
-    report: crate::certificates::acme::preflight::PreflightReport,
 }

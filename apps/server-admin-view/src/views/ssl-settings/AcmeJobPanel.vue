@@ -62,7 +62,6 @@
     </CardHeader>
 
     <CardContent class="grid gap-4">
-      <p v-if="props.job?.cleanupPending" role="status">{{ t("admin.acmeDns.cleanup") }}</p>
       <Alert
         v-if="props.analysis"
         :variant="analysisVariant"

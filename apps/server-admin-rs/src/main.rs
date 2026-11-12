@@ -6,9 +6,6 @@ const MAX_TOKIO_WORKER_THREADS: usize = 64;
 const TARGET_NOFILE_LIMIT: u64 = 1_048_576;
 
 fn main() -> anyhow::Result<()> {
-    if env::args_os().nth(1).as_deref() == Some(std::ffi::OsStr::new("acme-txt-record-id")) {
-        return server_admin_rs::cleanup_id_command(&env::args().skip(2).collect::<Vec<_>>());
-    }
     configure_open_file_limit();
     configure_allocator_for_low_memory();
     tokio::runtime::Builder::new_multi_thread()

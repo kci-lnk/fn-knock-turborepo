@@ -860,9 +860,6 @@ export const enServer = {
       "Cloudflare API request headers are invalid, usually because the API key or email is incorrect",
     acmeFrequencyLimited:
       "Request frequency is limited (Retry-After={seconds} seconds; retries stop above 600 seconds). Wait and try again.",
-    caRateLimited: "Certificate authority rate limit",
-    unknownRateLimited: "Rate limit source unknown",
-    dnsCleanupTimeout: "Deletion failed",
     dnsApiRateLimited:
       "DNS API rate limit was triggered (429/Rate limit). Try again later.",
     logUnknownFailure:

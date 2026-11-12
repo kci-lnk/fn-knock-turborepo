@@ -20,7 +20,6 @@ export type AcmeApplicationDialogProps = {
   initialValue?: AcmeApplicationRecord | null;
   dnsProviders: AcmeDnsProvider[];
   pending?: boolean;
-  checkingDns?: boolean;
   runtimeLocked?: boolean;
 };
 

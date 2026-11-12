@@ -1,5 +1,3 @@
-mod acme;
-
 use super::*;
 
 pub(super) fn eval_command_tx(
@@ -16,13 +14,6 @@ pub(super) fn eval_command_tx(
         .ok_or_else(|| storage_error("EVAL key count exceeds supplied arguments"))?;
     let keys = &args[keys_start..argv_start];
     let argv = &args[argv_start..];
-
-    if script.contains("fn-knock:eval:journal-acme-rates:v1") {
-        return acme::journal_rates(tx, keys, argv);
-    }
-    if script.contains("fn-knock:eval:extend-acme-cooldowns:v1") {
-        return acme::extend_cooldowns(tx, keys, argv);
-    }
 
     if script.contains("fn-knock:eval:increment-counter-with-ttl:v1") {
         let key = keys

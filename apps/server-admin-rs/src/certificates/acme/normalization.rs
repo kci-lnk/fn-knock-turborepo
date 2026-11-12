@@ -136,9 +136,6 @@ pub(super) fn normalize_acme_job(value: Value) -> Option<Value> {
     object.insert("createdAt".to_string(), json!(created_at));
     insert_optional_string(&mut object, "startedAt", raw.get("startedAt"));
     insert_optional_string(&mut object, "finishedAt", raw.get("finishedAt"));
-    if let Some(pending) = raw.get("cleanupPending").and_then(Value::as_bool) {
-        object.insert("cleanupPending".into(), json!(pending));
-    }
     object.insert("status".to_string(), json!(status));
     object.insert(
         "progress".to_string(),

@@ -154,7 +154,6 @@ describe("ACME file output status", () => {
       isOverviewLoading: ref(false),
       isTableLocked: ref(false),
       isActionBlocked: () => false,
-      cooling: () => false,
       isConfigurationEditBlocked: () => false,
       isDeleteApplicationBlocked: () => false,
       isSecondaryActionDisabled: () => false,

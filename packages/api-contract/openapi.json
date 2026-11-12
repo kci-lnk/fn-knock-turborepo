@@ -390,16 +390,6 @@
               "null"
             ]
           },
-          "preflight": {
-            "oneOf": [
-              {
-                "type": "null"
-              },
-              {
-                "$ref": "#/components/schemas/PreflightReport"
-              }
-            ]
-          },
           "primaryDomain": {
             "type": "string"
           },
@@ -917,12 +907,6 @@
               "null"
             ]
           },
-          "cleanupPending": {
-            "type": [
-              "boolean",
-              "null"
-            ]
-          },
           "createdAt": {
             "format": "date-time",
             "type": "string"
@@ -1158,12 +1142,6 @@
               "string",
               "null"
             ]
-          },
-          "snapshot": {
-            "type": [
-              "string",
-              "null"
-            ]
           }
         },
         "required": [
@@ -1222,7 +1200,6 @@
               "dns_credentials_invalid",
               "dns_credentials_invalid_email",
               "dns_api_rate_limited",
-              "unknown_rate_limited",
               "acme_frequency_limited",
               "unknown"
             ],
@@ -1731,43 +1708,6 @@
           "warnings",
           "can_autofill",
           "summary"
-        ],
-        "type": "object"
-      },
-      "AcmeTxtDeleteOutcome": {
-        "properties": {
-          "name": {
-            "type": "string"
-          },
-          "outcome": {
-            "type": "string"
-          },
-          "value": {
-            "type": "string"
-          }
-        },
-        "required": [
-          "name",
-          "value",
-          "outcome"
-        ],
-        "type": "object"
-      },
-      "AcmeTxtDeletion": {
-        "properties": {
-          "report": {
-            "$ref": "#/components/schemas/PreflightReport"
-          },
-          "results": {
-            "items": {
-              "$ref": "#/components/schemas/AcmeTxtDeleteOutcome"
-            },
-            "type": "array"
-          }
-        },
-        "required": [
-          "results",
-          "report"
         ],
         "type": "object"
       },
@@ -3519,53 +3459,6 @@
           "stopped"
         ],
         "type": "string"
-      },
-      "ChallengeGroup": {
-        "properties": {
-          "delegation": {
-            "items": {
-              "type": "string"
-            },
-            "type": "array"
-          },
-          "domains": {
-            "items": {
-              "type": "string"
-            },
-            "type": "array"
-          },
-          "name": {
-            "type": "string"
-          },
-          "selectable": {
-            "items": {
-              "type": "string"
-            },
-            "type": "array"
-          },
-          "status": {
-            "type": "string"
-          },
-          "values": {
-            "items": {
-              "type": "string"
-            },
-            "type": "array"
-          },
-          "zone": {
-            "type": "string"
-          }
-        },
-        "required": [
-          "name",
-          "domains",
-          "values",
-          "delegation",
-          "status",
-          "selectable",
-          "zone"
-        ],
-        "type": "object"
       },
       "CidrCapabilitiesData": {
         "properties": {
@@ -6097,17 +5990,6 @@
         ],
         "type": "object"
       },
-      "ConfirmRequest": {
-        "properties": {
-          "snapshot": {
-            "type": [
-              "string",
-              "null"
-            ]
-          }
-        },
-        "type": "object"
-      },
       "ConnectionInput": {
         "properties": {
           "allow_invalid_tls": {
@@ -6217,26 +6099,6 @@
         "required": [
           "name",
           "base_url"
-        ],
-        "type": "object"
-      },
-      "Cooldown": {
-        "properties": {
-          "estimated": {
-            "type": "boolean"
-          },
-          "retryAt": {
-            "format": "int64",
-            "type": "integer"
-          },
-          "source": {
-            "type": "string"
-          }
-        },
-        "required": [
-          "source",
-          "retryAt",
-          "estimated"
         ],
         "type": "object"
       },
@@ -9423,24 +9285,6 @@
         },
         "required": [
           "tunnel"
-        ],
-        "type": "object"
-      },
-      "DeleteSelection": {
-        "properties": {
-          "records": {
-            "items": {
-              "$ref": "#/components/schemas/SelectedValue"
-            },
-            "type": "array"
-          },
-          "snapshot": {
-            "type": "string"
-          }
-        },
-        "required": [
-          "snapshot",
-          "records"
         ],
         "type": "object"
       },
@@ -18548,49 +18392,6 @@
         ],
         "type": "object"
       },
-      "PreflightReport": {
-        "properties": {
-          "applicationId": {
-            "type": "string"
-          },
-          "checkedAt": {
-            "type": "string"
-          },
-          "cooldown": {
-            "oneOf": [
-              {
-                "type": "null"
-              },
-              {
-                "$ref": "#/components/schemas/Cooldown"
-              }
-            ]
-          },
-          "groups": {
-            "items": {
-              "$ref": "#/components/schemas/ChallengeGroup"
-            },
-            "type": "array"
-          },
-          "renewalPending": {
-            "type": "boolean"
-          },
-          "snapshot": {
-            "type": "string"
-          },
-          "status": {
-            "type": "string"
-          }
-        },
-        "required": [
-          "applicationId",
-          "snapshot",
-          "checkedAt",
-          "groups",
-          "status"
-        ],
-        "type": "object"
-      },
       "PreviewRequest": {
         "properties": {
           "cleanup_remote": {
@@ -21064,21 +20865,6 @@
           "failedLogins",
           "blockedScanners",
           "wafEvents"
-        ],
-        "type": "object"
-      },
-      "SelectedValue": {
-        "properties": {
-          "name": {
-            "type": "string"
-          },
-          "value": {
-            "type": "string"
-          }
-        },
-        "required": [
-          "name",
-          "value"
         ],
         "type": "object"
       },
@@ -28797,72 +28583,6 @@
             },
             "description": "「提交ACME 证书管理应用」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。"
           },
-          "409": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "anyOf": [
-                    {
-                      "properties": {
-                        "data": {
-                          "$ref": "#/components/schemas/PreflightReport"
-                        },
-                        "errorCode": {
-                          "enum": [
-                            "preflight_required",
-                            "rate_limited"
-                          ],
-                          "type": "string"
-                        }
-                      },
-                      "required": [
-                        "errorCode",
-                        "data"
-                      ],
-                      "type": "object"
-                    },
-                    {
-                      "$ref": "#/components/schemas/ApiErrorEnvelope"
-                    }
-                  ]
-                }
-              }
-            },
-            "description": "当前资源状态与操作冲突；请刷新状态后重试。"
-          },
-          "429": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "properties": {
-                    "data": {
-                      "$ref": "#/components/schemas/PreflightReport"
-                    },
-                    "errorCode": {
-                      "enum": [
-                        "preflight_required",
-                        "rate_limited"
-                      ],
-                      "type": "string"
-                    }
-                  },
-                  "required": [
-                    "errorCode",
-                    "data"
-                  ],
-                  "type": "object"
-                }
-              }
-            },
-            "description": "请求过于频繁；请遵循响应提示的退避时间后重试。",
-            "headers": {
-              "Retry-After": {
-                "schema": {
-                  "type": "integer"
-                }
-              }
-            }
-          },
           "default": {
             "content": {
               "application/json": {
@@ -29063,72 +28783,6 @@
               }
             },
             "description": "「修改ACME 证书管理应用」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。"
-          },
-          "409": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "anyOf": [
-                    {
-                      "properties": {
-                        "data": {
-                          "$ref": "#/components/schemas/PreflightReport"
-                        },
-                        "errorCode": {
-                          "enum": [
-                            "preflight_required",
-                            "rate_limited"
-                          ],
-                          "type": "string"
-                        }
-                      },
-                      "required": [
-                        "errorCode",
-                        "data"
-                      ],
-                      "type": "object"
-                    },
-                    {
-                      "$ref": "#/components/schemas/ApiErrorEnvelope"
-                    }
-                  ]
-                }
-              }
-            },
-            "description": "当前资源状态与操作冲突；请刷新状态后重试。"
-          },
-          "429": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "properties": {
-                    "data": {
-                      "$ref": "#/components/schemas/PreflightReport"
-                    },
-                    "errorCode": {
-                      "enum": [
-                        "preflight_required",
-                        "rate_limited"
-                      ],
-                      "type": "string"
-                    }
-                  },
-                  "required": [
-                    "errorCode",
-                    "data"
-                  ],
-                  "type": "object"
-                }
-              }
-            },
-            "description": "请求过于频繁；请遵循响应提示的退避时间后重试。",
-            "headers": {
-              "Retry-After": {
-                "schema": {
-                  "type": "integer"
-                }
-              }
-            }
           },
           "default": {
             "content": {
@@ -29368,215 +29022,9 @@
         "x-fn-knock-contract-source": "utoipa"
       }
     },
-    "/api/admin/acme/applications/{id}/preflight": {
-      "get": {
-        "description": "管理 ACME 客户端、证书申请、部署和运行任务。。`GET /api/admin/acme/applications/{id}/preflight` 用于读取当前状态、配置或导出内容，不会主动修改服务配置。 该操作不要求 JSON 请求体。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。",
-        "operationId": "check_dns",
-        "parameters": [
-          {
-            "in": "path",
-            "name": "id",
-            "required": true,
-            "schema": {
-              "description": "Opaque application identifier; legacy non-UUID identifiers remain accepted.",
-              "minLength": 1,
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "additionalProperties": true,
-                  "properties": {
-                    "data": {
-                      "$ref": "#/components/schemas/PreflightReport"
-                    },
-                    "message": {
-                      "type": [
-                        "string",
-                        "null"
-                      ]
-                    },
-                    "success": {
-                      "const": true,
-                      "type": "boolean"
-                    }
-                  },
-                  "required": [
-                    "success",
-                    "data"
-                  ],
-                  "type": "object"
-                }
-              }
-            },
-            "description": "「检查ACME 验证记录」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。"
-          },
-          "default": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiErrorEnvelope"
-                }
-              }
-            },
-            "description": "接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。"
-          }
-        },
-        "summary": "检查ACME 验证记录",
-        "tags": [
-          "acme"
-        ],
-        "x-fn-knock-contract-source": "utoipa"
-      }
-    },
-    "/api/admin/acme/applications/{id}/preflight/delete": {
-      "post": {
-        "description": "管理 ACME 客户端、证书申请、部署和运行任务。。`POST /api/admin/acme/applications/{id}/preflight/delete` 用于提交操作或创建、更新服务状态；执行结果以响应中的数据和消息为准。 请求体字段、必填项和可选值请以 Swagger 展开的 schema 为准。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。",
-        "operationId": "delete_txt",
-        "parameters": [
-          {
-            "in": "path",
-            "name": "id",
-            "required": true,
-            "schema": {
-              "description": "Opaque application identifier; legacy non-UUID identifiers remain accepted.",
-              "minLength": 1,
-              "type": "string"
-            }
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/DeleteSelection"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "additionalProperties": true,
-                  "properties": {
-                    "data": {
-                      "$ref": "#/components/schemas/AcmeTxtDeletion"
-                    },
-                    "message": {
-                      "type": [
-                        "string",
-                        "null"
-                      ]
-                    },
-                    "success": {
-                      "const": true,
-                      "type": "boolean"
-                    }
-                  },
-                  "required": [
-                    "success",
-                    "data"
-                  ],
-                  "type": "object"
-                }
-              }
-            },
-            "description": "「删除选定的 ACME 验证记录」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。"
-          },
-          "409": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "anyOf": [
-                    {
-                      "properties": {
-                        "data": {
-                          "$ref": "#/components/schemas/PreflightReport"
-                        },
-                        "errorCode": {
-                          "enum": [
-                            "preflight_required",
-                            "rate_limited"
-                          ],
-                          "type": "string"
-                        }
-                      },
-                      "required": [
-                        "errorCode",
-                        "data"
-                      ],
-                      "type": "object"
-                    },
-                    {
-                      "$ref": "#/components/schemas/ApiErrorEnvelope"
-                    }
-                  ]
-                }
-              }
-            },
-            "description": "当前资源状态与操作冲突；请刷新状态后重试。"
-          },
-          "429": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "properties": {
-                    "data": {
-                      "$ref": "#/components/schemas/PreflightReport"
-                    },
-                    "errorCode": {
-                      "enum": [
-                        "preflight_required",
-                        "rate_limited"
-                      ],
-                      "type": "string"
-                    }
-                  },
-                  "required": [
-                    "errorCode",
-                    "data"
-                  ],
-                  "type": "object"
-                }
-              }
-            },
-            "description": "请求过于频繁；请遵循响应提示的退避时间后重试。",
-            "headers": {
-              "Retry-After": {
-                "schema": {
-                  "type": "integer"
-                }
-              }
-            }
-          },
-          "default": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiErrorEnvelope"
-                }
-              }
-            },
-            "description": "接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。"
-          }
-        },
-        "summary": "删除选定的 ACME 验证记录",
-        "tags": [
-          "acme"
-        ],
-        "x-fn-knock-contract-source": "utoipa"
-      }
-    },
     "/api/admin/acme/applications/{id}/request": {
       "post": {
-        "description": "管理 ACME 客户端、证书申请、部署和运行任务。。`POST /api/admin/acme/applications/{id}/request` 用于提交操作或创建、更新服务状态；执行结果以响应中的数据和消息为准。 请求体字段、必填项和可选值请以 Swagger 展开的 schema 为准。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。",
+        "description": "管理 ACME 客户端、证书申请、部署和运行任务。。`POST /api/admin/acme/applications/{id}/request` 用于提交操作或创建、更新服务状态；执行结果以响应中的数据和消息为准。 该操作不要求 JSON 请求体。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。",
         "operationId": "request_application_certificate",
         "parameters": [
           {
@@ -29590,16 +29038,6 @@
             }
           }
         ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/ConfirmRequest"
-              }
-            }
-          },
-          "required": false
-        },
         "responses": {
           "200": {
             "content": {
@@ -29630,72 +29068,6 @@
               }
             },
             "description": "「提交ACME 证书管理申请」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。"
-          },
-          "409": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "anyOf": [
-                    {
-                      "properties": {
-                        "data": {
-                          "$ref": "#/components/schemas/PreflightReport"
-                        },
-                        "errorCode": {
-                          "enum": [
-                            "preflight_required",
-                            "rate_limited"
-                          ],
-                          "type": "string"
-                        }
-                      },
-                      "required": [
-                        "errorCode",
-                        "data"
-                      ],
-                      "type": "object"
-                    },
-                    {
-                      "$ref": "#/components/schemas/ApiErrorEnvelope"
-                    }
-                  ]
-                }
-              }
-            },
-            "description": "当前资源状态与操作冲突；请刷新状态后重试。"
-          },
-          "429": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "properties": {
-                    "data": {
-                      "$ref": "#/components/schemas/PreflightReport"
-                    },
-                    "errorCode": {
-                      "enum": [
-                        "preflight_required",
-                        "rate_limited"
-                      ],
-                      "type": "string"
-                    }
-                  },
-                  "required": [
-                    "errorCode",
-                    "data"
-                  ],
-                  "type": "object"
-                }
-              }
-            },
-            "description": "请求过于频繁；请遵循响应提示的退避时间后重试。",
-            "headers": {
-              "Retry-After": {
-                "schema": {
-                  "type": "integer"
-                }
-              }
-            }
           },
           "default": {
             "content": {
@@ -29967,24 +29339,6 @@
               }
             },
             "description": "「提交ACME 证书管理客户端设置」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。"
-          },
-          "429": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiErrorEnvelope"
-                }
-              }
-            },
-            "description": "证书机构注册限流，请在指定时间后重试",
-            "headers": {
-              "Retry-After": {
-                "schema": {
-                  "minimum": 0,
-                  "type": "integer"
-                }
-              }
-            }
           },
           "default": {
             "content": {
@@ -30616,72 +29970,6 @@
               }
             },
             "description": "「提交ACME 证书管理申请」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。"
-          },
-          "409": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "anyOf": [
-                    {
-                      "properties": {
-                        "data": {
-                          "$ref": "#/components/schemas/PreflightReport"
-                        },
-                        "errorCode": {
-                          "enum": [
-                            "preflight_required",
-                            "rate_limited"
-                          ],
-                          "type": "string"
-                        }
-                      },
-                      "required": [
-                        "errorCode",
-                        "data"
-                      ],
-                      "type": "object"
-                    },
-                    {
-                      "$ref": "#/components/schemas/ApiErrorEnvelope"
-                    }
-                  ]
-                }
-              }
-            },
-            "description": "当前资源状态与操作冲突；请刷新状态后重试。"
-          },
-          "429": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "properties": {
-                    "data": {
-                      "$ref": "#/components/schemas/PreflightReport"
-                    },
-                    "errorCode": {
-                      "enum": [
-                        "preflight_required",
-                        "rate_limited"
-                      ],
-                      "type": "string"
-                    }
-                  },
-                  "required": [
-                    "errorCode",
-                    "data"
-                  ],
-                  "type": "object"
-                }
-              }
-            },
-            "description": "请求过于频繁；请遵循响应提示的退避时间后重试。",
-            "headers": {
-              "Retry-After": {
-                "schema": {
-                  "type": "integer"
-                }
-              }
-            }
           },
           "default": {
             "content": {

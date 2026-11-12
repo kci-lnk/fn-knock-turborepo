@@ -1,6 +1,4 @@
 pub mod app;
-#[doc(hidden)]
-pub use certificates::acme::hook::cleanup_id_command;
 
 #[cfg(windows)]
 pub mod windows_service;

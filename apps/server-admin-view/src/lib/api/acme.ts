@@ -41,29 +41,7 @@ type AcmePollQuery = NonNullable<
   ApiContractOperations["get_api_admin_acme_jobs__id__poll"]["parameters"]["query"]
 >;
 
-export type AcmePreflight = AcmeSchemas["PreflightReport"];
-export type TxtSelection = Pick<
-  AcmeSchemas["AcmeTxtDeleteOutcome"],
-  "name" | "value"
->;
-
 export const AcmeAPI = {
-  async checkDns(id: string): Promise<AcmePreflight> {
-    const res = await apiClient.get(
-      `/acme/applications/${encodeURIComponent(id)}/preflight`,
-    );
-    return res.data.data;
-  },
-  async deleteTxt(
-    report: AcmePreflight,
-    records: TxtSelection[],
-  ): Promise<AcmeSchemas["AcmeTxtDeletion"]> {
-    const res = await apiClient.post(
-      `/acme/applications/${encodeURIComponent(report.applicationId)}/preflight/delete`,
-      { snapshot: report.snapshot, records },
-    );
-    return res.data.data;
-  },
   async resourceStatus(): Promise<AcmeResourceStatus> {
     const res = await apiClient.get("/acme/resource/status");
     return res.data.data;
@@ -143,13 +121,9 @@ export const AcmeAPI = {
     );
     return res.data.data;
   },
-  async requestApplication(
-    id: string,
-    snapshot?: string,
-  ): Promise<AcmeApplicationRequest> {
+  async requestApplication(id: string): Promise<AcmeApplicationRequest> {
     const res = await apiClient.post(
       `/acme/applications/${encodeURIComponent(id)}/request`,
-      snapshot ? { snapshot } : undefined,
     );
     return res.data.data;
   },

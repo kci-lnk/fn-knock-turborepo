@@ -31,7 +31,7 @@ bytes = "1.11"
 flate2 = "1.1.9"
 fn-knock-wol-protocol = { path = "../../packages/wol-protocol-rs" }
 get_if_addrs = { package = "if-addrs", version = "0.15" }
-hickory-resolver = "0.26.1"
+hickory-resolver = { version = "0.26.1", default-features = false, features = ["tokio"] }
 hickory-proto = "0.26.1"
 hex = "0.4"
 hmac = "0.12"

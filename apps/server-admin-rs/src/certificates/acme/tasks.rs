@@ -56,7 +56,7 @@ async fn run_acme_auto_renew_locked(state: AppState) -> anyhow::Result<()> {
         if application.get("renewEnabled").and_then(Value::as_bool) == Some(false) {
             continue;
         }
-        if !auto_retry_due(&state, &application, now).await? {
+        if !auto_renew_retry_allowed(&application, now) {
             let application_id = application
                 .get("id")
                 .and_then(Value::as_str)
@@ -101,8 +101,7 @@ async fn run_acme_auto_renew_locked(state: AppState) -> anyhow::Result<()> {
     renewable.sort_by_key(|(valid_to, _)| *valid_to);
 
     for (_, application) in renewable {
-        match start_acme_application_job(state.clone(), application, "auto_renew", None, t.clone())
-            .await
+        match start_acme_application_job(state.clone(), application, "auto_renew", t.clone()).await
         {
             Ok((job, _lock)) => {
                 if wait_for_acme_job_completion(&state, &job).await? == Some("stopped".to_string())
@@ -123,43 +122,6 @@ async fn run_acme_auto_renew_locked(state: AppState) -> anyhow::Result<()> {
         tracing::warn!(%error, "failed to reconcile ACME SSL deployment after auto-renew");
     }
     Ok(())
-}
-
-pub(super) async fn mark_limited_job(
-    state: &AppState,
-    job_id: &str,
-    limit: &preflight::Cooldown,
-) -> anyhow::Result<()> {
-    // Keep the reason for the entire supported ordinary failure backoff,
-    // even if the upstream deadline expires before the next scan.
-    state
-        .storage
-        .store
-        .set_json_value_ex(
-            &format!("fn_knock:acme:limited-job:{job_id}"),
-            &json!(limit.retry_at),
-            7 * 24 * 3600,
-        )
-        .await?;
-    Ok(())
-}
-pub(super) async fn auto_retry_due(
-    state: &AppState,
-    app: &Value,
-    now: i64,
-) -> anyhow::Result<bool> {
-    if let Some(job_id) = app["latestJobId"].as_str()
-        && matches!(app["latestJobStatus"].as_str(), Some("failed" | "stopped"))
-        && let Some(deadline) = state
-            .storage
-            .store
-            .get_json_value(&format!("fn_knock:acme:limited-job:{job_id}"))
-            .await?
-            .and_then(|v| v.as_i64())
-    {
-        return Ok(now >= deadline);
-    }
-    Ok(auto_renew_retry_allowed(app, now))
 }
 
 fn auto_renew_retry_allowed(application: &Value, now: i64) -> bool {
@@ -194,7 +156,7 @@ pub(super) fn auto_renew_retry_allowed_with_backoff(
     now.saturating_sub(latest_job_at) >= backoff_seconds
 }
 
-pub(super) fn acme_renew_failure_backoff_seconds() -> i64 {
+fn acme_renew_failure_backoff_seconds() -> i64 {
     env::var("ACME_RENEW_FAILURE_BACKOFF_SECONDS")
         .ok()
         .and_then(|value| value.parse::<i64>().ok())

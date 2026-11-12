@@ -438,12 +438,6 @@ fn operation_subject(
         .strip_prefix("/api/admin/")
         .or_else(|| path.strip_prefix("/api/internal/"))
         .unwrap_or(path);
-    if path == "acme/applications/{id}/preflight" {
-        return ("ACME 验证记录".to_string(), Some("检查"));
-    }
-    if path == "acme/applications/{id}/preflight/delete" {
-        return ("选定的 ACME 验证记录".to_string(), Some("删除"));
-    }
     if path == "terminal/local" {
         return ("本机终端设置".to_string(), None);
     }

@@ -1,5 +1,7 @@
 use super::*;
 
+mod legacy_hooks;
+
 pub(super) async fn apply_acme_dns_provider_patches(
     state: &AppState,
     dns_type: &str,
@@ -7,7 +9,7 @@ pub(super) async fn apply_acme_dns_provider_patches(
     t: &Translator,
 ) -> anyhow::Result<()> {
     if dns_type != "dns_duckdns" {
-        return Ok(());
+        return legacy_hooks::restore_if_patched(acme_home_dir(state), dns_type).await;
     }
     const DEFAULT_API: &str = "https://www.duckdns.org/update";
     const PROXY_API: &str = "https://duckdns.fnknock.cn/update";

@@ -15,7 +15,6 @@ import type { AcmeCertificateController } from "./acme-certificate-contract";
 const props = defineProps<{ controller: AcmeCertificateController }>();
 const {
   analysis,
-  checkingDns,
   canStopActiveJob,
   closeDeleteDialog,
   confirmDeleteCandidate,
@@ -64,7 +63,6 @@ const {
       :initial-value="editingApplication"
       :dns-providers="dnsProviders"
       :pending="isDialogSubmitting"
-      :checking-dns="checkingDns"
       :runtime-locked="isTableLocked"
       @submit="submitDialog"
     />

@@ -59,7 +59,7 @@ exist. No automatic deployment or credential rotation is performed.
 
 The 2026-10-22 dependency baseline includes Vite 8.1.6, follow-redirects 1.16.1,
 rustls 0.23.46, rustls-webpki 0.103.16, webpki root bundles 1.0.10,
-quinn-proto 0.11.18 and zip 9.0.0. The selected gateway uses Go 1.26.10,
+quinn-proto 0.11.18 and zip 9.0.0. The selected gateway uses Go 1.26.11,
 Coraza 3.8.1, x/net 0.60.0 and x/crypto 0.57.0. ZIP extraction remains manual;
 regressions cover traversal, archive symlinks and privileged Unix mode bits.
 TLS regressions verify HTTPS with an explicitly trusted test certificate and

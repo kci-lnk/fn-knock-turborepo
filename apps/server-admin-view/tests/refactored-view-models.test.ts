@@ -15,7 +15,7 @@ import {
   isObviousLocalStreamTargetLoop,
   normalizeProtocolSelection,
   normalizeStreamMapping,
-  removeStreamMapping,
+  applyStreamRuleAction,
   updateStreamMappingComment,
 } from "../src/views/stream-mappings/streamMappingModel";
 import {
@@ -216,7 +216,9 @@ describe("stream mapping model", () => {
       ["SSH", "Web"],
     );
     assert.deepEqual(
-      removeStreamMapping(second, "tcp:22").map(getMappingKey),
+      applyStreamRuleAction(second, new Set(["tcp:22"]), "delete").map(
+        getMappingKey,
+      ),
       ["tcp:80"],
     );
     assert.equal(
@@ -236,6 +238,44 @@ describe("stream mapping model", () => {
     );
   });
 
+  it("preserves manual pause when editing the target, port or protocol", () => {
+    const paused: StreamMapping = {
+      protocol: "tcp",
+      listen_port: 443,
+      target: "web:443",
+      use_auth: true,
+      manually_disabled: true,
+    };
+    const other = {
+      ...paused,
+      protocol: "udp" as const,
+      manually_disabled: false,
+      validation_mode: "strict",
+    };
+    const updated = applyStreamMappingSubmission([paused, other], {
+      editingKey: "tcp:443",
+      mappings: [
+        {
+          protocol: "udp",
+          listen_port: 8443,
+          target: "new:443",
+          use_auth: true,
+        },
+      ],
+    });
+    assert.equal(
+      updated.find((rule) => rule.listen_port === 8443)?.manually_disabled,
+      true,
+    );
+    const enabled = applyStreamRuleAction(
+      [paused, other],
+      new Set(["tcp:443"]),
+      "enable",
+    );
+    assert.equal(enabled[0]?.manually_disabled, false);
+    assert.equal(enabled[1], other);
+  });
+
   it("removes a legacy local-loop mapping without retaining it in the payload", () => {
     const legacy: StreamMapping = {
       protocol: "udp",
@@ -249,7 +289,14 @@ describe("stream mapping model", () => {
       isObviousLocalStreamTargetLoop(legacy.target, legacy.listen_port),
       true,
     );
-    assert.deepEqual(removeStreamMapping([legacy], getMappingKey(legacy)), []);
+    assert.deepEqual(
+      applyStreamRuleAction(
+        [legacy],
+        new Set([getMappingKey(legacy)]),
+        "delete",
+      ),
+      [],
+    );
   });
 });
 

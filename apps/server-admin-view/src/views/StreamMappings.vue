@@ -106,11 +106,10 @@
         </Alert>
         <StreamMappingTable
           :mappings="allMappings"
-          :removing-mapping-key="removingMappingKey"
           :probing-mapping-key="probingMappingKey"
           :traffic-timestamp="trafficRealtimeStats?.timestamp ?? null"
           :get-stream-traffic-sample="getStreamTrafficSample"
-          :on-remove="removeMapping"
+          :on-rule-action="saveRuleAction"
           :on-save-comment="updateComment"
           @edit="openEditDialog"
           @probe="probeMapping"
@@ -188,15 +187,12 @@ import StreamServiceProfileDialog from "./stream-mappings/StreamServiceProfileDi
 import {
   applyStreamMappingSubmission,
   compareStreamMappings,
-  formatMappingLabel,
-  getMappingKey,
   normalizeStreamMapping,
-  removeStreamMapping,
   streamTrafficKey,
   type StreamMappingEditorSubmission,
-  updateStreamMappingComment,
 } from "./stream-mappings/streamMappingModel";
 import { useStreamMappingAvailability } from "./stream-mappings/useStreamMappingAvailability";
+import { useStreamMappingMutations } from "./stream-mappings/useStreamMappingMutations";
 import { useStreamMappingNavigation } from "./stream-mappings/useStreamMappingNavigation";
 import { useStreamMappingSecurity } from "./stream-mappings/useStreamMappingSecurity";
 import { useTrafficRealtime } from "./subdomain-proxy/useTrafficRealtime";
@@ -207,7 +203,8 @@ const isDialogOpen = ref(false);
 const isSaving = ref(false);
 const isSyncing = ref(false);
 const editingMapping = ref<StreamMapping | null>(null);
-const removingMappingKey = ref<string | null>(null);
+const { saveWithExpectedRules, saveRuleAction, updateComment } =
+  useStreamMappingMutations();
 const { openBypassPolicy } = useStreamMappingNavigation();
 const {
   clearServiceProfile,
@@ -288,8 +285,9 @@ function openEditDialog(mapping: StreamMapping) {
 async function saveMapping(submission: StreamMappingEditorSubmission) {
   isSaving.value = true;
   try {
-    await configStore.saveStreamMappings((current) =>
-      applyStreamMappingSubmission(current, submission),
+    await saveWithExpectedRules(
+      editingMapping.value ? [editingMapping.value] : [],
+      (current) => applyStreamMappingSubmission(current, submission),
     );
     toast.success(
       getSaveSuccessMessage(
@@ -314,48 +312,6 @@ function getSaveSuccessMessage(savedCount: number, isEditing: boolean): string {
   return savedCount > 1
     ? t("admin.streamMappings.saveMany", { action, count: savedCount })
     : t("admin.streamMappings.saveOne", { action });
-}
-async function removeMapping(mapping: StreamMapping): Promise<boolean> {
-  removingMappingKey.value = getMappingKey(mapping);
-  try {
-    const result = await configStore.saveStreamMappings(
-      (current) => removeStreamMapping(current, getMappingKey(mapping)),
-      { disableFeatureOnLegacyRepairConflict: true },
-    );
-    const description = result.protocolMappingDisabled
-      ? t("admin.streamMappings.disabledForLegacyRepair")
-      : undefined;
-    const message = t("admin.streamMappings.removeSuccess", {
-      mapping: formatMappingLabel(mapping),
-    });
-    toast.success(message, { description });
-    return true;
-  } catch (error: any) {
-    const titleKey = protocolMappingEnabled.value
-      ? "admin.streamMappings.deleteFailed"
-      : "admin.streamMappings.deleteFailedWhileDisabled";
-    toast.error(t(titleKey), {
-      description: extractErrorMessage(error, t("common.tryLater")),
-    });
-    return false;
-  } finally {
-    removingMappingKey.value = null;
-  }
-}
-
-async function updateComment(mapping: StreamMapping, comment: string) {
-  try {
-    const key = getMappingKey(mapping);
-    await configStore.saveStreamMappings((current) =>
-      updateStreamMappingComment(current, key, comment),
-    );
-    toast.success(t("admin.streamMappings.commentUpdated"));
-  } catch (error: any) {
-    throw new Error(
-      extractErrorMessage(error, t("admin.streamMappings.commentUpdateFailed")),
-      { cause: error },
-    );
-  }
 }
 async function syncRoutes() {
   isSyncing.value = true;

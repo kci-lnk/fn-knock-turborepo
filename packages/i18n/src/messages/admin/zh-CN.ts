@@ -3606,6 +3606,32 @@ export const zhCNAdmin = {
     protocolTab: "协议",
   },
   streamMappings: {
+    gatewayRuleDisabled: "网关已停用转发",
+    revisionConflict: "协议规则已更改，请核对最新规则后重试。",
+    ruleEnabled: "已启用",
+    ruleDisabled: "已停用",
+    selectedCount: "已选 {count} 条规则",
+    selectVisible: "选择所有可见规则",
+    selectRule: "选择 {mapping}",
+    actions: {
+      enable: {
+        label: "启用规则",
+        single: "启用 {mapping}？规则将在协议映射已开启且处于开放时段时转发流量。",
+        batch: "启用选中的 {count} 条已停用规则？转发仍受全局开关和开放时段控制。",
+        success: "已启用 {count} 条规则",
+      },
+      disable: {
+        label: "停用规则",
+        single: "停用 {mapping}？该规则将停止转发，配置会保留。",
+        batch: "停用选中的 {count} 条已启用规则？这些规则将停止转发，配置会保留。",
+        success: "已停用 {count} 条规则",
+      },
+      delete: {
+        label: "删除规则",
+        batch: "永久删除选中的 {count} 条规则？此操作无法撤销。",
+        success: "已删除 {count} 条规则",
+      },
+    },
     title: "协议映射",
     serviceProfile: "服务识别",
     serviceUnknown: "未知服务",
@@ -3616,8 +3642,8 @@ export const zhCNAdmin = {
     probeVerified: "目标服务已验证",
     probeIdentifiedWithoutStrict: "目标服务已识别，未启用严格校验",
     probeIdentifiedWithoutStrictDescription:
-      "已识别为 {service}；映射保持启用。",
-    probeUnverified: "目标服务未识别，已关闭严格校验并保持映射启用",
+      "已识别为 {service}。",
+    probeUnverified: "目标服务未识别，已关闭严格校验",
     probeFailed: "检测目标服务失败",
     probeAuthenticatedHttp: "检测到 HTTP，但上游认证隐藏了应用协议",
     probeAuthenticatedHttpDescription:
@@ -3658,26 +3684,26 @@ export const zhCNAdmin = {
     selectService: "指定服务类型",
     selectServiceTitle: "指定服务类型",
     selectServiceDescription:
-      "确认目标实际运行的服务。支持严格校验的服务会启用校验；仅识别服务只保存类型并保持映射启用。此设置不会改变登录要求。",
+      "确认目标实际运行的服务。支持严格校验的服务会启用校验；仅识别服务只保存类型。此设置不会改变登录要求。",
     selectServicePlaceholder: "请选择服务类型",
     serviceIdentificationOnly: "仅识别",
     selectServiceWarning:
       "选择错误会导致连接被拒绝。如需免登录，请另外配置“配置免登录”，或编辑映射关闭“要求登录鉴权”。",
     selectServiceIdentificationOnlyWarning:
-      "该服务仅支持识别，不支持严格协议校验。确认后严格校验保持关闭，映射保持启用。",
+      "该服务仅支持识别，不支持严格协议校验。确认后严格校验保持关闭。",
     confirmService: "确认并启用校验",
     confirmServiceIdentificationOnly: "确认服务类型",
     clearService: "清除指定",
     clearServiceTitle: "清除已指定的服务类型？",
     clearServiceDescription:
-      "清除后会关闭严格协议校验，映射保持启用。登录鉴权和免登录规则会保留。",
+      "清除后会关闭严格协议校验。登录鉴权和免登录规则会保留。",
     clearServiceConfirm: "清除并关闭校验",
     serviceCatalogFailed: "加载服务目录失败",
     serviceConfirmed: "服务类型已确认并启用严格校验",
     serviceConfirmedIdentificationOnly:
-      "服务类型已确认；严格校验保持关闭，映射保持启用",
+      "服务类型已确认；严格校验保持关闭",
     serviceConfirmFailed: "确认预期服务失败",
-    serviceCleared: "已清除指定的服务类型；严格校验已关闭，映射保持启用",
+    serviceCleared: "已清除指定的服务类型；严格校验已关闭",
     serviceClearFailed: "清除指定的服务类型失败",
     scheduleAvailability: "定时启用或禁用",
     scheduleOpen: "定时开放中 {window}",

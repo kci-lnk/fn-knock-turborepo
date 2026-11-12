@@ -44,6 +44,11 @@ pub(super) fn prepare_stream_mapping_update(previous: &[Value], next: &mut [Valu
             object.insert("validation_mode".into(), Value::String("off".into()));
             continue;
         };
+        if !object.contains_key("manually_disabled")
+            && let Some(disabled) = previous.get("manually_disabled").and_then(Value::as_bool)
+        {
+            object.insert("manually_disabled".into(), Value::Bool(disabled));
+        }
         let target_unchanged = previous.get("target") == object.get("target");
         if target_unchanged {
             for field in SECURITY_FIELDS {
@@ -259,13 +264,10 @@ async fn persist_stream_security_change(
     previous: &Value,
     updated: &Value,
 ) -> Result<(), String> {
-    state
-        .storage
-        .store
-        .save_config(updated)
+    let persisted = save_stream_config(state, updated)
         .await
         .map_err(|error| error.to_string())?;
-    if let Err(error) = sync_stream_mappings_runtime(state, updated).await {
+    if let Err(error) = sync_stream_mappings_runtime(state, &persisted).await {
         rollback_stream_mappings(state, previous).await;
         return Err(error);
     }

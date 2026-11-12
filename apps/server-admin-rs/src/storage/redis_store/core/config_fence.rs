@@ -50,6 +50,7 @@ pub(super) struct ConfigFenceSnapshot {
 pub(super) struct ConfigGenerationMarker {
     pub(super) generation: u64,
     pub(super) host_fingerprint: String,
+    pub(super) stream_fingerprint: String,
 }
 
 pub(super) async fn load_config_fence_snapshot(
@@ -222,7 +223,13 @@ pub(super) fn take_config_generation_marker(
             crate::storage::storage_error("host mappings generation fingerprint is invalid")
         })?
         .to_string();
+    let stream_fingerprint = marker
+        .get("stream_fingerprint")
+        .and_then(Value::as_str)
+        .ok_or_else(|| crate::storage::storage_error("missing stream configuration fingerprint"))?
+        .to_owned();
     Ok(Some(ConfigGenerationMarker {
+        stream_fingerprint,
         generation,
         host_fingerprint,
     }))
@@ -233,14 +240,21 @@ pub(super) fn inject_config_generation_marker(
     generation: u64,
 ) -> crate::storage::StorageResult<()> {
     let host_fingerprint = config_host_mappings_fingerprint(config)?;
-    inject_config_generation_marker_with_fingerprint(config, generation, &host_fingerprint);
+    let stream_fingerprint = crate::storage::typed_config::config_stream_fingerprint(config)?;
+    inject_config_generation_marker_with_fingerprints(
+        config,
+        generation,
+        &host_fingerprint,
+        &stream_fingerprint,
+    );
     Ok(())
 }
 
-pub(super) fn inject_config_generation_marker_with_fingerprint(
+pub(super) fn inject_config_generation_marker_with_fingerprints(
     config: &mut Value,
     generation: u64,
     host_fingerprint: &str,
+    stream_fingerprint: &str,
 ) {
     if let Some(object) = config.as_object_mut() {
         object.insert(
@@ -248,6 +262,7 @@ pub(super) fn inject_config_generation_marker_with_fingerprint(
             json!({
                 "generation": generation,
                 "host_fingerprint": host_fingerprint,
+                "stream_fingerprint": stream_fingerprint,
             }),
         );
     }

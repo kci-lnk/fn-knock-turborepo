@@ -71,12 +71,14 @@ impl Store {
                 typed
                     .document
                     .host_fingerprint(operation)
-                    .map(|fingerprint| {
-                        inject_config_generation_marker_with_fingerprint(
+                    .and_then(|fingerprint| {
+                        inject_config_generation_marker_with_fingerprints(
                             &mut config,
                             typed.host_mappings_generation,
                             fingerprint,
+                            typed.document.stream_fingerprint()?,
                         );
+                        Ok(())
                     })
             } else {
                 // Equal JSON values may serialize differently (signed zero).
@@ -746,6 +748,30 @@ impl Store {
                     }
                 }
             };
+            // A whole-config writer can be holding an older snapshot while the
+            // protocol page commits. Keep the latest rule/policy pair together.
+            if let Some(marker) = &requested_generation
+                && ["stream_mappings", "stream_access_policies"]
+                    .iter()
+                    .any(|key| requested_config.get(key) != snapshot.config.get(key))
+                && crate::storage::typed_config::config_stream_fingerprint(&snapshot.config)?
+                    != marker.stream_fingerprint
+            {
+                if crate::storage::typed_config::config_stream_fingerprint(&requested_config)?
+                    != marker.stream_fingerprint
+                {
+                    return Err(crate::storage::storage_error(
+                        "stream mappings changed after this config snapshot was read",
+                    ));
+                }
+                for key in ["stream_mappings", "stream_access_policies"] {
+                    if let Some(value) = snapshot.config.get(key) {
+                        replacement_config[key] = value.clone();
+                    } else if let Some(root) = replacement_config.as_object_mut() {
+                        root.remove(key);
+                    }
+                }
+            }
             strip_internal_config_metadata(&mut replacement_config);
             let replacement_raw = serde_json::to_string(&replacement_config)?;
             if let Some(revision) = compare_and_set_config_fence_snapshot(

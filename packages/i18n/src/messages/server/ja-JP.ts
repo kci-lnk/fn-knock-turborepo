@@ -443,6 +443,7 @@ export const jaJPServer = {
         "ゲートウェイバックエンドが {host} の転送先パスモード {mode} を適用できませんでした。ゲートウェイバックエンドを更新してください",
       visibilityInvalid:
         "Host マッピング {host} の公開範囲設定が無効です: {message}",
+      backendAdvancedAuthMismatch: "ゲートウェイから返された {host} の高度な認証設定が送信した設定と一致しません",
       backendVisibilityUnsupported:
         "ゲートウェイバックエンドが {host} の公開範囲ルールを適用できませんでした。ゲートウェイバックエンドを更新してください",
       revisionConflict:
@@ -502,6 +503,7 @@ export const jaJPServer = {
       bookmarkFolderDefault: "fn-knock サブドメインマッピング",
     },
     streamMappings: {
+      revisionConflict: "プロトコルルールが変更されました。最新のルールを確認してから再試行してください。",
       payloadObjectRequired:
         "ストリームマッピングはオブジェクトである必要があります",
       listenPortRequiredInteger: "待受ポートには整数を指定してください",
@@ -737,6 +739,7 @@ export const jaJPServer = {
     certZipCreateFailed: "SSL 証明書 zip を作成できませんでした",
     manualCertificateLabel: "手動アップロード証明書",
     certNotFound: "証明書が存在しません",
+    opensslUnavailable: "OpenSSL コマンドを実行できません。OpenSSL をインストールし、サービスの PATH に含まれていることを確認してください（OpenWrt では openssl-util をインストール）。",
     caInitFailed: "ローカル CA の初期化に失敗しました",
     caHostLoadFailed: "ローカル CA Host リストの読み込みに失敗しました",
     caHostSaveFailed: "ローカル CA Host リストの保存に失敗しました",

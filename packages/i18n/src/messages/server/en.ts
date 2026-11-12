@@ -428,6 +428,7 @@ export const enServer = {
         "The gateway backend did not apply target path mode {mode} for {host}; upgrade the gateway backend",
       visibilityInvalid:
         "Host mapping {host} has invalid visibility settings: {message}",
+      backendAdvancedAuthMismatch: "The advanced authentication configuration returned by the gateway for {host} does not match the configuration sent",
       backendVisibilityUnsupported:
         "The gateway backend did not apply visibility rules for {host}; upgrade the gateway backend",
       revisionConflict:
@@ -484,6 +485,7 @@ export const enServer = {
       bookmarkFolderDefault: "fn-knock subdomain mappings",
     },
     streamMappings: {
+      revisionConflict: "Protocol rules have changed. Review the current rules and try again.",
       payloadObjectRequired: "Stream mapping must be an object",
       listenPortRequiredInteger: "Listen port must be a valid integer",
       listenPortNotInteger: "Listen port {port} is not a valid integer",
@@ -703,6 +705,7 @@ export const enServer = {
     certZipCreateFailed: "Failed to create SSL certificate zip",
     manualCertificateLabel: "Manually uploaded certificate",
     certNotFound: "Certificate not found",
+    opensslUnavailable: "Unable to execute OpenSSL. Install OpenSSL and ensure it is on the service PATH (install openssl-util on OpenWrt).",
     caInitFailed: "Failed to initialize local CA",
     caHostLoadFailed: "Failed to load local CA host list",
     caHostSaveFailed: "Failed to save local CA host list",

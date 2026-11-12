@@ -270,7 +270,7 @@ async fn boot_migration_reenables_unvalidated_stream_mappings() {
     let mut config = state.storage.store.get_config().await.expect("load config");
     config["stream_mappings"] = json!([
         {"protocol": "tcp", "listen_port": 6001, "validation_mode": "off", "disabled": true},
-        {"protocol": "tcp", "listen_port": 6002, "disabled": true},
+        {"protocol": "tcp", "listen_port": 6002, "disabled": true, "manually_disabled": true},
         {"protocol": "tcp", "listen_port": 6003, "validation_mode": "strict", "disabled": true},
         {"protocol": "tcp", "listen_port": 6004, "validation_mode": "off", "disabled": false}
     ]);
@@ -281,6 +281,7 @@ async fn boot_migration_reenables_unvalidated_stream_mappings() {
     assert!(applied.contains(&"unvalidated_stream_mappings_enabled"));
     assert_eq!(config["stream_mappings"][0]["disabled"], false);
     assert_eq!(config["stream_mappings"][1]["disabled"], false);
+    assert_eq!(config["stream_mappings"][1]["manually_disabled"], true);
     assert_eq!(config["stream_mappings"][2]["disabled"], true);
     assert_eq!(config["stream_mappings"][3]["disabled"], false);
 
@@ -1787,6 +1788,31 @@ fn gateway_port_matches_node_parse_int_fallback() {
     assert_eq!(gateway_port_from_env(Some("   ".to_string())), 7999);
     assert_eq!(gateway_port_from_env(Some(" 8000x ".to_string())), 8000);
     assert_eq!(gateway_port_from_env(Some("0x10".to_string())), 7999);
+}
+
+#[test]
+fn manual_stream_rule_state_controls_gateway_rules_and_automatic_exemptions() {
+    let mut config = json!({"stream_mappings": [
+        {"protocol": "tcp", "listen_port": 16443, "manually_disabled": true},
+        {"protocol": "udp", "listen_port": 16443},
+        {"protocol": "udp", "listen_port": 16444, "manually_disabled": true}
+    ]});
+    let selected: Vec<_> = enabled_stream_mappings(&config).collect();
+    assert_eq!(selected, vec![&config["stream_mappings"][1]]);
+    let ports = automatic_exempt_port_numbers(&config, true, 3);
+    assert!(ports.contains(&16443));
+    assert!(!ports.contains(&16444));
+    config["stream_mappings"][1]["disabled"] = json!(true);
+    assert!(!automatic_exempt_port_numbers(&config, true, 3).contains(&16443));
+    config["stream_mappings"][1]["manually_disabled"] = json!(true);
+    assert_eq!(enabled_stream_mappings(&config).count(), 0);
+    assert!(!automatic_exempt_port_numbers(&config, true, 3).contains(&16443));
+    config["stream_mappings"][0]["manually_disabled"] = json!(false);
+    assert_eq!(
+        enabled_stream_mappings(&config).next(),
+        Some(&config["stream_mappings"][0])
+    );
+    assert!(!automatic_exempt_port_numbers(&config, false, 3).contains(&16443));
 }
 
 #[test]

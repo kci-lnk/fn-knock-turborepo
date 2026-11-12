@@ -3549,6 +3549,32 @@ export const zhHantAdmin = {
     protocolTab: "協議",
   },
   streamMappings: {
+    gatewayRuleDisabled: "閘道已停用轉送",
+    revisionConflict: "協議規則已變更，請核對最新規則後重試。",
+    ruleEnabled: "已啟用",
+    ruleDisabled: "已停用",
+    selectedCount: "已選取 {count} 條規則",
+    selectVisible: "選取所有可見規則",
+    selectRule: "選取 {mapping}",
+    actions: {
+      enable: {
+        label: "啟用規則",
+        single: "啟用 {mapping}？規則會在協議映射開啟且處於開放時段時轉送流量。",
+        batch: "啟用選取的 {count} 條已停用規則？轉送仍受全域開關及開放時段控制。",
+        success: "已啟用 {count} 條規則",
+      },
+      disable: {
+        label: "停用規則",
+        single: "停用 {mapping}？此規則將停止轉送，設定會保留。",
+        batch: "停用選取的 {count} 條已啟用規則？這些規則將停止轉送，設定會保留。",
+        success: "已停用 {count} 條規則",
+      },
+      delete: {
+        label: "刪除規則",
+        batch: "永久刪除選取的 {count} 條規則？此操作無法復原。",
+        success: "已刪除 {count} 條規則",
+      },
+    },
     title: "協議映射",
     serviceProfile: "服務識別",
     serviceUnknown: "未知服務",
@@ -3559,8 +3585,8 @@ export const zhHantAdmin = {
     probeVerified: "目標服務已驗證",
     probeIdentifiedWithoutStrict: "目標服務已識別，未啟用嚴格校驗",
     probeIdentifiedWithoutStrictDescription:
-      "已識別為 {service}；映射保持啟用。",
-    probeUnverified: "目標服務未識別，已關閉嚴格校驗並保持映射啟用",
+      "已識別為 {service}。",
+    probeUnverified: "目標服務未識別，已關閉嚴格校驗",
     probeFailed: "檢測目標服務失敗",
     probeAuthenticatedHttp: "已偵測到 HTTP，但上游驗證隱藏了應用協議",
     probeAuthenticatedHttpDescription:
@@ -3602,26 +3628,26 @@ export const zhHantAdmin = {
     selectService: "指定服務類型",
     selectServiceTitle: "指定服務類型",
     selectServiceDescription:
-      "確認目標實際執行的服務。支援嚴格校驗的服務會啟用校驗；僅識別服務只儲存類型並保持映射啟用。此設定不會改變登入要求。",
+      "確認目標實際執行的服務。支援嚴格校驗的服務會啟用校驗；僅識別服務只儲存類型。此設定不會改變登入要求。",
     selectServicePlaceholder: "請選擇服務類型",
     serviceIdentificationOnly: "僅識別",
     selectServiceWarning:
       "選擇錯誤會導致連線被拒絕。如需免登入，請另外設定「設定免登入」，或編輯映射關閉「要求登入驗證」。",
     selectServiceIdentificationOnlyWarning:
-      "此服務僅支援識別，不支援嚴格協議校驗。確認後嚴格校驗保持關閉，映射保持啟用。",
+      "此服務僅支援識別，不支援嚴格協議校驗。確認後嚴格校驗保持關閉。",
     confirmService: "確認並啟用校驗",
     confirmServiceIdentificationOnly: "確認服務類型",
     clearService: "清除指定",
     clearServiceTitle: "清除已指定的服務類型？",
     clearServiceDescription:
-      "清除後會關閉嚴格協議校驗，映射保持啟用。登入驗證與免登入規則會保留。",
+      "清除後會關閉嚴格協議校驗。登入驗證與免登入規則會保留。",
     clearServiceConfirm: "清除並關閉校驗",
     serviceCatalogFailed: "載入服務目錄失敗",
     serviceConfirmed: "服務類型已確認並啟用嚴格校驗",
     serviceConfirmedIdentificationOnly:
-      "服務類型已確認；嚴格校驗保持關閉，映射保持啟用",
+      "服務類型已確認；嚴格校驗保持關閉",
     serviceConfirmFailed: "確認預期服務失敗",
-    serviceCleared: "已清除指定的服務類型；嚴格校驗已關閉，映射保持啟用",
+    serviceCleared: "已清除指定的服務類型；嚴格校驗已關閉",
     serviceClearFailed: "清除指定的服務類型失敗",
     scheduleAvailability: "定時啟用或禁用",
     scheduleOpen: "定時開放中 {window}",

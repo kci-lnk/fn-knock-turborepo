@@ -10,25 +10,15 @@ import type {
   ProxyMapping,
   ReverseProxySubmode,
   RunType,
-  StreamMapping,
   SubdomainModeConfig,
 } from "../types";
-import {
-  ConfigAPI,
-  STREAM_MAPPING_LEGACY_REPAIR_REQUIRED_CODE,
-} from "@/lib/api/config";
-import { SystemAPI } from "@/lib/api/system";
+import { ConfigAPI } from "@/lib/api/config";
+import { createStreamMappingsSaver } from "./createStreamMappingsSaver";
 import { createSerialTaskQueue } from "../lib/serialTaskQueue";
 import { applyAppearanceConfig } from "@admin-shared/composables/useAppearanceState";
 import { applyDateTimeDisplayConfig } from "@admin-shared/composables/useDateTimeDisplayState";
 import { hasPendingHostMappingMetadata } from "./hostMappingMetadata";
 import { useConfigRuntimeCapabilities } from "./useConfigRuntimeCapabilities";
-
-const isLegacyStreamMappingRepairConflict = (error: unknown): boolean =>
-  (error as { response?: { status?: number; data?: { code?: number } } })
-    ?.response?.status === 409 &&
-  (error as { response?: { data?: { code?: number } } })?.response?.data
-    ?.code === STREAM_MAPPING_LEGACY_REPAIR_REQUIRED_CODE;
 
 export const useConfigStore = defineStore("config", () => {
   const config = ref<AppConfig | null>(null);
@@ -44,9 +34,17 @@ export const useConfigStore = defineStore("config", () => {
   let hostMappingGroupedViewSnapshot: boolean | null = null;
   let hostMappingsSnapshotRequestId = 0;
   let hostMappingsSavePromise: Promise<HostMapping[]> | null = null;
-  const runStreamMappingsSave = createSerialTaskQueue();
   const runDashboardDisplaySave = createSerialTaskQueue();
   let dashboardDisplayWriteRevision = 0;
+  let streamReadSequence = 0;
+  let appliedStreamSequence = 0;
+  const saveStreamMappings = createStreamMappingsSaver(
+    config,
+    () => loadConfig({ force: true, background: true }),
+    () => {
+      appliedStreamSequence = ++streamReadSequence;
+    },
+  );
 
   const refreshHostMappingsOnly = async () => {
     if (hostMappingsSavePromise) {
@@ -69,15 +67,15 @@ export const useConfigStore = defineStore("config", () => {
   };
 
   const refreshStreamMappingsOnly = async () => {
+    const sequence = ++streamReadSequence;
     const mappings = await ConfigAPI.getStreamMappings();
-    if (config.value) {
-      config.value = {
-        ...config.value,
-        stream_mappings: mappings,
-      };
-    } else {
-      await loadConfig();
+    if (!config.value) {
+      return (await loadConfig())?.stream_mappings ?? mappings;
     }
+    if (sequence < appliedStreamSequence)
+      return config.value.stream_mappings ?? [];
+    appliedStreamSequence = sequence;
+    config.value = { ...config.value, stream_mappings: mappings };
     return mappings;
   };
 
@@ -132,35 +130,58 @@ export const useConfigStore = defineStore("config", () => {
     }, 1800);
   };
 
-  async function loadConfig(options: { force?: boolean } = {}) {
+  async function loadConfig(
+    options: { force?: boolean; background?: boolean } = {},
+  ) {
     if (!options.force && !config.value && loadConfigPromise) {
       return loadConfigPromise;
     }
 
     const requestId = loadConfigRequestId + 1;
     loadConfigRequestId = requestId;
-    isLoading.value = true;
-    isError.value = false;
+    // A protocol save may refresh underneath its confirmation dialog.
+    // The layout unmounts the active view during foreground loads.
+    const background =
+      options.background && config.value && !isLoading.value && !isError.value;
+    if (!background) {
+      isLoading.value = true;
+      isError.value = false;
+    }
     const request = (async () => {
       if (hostMappingsSavePromise) {
         await hostMappingsSavePromise;
       }
       const hostMappingsRequestId = ++hostMappingsSnapshotRequestId;
       const displayRevision = dashboardDisplayWriteRevision;
+      const streamSequence = ++streamReadSequence;
       return {
         snapshot: await ConfigAPI.getConfig(),
         hostMappingsRequestId,
         displayRevision,
+        streamSequence,
       };
     })()
-      .then(({ snapshot, hostMappingsRequestId, displayRevision }) => {
+      .then((result) => {
+        const {
+          snapshot,
+          hostMappingsRequestId,
+          displayRevision,
+          streamSequence,
+        } = result;
         let next: AppConfig = {
           ...snapshot.config,
           host_mapping_groups: snapshot.config.host_mapping_groups ?? [],
           host_mapping_grouped_view:
             snapshot.config.host_mapping_grouped_view === true,
         };
+        if (streamSequence < appliedStreamSequence && config.value) {
+          next.stream_mappings = config.value.stream_mappings;
+        }
         if (requestId === loadConfigRequestId) {
+          appliedStreamSequence = Math.max(
+            appliedStreamSequence,
+            streamSequence,
+          );
           // A read begun before a completed display save must not undo it.
           if (
             displayRevision !== dashboardDisplayWriteRevision &&
@@ -192,7 +213,7 @@ export const useConfigStore = defineStore("config", () => {
       })
       .catch((e) => {
         console.error(e);
-        if (requestId === loadConfigRequestId) {
+        if (requestId === loadConfigRequestId && !background) {
           isError.value = true;
         }
         return null;
@@ -368,64 +389,6 @@ export const useConfigStore = defineStore("config", () => {
     const result = await ConfigAPI.refreshAllHostMappingTitles();
     await loadConfig({ force: true });
     return result;
-  }
-
-  async function saveStreamMappings(
-    update: (current: readonly StreamMapping[]) => StreamMapping[],
-    options: { disableFeatureOnLegacyRepairConflict?: boolean } = {},
-  ) {
-    return runStreamMappingsSave(async () => {
-      let current =
-        config.value?.stream_mappings ?? (await ConfigAPI.getStreamMappings());
-      let next = update(current);
-      let protocolMappingDisabled = false;
-      try {
-        await ConfigAPI.updateStreamMappings(next);
-      } catch (error) {
-        if (
-          !options.disableFeatureOnLegacyRepairConflict ||
-          !isLegacyStreamMappingRepairConflict(error)
-        ) {
-          throw error;
-        }
-        await SystemAPI.updateProtocolMappingFeatureConfig({ enabled: false });
-        protocolMappingDisabled = true;
-        if (config.value) {
-          config.value = {
-            ...config.value,
-            protocol_mapping_feature: {
-              ...config.value.protocol_mapping_feature,
-              enabled: false,
-              availability:
-                config.value.protocol_mapping_feature?.availability ?? null,
-            },
-          };
-        }
-        const refreshed = await loadConfig({ force: true });
-        current =
-          refreshed?.stream_mappings ?? (await ConfigAPI.getStreamMappings());
-        next = update(current);
-        await ConfigAPI.updateStreamMappings(next);
-      }
-      if (config.value) {
-        config.value = {
-          ...config.value,
-          stream_mappings: next,
-          ...(protocolMappingDisabled
-            ? {
-                protocol_mapping_feature: {
-                  ...config.value.protocol_mapping_feature,
-                  enabled: false,
-                  availability:
-                    config.value.protocol_mapping_feature?.availability ?? null,
-                },
-              }
-            : {}),
-        };
-      }
-      await loadConfig({ force: true });
-      return { protocolMappingDisabled };
-    });
   }
 
   async function saveSubdomainMode(next: Partial<SubdomainModeConfig>) {

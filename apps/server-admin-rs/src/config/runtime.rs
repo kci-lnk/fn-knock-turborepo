@@ -206,15 +206,7 @@ fn message_mentions_stream_port(message: &str, port: u64) -> bool {
 }
 
 fn stream_mapping_issue_identity(config: &Value, message: &str) -> (Value, Value, Value) {
-    let mappings = config
-        .get("stream_mappings")
-        .and_then(Value::as_array)
-        .map(Vec::as_slice)
-        .unwrap_or_default();
-    let active = mappings
-        .iter()
-        .filter(|mapping| mapping.get("disabled").and_then(Value::as_bool) != Some(true))
-        .collect::<Vec<_>>();
+    let active = listening_stream_mappings(config).collect::<Vec<_>>();
     let lowercase_message = message.to_ascii_lowercase();
     let candidates = active
         .iter()

@@ -359,6 +359,7 @@ export const zhCNServer = {
       backendTargetPathModeUnsupported:
         "网关后端未应用 {host} 的目标路径模式 {mode}，请升级网关后端",
       visibilityInvalid: "Host 映射 {host} 的可见性配置无效：{message}",
+      backendAdvancedAuthMismatch: "网关回传的 {host} 高级认证配置与下发配置不一致",
       backendVisibilityUnsupported:
         "网关后端未应用 {host} 的可见性规则，请升级网关后端",
       revisionConflict: "Host 映射已在其他页面更新，请刷新后重试",
@@ -405,6 +406,7 @@ export const zhCNServer = {
       bookmarkFolderDefault: "fn-knock 子域映射",
     },
     streamMappings: {
+      revisionConflict: "协议规则已更改，请核对最新规则后重试。",
       payloadObjectRequired: "协议映射必须是对象",
       listenPortRequiredInteger: "监听端口必须是有效整数",
       listenPortNotInteger: "监听端口 {port} 不是有效整数",
@@ -611,6 +613,7 @@ export const zhCNServer = {
     certZipCreateFailed: "创建 SSL 证书压缩包失败",
     manualCertificateLabel: "手动上传证书",
     certNotFound: "证书不存在",
+    opensslUnavailable: "无法运行 OpenSSL 命令，请安装 OpenSSL 并确保服务的 PATH 可访问该命令（OpenWrt 请安装 openssl-util）。",
     caInitFailed: "初始化本地 CA 失败",
     caHostLoadFailed: "读取本地 CA Host 列表失败",
     caHostSaveFailed: "保存本地 CA Host 列表失败",

@@ -3922,6 +3922,122 @@ fn disabled_stream_mappings_can_repair_legacy_local_loops_incrementally() {
     );
 }
 
+#[test]
+fn stream_manual_state_survives_legacy_edits_and_reactivation_validates_the_target() {
+    let paused = json!({"protocol": "tcp", "listen_port": 8053, "target": "localhost:8053", "manually_disabled": true});
+    let previous = [paused.clone()];
+    let mut input = paused.clone();
+    input.as_object_mut().unwrap().remove("manually_disabled");
+    let mut next = normalize_stream_mappings(vec![input.clone()]).unwrap();
+    prepare_stream_mapping_update(&previous, &mut next);
+    assert_eq!(next[0]["manually_disabled"], true);
+    assert!(validate_stream_mapping_update_safety(&previous, &next, false).is_ok());
+    input["manually_disabled"] = json!(false);
+    let mut next = normalize_stream_mappings(vec![input.clone()]).unwrap();
+    prepare_stream_mapping_update(&previous, &mut next);
+    assert_eq!(next[0]["manually_disabled"], false);
+    assert!(validate_stream_mapping_update_safety(&previous, &next, true).is_err());
+    input["manually_disabled"] = json!("false");
+    assert!(normalize_stream_mappings(vec![input]).is_err());
+}
+
+#[tokio::test]
+async fn stale_stream_rule_action_preserves_concurrent_rules() {
+    let (_directory, state) = proxy_config_test_state("127.0.0.1:1".to_string()).await;
+    let tcp = json!({"protocol":"tcp","listen_port":8443,"target":"web:443"});
+    let udp = json!({"protocol":"udp","listen_port":8443,"target":"web:443"});
+    let current = json!([tcp.clone(), udp]);
+    state
+        .storage
+        .store
+        .set_config_top_level_value("stream_mappings", current.clone())
+        .await
+        .unwrap();
+    let mut paused = tcp.clone();
+    paused["manually_disabled"] = json!(true);
+    let mut unrelated_edit = state.storage.store.get_config().await.unwrap();
+    unrelated_edit["firewall_additional_ports"] = json!([9443]);
+    state
+        .storage
+        .store
+        .set_config_top_level_value(
+            "stream_mappings",
+            json!([paused.clone(), current[1].clone()]),
+        )
+        .await
+        .unwrap();
+    state
+        .storage
+        .store
+        .save_config(&unrelated_edit)
+        .await
+        .unwrap();
+    let after = state.storage.store.get_config().await.unwrap();
+    assert_eq!(after["stream_mappings"][0]["manually_disabled"], true);
+    assert_eq!(after["firewall_additional_ports"], json!([9443]));
+    let response = update_stream_mappings_with_runtime_sync(
+        state.clone(),
+        StreamMappingsBody {
+            mappings: vec![paused],
+            expected_mappings: Some(vec![tcp]),
+        },
+        |_, _| async { panic!("a stale list must not reach the gateway") },
+    )
+    .await;
+    assert_eq!(response.status(), StatusCode::CONFLICT);
+    assert_eq!(
+        state.storage.store.get_config().await.unwrap()["stream_mappings"],
+        after["stream_mappings"]
+    );
+}
+
+#[tokio::test]
+async fn stream_rule_enable_rolls_back_when_gateway_sync_fails() {
+    let (_directory, state) = proxy_config_test_state("127.0.0.1:1".to_string()).await;
+    let paused = json!({"protocol": "tcp", "listen_port": 8053, "target": "127.0.0.1:53", "manually_disabled": true});
+    let mut config = state.storage.store.get_config().await.unwrap();
+    config["stream_mappings"] = json!([paused.clone()]);
+    state.storage.store.save_config(&config).await.unwrap();
+    state
+        .storage
+        .store
+        .set_json_value(
+            "fn_knock:protocol-mapping:feature",
+            &json!({"enabled": true}),
+        )
+        .await
+        .unwrap();
+    let mut enabled = paused;
+    enabled["manually_disabled"] = json!(false);
+    let response = update_stream_mappings_with_runtime_sync(
+        state.clone(),
+        StreamMappingsBody {
+            mappings: vec![enabled],
+            expected_mappings: None,
+        },
+        |state, updated| async move {
+            state
+                .storage
+                .store
+                .set_config_top_level_value("firewall_additional_ports", json!([8443]))
+                .await
+                .unwrap();
+            assert_eq!(updated["stream_mappings"][0]["manually_disabled"], false);
+            Err("listener unavailable".into())
+        },
+    )
+    .await;
+    assert_eq!(
+        state.storage.store.get_config().await.unwrap()["firewall_additional_ports"],
+        json!([8443])
+    );
+    assert_eq!(response.status(), StatusCode::BAD_GATEWAY);
+    assert_eq!(
+        state.storage.store.get_config().await.unwrap()["stream_mappings"],
+        config["stream_mappings"]
+    );
+}
+
 #[tokio::test]
 async fn disabled_stream_mapping_deletion_does_not_depend_on_gateway_runtime() {
     let unavailable_listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
@@ -3972,9 +4088,9 @@ async fn disabled_stream_mapping_deletion_does_not_depend_on_gateway_runtime() {
     });
     let response = update_stream_mappings(
         State(state.clone()),
-        Json(MappingsBody {
+        Json(StreamMappingsBody {
             mappings: vec![remaining.clone()],
-            revision: None,
+            expected_mappings: None,
         }),
     )
     .await;
@@ -4022,9 +4138,9 @@ async fn enabled_stream_mapping_can_delete_the_only_legacy_udp_loop() {
 
     let response = update_stream_mappings_with_runtime_sync(
         state.clone(),
-        MappingsBody {
+        StreamMappingsBody {
             mappings: vec![],
-            revision: None,
+            expected_mappings: None,
         },
         |_state, updated_config| async move {
             assert_eq!(updated_config.get("stream_mappings"), Some(&json!([])));
@@ -4092,14 +4208,14 @@ async fn stream_mapping_update_waits_for_the_protocol_mapping_transaction_lock()
     let mut task = tokio::spawn(async move {
         update_stream_mappings(
             State(task_state),
-            Json(MappingsBody {
+            Json(StreamMappingsBody {
                 mappings: vec![json!({
                     "protocol": "udp",
                     "listen_port": 12333,
                     "target": "127.0.0.1:12333",
                     "use_auth": true
                 })],
-                revision: None,
+                expected_mappings: None,
             }),
         )
         .await
@@ -4158,7 +4274,7 @@ async fn enabled_legacy_loop_cleanup_requires_disabling_before_persisting() {
 
     let response = update_stream_mappings(
         State(state.clone()),
-        Json(MappingsBody {
+        Json(StreamMappingsBody {
             mappings: vec![json!({
                 "protocol": "udp",
                 "listen_port": 12333,
@@ -4166,7 +4282,7 @@ async fn enabled_legacy_loop_cleanup_requires_disabling_before_persisting() {
                 "use_auth": true,
                 "comment": "legacy UDP"
             })],
-            revision: None,
+            expected_mappings: None,
         }),
     )
     .await;

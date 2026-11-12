@@ -3880,6 +3880,32 @@ export const enAdmin = {
     protocolTab: "Protocols",
   },
   streamMappings: {
+    gatewayRuleDisabled: "Forwarding disabled by gateway",
+    revisionConflict: "Protocol rules have changed. Review the current rules and try again.",
+    ruleEnabled: "Enabled",
+    ruleDisabled: "Disabled",
+    selectedCount: "Selected rules: {count}",
+    selectVisible: "Select all visible rules",
+    selectRule: "Select {mapping}",
+    actions: {
+      enable: {
+        label: "Enable",
+        single: "Enable {mapping}? It will forward traffic when protocol mappings are on and the schedule allows access.",
+        batch: "Enable selected rules ({count})? Forwarding follows the global switch and access schedule.",
+        success: "Rules enabled: {count}",
+      },
+      disable: {
+        label: "Disable",
+        single: "Disable {mapping}? Forwarding will stop. Its configuration will be kept.",
+        batch: "Disable selected rules ({count})? Forwarding will stop. Their configurations will be kept.",
+        success: "Rules disabled: {count}",
+      },
+      delete: {
+        label: "Delete",
+        batch: "Permanently delete the selected rules ({count})? This cannot be undone.",
+        success: "Rules deleted: {count}",
+      },
+    },
     title: "Protocol mappings",
     serviceProfile: "Service identification",
     serviceUnknown: "Unknown service",
@@ -3891,9 +3917,9 @@ export const enAdmin = {
     probeIdentifiedWithoutStrict:
       "Target service identified without strict validation",
     probeIdentifiedWithoutStrictDescription:
-      "Identified as {service}; the mapping remains enabled.",
+      "Identified as {service}.",
     probeUnverified:
-      "Target service not identified; strict validation is off and the mapping remains enabled",
+      "Target service not identified; strict validation is off",
     probeFailed: "Failed to detect target service",
     probeAuthenticatedHttp:
       "HTTP detected, but upstream authentication hides the application protocol",
@@ -3941,27 +3967,27 @@ export const enAdmin = {
     selectService: "Specify service type",
     selectServiceTitle: "Specify service type",
     selectServiceDescription:
-      "Confirm the service running at the target. Services that support strict validation will enable it; identification-only services keep the mapping enabled without strict validation. This does not change login requirements.",
+      "Confirm the service running at the target. Services that support strict validation will enable it; identification-only services leave strict validation off. This does not change login requirements.",
     selectServicePlaceholder: "Select a service type",
     serviceIdentificationOnly: "Identification only",
     selectServiceWarning:
       "A wrong choice rejects connections. To skip login, configure login bypass separately or edit the mapping and turn off Require login authentication.",
     selectServiceIdentificationOnlyWarning:
-      "This service can be identified but does not support strict validation. Confirming it keeps strict validation off and the mapping enabled.",
+      "This service can be identified but does not support strict validation. Confirming it keeps strict validation off.",
     confirmService: "Confirm and enable validation",
     confirmServiceIdentificationOnly: "Confirm service type",
     clearService: "Clear selection",
     clearServiceTitle: "Clear the specified service type?",
     clearServiceDescription:
-      "This turns off strict protocol validation while keeping the mapping enabled. Login authentication and bypass rules are preserved.",
+      "This turns off strict protocol validation. Login authentication and bypass rules are preserved.",
     clearServiceConfirm: "Clear and turn off validation",
     serviceCatalogFailed: "Failed to load service catalog",
     serviceConfirmed: "Service type confirmed and strict validation enabled",
     serviceConfirmedIdentificationOnly:
-      "Service type confirmed; strict validation remains off and the mapping remains enabled",
+      "Service type confirmed; strict validation remains off",
     serviceConfirmFailed: "Failed to confirm expected service",
     serviceCleared:
-      "Specified service type cleared; strict validation is off and the mapping remains enabled",
+      "Specified service type cleared; strict validation is off",
     serviceClearFailed: "Failed to clear specified service type",
     scheduleAvailability: "Schedule enable or disable",
     scheduleOpen: "Scheduled open {window}",

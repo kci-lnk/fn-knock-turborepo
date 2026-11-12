@@ -3852,6 +3852,32 @@ export const koKRAdmin = {
     protocolTab: "프로토콜",
   },
   streamMappings: {
+    gatewayRuleDisabled: "게이트웨이에서 전달 중지됨",
+    revisionConflict: "프로토콜 규칙이 변경되었습니다. 최신 규칙을 확인한 후 다시 시도하세요.",
+    ruleEnabled: "활성화됨",
+    ruleDisabled: "비활성화됨",
+    selectedCount: "선택한 규칙 {count}개",
+    selectVisible: "표시된 모든 규칙 선택",
+    selectRule: "{mapping} 선택",
+    actions: {
+      enable: {
+        label: "활성화",
+        single: "{mapping} 규칙을 활성화할까요? 프로토콜 매핑이 켜져 있고 허용된 시간대일 때 트래픽을 전달합니다.",
+        batch: "선택한 비활성 규칙 {count}개를 활성화할까요? 전달 여부는 전체 설정과 허용 시간대에 따릅니다.",
+        success: "규칙 {count}개를 활성화했습니다",
+      },
+      disable: {
+        label: "비활성화",
+        single: "{mapping} 규칙을 비활성화할까요? 전달이 중지되며 설정은 유지됩니다.",
+        batch: "선택한 활성 규칙 {count}개를 비활성화할까요? 전달이 중지되며 설정은 유지됩니다.",
+        success: "규칙 {count}개를 비활성화했습니다",
+      },
+      delete: {
+        label: "삭제",
+        batch: "선택한 규칙 {count}개를 영구 삭제할까요? 이 작업은 되돌릴 수 없습니다.",
+        success: "규칙 {count}개를 삭제했습니다",
+      },
+    },
     title: "프로토콜 매핑",
     serviceProfile: "서비스 식별",
     serviceUnknown: "알 수 없는 서비스",
@@ -3863,9 +3889,9 @@ export const koKRAdmin = {
     probeIdentifiedWithoutStrict:
       "대상 서비스를 식별했습니다(엄격한 검증 꺼짐)",
     probeIdentifiedWithoutStrictDescription:
-      "{service}(으)로 식별했습니다. 매핑은 활성 상태로 유지됩니다.",
+      "{service}(으)로 식별했습니다.",
     probeUnverified:
-      "대상 서비스를 식별하지 못했습니다. 엄격한 검증을 끄고 매핑은 활성 상태로 유지합니다",
+      "대상 서비스를 식별하지 못했습니다. 엄격한 검증이 꺼집니다",
     probeFailed: "대상 서비스 감지 실패",
     probeAuthenticatedHttp:
       "HTTP가 감지되었지만 업스트림 인증이 애플리케이션 프로토콜을 숨기고 있습니다",
@@ -3909,27 +3935,27 @@ export const koKRAdmin = {
     selectService: "서비스 유형 지정",
     selectServiceTitle: "서비스 유형 지정",
     selectServiceDescription:
-      "대상에서 실행 중인 서비스를 확인합니다. 엄격한 검증을 지원하는 서비스는 검증을 활성화하고, 식별 전용 서비스는 검증을 끈 채 매핑을 활성 상태로 유지합니다. 로그인 요구 사항은 변경되지 않습니다.",
+      "대상에서 실행 중인 서비스를 확인합니다. 엄격한 검증을 지원하는 서비스는 검증을 활성화하고, 식별 전용 서비스는 검증을 끈 상태로 둡니다. 로그인 요구 사항은 변경되지 않습니다.",
     selectServicePlaceholder: "서비스 유형 선택",
     serviceIdentificationOnly: "식별 전용",
     selectServiceWarning:
       "잘못 선택하면 연결이 거부됩니다. 로그인을 생략하려면 별도로 '로그인 생략 설정'을 구성하거나 매핑 편집에서 로그인 인증 요구를 끄세요.",
     selectServiceIdentificationOnlyWarning:
-      "이 서비스는 식별할 수 있지만 엄격한 프로토콜 검증은 지원하지 않습니다. 확인 후에도 검증은 꺼진 상태이고 매핑은 활성 상태로 유지됩니다.",
+      "이 서비스는 식별할 수 있지만 엄격한 프로토콜 검증은 지원하지 않습니다. 확인 후에도 검증은 꺼진 상태이고",
     confirmService: "확인 후 검증 활성화",
     confirmServiceIdentificationOnly: "서비스 유형 확인",
     clearService: "지정 해제",
     clearServiceTitle: "지정한 서비스 유형을 해제할까요?",
     clearServiceDescription:
-      "엄격한 프로토콜 검증을 끄고 매핑은 활성 상태로 유지합니다. 로그인 인증과 로그인 생략 규칙은 유지됩니다.",
+      "엄격한 프로토콜 검증을 끕니다. 로그인 인증과 로그인 생략 규칙은 유지됩니다.",
     clearServiceConfirm: "해제 후 검증 끄기",
     serviceCatalogFailed: "서비스 카탈로그를 불러오지 못했습니다",
     serviceConfirmed: "서비스 유형을 확인하고 엄격한 검증을 활성화했습니다",
     serviceConfirmedIdentificationOnly:
-      "서비스 유형을 확인했습니다. 엄격한 검증은 꺼진 상태이고 매핑은 활성 상태로 유지됩니다",
+      "서비스 유형을 확인했습니다. 엄격한 검증은 꺼진 상태입니다",
     serviceConfirmFailed: "예상 서비스 확인 실패",
     serviceCleared:
-      "서비스 유형 지정을 해제했습니다. 엄격한 검증은 꺼져 있고 매핑은 활성 상태입니다",
+      "서비스 유형 지정을 해제했습니다. 엄격한 검증은 꺼진 상태입니다",
     serviceClearFailed: "서비스 유형 지정 해제 실패",
     scheduleAvailability: "활성화 또는 비활성화 예약",
     scheduleOpen: "예약 개방 중 {window}",

@@ -77,6 +77,8 @@ pub(super) struct StreamMappingData {
     target: String,
     use_auth: bool,
     #[schema(nullable = false)]
+    manually_disabled: Option<bool>,
+    #[schema(nullable = false)]
     comment: Option<String>,
     #[schema(nullable = false)]
     disabled: Option<bool>,
@@ -99,12 +101,17 @@ pub(super) struct StreamMappingInputData {
     #[schema(nullable = false)]
     use_auth: Option<bool>,
     #[schema(nullable = false)]
+    manually_disabled: Option<bool>,
+    #[schema(nullable = false)]
     comment: Option<String>,
 }
 
 #[derive(Serialize, ToSchema)]
 pub(super) struct StreamMappingsUpdateData {
     mappings: Vec<StreamMappingInputData>,
+    /// Original list in read order. If supplied, changed editable fields or list membership return HTTP 409.
+    #[schema(nullable = false)]
+    expected_mappings: Option<Vec<StreamMappingInputData>>,
 }
 
 #[derive(Serialize, ToSchema)]

@@ -359,6 +359,7 @@ export const zhHantServer = {
       backendTargetPathModeUnsupported:
         "閘道後端未套用 {host} 的目標路徑模式 {mode}，請升級閘道後端",
       visibilityInvalid: "Host 對應 {host} 的可見性設定無效：{message}",
+      backendAdvancedAuthMismatch: "閘道回傳的 {host} 進階驗證設定與下發設定不一致",
       backendVisibilityUnsupported:
         "閘道後端未套用 {host} 的可見性規則，請升級閘道後端",
       revisionConflict: "Host 映射已在其他頁面更新，請重新整理後再試",
@@ -405,6 +406,7 @@ export const zhHantServer = {
       bookmarkFolderDefault: "fn-knock 子域映射",
     },
     streamMappings: {
+      revisionConflict: "協議規則已變更，請核對最新規則後重試。",
       payloadObjectRequired: "協議映射必須是物件",
       listenPortRequiredInteger: "監聽端口必須是有效整數",
       listenPortNotInteger: "監聽端口 {port} 不是有效整數",
@@ -611,6 +613,7 @@ export const zhHantServer = {
     certZipCreateFailed: "建立 SSL 證書壓縮包失敗",
     manualCertificateLabel: "手動上傳證書",
     certNotFound: "證書不存在",
+    opensslUnavailable: "無法執行 OpenSSL 命令，請安裝 OpenSSL 並確保服務的 PATH 可存取該命令（OpenWrt 請安裝 openssl-util）。",
     caInitFailed: "初始化本地 CA 失敗",
     caHostLoadFailed: "讀取本地 CA Host 列表失敗",
     caHostSaveFailed: "保存本地 CA Host 列表失敗",

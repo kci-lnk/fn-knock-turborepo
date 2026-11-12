@@ -28,14 +28,37 @@ export type StreamProbeResult = {
 };
 
 export const STREAM_MAPPING_LEGACY_REPAIR_REQUIRED_CODE = 40_901;
+export const STREAM_MAPPING_LIST_CHANGED_CODE = 40_902;
+
+const writableFields = ({
+  protocol,
+  listen_port,
+  target,
+  use_auth,
+  comment,
+  manually_disabled,
+}: StreamMapping) => ({
+  protocol,
+  listen_port,
+  target,
+  use_auth,
+  comment,
+  manually_disabled,
+});
 
 export const configStreamApi = {
   async getStreamMappings(): Promise<StreamMapping[]> {
     const res = await apiClient.get("/config/stream_mappings");
     return res.data.data;
   },
-  async updateStreamMappings(mappings: StreamMapping[]): Promise<void> {
-    const payload = { mappings } satisfies StreamMappingsUpdate;
+  async updateStreamMappings(
+    mappings: StreamMapping[],
+    expected: readonly StreamMapping[],
+  ): Promise<void> {
+    const payload = {
+      mappings: mappings.map(writableFields),
+      expected_mappings: expected.map(writableFields),
+    } satisfies StreamMappingsUpdate;
     await apiClient.post("/config/stream_mappings", payload);
   },
   async getStreamServiceCatalog(): Promise<StreamServiceCatalog> {

@@ -68,6 +68,57 @@ describe("config store stream mapping repair", () => {
     setActivePinia(createPinia());
   });
 
+  it("only sends explicit rule state changes and reloads pauses set by another client", async (t) => {
+    const store = useConfigStore();
+    const tcp = { ...retainedTcp, manually_disabled: false };
+    const udp = { ...tcp, protocol: "udp" as const, manually_disabled: true };
+    store.config = appConfig([tcp, udp], true);
+    const update = t.mock.method(
+      ConfigAPI,
+      "updateStreamMappings",
+      async () => {},
+    );
+    const otherWindow = { ...tcp, manually_disabled: true };
+    t.mock.method(ConfigAPI, "getConfig", async () =>
+      revisioned(
+        appConfig([otherWindow, { ...udp, manually_disabled: false }], true),
+      ),
+    );
+
+    await store.saveStreamMappings((current) =>
+      current.map((rule) =>
+        rule.protocol === "udp" ? { ...rule, manually_disabled: false } : rule,
+      ),
+    );
+    const [sent] = update.mock.calls[0]!.arguments;
+    assert.equal("manually_disabled" in sent[0]!, false);
+    assert.equal(sent[1]?.manually_disabled, false);
+    assert.deepEqual(store.config?.stream_mappings[0], otherWindow);
+  });
+
+  it("discards a late probe refresh after a newer protocol state is loaded", async (t) => {
+    const store = useConfigStore();
+    store.config = appConfig([retainedTcp], true);
+    let finish!: (rules: StreamMapping[]) => void;
+    t.mock.method(
+      ConfigAPI,
+      "getStreamMappings",
+      () =>
+        new Promise<StreamMapping[]>((resolve) => {
+          finish = resolve;
+        }),
+    );
+    const paused = { ...retainedTcp, manually_disabled: true };
+    t.mock.method(ConfigAPI, "getConfig", async () =>
+      revisioned(appConfig([paused], true)),
+    );
+    const refresh = store.refreshStreamMappingsOnly();
+    await store.loadConfig({ force: true });
+    finish([retainedTcp]);
+    assert.deepEqual(await refresh, [paused]);
+    assert.deepEqual(store.config?.stream_mappings, [paused]);
+  });
+
   it("disables, reloads, rebases, and retries only for the dedicated repair code", async (t) => {
     const store = useConfigStore();
     const availability: DailyAvailability = {
@@ -124,6 +175,43 @@ describe("config store stream mapping repair", () => {
       store.config?.protocol_mapping_feature?.availability,
       availability,
     );
+  });
+
+  it("sends the originating list and refreshes on conflict without retrying the stale deletion", async (t) => {
+    const store = useConfigStore();
+    store.config = appConfig([retainedTcp], true);
+    store.isLoading = false;
+    const update = t.mock.method(
+      ConfigAPI,
+      "updateStreamMappings",
+      async (_next, expected) => {
+        assert.deepEqual(expected, [retainedTcp]);
+        throw repairConflict(40_902);
+      },
+    );
+    const disable = t.mock.method(
+      SystemAPI,
+      "updateProtocolMappingFeatureConfig",
+    );
+    t.mock.method(ConfigAPI, "getConfig", async () => {
+      assert.equal(
+        store.isLoading,
+        false,
+        "keep the confirmation dialog mounted",
+      );
+      return revisioned(appConfig([retainedTcp, concurrentTcp], true));
+    });
+    await assert.rejects(
+      store.saveStreamMappings(() => [], {
+        disableFeatureOnLegacyRepairConflict: true,
+      }),
+    );
+    assert.deepEqual(store.config?.stream_mappings, [
+      retainedTcp,
+      concurrentTcp,
+    ]);
+    assert.equal(update.mock.callCount(), 1);
+    assert.equal(disable.mock.callCount(), 0);
   });
 
   it("does not disable protocol mappings for an unrelated 409 response", async (t) => {

@@ -13256,6 +13256,7 @@ export interface components {
             disabled?: boolean;
             /** Format: int64 */
             listen_port: number;
+            manually_disabled?: boolean;
             probe_status?: string;
             /** @enum {string} */
             protocol: "tcp" | "udp";
@@ -13268,12 +13269,15 @@ export interface components {
             comment?: string;
             /** Format: int64 */
             listen_port: number;
+            manually_disabled?: boolean;
             /** @enum {string} */
             protocol?: "tcp" | "udp";
             target: string;
             use_auth?: boolean;
         };
         StreamMappingsUpdateData: {
+            /** @description Original list in read order. If supplied, changed editable fields or list membership return HTTP 409. */
+            expected_mappings?: components["schemas"]["StreamMappingInputData"][];
             mappings: components["schemas"]["StreamMappingInputData"][];
         };
         StreamServiceProfileData: {

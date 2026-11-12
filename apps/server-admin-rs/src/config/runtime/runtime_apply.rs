@@ -251,15 +251,27 @@ pub(super) async fn sync_host_rules(
     }
 }
 
+pub(super) fn enabled_stream_mappings(config: &Value) -> impl Iterator<Item = &Value> {
+    config
+        .get("stream_mappings")
+        .and_then(Value::as_array)
+        .into_iter()
+        .flatten()
+        .filter(|mapping| proxy_config::stream_mapping_manually_enabled(mapping))
+}
+
+pub(super) fn listening_stream_mappings(config: &Value) -> impl Iterator<Item = &Value> {
+    enabled_stream_mappings(config)
+        .filter(|mapping| mapping.get("disabled").and_then(Value::as_bool) != Some(true))
+}
+
 pub(super) async fn sync_stream_rules(
     state: &AppState,
     config: &Value,
     protocol_mapping_feature: &Value,
 ) -> Result<(), String> {
     let payload = json!({
-        "items": config
-            .get("stream_mappings")
-            .unwrap_or(&Value::Array(Vec::new())),
+        "items": enabled_stream_mappings(config).collect::<Vec<_>>(),
         "availability": protocol_mapping_feature
             .get("availability")
             .cloned()
@@ -684,11 +696,8 @@ pub(super) fn automatic_exempt_port_numbers(
     }
     let mut ports = BTreeSet::new();
     ports.insert(gateway_port());
-    if run_type == 3
-        && protocol_mapping_enabled
-        && let Some(mappings) = config.get("stream_mappings").and_then(Value::as_array)
-    {
-        for mapping in mappings {
+    if run_type == 3 && protocol_mapping_enabled {
+        for mapping in listening_stream_mappings(config) {
             if let Some(port) = mapping.get("listen_port").and_then(Value::as_i64)
                 && (1..=65535).contains(&port)
             {

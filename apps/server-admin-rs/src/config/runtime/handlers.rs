@@ -1490,7 +1490,7 @@ pub(super) async fn sync_routes(State(state): State<AppState>) -> Response {
             0
         },
         "synced_stream_rules": if run_type == 3 && protocol_mapping_enabled {
-            config_array_len(&config, "stream_mappings")
+            enabled_stream_mappings(&config).count()
         } else {
             0
         },

@@ -67,6 +67,10 @@ use subdomain::*;
 #[cfg(test)]
 mod tests;
 
+pub(crate) fn stream_mapping_manually_enabled(mapping: &Value) -> bool {
+    mapping.get("manually_disabled").and_then(Value::as_bool) != Some(true)
+}
+
 pub(crate) fn validate_stream_mapping_runtime_safety(config: &Value) -> Result<(), String> {
     normalize::validate_stream_mapping_runtime_safety_inner(config)
 }
@@ -187,6 +191,7 @@ const FAVICON_CANDIDATE_ATTRIBUTE_NAMES: [&str; 9] = [
 const GO_BACKEND_UNSUCCESSFUL_RESPONSE: &str = "Go backend returned an unsuccessful response";
 const STREAM_MAPPING_RUNTIME_ERROR_PREFIX: &str = "[protocol_mapping_runtime] ";
 const STREAM_MAPPING_LEGACY_REPAIR_REQUIRED_CODE: u16 = 40_901;
+const STREAM_MAPPING_LIST_CHANGED_CODE: u16 = 40_902;
 const HOST_MAPPINGS_TRANSACTION_LOCK_KEY: &str =
     "__fn_knock_internal:host-mappings-config-runtime-transaction";
 const HOST_MAPPINGS_TRANSACTION_LOCK_TTL_SECONDS: usize = 120;
@@ -2278,17 +2283,24 @@ where
     host_mapping_catalog_response(normalized, groups, grouped_view)
 }
 
+#[derive(Deserialize, utoipa::ToSchema)]
+struct StreamMappingsBody {
+    mappings: Vec<Value>,
+    #[serde(default)]
+    expected_mappings: Option<Vec<Value>>,
+}
+
 #[utoipa::path(
     post,
     path = "/api/admin/config/stream_mappings",
     tag = "configuration",
     operation_id = "post_api_admin_config_stream_mappings",
-    request_body = MappingsBody,
+    request_body = StreamMappingsBody,
     responses((status = 200, description = "Updated stream mappings"))
 )]
 async fn update_stream_mappings(
     State(state): State<AppState>,
-    Json(body): Json<MappingsBody>,
+    Json(body): Json<StreamMappingsBody>,
 ) -> Response {
     update_stream_mappings_with_runtime_sync(state, body, |state, config| async move {
         sync_stream_mappings_runtime(&state, &config).await
@@ -2298,7 +2310,7 @@ async fn update_stream_mappings(
 
 async fn update_stream_mappings_with_runtime_sync<F, Fut>(
     state: AppState,
-    body: MappingsBody,
+    body: StreamMappingsBody,
     sync_runtime: F,
 ) -> Response
 where
@@ -2332,6 +2344,18 @@ where
         .and_then(Value::as_array)
         .map(Vec::as_slice)
         .unwrap_or_default();
+    if let Some(expected) = &body.expected_mappings
+        && !expected
+            .iter()
+            .map(stream_mapping_inputs)
+            .eq(previous_mappings.iter().map(stream_mapping_inputs))
+    {
+        return response::error_with_code(
+            StatusCode::CONFLICT,
+            Some(STREAM_MAPPING_LIST_CHANGED_CODE),
+            admin_config_text(&translator, "streamMappings.revisionConflict"),
+        );
+    }
     prepare_stream_mapping_update(previous_mappings, &mut normalized);
     let protocol_mapping_feature = match runtime_config::load_protocol_mapping_feature(
         &state,
@@ -2382,13 +2406,16 @@ where
         );
     }
 
-    if let Err(error) = state.storage.store.save_config(&updated_config).await {
-        tracing::warn!(%error, "failed to save stream mappings");
-        return response::error(
-            StatusCode::INTERNAL_SERVER_ERROR,
-            admin_config_text(&translator, "streamMappings.saveFailed"),
-        );
-    }
+    let updated_config = match save_stream_config(&state, &updated_config).await {
+        Ok(config) => config,
+        Err(error) => {
+            tracing::warn!(%error, "failed to save stream mappings");
+            return response::error(
+                StatusCode::INTERNAL_SERVER_ERROR,
+                admin_config_text(&translator, "streamMappings.saveFailed"),
+            );
+        }
+    };
 
     let runtime_result = sync_runtime(state.clone(), updated_config.clone()).await;
     if !protocol_mapping_enabled {

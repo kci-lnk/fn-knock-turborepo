@@ -7,10 +7,58 @@
       :placeholder="t('admin.streamMappings.searchPlaceholder')"
       class="max-w-xs"
     />
+    <Button
+      variant="outline"
+      size="sm"
+      class="min-h-11 sm:min-h-8"
+      :aria-pressed="selectionMode"
+      :disabled="saving || (!selectionMode && !mappings.length)"
+      @click="toggleSelectionMode"
+    >
+      <ListChecks class="mr-2 h-4 w-4" />
+      {{
+        selectionMode
+          ? t("admin.subdomainProxy.exitSelectionMode")
+          : t("admin.subdomainProxy.selectionMode")
+      }}
+    </Button>
+  </div>
+  <div
+    v-if="selectionMode"
+    role="toolbar"
+    :aria-label="t('admin.subdomainProxy.batchActions')"
+    class="flex flex-wrap items-center gap-2 rounded-md border bg-muted/35 px-3 py-2"
+  >
+    <span class="mr-auto text-sm font-medium" aria-live="polite">{{
+      t("admin.streamMappings.selectedCount", { count: selected.size })
+    }}</span>
+    <Button
+      size="sm"
+      class="min-h-11 sm:min-h-8"
+      variant="outline"
+      :disabled="saving || !selected.size"
+      @click="clearSelection"
+    >
+      {{ t("admin.subdomainProxy.clearSelection") }}
+    </Button>
+    <Button
+      v-for="action in ruleActions"
+      :key="action"
+      size="sm"
+      class="min-h-11 sm:min-h-8"
+      :variant="action === 'delete' ? 'destructive' : 'outline'"
+      :disabled="
+        saving || !selectedRules.some((item) => affected(item, action))
+      "
+      @click="requestAction(action)"
+    >
+      {{ t(`admin.streamMappings.actions.${action}.label`) }}
+    </Button>
   </div>
   <div class="overflow-hidden rounded-md border">
     <Table class="min-w-[70rem] table-fixed">
       <colgroup>
+        <col v-if="selectionMode" class="w-12" />
         <col class="w-[8%]" />
         <col class="w-[10%]" />
         <col class="w-[14%]" />
@@ -22,6 +70,15 @@
       </colgroup>
       <TableHeader>
         <TableRow>
+          <TableHead v-if="selectionMode">
+            <Checkbox
+              class="relative after:absolute after:-inset-3.5 sm:after:hidden"
+              :model-value="allChecked"
+              :disabled="saving || !filteredMappings.length"
+              :aria-label="t('admin.streamMappings.selectVisible')"
+              @update:model-value="setAllVisible($event === true)"
+            />
+          </TableHead>
           <TableHead>{{ t("admin.streamMappings.protocol") }}</TableHead>
           <TableHead>{{ t("admin.streamMappings.listenPort") }}</TableHead>
           <TableHead>{{ t("admin.streamMappings.comment") }}</TableHead>
@@ -36,7 +93,10 @@
       </TableHeader>
       <TableBody>
         <TableRow v-if="filteredMappings.length === 0">
-          <TableCell colspan="8" class="py-8 text-center text-muted-foreground">
+          <TableCell
+            :colspan="selectionMode ? 9 : 8"
+            class="py-8 text-center text-muted-foreground"
+          >
             {{ t("admin.streamMappings.empty") }}
           </TableCell>
         </TableRow>
@@ -45,13 +105,39 @@
           :key="getMappingKey(mapping)"
           class="group"
         >
+          <TableCell v-if="selectionMode">
+            <Checkbox
+              class="relative after:absolute after:-inset-3.5 sm:after:hidden"
+              :model-value="selected.has(getMappingKey(mapping))"
+              :disabled="saving"
+              :aria-label="
+                t('admin.streamMappings.selectRule', {
+                  mapping: formatMappingLabel(mapping),
+                })
+              "
+              @update:model-value="
+                setSelected(getMappingKey(mapping), $event === true)
+              "
+            />
+          </TableCell>
           <TableCell>
-            <Badge
-              variant="outline"
-              class="font-mono uppercase tracking-[0.16em]"
-            >
-              {{ mapping.protocol }}
-            </Badge>
+            <div class="flex flex-col items-start gap-1.5">
+              <Badge
+                variant="outline"
+                class="font-mono uppercase tracking-[0.16em]"
+              >
+                {{ mapping.protocol }}
+              </Badge>
+              <Badge
+                :variant="mapping.manually_disabled ? 'secondary' : 'outline'"
+              >
+                {{
+                  mapping.manually_disabled
+                    ? t("admin.streamMappings.ruleDisabled")
+                    : t("admin.streamMappings.ruleEnabled")
+                }}
+              </Badge>
+            </div>
           </TableCell>
           <TableCell class="font-medium">
             <div
@@ -74,6 +160,12 @@
           <TableCell class="whitespace-normal">
             <div class="flex flex-col gap-1.5 text-xs">
               <div class="flex flex-wrap items-center gap-1.5">
+                <Badge
+                  v-if="mapping.disabled && !mapping.manually_disabled"
+                  variant="secondary"
+                >
+                  {{ t("admin.streamMappings.gatewayRuleDisabled") }}
+                </Badge>
                 <Badge :variant="mapping.disabled ? 'secondary' : 'outline'">
                   {{
                     mapping.service_profile?.service_id ||
@@ -137,8 +229,8 @@
             <StreamMappingRowActions
               :mapping="mapping"
               :probing-mapping-key="probingMappingKey"
-              :removing-mapping-key="removingMappingKey"
-              :on-remove="onRemove"
+              :saving="saving"
+              @action="requestAction"
               @edit="emit('edit', $event)"
               @probe="emit('probe', $event)"
               @policy="emit('policy', $event)"
@@ -149,6 +241,22 @@
       </TableBody>
     </Table>
   </div>
+  <SubdomainActionConfirmDialog
+    :open="!!pending"
+    :loading="saving"
+    :title="
+      pending ? t(`admin.streamMappings.actions.${pending.action}.label`) : ''
+    "
+    :description="confirmationDescription"
+    :cancel-label="t('common.cancel')"
+    :confirm-label="
+      pending ? t(`admin.streamMappings.actions.${pending.action}.label`) : ''
+    "
+    :confirm-variant="pending?.action === 'enable' ? 'default' : 'destructive'"
+    @update:open="!$event && cancelAction()"
+    @cancel="cancelAction"
+    @confirm="confirmAction"
+  />
 </template>
 
 <script setup lang="ts">
@@ -156,6 +264,11 @@ import { computed, ref } from "vue";
 import { useI18n } from "vue-i18n";
 import InlineCommentEditor from "@admin-shared/components/InlineCommentEditor.vue";
 import SearchInput from "@admin-shared/components/SearchInput.vue";
+import { ListChecks } from "lucide-vue-next";
+import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
+import SubdomainActionConfirmDialog from "../subdomain-proxy/SubdomainActionConfirmDialog.vue";
+import { useStreamRuleActions } from "./useStreamRuleActions";
 import { Badge } from "@/components/ui/badge";
 import {
   Table,
@@ -173,15 +286,18 @@ import {
   formatProtocolLabel,
   getMappingKey,
   streamTrafficKey,
+  type StreamRuleAction,
 } from "./streamMappingModel";
 
 const props = defineProps<{
   mappings: StreamMapping[];
-  removingMappingKey: string | null;
   probingMappingKey: string | null;
   trafficTimestamp: number | null;
   getStreamTrafficSample: (mapping: StreamMapping) => StreamTrafficStats | null;
-  onRemove: (mapping: StreamMapping) => Promise<boolean>;
+  onRuleAction: (
+    action: StreamRuleAction,
+    rules: readonly StreamMapping[],
+  ) => Promise<boolean>;
   onSaveComment: (mapping: StreamMapping, comment: string) => Promise<void>;
 }>();
 const emit = defineEmits<{
@@ -214,6 +330,42 @@ const filteredMappings = computed(() => {
         .includes(query) ||
       authStatus.toLowerCase().includes(query)
     );
+  });
+});
+const ruleActions = ["enable", "disable", "delete"] as const;
+const {
+  selectionMode,
+  selected,
+  selectedRules,
+  saving,
+  allChecked,
+  pending,
+  clearSelection,
+  toggleSelectionMode,
+  setSelected,
+  setAllVisible,
+  affected,
+  requestAction,
+  cancelAction,
+  confirmAction,
+} = useStreamRuleActions(filteredMappings, searchQuery, props.onRuleAction);
+
+const confirmationDescription = computed(() => {
+  const request = pending.value;
+  if (!request) return "";
+  const [mapping] = request.rules;
+  if (!mapping) return "";
+  if (request.batch)
+    return t(`admin.streamMappings.actions.${request.action}.batch`, {
+      count: request.rules.length,
+    });
+  if (request.action === "delete")
+    return t("admin.streamMappings.deleteDescription", {
+      mapping: formatMappingLabel(mapping),
+      target: mapping.target,
+    });
+  return t(`admin.streamMappings.actions.${request.action}.single`, {
+    mapping: formatMappingLabel(mapping),
   });
 });
 </script>

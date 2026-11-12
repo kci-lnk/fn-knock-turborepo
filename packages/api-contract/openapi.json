@@ -23098,6 +23098,9 @@
             "minimum": 1,
             "type": "integer"
           },
+          "manually_disabled": {
+            "type": "boolean"
+          },
           "probe_status": {
             "type": "string"
           },
@@ -23140,6 +23143,9 @@
             "minimum": 1,
             "type": "integer"
           },
+          "manually_disabled": {
+            "type": "boolean"
+          },
           "protocol": {
             "enum": [
               "tcp",
@@ -23162,6 +23168,13 @@
       },
       "StreamMappingsUpdateData": {
         "properties": {
+          "expected_mappings": {
+            "description": "Original list in read order. If supplied, changed editable fields or list membership return HTTP 409.",
+            "items": {
+              "$ref": "#/components/schemas/StreamMappingInputData"
+            },
+            "type": "array"
+          },
           "mappings": {
             "items": {
               "$ref": "#/components/schemas/StreamMappingInputData"

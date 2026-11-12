@@ -427,6 +427,7 @@ export const koKRServer = {
         "게이트웨이 백엔드가 {host}의 대상 경로 모드 {mode}(을)를 적용하지 못했습니다. 게이트웨이 백엔드를 업그레이드하세요.",
       visibilityInvalid:
         "호스트 매핑 {host}의 접근 범위 설정이 잘못되었습니다: {message}",
+      backendAdvancedAuthMismatch: "게이트웨이가 반환한 {host}의 고급 인증 설정이 전송한 설정과 일치하지 않습니다",
       backendVisibilityUnsupported:
         "게이트웨이 백엔드가 {host}의 접근 범위 규칙을 적용하지 못했습니다. 게이트웨이 백엔드를 업그레이드하세요.",
       revisionConflict:
@@ -486,6 +487,7 @@ export const koKRServer = {
       bookmarkFolderDefault: "fn-knock 서브도메인 매핑",
     },
     streamMappings: {
+      revisionConflict: "프로토콜 규칙이 변경되었습니다. 최신 규칙을 확인한 후 다시 시도하세요.",
       payloadObjectRequired: "스트림 매핑은 객체여야 합니다.",
       listenPortRequiredInteger: "수신 포트는 유효한 정수여야 합니다.",
       listenPortNotInteger: "수신 포트 {port}(은)는 유효한 정수가 아닙니다.",
@@ -709,6 +711,7 @@ export const koKRServer = {
     certZipCreateFailed: "SSL 인증서 zip을 생성하지 못했습니다.",
     manualCertificateLabel: "수동으로 업로드한 인증서",
     certNotFound: "인증서를 찾을 수 없습니다.",
+    opensslUnavailable: "OpenSSL 명령을 실행할 수 없습니다. OpenSSL을 설치하고 서비스의 PATH에 포함되어 있는지 확인하세요(OpenWrt에서는 openssl-util 설치).",
     caInitFailed: "로컬 CA 초기화에 실패했습니다.",
     caHostLoadFailed: "로컬 CA 호스트 목록을 불러오지 못했습니다.",
     caHostSaveFailed: "로컬 CA 호스트 목록을 저장하지 못했습니다.",

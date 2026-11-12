@@ -95,12 +95,37 @@ pub(super) async fn rollback_host_mappings_with_runtime_sync<Sync, SyncFuture>(
     }
 }
 
+// All stream writers hold protocol_mapping_update_lock. Merge just their two
+// sections so an unrelated config update survives both commit and rollback.
+pub(super) async fn save_stream_config(
+    state: &AppState,
+    config: &Value,
+) -> crate::storage::StorageResult<Value> {
+    let fields = ["stream_mappings", "stream_access_policies"]
+        .into_iter()
+        .map(|key| {
+            (
+                key.to_string(),
+                config.get(key).cloned().unwrap_or_else(|| json!([])),
+            )
+        })
+        .collect();
+    state
+        .storage
+        .store
+        .set_config_top_level_values(fields)
+        .await
+}
+
 pub(super) async fn rollback_stream_mappings(state: &AppState, previous_config: &Value) {
-    if let Err(error) = state.storage.store.save_config(previous_config).await {
-        tracing::warn!(%error, "failed to rollback stream mappings config");
-        return;
-    }
-    if let Err(error) = sync_stream_mappings_runtime(state, previous_config).await {
+    let restored = match save_stream_config(state, previous_config).await {
+        Ok(config) => config,
+        Err(error) => {
+            tracing::warn!(%error, "failed to rollback stream mappings config");
+            return;
+        }
+    };
+    if let Err(error) = sync_stream_mappings_runtime(state, &restored).await {
         tracing::warn!(%error, "failed to rollback stream mappings runtime");
     }
 }
@@ -975,6 +1000,19 @@ pub(super) fn validate_host_availability_window(
     }
 }
 
+// Compare only client-editable fields. Security metadata is owned by the server.
+pub(super) fn stream_mapping_inputs(mapping: &Value) -> [Option<&Value>; 6] {
+    [
+        "protocol",
+        "listen_port",
+        "target",
+        "use_auth",
+        "comment",
+        "manually_disabled",
+    ]
+    .map(|field| mapping.get(field))
+}
+
 pub(super) fn normalize_stream_mappings(mappings: Vec<Value>) -> Result<Vec<Value>, String> {
     let mut normalized = Vec::with_capacity(mappings.len());
     let mut seen = HashSet::new();
@@ -1017,7 +1055,7 @@ pub(super) fn normalize_stream_mappings(mappings: Vec<Value>) -> Result<Vec<Valu
             return Err(format!("Stream mapping target must be host:port: {target}"));
         }
 
-        normalized.push(json!({
+        let mut normalized_mapping = json!({
             "protocol": protocol,
             "listen_port": listen_port,
             "target": target,
@@ -1027,7 +1065,14 @@ pub(super) fn normalize_stream_mappings(mappings: Vec<Value>) -> Result<Vec<Valu
                 .and_then(Value::as_str)
                 .unwrap_or("")
                 .trim(),
-        }));
+        });
+        if let Some(value) = object.get("manually_disabled") {
+            let disabled = value
+                .as_bool()
+                .ok_or("Stream mapping manually_disabled must be a boolean")?;
+            normalized_mapping["manually_disabled"] = Value::Bool(disabled);
+        }
+        normalized.push(normalized_mapping);
     }
     Ok(normalized)
 }
@@ -1092,6 +1137,9 @@ fn stream_mapping_local_loop_error(
     mapping: &Value,
     local_addresses: &HashSet<IpAddr>,
 ) -> Option<String> {
+    if !stream_mapping_manually_enabled(mapping) {
+        return None;
+    }
     let listen_port = mapping.get("listen_port").and_then(json_integer)?;
     let target = mapping.get("target").and_then(Value::as_str)?.trim();
     let (target_host, target_port) = stream_target_host_port(target)?;
@@ -1143,8 +1191,9 @@ pub(super) fn validate_stream_mapping_update_safety(
         };
         let is_unchanged_legacy_mapping = allow_unchanged_legacy_loops
             && previous_mappings.iter().any(|previous| {
-                stream_mapping_forward_identity(previous)
-                    == stream_mapping_forward_identity(mapping)
+                stream_mapping_manually_enabled(previous)
+                    && stream_mapping_forward_identity(previous)
+                        == stream_mapping_forward_identity(mapping)
             });
         if !is_unchanged_legacy_mapping {
             return Err(error);
@@ -1161,9 +1210,11 @@ pub(super) fn stream_mapping_update_only_removes_entries(
         && next_mappings.iter().all(|next| {
             let next_identity = stream_mapping_forward_identity(next);
             next_identity.is_some()
-                && previous_mappings
-                    .iter()
-                    .any(|previous| stream_mapping_forward_identity(previous) == next_identity)
+                && previous_mappings.iter().any(|previous| {
+                    stream_mapping_forward_identity(previous) == next_identity
+                        && stream_mapping_manually_enabled(previous)
+                            == stream_mapping_manually_enabled(next)
+                })
         })
 }
 

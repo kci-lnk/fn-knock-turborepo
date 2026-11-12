@@ -3868,6 +3868,32 @@ export const jaJPAdmin = {
     protocolTab: "プロトコル",
   },
   streamMappings: {
+    gatewayRuleDisabled: "ゲートウェイで転送を停止中",
+    revisionConflict: "プロトコルルールが変更されました。最新のルールを確認してから再試行してください。",
+    ruleEnabled: "有効",
+    ruleDisabled: "無効",
+    selectedCount: "{count} 件のルールを選択中",
+    selectVisible: "表示中のルールをすべて選択",
+    selectRule: "{mapping} を選択",
+    actions: {
+      enable: {
+        label: "有効にする",
+        single: "{mapping} を有効にしますか？プロトコルマッピングが有効で、公開時間内の場合に転送されます。",
+        batch: "選択した無効なルール {count} 件を有効にしますか？転送には全体設定と公開時間が適用されます。",
+        success: "{count} 件のルールを有効にしました",
+      },
+      disable: {
+        label: "無効にする",
+        single: "{mapping} を無効にしますか？転送を停止し、設定は保持します。",
+        batch: "選択した有効なルール {count} 件を無効にしますか？転送を停止し、設定は保持します。",
+        success: "{count} 件のルールを無効にしました",
+      },
+      delete: {
+        label: "削除",
+        batch: "選択した {count} 件のルールを完全に削除しますか？この操作は取り消せません。",
+        success: "{count} 件のルールを削除しました",
+      },
+    },
     title: "プロトコルマッピング",
     serviceProfile: "サービス識別",
     serviceUnknown: "不明なサービス",
@@ -3879,9 +3905,9 @@ export const jaJPAdmin = {
     probeIdentifiedWithoutStrict:
       "対象サービスを識別しました（厳格な検証はオフ）",
     probeIdentifiedWithoutStrictDescription:
-      "{service} として識別しました。マッピングは有効のままです。",
+      "{service} として識別しました。",
     probeUnverified:
-      "対象サービスを識別できませんでした。厳格な検証をオフにしてマッピングを有効のまま維持します",
+      "対象サービスを識別できませんでした。厳格な検証をオフにしました",
     probeFailed: "対象サービスの検出に失敗しました",
     probeAuthenticatedHttp:
       "HTTP を検出しましたが、上流認証によりアプリケーションプロトコルが隠されています",
@@ -3927,27 +3953,27 @@ export const jaJPAdmin = {
     selectService: "サービスタイプを指定",
     selectServiceTitle: "サービスタイプを指定",
     selectServiceDescription:
-      "対象で稼働するサービスを確認します。厳格な検証に対応するサービスでは検証を有効にし、識別専用サービスでは検証をオフのままマッピングを有効に保ちます。ログイン要件は変更されません。",
+      "対象で稼働するサービスを確認します。厳格な検証に対応するサービスでは検証を有効にし、識別専用サービスでは検証をオフのままにします。ログイン要件は変更されません。",
     selectServicePlaceholder: "サービスタイプを選択",
     serviceIdentificationOnly: "識別のみ",
     selectServiceWarning:
       "選択を誤ると接続が拒否されます。ログインを省略するには、別途「ログイン不要を設定」を使用するか、マッピング編集でログイン認証を無効にしてください。",
     selectServiceIdentificationOnlyWarning:
-      "このサービスは識別できますが、厳格なプロトコル検証には対応していません。確認後も検証はオフで、マッピングは有効のままです。",
+      "このサービスは識別できますが、厳格なプロトコル検証には対応していません。確認後も検証はオフです。",
     confirmService: "確認して検証を有効化",
     confirmServiceIdentificationOnly: "サービスタイプを確認",
     clearService: "指定を解除",
     clearServiceTitle: "指定したサービスタイプを解除しますか？",
     clearServiceDescription:
-      "厳格なプロトコル検証をオフにし、マッピングは有効のまま維持します。ログイン認証とログイン不要ルールは保持されます。",
+      "厳格なプロトコル検証をオフにします。ログイン認証とログイン不要ルールは保持されます。",
     clearServiceConfirm: "解除して検証をオフ",
     serviceCatalogFailed: "サービスカタログを読み込めませんでした",
     serviceConfirmed: "サービスタイプを確認し、厳格な検証を有効にしました",
     serviceConfirmedIdentificationOnly:
-      "サービスタイプを確認しました。厳格な検証はオフで、マッピングは有効のままです",
+      "サービスタイプを確認しました。厳格な検証はオフです",
     serviceConfirmFailed: "想定サービスを確認できませんでした",
     serviceCleared:
-      "サービスタイプの指定を解除しました。厳格な検証はオフで、マッピングは有効です",
+      "サービスタイプの指定を解除しました。厳格な検証はオフです",
     serviceClearFailed: "サービスタイプの指定を解除できませんでした",
     scheduleAvailability: "有効化または無効化を予約",
     scheduleOpen: "スケジュール公開中 {window}",

@@ -1,23 +1,16 @@
 <script setup lang="ts">
-import { computed, ref } from "vue";
+import { computed } from "vue";
 import { useI18n } from "vue-i18n";
 import {
   BadgeCheck,
   ChevronDown,
-  Loader2,
+  Power,
+  PowerOff,
   RefreshCw,
   ShieldOff,
   Trash2,
 } from "lucide-vue-next";
 import { Button } from "@/components/ui/button";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -26,20 +19,16 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import type { StreamMapping } from "../../types";
-import {
-  formatMappingLabel,
-  formatProtocolLabel,
-  getMappingKey,
-} from "./streamMappingModel";
+import { getMappingKey, type StreamRuleAction } from "./streamMappingModel";
 
 const props = defineProps<{
   mapping: StreamMapping;
   probingMappingKey: string | null;
-  removingMappingKey: string | null;
-  onRemove: (mapping: StreamMapping) => Promise<boolean>;
+  saving: boolean;
 }>();
 
 const emit = defineEmits<{
+  action: [action: StreamRuleAction, mapping: StreamMapping];
   edit: [mapping: StreamMapping];
   probe: [mapping: StreamMapping];
   policy: [mapping: StreamMapping];
@@ -47,26 +36,8 @@ const emit = defineEmits<{
 }>();
 
 const { t } = useI18n();
-const deleteDialogOpen = ref(false);
 const mappingKey = computed(() => getMappingKey(props.mapping));
 const isProbing = computed(() => props.probingMappingKey === mappingKey.value);
-const isRemoving = computed(
-  () => props.removingMappingKey === mappingKey.value,
-);
-
-function openDeleteDialog() {
-  deleteDialogOpen.value = true;
-}
-
-function handleDeleteDialogOpenChange(open: boolean) {
-  if (!isRemoving.value) deleteDialogOpen.value = open;
-}
-
-async function removeMapping() {
-  if (await props.onRemove(props.mapping)) {
-    deleteDialogOpen.value = false;
-  }
-}
 </script>
 
 <template>
@@ -74,6 +45,7 @@ async function removeMapping() {
     <Button
       variant="outline"
       size="sm"
+      :disabled="saving"
       class="rounded-r-none"
       @click="emit('edit', mapping)"
     >
@@ -84,6 +56,7 @@ async function removeMapping() {
         <Button
           variant="outline"
           size="icon"
+          :disabled="saving"
           :aria-label="t('common.moreActions')"
           class="h-8 w-8 rounded-l-none border-l-0"
         >
@@ -91,6 +64,23 @@ async function removeMapping() {
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" class="w-44">
+        <DropdownMenuItem
+          @select="
+            emit(
+              'action',
+              mapping.manually_disabled ? 'enable' : 'disable',
+              mapping,
+            )
+          "
+        >
+          <Power v-if="mapping.manually_disabled" class="mr-2 h-4 w-4" />
+          <PowerOff v-else class="mr-2 h-4 w-4" />
+          {{
+            mapping.manually_disabled
+              ? t("admin.streamMappings.actions.enable.label")
+              : t("admin.streamMappings.actions.disable.label")
+          }}
+        </DropdownMenuItem>
         <DropdownMenuItem
           :disabled="isProbing"
           @select="emit('probe', mapping)"
@@ -116,8 +106,7 @@ async function removeMapping() {
         <DropdownMenuSeparator />
         <DropdownMenuItem
           variant="destructive"
-          :disabled="isRemoving"
-          @select="openDeleteDialog"
+          @select="emit('action', 'delete', mapping)"
         >
           <Trash2 class="mr-2 h-4 w-4" />
           {{ t("admin.streamMappings.delete") }}
@@ -125,43 +114,4 @@ async function removeMapping() {
       </DropdownMenuContent>
     </DropdownMenu>
   </div>
-
-  <Dialog :open="deleteDialogOpen" @update:open="handleDeleteDialogOpenChange">
-    <DialogContent class="sm:max-w-[440px]" :show-close-button="!isRemoving">
-      <DialogHeader>
-        <DialogTitle>
-          {{
-            t("admin.streamMappings.deleteTitle", {
-              protocol: formatProtocolLabel(mapping.protocol),
-            })
-          }}
-        </DialogTitle>
-        <DialogDescription>
-          {{
-            t("admin.streamMappings.deleteDescription", {
-              mapping: formatMappingLabel(mapping),
-              target: mapping.target,
-            })
-          }}
-        </DialogDescription>
-      </DialogHeader>
-      <DialogFooter>
-        <Button
-          variant="outline"
-          :disabled="isRemoving"
-          @click="deleteDialogOpen = false"
-        >
-          {{ t("common.cancel") }}
-        </Button>
-        <Button
-          variant="destructive"
-          :disabled="isRemoving"
-          @click="removeMapping"
-        >
-          <Loader2 v-if="isRemoving" class="mr-2 h-4 w-4 animate-spin" />
-          {{ t("common.confirmDelete") }}
-        </Button>
-      </DialogFooter>
-    </DialogContent>
-  </Dialog>
 </template>

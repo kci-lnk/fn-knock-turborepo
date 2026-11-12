@@ -56,6 +56,7 @@ struct ParsedConfigDocument {
 pub(crate) struct ParsedConfigValue {
     value: Value,
     host_fingerprint: OnceLock<String>,
+    stream_fingerprint: OnceLock<String>,
 }
 
 impl Deref for ParsedConfigValue {
@@ -70,7 +71,16 @@ impl ParsedConfigValue {
         Self {
             value,
             host_fingerprint: OnceLock::new(),
+            stream_fingerprint: OnceLock::new(),
         }
+    }
+
+    pub(crate) fn stream_fingerprint(&self) -> StorageResult<&str> {
+        if let Some(value) = self.stream_fingerprint.get() {
+            return Ok(value);
+        }
+        let fingerprint = config_stream_fingerprint(&self.value)?;
+        Ok(self.stream_fingerprint.get_or_init(|| fingerprint))
     }
 
     pub(crate) fn host_fingerprint(&self, operation: &OperationGuard) -> StorageResult<&str> {
@@ -91,6 +101,15 @@ impl ParsedConfigValue {
             .map(String::as_str)
             .ok_or_else(|| storage_error("config fingerprint was not initialized"))
     }
+}
+
+pub(crate) fn config_stream_fingerprint(config: &Value) -> StorageResult<String> {
+    Ok(crate::crypto_utils::sha256_hex_bytes(serde_json::to_vec(
+        &(
+            config.get("stream_mappings"),
+            config.get("stream_access_policies"),
+        ),
+    )?))
 }
 
 pub(crate) fn config_host_mappings_fingerprint(config: &Value) -> StorageResult<String> {

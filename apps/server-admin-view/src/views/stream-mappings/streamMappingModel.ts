@@ -1,18 +1,23 @@
-import type { StreamMapping, StreamMappingProtocol } from "@/types";
 import { parseHostPort } from "@admin-shared/utils/parseHostPort";
+import type { StreamMapping, StreamMappingProtocol } from "@/types";
+import {
+  DEFAULT_STREAM_PROTOCOL,
+  getMappingKey,
+  normalizeProtocol,
+} from "@/lib/stream-mappings";
+export {
+  DEFAULT_STREAM_PROTOCOL,
+  createMappingKey,
+  getMappingKey,
+  normalizeProtocol,
+} from "@/lib/stream-mappings";
 
 export type StreamMappingEditorSubmission = {
   editingKey: string | null;
   mappings: StreamMapping[];
 };
 
-export const DEFAULT_STREAM_PROTOCOL: StreamMappingProtocol = "tcp";
 export const STREAM_PROTOCOLS: StreamMappingProtocol[] = ["tcp", "udp"];
-
-export const normalizeProtocol = (
-  protocol?: StreamMappingProtocol | string | null,
-): StreamMappingProtocol =>
-  protocol === "udp" ? "udp" : DEFAULT_STREAM_PROTOCOL;
 
 export const normalizeProtocolSelection = (
   protocols: StreamMappingProtocol[] | undefined,
@@ -33,14 +38,6 @@ export const normalizeStreamMapping = (
   protocol: normalizeProtocol(mapping.protocol),
   comment: mapping.comment?.trim() ?? "",
 });
-
-export const createMappingKey = (
-  protocol: StreamMappingProtocol,
-  listenPort: number,
-): string => `${protocol}:${listenPort}`;
-
-export const getMappingKey = (mapping: StreamMapping): string =>
-  createMappingKey(normalizeProtocol(mapping.protocol), mapping.listen_port);
 
 // 协议映射流量采样 key，与 Go 端 streamRuleKey.String() 一致（斜杠分隔，非冒号）
 export const streamTrafficKey = (mapping: StreamMapping): string =>
@@ -96,20 +93,35 @@ export const applyStreamMappingSubmission = (
     (mapping) => getMappingKey(mapping) === submission.editingKey,
   );
   if (existingIndex >= 0) {
-    next.splice(existingIndex, 1, ...submission.mappings);
+    const manualState = next[existingIndex]!.manually_disabled;
+    const replacements = submission.mappings.map((mapping) =>
+      manualState === undefined
+        ? mapping
+        : { ...mapping, manually_disabled: manualState },
+    );
+    next.splice(existingIndex, 1, ...replacements);
   } else {
     next.push(...submission.mappings);
   }
   return next;
 };
 
-export const removeStreamMapping = (
+export type StreamRuleAction = "enable" | "disable" | "delete";
+
+export function applyStreamRuleAction(
   mappings: readonly StreamMapping[],
-  key: string,
-): StreamMapping[] =>
-  normalizeStreamMappings(mappings).filter(
-    (mapping) => getMappingKey(mapping) !== key,
+  keys: ReadonlySet<string>,
+  action: StreamRuleAction,
+): StreamMapping[] {
+  if (action === "delete") {
+    return mappings.filter((mapping) => !keys.has(getMappingKey(mapping)));
+  }
+  return mappings.map((mapping) =>
+    keys.has(getMappingKey(mapping))
+      ? { ...mapping, manually_disabled: action === "disable" }
+      : mapping,
   );
+}
 
 export const updateStreamMappingComment = (
   mappings: readonly StreamMapping[],

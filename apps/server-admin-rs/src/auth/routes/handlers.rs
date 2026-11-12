@@ -254,7 +254,7 @@ pub(super) async fn oidc_client_metadata(
     let client_id = provider
         .pointer("/connection_config/client_id")
         .and_then(Value::as_str)
-        .unwrap_or("fnknock-qq-public");
+        .unwrap_or(crate::auth::oidc_admin::FNKNOCK_QQ_CLIENT_ID);
     let config = match state.storage.store.get_config().await {
         Ok(config) => config,
         Err(_) => {

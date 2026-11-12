@@ -20,7 +20,16 @@ fn normalizes_google_provider_config_with_defaults() {
 #[test]
 fn normalizes_fnknock_qq_as_public_oidc_client() {
     let translator = Translator::new("zh-CN");
-    let config = normalize_connection_config("fnknock_qq", Map::new(), false, &translator).unwrap();
+    let config = normalize_connection_config(
+        "fnknock_qq",
+        map_from_values(&[
+            ("client_id", json!("stale-id")),
+            ("client_secret", json!("stale-secret")),
+        ]),
+        false,
+        &translator,
+    )
+    .unwrap();
     assert_eq!(config["client_id"], "fnknock-qq-public");
     assert_eq!(config["issuer"], "https://api.fnknock.cn/oidc/qq");
     assert_eq!(config["scopes"], json!(["openid", "profile"]));

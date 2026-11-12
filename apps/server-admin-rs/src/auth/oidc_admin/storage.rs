@@ -4,7 +4,7 @@ use crate::{state::AppState, time_utils};
 
 use super::{
     BINDINGS_INDEX_KEY, PROVIDERS_INDEX_KEY,
-    provider::missing_required_provider_fields,
+    provider::{apply_qq_public_credentials, missing_required_provider_fields},
     tokens::{
         binding_key, invite_key, login_error_key, provider_key, sha256_hex, state_key,
         subject_binding_key,
@@ -23,7 +23,18 @@ async fn oidc_get_provider_unverified(
     state: &AppState,
     id: &str,
 ) -> crate::storage::StorageResult<Option<Value>> {
-    state.storage.store.get_json_value(&provider_key(id)).await
+    let mut provider = state
+        .storage
+        .store
+        .get_json_value(&provider_key(id))
+        .await?;
+    if let Some(record) = provider.as_mut()
+        && record["type"] == "fnknock_qq"
+        && let Some(config) = record["connection_config"].as_object_mut()
+    {
+        apply_qq_public_credentials(config);
+    }
+    Ok(provider)
 }
 
 pub(super) async fn oidc_list_providers(

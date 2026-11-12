@@ -179,15 +179,19 @@ export const useOIDCProviderManagement = () => {
         type: form.type,
         name: form.name.trim(),
         enabled: isQqProvider ? false : enabled,
-        connection_config: {
-          client_id: form.clientId.trim(),
-          client_secret: form.clientSecret.trim(),
-          ...(form.type === "custom_oidc"
-            ? { issuer: form.issuer.trim() }
-            : {}),
-          ...(form.type === "microsoft" ? { tenant: form.tenant.trim() } : {}),
-          ...(scopes.length ? { scopes } : {}),
-        },
+        connection_config: isQqProvider
+          ? undefined
+          : {
+              client_id: form.clientId.trim(),
+              client_secret: form.clientSecret.trim(),
+              ...(form.type === "custom_oidc"
+                ? { issuer: form.issuer.trim() }
+                : {}),
+              ...(form.type === "microsoft"
+                ? { tenant: form.tenant.trim() }
+                : {}),
+              ...(scopes.length ? { scopes } : {}),
+            },
       });
       if (isQqProvider) {
         const testResult = await ConfigAPI.testOIDCProvider(provider.id);
@@ -242,19 +246,22 @@ export const useOIDCProviderManagement = () => {
       await ConfigAPI.updateOIDCProvider(editForm.id!, {
         name: editForm.name.trim(),
         enabled: editForm.enabled === true,
-        connection_config: {
-          client_id: editForm.clientId.trim(),
-          ...(editForm.clientSecret.trim()
-            ? { client_secret: editForm.clientSecret.trim() }
-            : {}),
-          ...(editForm.type === "custom_oidc"
-            ? { issuer: editForm.issuer.trim() }
-            : {}),
-          ...(editForm.type === "microsoft"
-            ? { tenant: editForm.tenant.trim() }
-            : {}),
-          ...(scopes.length ? { scopes } : {}),
-        },
+        connection_config:
+          editForm.type === "fnknock_qq"
+            ? undefined
+            : {
+                client_id: editForm.clientId.trim(),
+                ...(editForm.clientSecret.trim()
+                  ? { client_secret: editForm.clientSecret.trim() }
+                  : {}),
+                ...(editForm.type === "custom_oidc"
+                  ? { issuer: editForm.issuer.trim() }
+                  : {}),
+                ...(editForm.type === "microsoft"
+                  ? { tenant: editForm.tenant.trim() }
+                  : {}),
+                ...(scopes.length ? { scopes } : {}),
+              },
       });
       toast.success(t("admin.oidcProviders.providerSaved"));
       showEditDialog.value = false;

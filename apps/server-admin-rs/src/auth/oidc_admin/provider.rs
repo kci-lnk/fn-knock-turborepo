@@ -122,6 +122,11 @@ pub(super) fn build_updated_provider(
     Ok(provider)
 }
 
+pub(super) fn apply_qq_public_credentials(config: &mut Map<String, Value>) {
+    insert_string(config, "client_id", super::FNKNOCK_QQ_CLIENT_ID.to_owned());
+    insert_string(config, "client_secret", String::new());
+}
+
 pub(super) fn normalize_connection_config(
     provider_type: &str,
     raw: Map<String, Value>,
@@ -150,23 +155,17 @@ pub(super) fn normalize_connection_config(
         }
     });
     let mut config = Map::new();
-    insert_string(
-        &mut config,
-        "client_id",
-        normalize_string(raw.get("client_id"))
-            .or_else(|| {
-                defaults
-                    .get("client_id")
-                    .and_then(Value::as_str)
-                    .map(ToString::to_string)
-            })
-            .unwrap_or_default(),
-    );
-    insert_string(
-        &mut config,
-        "client_secret",
-        normalize_string(raw.get("client_secret")).unwrap_or_default(),
-    );
+    if provider_type == "fnknock_qq" {
+        apply_qq_public_credentials(&mut config);
+    } else {
+        for key in ["client_id", "client_secret"] {
+            insert_string(
+                &mut config,
+                key,
+                normalize_string(raw.get(key)).unwrap_or_default(),
+            );
+        }
+    }
     insert_optional_string(&mut config, "issuer", issuer);
     insert_optional_string(&mut config, "tenant", tenant);
     for key in [
@@ -429,10 +428,7 @@ pub(super) fn provider_definition(provider_type: &str) -> Option<ProviderDefinit
 
 pub(super) fn default_connection_config(provider_type: &str) -> Map<String, Value> {
     match provider_type {
-        "fnknock_qq" => map_from_pairs(&[
-            ("client_id", "fnknock-qq-public"),
-            ("issuer", "https://api.fnknock.cn/oidc/qq"),
-        ]),
+        "fnknock_qq" => map_from_pairs(&[("issuer", "https://api.fnknock.cn/oidc/qq")]),
         "google" => map_from_pairs(&[("issuer", "https://accounts.google.com")]),
         "microsoft" => map_from_pairs(&[
             ("tenant", "common"),

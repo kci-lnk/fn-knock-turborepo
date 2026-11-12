@@ -10,6 +10,31 @@ use tower::ServiceExt;
 mod logout_bootstrap;
 mod password_scope;
 
+#[tokio::test]
+async fn legacy_qq_provider_uses_public_credentials_without_recreation() {
+    let (_directory, state) = auth_route_test_state("legacy-qq-credentials").await;
+    let provider = json!({
+        "id": "existing", "type": "fnknock_qq", "enabled": true,
+        "connection_config": {"client_id": "old-id", "client_secret": "old-secret"}
+    });
+    state
+        .storage
+        .store
+        .set_json_value("fn_knock:oidc:providers:data:existing", &provider)
+        .await
+        .unwrap();
+    let effective = oidc_get_provider(&state, "existing")
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(effective["id"], "existing");
+    assert_eq!(
+        effective["connection_config"]["client_id"],
+        "fnknock-qq-public"
+    );
+    assert_eq!(effective["connection_config"]["client_secret"], "");
+}
+
 #[test]
 fn safe_redirect_allows_relative_current_origin_and_configured_hosts() {
     let config = json!({

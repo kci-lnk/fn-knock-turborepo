@@ -47,6 +47,8 @@ use text::oidc_text_params;
 #[cfg(test)]
 use urls::{callback_origin, public_auth_base_url};
 
+pub(crate) const FNKNOCK_QQ_CLIENT_ID: &str = "fnknock-qq-public";
+
 const PROVIDERS_INDEX_KEY: &str = "fn_knock:oidc:providers:index";
 const PROVIDERS_DATA_KEY_PREFIX: &str = "fn_knock:oidc:providers:data:";
 const BINDINGS_INDEX_KEY: &str = "fn_knock:oidc:bindings:index";

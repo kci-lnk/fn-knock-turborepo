@@ -3110,6 +3110,10 @@
               "mentioned_mobile_list": {
                 "label": "提醒手机号",
                 "description": "可选。多个值使用英文逗号或换行分隔；支持填写 @all。"
+              },
+              "markdown_enabled": {
+                "label": "Markdown格式",
+                "description": "默认发送纯文本。开启后使用 Markdown。指定手机号提醒或 Markdown 内容超过 4096 字节时，仍发送纯文本。"
               }
             },
             "message": {
@@ -6387,6 +6391,10 @@
               "mentioned_mobile_list": {
                 "label": "提醒手機號",
                 "description": "可選。多個值使用英文逗號或換行分隔；支援填寫 @all。"
+              },
+              "markdown_enabled": {
+                "label": "Markdown 格式",
+                "description": "預設傳送純文字。開啟後使用 Markdown。指定手機號碼提醒或 Markdown 內容超過 4096 位元組時，仍傳送純文字。"
               }
             },
             "message": {
@@ -9664,6 +9672,10 @@
               "mentioned_mobile_list": {
                 "label": "Mention mobile numbers",
                 "description": "Optional. Separate multiple values with commas or new lines. Supports @all."
+              },
+              "markdown_enabled": {
+                "label": "Markdown format",
+                "description": "Send plain text by default. When enabled, use Markdown unless a phone number mention is configured or the Markdown content exceeds 4096 bytes."
               }
             },
             "message": {
@@ -12941,6 +12953,10 @@
               "mentioned_mobile_list": {
                 "label": "멘션할 휴대폰 번호",
                 "description": "선택 사항. 여러 값을 쉼표나 새 줄로 구분하세요. @all을 지원합니다."
+              },
+              "markdown_enabled": {
+                "label": "마크다운 형식",
+                "description": "기본값은 일반 텍스트입니다. 이 옵션을 켜면 마크다운으로 보냅니다. 전화번호 멘션을 지정하거나 마크다운 내용이 4096바이트를 초과하면 일반 텍스트로 보냅니다."
               }
             },
             "message": {
@@ -16218,6 +16234,10 @@
               "mentioned_mobile_list": {
                 "label": "メンションする携帯番号",
                 "description": "任意。複数指定する場合はカンマまたは改行で区切ります。@all も指定できます"
+              },
+              "markdown_enabled": {
+                "label": "Markdown 形式",
+                "description": "既定ではプレーンテキストで送信します。有効にすると Markdown を使用します。電話番号によるメンションを指定した場合や、Markdown の内容が 4096 バイトを超えた場合は、プレーンテキストで送信します。"
               }
             },
             "message": {

@@ -3410,6 +3410,11 @@ export const zhCNServer = {
               description:
                 "企业微信消息推送页面生成的完整 Webhook 地址，请妥善保管。",
             },
+            markdown_enabled: {
+              label: "Markdown格式",
+              description:
+                "默认发送纯文本。开启后使用 Markdown。指定手机号提醒或 Markdown 内容超过 4096 字节时，仍发送纯文本。",
+            },
             timeout_seconds: {
               label: "超时秒数",
             },

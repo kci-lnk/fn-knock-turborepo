@@ -3833,6 +3833,11 @@ export const jaJPServer = {
               description:
                 "WeCom のメッセージ送信画面で生成された完全な Webhook URL。安全に管理してください",
             },
+            markdown_enabled: {
+              label: "Markdown 形式",
+              description:
+                "既定ではプレーンテキストで送信します。有効にすると Markdown を使用します。電話番号によるメンションを指定した場合や、Markdown の内容が 4096 バイトを超えた場合は、プレーンテキストで送信します。",
+            },
             timeout_seconds: {
               label: "タイムアウト秒数",
             },

@@ -2133,6 +2133,176 @@ fn provider_catalog_view_includes_node_schema_metadata() {
     );
 }
 
+#[tokio::test]
+async fn wecom_markdown_setting_defaults_off_and_round_trips() {
+    let (_directory, state) = notification_test_state().await;
+    let catalog = provider_definition_view(&wecom_definition(), &Translator::new("zh-CN"));
+    let field = schema_field(&catalog, "connection_schema", "markdown_enabled");
+    assert_eq!(field["type"], "boolean");
+    assert_eq!(field["label"], "Markdown格式");
+    assert_eq!(field["default_value"], false);
+
+    let provider = create_provider_value(
+        &state,
+        json!({
+            "type": "wecom",
+            "connection_config": { "webhook_url": "http://127.0.0.1/" }
+        }),
+    )
+    .await
+    .unwrap();
+    let id = provider["id"].as_str().unwrap();
+    let saved = load_provider(&state, id).await.unwrap().unwrap();
+    assert_eq!(saved["connection_config"]["markdown_enabled"], false);
+    for enabled in [true, false] {
+        update_provider_value(
+            &state,
+            id,
+            json!({ "connection_config": { "markdown_enabled": enabled } }),
+        )
+        .await
+        .unwrap();
+        let saved = load_provider(&state, id).await.unwrap().unwrap();
+        assert_eq!(saved["connection_config"]["markdown_enabled"], enabled);
+    }
+    let invalid =
+        json!({ "type": "wecom", "id": id, "connection_config": { "markdown_enabled": "false" } });
+    assert!(matches!(
+        update_provider_value(&state, id, invalid.clone()).await,
+        Err(NotifyError::BadRequest(_))
+    ));
+    assert!(matches!(
+        draft_provider_value(&state, invalid).await,
+        Err(NotifyError::BadRequest(_))
+    ));
+    let saved = load_provider(&state, id).await.unwrap().unwrap();
+    assert_eq!(saved["connection_config"]["markdown_enabled"], false);
+}
+
+#[tokio::test]
+async fn wecom_test_completion_preserves_channel_edits_and_deletions() {
+    let (_directory, state) = notification_test_state().await;
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let provider = create_provider_value(&state, json!({
+        "type": "wecom", "connection_config": { "webhook_url": format!("http://{}", listener.local_addr().unwrap()) }
+    })).await.unwrap();
+    let id = provider["id"].as_str().unwrap();
+    for (change, expected_format) in [("none", "text"), ("enable", "text"), ("delete", "markdown")]
+    {
+        let respond = async {
+            let (stream, _) = tokio::time::timeout(Duration::from_secs(5), listener.accept())
+                .await
+                .unwrap()
+                .unwrap();
+            match change {
+                "enable" => {
+                    update_provider_value(
+                        &state,
+                        id,
+                        json!({ "connection_config": { "markdown_enabled": true } }),
+                    )
+                    .await
+                    .unwrap();
+                }
+                "delete" => delete_provider_value(&state, id).await.unwrap(),
+                _ => {}
+            }
+            let request = receive_webhook_request(stream).await;
+            let payload: Value = serde_json::from_str(request_body(&request)).unwrap();
+            assert_eq!(payload["msgtype"], expected_format);
+        };
+        let (response, ()) = tokio::join!(
+            test_provider(State(state.clone()), Path(id.to_owned())),
+            respond
+        );
+        let bytes = axum::body::to_bytes(response.into_body(), 65536)
+            .await
+            .unwrap();
+        let result: Value = serde_json::from_slice(&bytes).unwrap();
+        assert_eq!(result["success"], true);
+        let saved = load_provider(&state, id).await.unwrap();
+        match change {
+            "enable" => assert_eq!(
+                saved.unwrap()["connection_config"]["markdown_enabled"],
+                true
+            ),
+            "delete" => {
+                assert!(saved.is_none());
+                assert!(result["data"]["provider"].is_null());
+            }
+            _ => assert_eq!(saved.unwrap()["last_test_status"], "success"),
+        }
+    }
+}
+
+#[tokio::test]
+async fn wecom_webhook_respects_markdown_setting_mentions_and_byte_limit() {
+    let (_directory, state) = notification_test_state().await;
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let mut provider = json!({
+        "type": "wecom",
+        "connection_config": { "webhook_url": format!("http://{}", listener.local_addr().unwrap()) }
+    });
+    let receive = async || {
+        let (stream, _) = tokio::time::timeout(Duration::from_secs(5), listener.accept())
+            .await
+            .unwrap()
+            .unwrap();
+        let request = receive_webhook_request(stream).await;
+        serde_json::from_str::<Value>(request_body(&request)).unwrap()
+    };
+    let translator = Translator::new("zh-CN");
+    for (setting, expected) in [
+        (None, "text"),
+        (Some(true), "markdown"),
+        (Some(false), "text"),
+    ] {
+        if let Some(enabled) = setting {
+            provider["connection_config"]["markdown_enabled"] = json!(enabled);
+        }
+        let (result, body) = tokio::join!(
+            run_provider_test(&state, provider.clone(), &translator),
+            receive()
+        );
+        assert!(result.unwrap().success);
+        assert_eq!(body["msgtype"], expected);
+    }
+
+    let padding = "a".repeat(4096 - "# 通知\n\n<@user>".len());
+    let exact_title = format!("通知{padding}");
+    for (enabled, title, phones, expected) in [
+        (false, "event", "", "text"),
+        (true, "event", "", "markdown"),
+        (true, "event", "13800000000", "text"),
+        (true, exact_title.as_str(), "", "markdown"),
+        (true, &format!("{exact_title}a"), "", "text"),
+    ] {
+        provider["connection_config"]["markdown_enabled"] = json!(enabled);
+        let target = json!({ "target_config": { "mentioned_list": "user", "mentioned_mobile_list": phones } });
+        let message = json!({ "title": title });
+        let (result, body) = tokio::join!(
+            send_http_notification_provider(&state, &provider, &target, &message, 5),
+            receive()
+        );
+        assert!(result.success);
+        assert_eq!(body["msgtype"], expected);
+        if expected == "markdown" {
+            assert_eq!(body["markdown"]["content"], format!("# {title}\n\n<@user>"));
+        } else {
+            assert_eq!(body["text"]["content"], truncate_utf8_bytes(title, 2048));
+            assert_eq!(body["text"]["mentioned_list"], json!(["user"]));
+            assert_eq!(
+                body["text"]["mentioned_mobile_list"],
+                if phones.is_empty() {
+                    json!([])
+                } else {
+                    json!([phones])
+                }
+            );
+        }
+    }
+}
+
 #[test]
 fn provider_catalog_view_matches_node_capabilities() {
     let translator = Translator::new("zh-CN");

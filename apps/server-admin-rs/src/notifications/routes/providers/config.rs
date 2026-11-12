@@ -55,6 +55,24 @@ pub(in crate::notifications::routes) fn validate_provider_connection_patch(
     config: &Map<String, Value>,
     translator: &Translator,
 ) -> NotifyResult<()> {
+    if definition.provider_type == "wecom"
+        && config
+            .get("markdown_enabled")
+            .is_some_and(|value| !value.is_boolean())
+    {
+        let field = notification_provider_field_text(
+            translator,
+            "wecom",
+            "markdown_enabled",
+            "label",
+            "Markdown format",
+        );
+        return Err(NotifyError::BadRequest(notification_service_text(
+            translator,
+            "invalidSelectValue",
+            &[("field", field)],
+        )));
+    }
     if definition.provider_type == "webhook"
         && let Some(headers) = config.get("custom_headers")
     {

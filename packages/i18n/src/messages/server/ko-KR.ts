@@ -3745,6 +3745,11 @@ export const koKRServer = {
               description:
                 "WeCom 메시지 푸시 페이지에 생성된 전체 웹훅 URL입니다. 비밀로 유지하세요.",
             },
+            markdown_enabled: {
+              label: "마크다운 형식",
+              description:
+                "기본값은 일반 텍스트입니다. 이 옵션을 켜면 마크다운으로 보냅니다. 전화번호 멘션을 지정하거나 마크다운 내용이 4096바이트를 초과하면 일반 텍스트로 보냅니다.",
+            },
             timeout_seconds: {
               label: "시간 초과(초)",
             },

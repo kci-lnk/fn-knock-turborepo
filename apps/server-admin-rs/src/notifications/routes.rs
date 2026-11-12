@@ -403,15 +403,23 @@ async fn test_provider(State(state): State<AppState>, Path(id): Path<String>) ->
                     let test_result = localize_provider_test_result(test_result, &translator);
                     let mut tested_provider = provider;
                     apply_provider_test_result(&mut tested_provider, &test_result);
-                    if let Err(error) = save_provider_raw(&state, &tested_provider).await {
-                        return internal_error(
-                            &state,
-                            "failed to save notification provider test status",
-                            error,
-                        )
-                        .await;
+                    let score = iso_score_ms(tested_provider["updated_at"].as_str());
+                    match state
+                        .storage
+                        .store
+                        .save_notification_provider_test_status(&id, tested_provider, score)
+                        .await
+                    {
+                        Ok(current) => provider_test_response(test_result, current.as_ref()),
+                        Err(error) => {
+                            internal_error(
+                                &state,
+                                "failed to save notification provider test status",
+                                error,
+                            )
+                            .await
+                        }
                     }
-                    provider_test_response(test_result, Some(&tested_provider))
                 }
                 Err(message) => response::error(StatusCode::BAD_REQUEST, message),
             }

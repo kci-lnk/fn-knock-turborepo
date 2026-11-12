@@ -110,7 +110,14 @@ pub(super) fn webhook_like_definition(
             },
         ),
     ];
-    if provider_type != "wecom" {
+    if provider_type == "wecom" {
+        connection_schema.push(bool_schema(
+            "markdown_enabled",
+            "Markdown format",
+            false,
+            Some(false),
+        ));
+    } else {
         connection_schema.push(
             string_schema("secret", "Secret", false, true, None).placeholder(match provider_type {
                 "dingtalk" => "SECxxxxxxxx",

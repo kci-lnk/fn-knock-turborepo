@@ -3717,6 +3717,11 @@ export const enServer = {
               description:
                 "Full Webhook URL generated on the WeCom message push page. Keep it secret.",
             },
+            markdown_enabled: {
+              label: "Markdown format",
+              description:
+                "Send plain text by default. When enabled, use Markdown unless a phone number mention is configured or the Markdown content exceeds 4096 bytes.",
+            },
             timeout_seconds: {
               label: "Timeout seconds",
             },

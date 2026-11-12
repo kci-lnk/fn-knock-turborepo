@@ -41,9 +41,16 @@ pub(in crate::notifications::routes) async fn send_wecom(
 
     let mentioned_list = split_values(target_config.get("mentioned_list"));
     let mentioned_mobile_list = split_values(target_config.get("mentioned_mobile_list"));
-    let markdown_content = build_wecom_markdown_content(message, &mentioned_list);
-    let use_text_payload = !mentioned_mobile_list.is_empty() || markdown_content.len() > 4096;
-    let body = if use_text_payload {
+    let markdown_enabled = config.get("markdown_enabled").and_then(Value::as_bool) == Some(true);
+    let markdown_content = (markdown_enabled && mentioned_mobile_list.is_empty())
+        .then(|| build_wecom_markdown_content(message, &mentioned_list))
+        .filter(|content| content.len() <= 4096);
+    let body = if let Some(content) = markdown_content {
+        json!({
+            "msgtype": "markdown",
+            "markdown": { "content": default_string(content, DEFAULT_NOTIFICATION_MESSAGE_TITLE) }
+        })
+    } else {
         json!({
             "msgtype": "text",
             "text": {
@@ -53,16 +60,6 @@ pub(in crate::notifications::routes) async fn send_wecom(
                 ),
                 "mentioned_list": mentioned_list,
                 "mentioned_mobile_list": mentioned_mobile_list
-            }
-        })
-    } else {
-        json!({
-            "msgtype": "markdown",
-            "markdown": {
-                "content": default_string(
-                    truncate_utf8_bytes(&markdown_content, 4096),
-                    DEFAULT_NOTIFICATION_MESSAGE_TITLE,
-                )
             }
         })
     };

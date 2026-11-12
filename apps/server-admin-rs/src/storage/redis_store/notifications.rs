@@ -68,6 +68,20 @@ fn notification_command_ok_tx(
     Ok(())
 }
 
+fn save_notification_record_tx(
+    tx: &Transaction<'_>,
+    kind: &str,
+    index_key: String,
+    data_key: String,
+    id: String,
+    document_json: String,
+    sort_score: i64,
+) -> crate::storage::StorageResult<()> {
+    TypedNotificationRepository::upsert_tx(tx, kind, &id, &document_json, sort_score)?;
+    notification_command_ok_tx(tx, "SET", vec![data_key, document_json])?;
+    notification_command_ok_tx(tx, "ZADD", vec![index_key, sort_score.to_string(), id])
+}
+
 impl Store {
     /// Rebuild the transient ready queue from durable, non-terminal delivery
     /// history. This closes both crash windows around queue claim and enqueue:
@@ -380,6 +394,49 @@ impl Store {
         .await
     }
 
+    pub(crate) async fn save_notification_provider_test_status(
+        &self,
+        id: &str,
+        tested: Value,
+        sort_score: i64,
+    ) -> crate::storage::StorageResult<Option<Value>> {
+        let id = id.to_owned();
+        let data_key = format!("{PROVIDERS_DATA_PREFIX}{id}");
+        self.conn()
+            .call(move |conn| {
+                let tx = conn.transaction_with_behavior(TransactionBehavior::Immediate)?;
+                let redis::CmdOutput::OptionalString(Some(raw)) =
+                    notification_command_tx(&tx, "GET", vec![data_key.clone()])?
+                else {
+                    return Ok(None);
+                };
+                let mut current: Value = serde_json::from_str(&raw)?;
+                if current["connection_config"] != tested["connection_config"] {
+                    return Ok(Some(current));
+                }
+                for key in [
+                    "last_test_at",
+                    "last_test_status",
+                    "last_error",
+                    "updated_at",
+                ] {
+                    current[key] = tested[key].clone();
+                }
+                save_notification_record_tx(
+                    &tx,
+                    PROVIDER_KIND,
+                    PROVIDERS_INDEX_KEY.to_owned(),
+                    data_key,
+                    id,
+                    serde_json::to_string(&current)?,
+                    sort_score,
+                )?;
+                tx.commit()?;
+                Ok(Some(current))
+            })
+            .await
+    }
+
     pub(crate) async fn load_notification_providers(
         &self,
     ) -> crate::storage::StorageResult<Vec<Value>> {
@@ -478,18 +535,14 @@ impl Store {
         self.conn()
             .call(move |conn| {
                 let tx = conn.transaction_with_behavior(TransactionBehavior::Immediate)?;
-                TypedNotificationRepository::upsert_tx(
+                save_notification_record_tx(
                     &tx,
                     &kind,
-                    &id,
-                    &document_json,
+                    index_key,
+                    data_key,
+                    id,
+                    document_json,
                     sort_score,
-                )?;
-                notification_command_ok_tx(&tx, "SET", vec![data_key, document_json])?;
-                notification_command_ok_tx(
-                    &tx,
-                    "ZADD",
-                    vec![index_key, sort_score.to_string(), id],
                 )?;
                 tx.commit()?;
                 Ok(())

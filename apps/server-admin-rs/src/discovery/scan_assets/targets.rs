@@ -185,6 +185,7 @@ pub(super) fn collect_excluded_ports(state: &AppState) -> Vec<u16> {
             ports.push(port);
         }
     }
+    ports.push(state.tunnel.cloudflare_ingress_port);
     ports.extend(DISCOVERY_RESERVED_PORTS);
     ports
         .into_iter()

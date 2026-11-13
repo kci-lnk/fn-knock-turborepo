@@ -42,6 +42,7 @@ RUNTIME_LOG_DIR="${PKG_VAR_DIR}/runtime/logs"
 SUPERVISOR_LOG="${RUNTIME_LOG_DIR}/supervisor.jsonl"
 SUPERVISOR_EVENTS_DIR="${PKG_VAR_DIR}/runtime/supervisor-events"
 PLANNED_STOP_OPERATION=""
+START_FAILURE=""
 
 log_msg() {
     echo "$(date '+%Y-%m-%d %H:%M:%S') - $1" >> "${LOG_FILE}"
@@ -74,25 +75,42 @@ supervisor_log() {
     while [ "${#hints[@]}" -gt 32 ]; do rm -f "${hints[0]}"; hints=("${SUPERVISOR_EVENTS_DIR}"/*.json); done
 }
 
+# wait reads the exit status of the gateway child from this start invocation.
+# Go reserves 98 for EADDRINUSE on the dedicated loopback listener.
+gateway_start_exit() {
+    local status=0
+    wait "$1" 2>/dev/null || status=$?
+    if [ "${status}" = 98 ]; then
+        START_FAILURE="Cloudflare Tunnel 本地回源端口 127.0.0.1:${FN_KNOCK_CLOUDFLARE_INGRESS_PORT} 已被占用。请在 fnOS 应用设置中修改「Cloudflare Tunnel 本地回源端口」，然后重新启动。"
+        log_msg "${START_FAILURE}"
+    fi
+}
+
 wait_runtime_ready() {
-    local attempts=0
-    local max_attempts=$((START_TIMEOUT_SECONDS * 4))
-    local backend_pid=""
-    local gateway_pid=""
-    while [ "${attempts}" -lt "${max_attempts}" ]; do
+    local started=${SECONDS} backend_pid gateway_pid
+    backend_pid="$(cat "${BACKEND_PID_FILE}" 2>/dev/null || true)"
+    gateway_pid="$(cat "${GATEWAY_PID_FILE}" 2>/dev/null || true)"
+    while true; do
+        if ! check_process "${gateway_pid}"; then
+            gateway_start_exit "${gateway_pid}"
+            START_FAILURE="${START_FAILURE:-Gateway exited before readiness (PID ${gateway_pid}).}"
+            break
+        fi
+        if ! check_process "${backend_pid}"; then
+            START_FAILURE="Backend exited before readiness (PID ${backend_pid})."
+            break
+        fi
         if [ -f "${READINESS_MARKER}" ]; then
             log_msg "Runtime readiness confirmed."
             return 0
         fi
-        backend_pid="$(cat "${BACKEND_PID_FILE}" 2>/dev/null || true)"
-        gateway_pid="$(cat "${GATEWAY_PID_FILE}" 2>/dev/null || true)"
-        if ! check_process "${backend_pid}" || ! check_process "${gateway_pid}"; then
+        if (( SECONDS - started >= START_TIMEOUT_SECONDS )); then
+            START_FAILURE="Runtime readiness timed out after ${START_TIMEOUT_SECONDS} seconds."
             break
         fi
         sleep 0.25
-        attempts=$((attempts + 1))
     done
-    log_msg "Runtime readiness failed or timed out after ${START_TIMEOUT_SECONDS} seconds."
+    log_msg "Runtime readiness failed after $((SECONDS - started)) seconds: ${START_FAILURE}"
     return 1
 }
 
@@ -415,6 +433,8 @@ load_runtime_ports() {
     AUTH_PORT="$(resolve_port "AUTH_PORT" "wizard_auth_port" "8997")"
     GO_BACKEND_PORT="$(resolve_port "GO_BACKEND_PORT" "wizard_go_backend_port" "8996")"
     GO_REPROXY_PORT="$(resolve_port "GO_REPROXY_PORT" "wizard_go_reproxy_port" "${default_proxy_port}")"
+    FN_KNOCK_CLOUDFLARE_INGRESS_PORT="$(resolve_port "FN_KNOCK_CLOUDFLARE_INGRESS_PORT" "wizard_cloudflare_ingress_port" "18999")"
+    export FN_KNOCK_CLOUDFLARE_INGRESS_PORT
 }
 
 write_runtime_ports_file() {
@@ -431,7 +451,8 @@ write_runtime_ports_file() {
             "BACKEND_PORT=${BACKEND_PORT}" \
             "AUTH_PORT=${AUTH_PORT}" \
             "GO_BACKEND_PORT=${GO_BACKEND_PORT}" \
-            "GO_REPROXY_PORT=${GO_REPROXY_PORT}" > "${RUNTIME_PORT_FILE}"
+            "GO_REPROXY_PORT=${GO_REPROXY_PORT}" \
+            "FN_KNOCK_CLOUDFLARE_INGRESS_PORT=${FN_KNOCK_CLOUDFLARE_INGRESS_PORT}" > "${RUNTIME_PORT_FILE}"
     ); then
         log_msg "failed to write runtime port file: ${RUNTIME_PORT_FILE}"
         echo "failed to write runtime port file" > "${TRIM_TEMP_LOGFILE:-/dev/null}" 2>/dev/null || true
@@ -439,6 +460,14 @@ write_runtime_ports_file() {
     fi
 
     return 0
+}
+
+port_config_error() {
+    echo "$1" >&2
+    if [ -n "${PKG_VAR_DIR}" ]; then
+        log_msg "$1"
+    fi
+    write_temp_log "$1"
 }
 
 validate_port() {
@@ -449,34 +478,24 @@ validate_port() {
     fi
 
     local message="Invalid ${name}: ${value}. fn-knock Lite requires an integer between 1024 and 65535."
-    log_msg "${message}"
-    echo "${message}" > "${TRIM_TEMP_LOGFILE:-/dev/null}" 2>/dev/null || true
+    port_config_error "${message}"
     return 1
 }
 
 validate_runtime_ports() {
-    validate_port "ADMIN_VIEW_PORT" "${ADMIN_VIEW_PORT}" || return 1
-    validate_port "BACKEND_PORT" "${BACKEND_PORT}" || return 1
-    validate_port "AUTH_PORT" "${AUTH_PORT}" || return 1
-    validate_port "GO_BACKEND_PORT" "${GO_BACKEND_PORT}" || return 1
-    validate_port "GO_REPROXY_PORT" "${GO_REPROXY_PORT}" || return 1
-
-    if [ "${ADMIN_VIEW_PORT}" = "${BACKEND_PORT}" ] ||
-       [ "${ADMIN_VIEW_PORT}" = "${AUTH_PORT}" ] ||
-       [ "${ADMIN_VIEW_PORT}" = "${GO_BACKEND_PORT}" ] ||
-       [ "${ADMIN_VIEW_PORT}" = "${GO_REPROXY_PORT}" ] ||
-       [ "${BACKEND_PORT}" = "${AUTH_PORT}" ] ||
-       [ "${BACKEND_PORT}" = "${GO_BACKEND_PORT}" ] ||
-       [ "${BACKEND_PORT}" = "${GO_REPROXY_PORT}" ] ||
-       [ "${AUTH_PORT}" = "${GO_BACKEND_PORT}" ] ||
-       [ "${AUTH_PORT}" = "${GO_REPROXY_PORT}" ] ||
-       [ "${GO_BACKEND_PORT}" = "${GO_REPROXY_PORT}" ]; then
-        local message="Invalid port configuration: ADMIN_VIEW_PORT, BACKEND_PORT, AUTH_PORT, GO_BACKEND_PORT and GO_REPROXY_PORT must be different."
-        log_msg "${message}"
-        echo "${message}" > "${TRIM_TEMP_LOGFILE:-/dev/null}" 2>/dev/null || true
-        return 1
-    fi
-
+    local keys=(ADMIN_VIEW_PORT BACKEND_PORT AUTH_PORT GO_BACKEND_PORT GO_REPROXY_PORT FN_KNOCK_CLOUDFLARE_INGRESS_PORT)
+    local key previous message
+    for key in "${keys[@]}"; do
+        validate_port "${key}" "${!key}" || return 1
+        for previous in "${keys[@]}"; do
+            [ "${previous}" != "${key}" ] || break
+            if [ "${!key}" = "${!previous}" ]; then
+                message="端口配置重复：${previous} 与 ${key} 均为 ${!key}。"
+                port_config_error "${message}"
+                return 1
+            fi
+        done
+    done
     return 0
 }
 
@@ -775,6 +794,11 @@ start_gateway() {
             return 0
         fi
 
+        gateway_start_exit "${pid}"
+        if [ -n "${START_FAILURE}" ]; then
+            rm -f "${GATEWAY_PID_FILE}"
+            return 1
+        fi
         log_msg "Gateway failed to start (attempt ${attempt}/${max_attempts})."
         rm -f "${GATEWAY_PID_FILE}"
         if [ "${attempt}" -lt "${max_attempts}" ]; then
@@ -905,7 +929,7 @@ start() {
         return 1
     fi
     log_msg "=== fn-knock start ==="
-    log_msg "Port config: admin-view=${ADMIN_VIEW_PORT}, backend=${BACKEND_PORT}, auth=${AUTH_PORT}, go-admin=${GO_BACKEND_PORT}, go-proxy=${GO_REPROXY_PORT}"
+    log_msg "Port config: admin-view=${ADMIN_VIEW_PORT}, backend=${BACKEND_PORT}, auth=${AUTH_PORT}, go-admin=${GO_BACKEND_PORT}, go-proxy=${GO_REPROXY_PORT}, cloudflare-origin=127.0.0.1:${FN_KNOCK_CLOUDFLARE_INGRESS_PORT}"
     local backend_running=1
     local gateway_running=1
     runtime_pid_file_is_running "${BACKEND_PID_FILE}" && backend_running=0
@@ -923,10 +947,16 @@ start() {
     raise_nofile_limit "${NOFILE_LIMIT}" || true
 
     if ! start_gateway; then
-        write_temp_log "fn-knock gateway start failed"
+        write_temp_log "${START_FAILURE:-fn-knock gateway start failed}"
         return 1
     fi
     if ! start_backend; then
+        local gateway_pid
+        gateway_pid="$(cat "${GATEWAY_PID_FILE}" 2>/dev/null || true)"
+        if ! check_process "${gateway_pid}"; then
+            gateway_start_exit "${gateway_pid}"
+            [ -z "${START_FAILURE}" ] || write_temp_log "${START_FAILURE}"
+        fi
         stop_service "${GATEWAY_PID_FILE}" "Gateway"
         if ! temp_log_has_message; then
             write_temp_log "fn-knock backend start failed"
@@ -948,7 +978,7 @@ start() {
         if [ "${cleanup_failed}" -eq 0 ]; then
             rm -f "${READINESS_MARKER}"
         fi
-        write_temp_log "fn-knock Lite runtime readiness failed; inspect ${LOG_FILE}"
+        write_temp_log "${START_FAILURE:-Runtime readiness failed; inspect ${LOG_FILE}}"
         return 1
     fi
     return 0
@@ -1028,6 +1058,11 @@ fi
 unset FN_KNOCK_LIFECYCLE_LOCKED
 
 case "${1:-}" in
+validate-ports)
+    load_runtime_ports
+    validate_runtime_ports
+    exit $?
+    ;;
 start)
     if start; then
         exit 0

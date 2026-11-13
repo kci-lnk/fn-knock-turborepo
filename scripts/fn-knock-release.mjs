@@ -621,6 +621,15 @@ async function checkRelease(versionArgument) {
     fail(`check version ${version} does not match version.json ${current}`);
   }
   assertGatewayVersionsAligned(gatewayFiles, version);
+  const { gatewayCommit } = JSON.parse(
+    await readFile(path.join(ROOT_DIR, "version.json"), "utf8"),
+  );
+  const gatewayHead = gatewayGit(["rev-parse", "HEAD"]).stdout;
+  if (gatewayCommit !== gatewayHead || gatewayGitStatus()) {
+    fail(
+      "Commit the final Go gateway changes and set version.json.gatewayCommit to its clean HEAD before release",
+    );
+  }
   const controlApiVersion = assertControlApiContract(
     await loadControlApiContract(),
   );
@@ -731,7 +740,7 @@ async function prepareRelease(targetArgument, options) {
     `[release] review release-notes/${nextVersion}.md and both Git diffs`,
   );
   console.log(
-    `[release] commit and push Go-Reauth-Proxy before creating the fn-knock tag`,
+    `[release] commit and push Go-Reauth-Proxy, then set version.json.gatewayCommit to that commit`,
   );
   console.log(
     `[release] next: npm run release check && npm run fn-knock:release:test`,

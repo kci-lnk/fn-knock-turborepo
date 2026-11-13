@@ -13,9 +13,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value, json};
 use utoipa_axum::{router::OpenApiRouter, routes};
 
-use crate::{
-    crypto_utils, response, state::AppState, time_utils, tunnels::managed_cloudflare_ingress_port,
-};
+use crate::{crypto_utils, response, state::AppState, time_utils};
 
 use super::{
     cloudflare_api::{CloudflareApi, CloudflareApiError},
@@ -111,7 +109,7 @@ pub(super) async fn public_config_state(state: &AppState, protocol: &str) -> Val
     json!({
         "mode": managed.get("mode").and_then(Value::as_str).unwrap_or("manual"),
         "protocol": protocol,
-        "originServiceUrl": local_gateway_service(&state.settings.runtime_target),
+        "originServiceUrl": local_gateway_service(state.tunnel.cloudflare_ingress_port),
         "apiTokenConfigured": secret_store(state).configured(SecretKind::ApiToken),
         "tunnelTokenConfigured": secret_store(state).configured(SecretKind::TunnelToken),
         "accountId": managed.get("accountId").cloned().unwrap_or(Value::Null),
@@ -896,7 +894,7 @@ async fn build_plan(
     };
     let wildcard = format!("*.{root}");
     let dns_records = api.list_dns_records(&zone_id, Some(&wildcard)).await?;
-    let service = local_gateway_service(&state.settings.runtime_target);
+    let service = local_gateway_service(state.tunnel.cloudflare_ingress_port);
     let desired_hosts = if request.optimization_enabled {
         optimization::configured_optimization_hosts(state, &local).await?
     } else {
@@ -1158,7 +1156,7 @@ async fn apply_setup(
 
     let current = api.get_tunnel_config(&account_id, &tunnel_id).await?;
     let wildcard = format!("*.{root}");
-    let service = local_gateway_service(&state.settings.runtime_target);
+    let service = local_gateway_service(state.tunnel.cloudflare_ingress_port);
     let desired = merge_tunnel_config(
         &current,
         &ownership,
@@ -2273,8 +2271,7 @@ fn root_domain(config: &Value) -> Result<String, String> {
     idna::domain_to_ascii(&raw).map_err(|_| "The configured root domain is invalid".to_string())
 }
 
-fn local_gateway_service(runtime_target: &str) -> String {
-    let port = managed_cloudflare_ingress_port(runtime_target);
+fn local_gateway_service(port: u16) -> String {
     format!("http://127.0.0.1:{port}")
 }
 
@@ -2675,8 +2672,9 @@ mod tests {
 
     #[test]
     fn managed_tunnel_uses_dedicated_cloudflare_ingress_port() {
-        assert_eq!(local_gateway_service("fnos"), "http://127.0.0.1:17999");
-        assert_eq!(local_gateway_service("fpk-lite"), "http://127.0.0.1:18999");
+        assert_eq!(local_gateway_service(27999), "http://127.0.0.1:27999");
+        assert_eq!(local_gateway_service(17999), "http://127.0.0.1:17999");
+        assert_eq!(local_gateway_service(18999), "http://127.0.0.1:18999");
     }
 
     fn legacy_managed_ownership() -> Value {

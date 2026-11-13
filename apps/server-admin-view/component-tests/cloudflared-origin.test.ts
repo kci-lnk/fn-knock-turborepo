@@ -16,7 +16,10 @@ import { useCloudflaredRuntime } from "../src/views/tunnel/cloudflare/useCloudfl
 describe("Cloudflare origin address", () => {
   beforeEach(() => vi.clearAllMocks());
 
-  it.each(["http://127.0.0.1:17999", "http://127.0.0.1:18999"])(
+  const origins = [17999, 18999, 27999].map(
+    (port) => `http://127.0.0.1:${port}`,
+  );
+  it.each(origins)(
     "uses the backend's dedicated origin %s",
     async (originServiceUrl) => {
       api.getConfig.mockResolvedValue({ originServiceUrl, protocol: "auto" });
@@ -35,7 +38,9 @@ describe("Cloudflare origin address", () => {
       expect(wrapper.text()).toBe("");
       await runtime.loadConfig();
       expect(wrapper.text()).toBe(originServiceUrl);
-      api.getConfig.mockRejectedValueOnce(new Error("configuration unavailable"));
+      api.getConfig.mockRejectedValueOnce(
+        new Error("configuration unavailable"),
+      );
       await runtime.loadConfig();
       expect(wrapper.text()).toBe("");
       api.getConfig.mockResolvedValue({ originServiceUrl, protocol: "auto" });

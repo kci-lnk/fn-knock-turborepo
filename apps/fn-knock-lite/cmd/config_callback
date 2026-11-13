@@ -15,18 +15,21 @@ if [ ! -x "${MAIN_SCRIPT}" ]; then
     chmod +x "${MAIN_SCRIPT}" 2>/dev/null || true
 fi
 
+# Reject invalid settings while the existing services are still serving.
+"${MAIN_SCRIPT}" validate-ports || exit 1
+
 if "${MAIN_SCRIPT}" status >/dev/null 2>&1; then
     log_msg "config_callback: runtime env changed, restarting fn-knock."
 
     if ! "${MAIN_SCRIPT}" stop; then
-        echo "fn-knock stop failed after config change" > "${TRIM_TEMP_LOGFILE:-/dev/null}" 2>/dev/null || true
+        [ -s "${TRIM_TEMP_LOGFILE:-/dev/null}" ] || echo "fn-knock stop failed after config change" > "${TRIM_TEMP_LOGFILE:-/dev/null}" 2>/dev/null || true
         exit 1
     fi
 
     sleep 1
 
     if ! "${MAIN_SCRIPT}" start; then
-        echo "fn-knock start failed after config change" > "${TRIM_TEMP_LOGFILE:-/dev/null}" 2>/dev/null || true
+        [ -s "${TRIM_TEMP_LOGFILE:-/dev/null}" ] || echo "fn-knock start failed after config change" > "${TRIM_TEMP_LOGFILE:-/dev/null}" 2>/dev/null || true
         exit 1
     fi
 

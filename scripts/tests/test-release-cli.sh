@@ -141,6 +141,13 @@ grep -Fq "regenerating OpenAPI and TypeScript contracts for ${NEXT_PATCH}" \
   fail "prepare did not report API contract regeneration"
 
 run_cli status >/dev/null
+expect_failure "set version.json.gatewayCommit" run_cli check "${NEXT_PATCH}"
+git -C "${GO_FIXTURE}" add pkg/version/version.go Taskfile.yml
+git -C "${GO_FIXTURE}" commit -qm "update gateway version"
+expect_failure "set version.json.gatewayCommit" run_cli check "${NEXT_PATCH}"
+jq --arg commit "$(git -C "${GO_FIXTURE}" rev-parse HEAD)" '.gatewayCommit = $commit' \
+  "${FIXTURE}/version.json" > "${FIXTURE}/version.json.tmp"
+mv "${FIXTURE}/version.json.tmp" "${FIXTURE}/version.json"
 run_cli check "${NEXT_PATCH}" >/dev/null
 expect_failure "Git worktrees must be clean" run_cli prepare minor
 

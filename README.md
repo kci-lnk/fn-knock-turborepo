@@ -51,7 +51,7 @@ fn-knock 把反向代理、登录鉴权、证书、DDNS、访问控制、WAF、�
 | 日常运维   | 系统监控、事件审计、在线终端、通知、备份与更新检查                       |
 | 多平台交付 | fnOS、OpenWrt、Docker、Windows、macOS、Synology DSM 与通用 Linux         |
 
-Cloudflare Tunnel 手工接入时，请将 Cloudflare 控制台中的 HTTP Service URL 设置为穿透页面显示的专用回源地址：常规部署为 `http://127.0.0.1:17999`，FPK Lite 为 `http://127.0.0.1:18999`（cloudflared 与网关同机运行）。此入口通过 `CF-Connecting-IP` 识别访客；该头缺失、重复或地址无效时返回 HTTP 400，不回退到 XFF 或本机地址。普通网关端口不会信任该请求头。旧配置若指向 `7999` 等普通端口，需要修改回源地址；请勿将专用入口公开转发给其他来源。
+Cloudflare Tunnel 手工接入时，请将 Cloudflare 控制台中的 HTTP Service URL 设置为穿透页面显示的专用回源地址：常规部署为 `http://127.0.0.1:17999`，FPK Lite 为 `http://127.0.0.1:18999`（cloudflared 与网关同机运行）。同机多实例可在 fnOS 应用设置或 Docker 环境变量 `FN_KNOCK_CLOUDFLARE_INGRESS_PORT` 中设置独立的回源端口，重启后生效。修改后请同步更新手工隧道的 Service URL，或对托管隧道重新预览并应用。此入口通过 `CF-Connecting-IP` 识别访客；该头缺失、重复或地址无效时返回 HTTP 400，不回退到 XFF 或本机地址。普通网关端口不会信任该请求头。旧配置若指向 `7999` 等普通端口，需要修改回源地址；请勿将专用入口公开转发给其他来源。
 
 Web 终端继续支持管理员显式配置并确认主机指纹的 SSH 目标。完整 FPK、通用 Linux、macOS 与 OpenWrt 还可选择启用本机 PTY；本机终端默认关闭，并始终使用 fn-knock 服务的有效 UID/GID，服务以 root 运行时终端同样拥有 root 权限。FPK Lite、Synology、Docker、Windows 和开发模式不提供本机终端。
 
@@ -242,7 +242,7 @@ Go 网关源码默认从相邻目录 `../Go-Reauth-Proxy` 读取，也可以通�
 
 ## 发版流程与必查项
 
-发布新版本时，建议在本仓库和相邻的 `../Go-Reauth-Proxy` 均为干净工作区时运行 `npm run release prepare patch`（也可使用 `minor`、`major` 或明确的 `X.Y.Z`）。该工具会同步两个仓库内的所有产品版本，并从上一个版本 Tag 后的提交生成 release notes；Go 仓库位于其他位置时可设置 `FN_KNOCK_GO_REAUTH_PROXY_DIR`。使用 `--dry-run` 可先预览，使用 `--notes-file <path>` 可指定发布说明。发布说明使用中文，并在提交前完成人工编辑。工具不会自动提交、打 Tag 或推送。
+发布新版本时，建议在本仓库和相邻的 `../Go-Reauth-Proxy` 均为干净工作区时运行 `npm run release prepare patch`（也可使用 `minor`、`major` 或明确的 `X.Y.Z`）。该工具会同步两个仓库内的所有产品版本。提交并推送网关版本改动后，将其完整提交 SHA 写入主仓库的 `version.json.gatewayCommit`，再执行 `npm run release check`。发布流水线从这个提交构建网关。工具从上一个版本 Tag 后的提交生成 release notes；Go 仓库位于其他位置时可设置 `FN_KNOCK_GO_REAUTH_PROXY_DIR`。使用 `--dry-run` 可先预览，使用 `--notes-file <path>` 可指定发布说明。发布说明使用中文，并在提交前完成人工编辑。工具不会自动提交、打 Tag 或推送。
 
 > [!IMPORTANT]
 > **推送发版 Tag 前，必须对最终待发布内容执行完整 `npm run quality:check`。** `release prepare` / `release check` 主要检查版本、控制 API 契约和发布元数据；`fn-knock:release:test` 检查打包与发布链路契约，均不等于完整质量门禁。仅通过这些命令、编译成功或部分测试通过，不能作为发版依据。`quality:check` 已包含 `fn-knock:release:test`，无需重复单独运行。

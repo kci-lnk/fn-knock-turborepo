@@ -6,9 +6,10 @@ DATA_DIR="${FN_KNOCK_DATA_DIR:-/var/lib/fn-knock}"
 GATEWAY_CONFIG_DIR="${FN_KNOCK_GATEWAY_CONFIG_DIR:-/usr/local/etc/fn-knock}"
 BACKEND_PORT="${BACKEND_PORT:-7998}"
 AUTH_PORT="${AUTH_PORT:-7997}"
-ADMIN_VIEW_PORT="${ADMIN_VIEW_PORT:-}"
+ADMIN_VIEW_PORT="${ADMIN_VIEW_PORT:-7991}"
 GO_BACKEND_PORT="${GO_BACKEND_PORT:-7996}"
 GO_REPROXY_PORT="${GO_REPROXY_PORT:-7999}"
+export FN_KNOCK_CLOUDFLARE_INGRESS_PORT="${FN_KNOCK_CLOUDFLARE_INGRESS_PORT:-17999}"
 BACKEND_HOST="${BACKEND_HOST:-127.0.0.1}"
 AUTH_HOST="${AUTH_HOST:-127.0.0.1}"
 ADMIN_VIEW_HOST="${ADMIN_VIEW_HOST:-${BACKEND_HOST}}"
@@ -166,6 +167,20 @@ stop_gracefully() {
 trap cleanup EXIT
 trap stop_gracefully INT TERM
 
+# Validate the private listener before either child can claim a conflicting port.
+if ! [[ "${FN_KNOCK_CLOUDFLARE_INGRESS_PORT}" =~ ^[1-9][0-9]{0,4}$ ]] ||
+   (( FN_KNOCK_CLOUDFLARE_INGRESS_PORT > 65535 )); then
+  echo "[fn-knock] FN_KNOCK_CLOUDFLARE_INGRESS_PORT must be a decimal port between 1 and 65535" >&2
+  exit 1
+fi
+for key in ADMIN_VIEW_PORT BACKEND_PORT AUTH_PORT GO_BACKEND_PORT GO_REPROXY_PORT; do
+  value="${!key}"
+  if [[ "${value}" =~ ^[0-9]{1,5}$ ]] && (( 10#${value} == FN_KNOCK_CLOUDFLARE_INGRESS_PORT )); then
+    echo "[fn-knock] FN_KNOCK_CLOUDFLARE_INGRESS_PORT and ${key} both use port ${value}" >&2
+    exit 1
+  fi
+done
+
 ensure_runtime_layout
 raise_nofile_limit "${NOFILE_LIMIT}" || true
 load_or_create_secret ALTCHA_HMAC_KEY "${ALTCHA_HMAC_KEY_FILE}"
@@ -202,11 +217,7 @@ GATEWAY_PID=$!
 wait_for_process_or_fail "${GATEWAY_PID}" "gateway"
 supervisor_log INFO gateway_process started supervisor_start null || true
 
-if [ -n "${ADMIN_VIEW_PORT}" ]; then
-  echo "[fn-knock] Starting Rust backend on ${BACKEND_HOST}:${BACKEND_PORT} (admin view ${ADMIN_VIEW_HOST}:${ADMIN_VIEW_PORT})"
-else
-  echo "[fn-knock] Starting Rust backend on ${BACKEND_HOST}:${BACKEND_PORT}"
-fi
+echo "[fn-knock] Starting Rust backend on ${BACKEND_HOST}:${BACKEND_PORT} (admin view ${ADMIN_VIEW_HOST}:${ADMIN_VIEW_PORT})"
 (
   cd "${APP_HOME}" && \
   ADMIN_STATIC_PATH="${ADMIN_STATIC_PATH}" \

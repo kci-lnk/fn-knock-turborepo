@@ -296,6 +296,7 @@ impl Default for WolState {
 }
 
 pub struct TunnelState {
+    pub cloudflare_ingress_port: u16,
     /// Owns all supervised tunnel process actors for this application state.
     pub supervisors: TunnelSupervisorRegistry,
     /// Serializes read-modify-write updates to the legacy aggregate tunnel
@@ -322,9 +323,10 @@ pub struct TunnelState {
     pub cloudflared_schedule_notify: Notify,
 }
 
-impl Default for TunnelState {
-    fn default() -> Self {
+impl TunnelState {
+    fn new(cloudflare_ingress_port: u16) -> Self {
         Self {
+            cloudflare_ingress_port,
             supervisors: TunnelSupervisorRegistry::default(),
             runtime_update_lock: Mutex::new(()),
             cloudflared_manage_lock: Mutex::new(()),
@@ -348,6 +350,10 @@ impl AppState {
         settings: Settings,
         shutdown: CancellationToken,
     ) -> anyhow::Result<Self> {
+        let ingress_port = crate::tunnels::managed_cloudflare_ingress_port(
+            &settings.runtime_target,
+            &std::env::var("FN_KNOCK_CLOUDFLARE_INGRESS_PORT").unwrap_or_default(),
+        )?;
         let runtime_health = RuntimeHealth::new(&settings.data_dir, &settings.runtime_target)
             .context("initialize runtime health diagnostics")?;
         let store = match Store::connect(&settings.sqlite_path).await {
@@ -483,7 +489,7 @@ impl AppState {
                 panel_sync: crate::panel_sync::PanelSyncRuntime::new(),
                 terminal: crate::terminal::TerminalRuntime::new(),
                 wol: WolState::default(),
-                tunnel: TunnelState::default(),
+                tunnel: TunnelState::new(ingress_port),
             }),
         })
     }

@@ -26,6 +26,7 @@ WIZARD_BACKEND_PORT="${FN_KNOCK_WIZARD_BACKEND_PORT:-7998}"
 WIZARD_AUTH_PORT="${FN_KNOCK_WIZARD_AUTH_PORT:-7997}"
 WIZARD_GO_BACKEND_PORT="${FN_KNOCK_WIZARD_GO_BACKEND_PORT:-7996}"
 WIZARD_GO_REPROXY_PORT="${FN_KNOCK_WIZARD_GO_REPROXY_PORT:-7999}"
+WIZARD_CLOUDFLARE_INGRESS_PORT="${FN_KNOCK_WIZARD_CLOUDFLARE_INGRESS_PORT:-17999}"
 
 log() {
   echo "[fn-knock-deploy] $*"
@@ -430,6 +431,16 @@ run_remote_install() {
   local install_volume
   local status
 
+  # Validate the exact values we will send before stopping or uninstalling the old package.
+  TRIM_PKGVAR="" TRIM_TEMP_LOGFILE=/dev/null \
+    wizard_admin_view_port="${WIZARD_ADMIN_VIEW_PORT}" \
+    wizard_backend_port="${WIZARD_BACKEND_PORT}" \
+    wizard_auth_port="${WIZARD_AUTH_PORT}" \
+    wizard_go_backend_port="${WIZARD_GO_BACKEND_PORT}" \
+    wizard_go_reproxy_port="${WIZARD_GO_REPROXY_PORT}" \
+    FN_KNOCK_CLOUDFLARE_INGRESS_PORT="${WIZARD_CLOUDFLARE_INGRESS_PORT}" \
+    bash "${LOCAL_APP_DIR}/cmd/main" validate-ports || return 1
+
   if ! fpk_arch_enabled "amd64"; then
     echo "ERROR: install-remote installs the x86/amd64 FPK; include amd64 in FN_KNOCK_FPK_ARCHES" >&2
     exit 1
@@ -473,6 +484,7 @@ wizard_backend_port=${WIZARD_BACKEND_PORT}
 wizard_auth_port=${WIZARD_AUTH_PORT}
 wizard_go_backend_port=${WIZARD_GO_BACKEND_PORT}
 wizard_go_reproxy_port=${WIZARD_GO_REPROXY_PORT}
+wizard_cloudflare_ingress_port=${WIZARD_CLOUDFLARE_INGRESS_PORT}
 EOF"
 
   log "Step 3/4: Ensure appcenter temp directory exists"
@@ -614,6 +626,7 @@ Optional env overrides:
   FN_KNOCK_WIZARD_AUTH_PORT (default: 7997)
   FN_KNOCK_WIZARD_GO_BACKEND_PORT (default: 7996)
   FN_KNOCK_WIZARD_GO_REPROXY_PORT (default: 7999)
+  FN_KNOCK_WIZARD_CLOUDFLARE_INGRESS_PORT (default: 17999, Lite: 18999)
   FN_KNOCK_FPK_RUST_BUILDER (auto|zig|docker; default: auto)
   FN_KNOCK_RUST_PARALLEL_RELEASE (set 1 to use thin LTO + multi codegen units for faster builds)
   CARGO_BUILD_JOBS (Cargo job count; defaults to CPU count when FN_KNOCK_RUST_PARALLEL_RELEASE=1)

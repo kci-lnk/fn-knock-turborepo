@@ -1,0 +1,61 @@
+name: Withdraw 2.5.10
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: fn-knock-stable-release
+  cancel-in-progress: false
+jobs:
+  restore-docker:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: docker/setup-buildx-action@bb05f3f5519dd87d3ba754cc423b652a5edd6d2c
+      - uses: docker/login-action@af1e73f918a031802d376d3c8bbc3fe56130a9b0
+        with:
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
+      - name: Restore Docker latest to 2.5.9 and remove affected tag
+        env:
+          DOCKER_USERNAME: ${{ secrets.DOCKER_USERNAME }}
+          DOCKER_PASSWORD: ${{ secrets.DOCKER_PASSWORD }}
+        run: |
+          docker buildx imagetools create -t kcilnk/fn-knock:latest kcilnk/fn-knock:2.5.9
+          old=$(docker buildx imagetools inspect kcilnk/fn-knock:2.5.9 --format '{{json .Manifest.Digest}}')
+          restored=$(docker buildx imagetools inspect kcilnk/fn-knock:latest --format '{{json .Manifest.Digest}}')
+          test "$old" = "$restored"
+          python3 - <<'PY'
+          import os,json,urllib.request
+          data=json.dumps({'username':os.environ['DOCKER_USERNAME'],'password':os.environ['DOCKER_PASSWORD']}).encode()
+          token=json.load(urllib.request.urlopen(urllib.request.Request('https://hub.docker.com/v2/users/login/',data=data,headers={'Content-Type':'application/json'})))['token']
+          request=urllib.request.Request('https://hub.docker.com/v2/repositories/kcilnk/fn-knock/tags/2.5.10/',method='DELETE',headers={'Authorization':'JWT '+token})
+          print('Affected Docker tag removed:',urllib.request.urlopen(request).status)
+          PY
+  restore-cdn:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: '22.22.3'
+      - run: npm ci --ignore-scripts
+      - name: Download previous verified inventory
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p rollback/macos
+          gh release download v2.5.9 --pattern release-manifest.json --dir rollback
+          gh release view v2.5.9 --json body --jq .body > rollback/notes.md
+          git fetch origin tag v2.5.9 --depth=1
+          git show v2.5.9:deploy/linux/install.sh > rollback/install.sh
+          git show v2.5.9:deploy/macos/install.sh > rollback/macos/install.sh
+      - name: Restore stable pointers, withdraw affected packages and purge CDN
+        env:
+          COS_ACC: ${{ vars.COS_ACC || secrets.COS_ACC }}
+          COS_BUCKET: ${{ vars.COS_BUCKET || secrets.COS_BUCKET }}
+          COS_PUBLICBASICURL: ${{ vars.COS_PUBLICBASICURL || secrets.COS_PUBLICBASICURL }}
+          COS_REGION: ${{ vars.COS_REGION || secrets.COS_REGION }}
+          COS_SECRETID: ${{ secrets.COS_SECRETID }}
+          COS_SECRETKEY: ${{ secrets.COS_SECRETKEY }}
+        run: node scripts/withdraw-2.5.10.mjs

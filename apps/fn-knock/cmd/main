@@ -1313,7 +1313,6 @@ preserve_legacy_update_origin() {
 }
 
 stop() {
-    preserve_legacy_update_origin || { write_temp_log "无法为内置升级保留 Cloudflare 回源端口"; return 1; }
     if ! validate_lifecycle_timeouts; then
         return 1
     fi
@@ -1407,6 +1406,10 @@ start)
     exit 1
     ;;
 stop)
+    if ! preserve_legacy_update_origin; then
+        write_temp_log "无法为内置升级保留 Cloudflare 回源端口"
+        exit 1
+    fi
     if stop; then
         exit 0
     fi

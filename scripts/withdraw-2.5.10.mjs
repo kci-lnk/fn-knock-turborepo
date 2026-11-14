@@ -4,7 +4,7 @@ import assert from 'node:assert/strict';
 import { createTencentAdapters } from './fn-knock-cos-publish.mjs';
 const {store, cdn} = createTencentAdapters({secretId:process.env.COS_SECRETID,secretKey:process.env.COS_SECRETKEY,bucket:process.env.COS_BUCKET,region:process.env.COS_REGION,accelerateDomain:process.env.COS_ACC});
 const current = JSON.parse((await store.get('latest.json')).body);
-assert.equal(current.version,'2.5.10','Only withdraw the affected version');
+assert(['2.5.10','2.5.9'].includes(current.version),'Only withdraw the affected version');
 const manifest = JSON.parse(await readFile('rollback/release-manifest.json','utf8'));
 assert.equal(manifest.version,'2.5.9');
 const latest = JSON.parse(JSON.stringify(current).replaceAll('2.5.10','2.5.9'));
@@ -34,8 +34,9 @@ for(const object of objects){
   assert((await store.get(object.key)).body.equals(object.body));
   console.log(`Restored ${object.key}`);
 }
-const badKeys=Object.values(current.packages).flatMap(group=>Object.values(group).map(e=>e.object_key));
+const badKeys=Object.values(current.packages).flatMap(group=>Object.values(group).map(e=>e.object_key.replaceAll('2.5.9','2.5.10')));
 const windows=current.packages.windows.x86_64;
+badKeys.push('files/2.5.10/windows/x86_64/'+windows.file_name.replaceAll('2.5.9','2.5.10')+'.sha256','files/2.5.10/windows/x86_64/release.json','files/2.5.10/windows/x86_64/updater.json');
 for(const field of ['sha256_url','release_url','updater_url']) if(windows[field]) badKeys.push(new URL(windows[field]).pathname.slice(1));
 for(const key of [...new Set(badKeys)]){assert(key.startsWith('files/2.5.10/'));await store.delete(key);assert.equal(await store.head(key),null);console.log(`Removed ${key}`);}
 const bases=[...new Set([process.env.COS_PUBLICBASICURL.replace(/\/$/,''),'https://cor.fnknock.cn','https://cdn.fnknock.cn'])];

@@ -25,11 +25,16 @@ jobs:
           restored=$(docker buildx imagetools inspect kcilnk/fn-knock:latest --format '{{json .Manifest.Digest}}')
           test "$old" = "$restored"
           python3 - <<'PY'
-          import os,json,urllib.request
+          import os,json,urllib.request,urllib.error
           data=json.dumps({'username':os.environ['DOCKER_USERNAME'],'password':os.environ['DOCKER_PASSWORD']}).encode()
           token=json.load(urllib.request.urlopen(urllib.request.Request('https://hub.docker.com/v2/users/login/',data=data,headers={'Content-Type':'application/json'})))['token']
-          request=urllib.request.Request('https://hub.docker.com/v2/repositories/kcilnk/fn-knock/tags/2.5.10/',method='DELETE',headers={'Authorization':'JWT '+token})
-          print('Affected Docker tag removed:',urllib.request.urlopen(request).status)
+          for tag in ['2.5.10','2.5.10-amd64','2.5.10-arm64','2.5.10-arm32']:
+              request=urllib.request.Request('https://hub.docker.com/v2/repositories/kcilnk/fn-knock/tags/'+tag+'/',method='DELETE',headers={'Authorization':'JWT '+token})
+              try:
+                  print('Affected Docker tag removed:',tag,urllib.request.urlopen(request).status)
+              except urllib.error.HTTPError as error:
+                  if error.code != 404: raise
+                  print('Tag already absent:',tag)
           PY
   restore-cdn:
     runs-on: ubuntu-24.04

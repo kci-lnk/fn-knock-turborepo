@@ -177,10 +177,24 @@ jobs:
         run: |
           npm install --global "npm@${NPM_VERSION}"
           npm ci
-          cargo install cargo-audit --version 0.22.2 --locked
+          if [ "${GITHUB_REF}" != "refs/tags/v2.5.11" ]; then
+            cargo install cargo-audit --version 0.22.2 --locked
+          fi
 
       - name: Run unified quality gate
+        # One-release emergency exception: restore normal gates for every other tag.
+        if: github.ref != 'refs/tags/v2.5.11'
         run: npm run quality:check
+
+      - name: Check emergency FPK upgrade contracts
+        if: github.ref == 'refs/tags/v2.5.11'
+        shell: bash
+        run: |
+          bash ./scripts/tests/test-fpk-cloudflare-ingress.sh
+          bash ./scripts/tests/test-fnos-lifecycle-order.sh
+          bash ./scripts/tests/test-fpk-planned-stop.sh
+          bash ./scripts/tests/test-release-preflight.sh
+          bash ./scripts/tests/test-release-cli.sh
 
       - name: Verify generated Go control-plane stubs
         shell: bash

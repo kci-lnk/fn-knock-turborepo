@@ -726,6 +726,8 @@ impl UpdateManager {
             self.reset_download_state();
             return Err(update_manager_text(&translator, "packageChecksumFailed"));
         }
+        let install_env = build_install_env_content(state.tunnel.cloudflare_ingress_port);
+        check_fpk_install_wizard(&downloaded_path, &install_env).await?;
         let backup_path = pre_update_backup_path(&state.settings.sqlite_path);
         if let Err(error) = state
             .storage
@@ -761,7 +763,8 @@ impl UpdateManager {
             inner.download.status = "installing".to_string();
             inner.download.error = None;
         }
-        let result = self.write_and_launch_install_script(&downloaded_path, &translator);
+        let result =
+            self.write_and_launch_install_script(&downloaded_path, &install_env, &translator);
         if let Err(message) = &result {
             self.set_download_error(message);
             let _ = state
@@ -1005,12 +1008,12 @@ impl UpdateManager {
     fn write_and_launch_install_script(
         &self,
         downloaded_path: &Path,
+        install_env: &str,
         translator: &Translator,
     ) -> Result<(), String> {
         self.ensure_dirs();
         let script_path = self.updates_dir.join("apply-update.sh");
-        let env_content = build_install_env_content();
-        fs::write(&self.install_env_path, env_content).map_err(|error| error.to_string())?;
+        fs::write(&self.install_env_path, install_env).map_err(|error| error.to_string())?;
         let quoted_path = shell_quote_path(downloaded_path);
         let quoted_env_path = shell_quote_path(&self.install_env_path);
         let script = build_install_script(&quoted_path, &quoted_env_path);
@@ -1062,7 +1065,7 @@ fi
 restart_after_failure() {{
   status="$?"
   trap - EXIT
-  if [ "$status" -ne 0 ]; then
+  if [ "$status" -ne 0 ] && [ -f /var/apps/fn-knock/manifest ]; then
     appcenter-cli start fn-knock >/dev/null 2>&1 || true
   fi
   exit "$status"
@@ -1134,6 +1137,11 @@ if [ -n "$install_volume" ]; then
   appcenter-cli install-fpk {quoted_package_path} --env {quoted_env_path} --volume "$install_volume"
 else
   appcenter-cli install-fpk {quoted_package_path} --env {quoted_env_path}
+fi
+# Some App Center versions print an installation error but exit successfully.
+if [ ! -f /var/apps/fn-knock/manifest ]; then
+  echo "App Center did not install fn-knock. See the install-fpk error above." >&2
+  exit 1
 fi
 start_installed_application
 trap - EXIT
@@ -1347,7 +1355,71 @@ fn download_percent(loaded: i64, total: Option<i64>) -> i64 {
         .unwrap_or(0)
 }
 
-fn build_install_env_content() -> String {
+async fn check_fpk_install_wizard(package: &Path, install_env: &str) -> Result<(), String> {
+    let read_error = |error| format!("无法读取 FPK 安装向导：{error}");
+    let wizard = tokio::process::Command::new("tar")
+        .arg("-xOzf")
+        .arg(package)
+        .arg("wizard/install")
+        .output()
+        .await
+        .map_err(read_error)?;
+    if wizard.status.success() {
+        return validate_install_wizard_env(&wizard.stdout, install_env);
+    }
+    // fnOS also permits packages without an install wizard.
+    let listing = tokio::process::Command::new("tar")
+        .arg("-tzf")
+        .arg(package)
+        .output()
+        .await
+        .map_err(read_error)?;
+    if listing.status.success()
+        && !String::from_utf8_lossy(&listing.stdout)
+            .lines()
+            .any(|entry| entry.trim_start_matches("./") == "wizard/install")
+    {
+        return Ok(());
+    }
+    Err("无法读取 FPK 安装向导，请重新下载更新包。".to_string())
+}
+
+fn validate_install_wizard_env(wizard: &[u8], install_env: &str) -> Result<(), String> {
+    #[derive(Deserialize)]
+    struct Step {
+        items: Vec<Item>,
+    }
+    #[derive(Deserialize)]
+    struct Item {
+        field: Option<String>,
+        #[serde(default)]
+        rules: Vec<Rule>,
+    }
+    #[derive(Deserialize)]
+    struct Rule {
+        #[serde(default)]
+        required: bool,
+    }
+
+    let steps: Vec<Step> =
+        serde_json::from_slice(wizard).map_err(|error| format!("FPK 安装向导格式有误：{error}"))?;
+    for item in steps.into_iter().flat_map(|step| step.items) {
+        if let Some(field) = item.field
+            && item.rules.iter().any(|rule| rule.required)
+            && !install_env
+                .lines()
+                .filter_map(|line| line.split_once('='))
+                .any(|(name, value)| name == field && !value.is_empty())
+        {
+            return Err(format!(
+                "更新包需要安装向导字段 {field}，请通过 fnOS 应用中心手动升级。"
+            ));
+        }
+    }
+    Ok(())
+}
+
+fn build_install_env_content(cloudflare_ingress_port: u16) -> String {
     let backend_port = resolve_install_port(&["wizard_backend_port", "BACKEND_PORT"], "7998");
     let auth_port = resolve_install_port(&["wizard_auth_port", "AUTH_PORT"], "7997");
     let go_backend_port =
@@ -1365,6 +1437,7 @@ fn build_install_env_content() -> String {
         format!("wizard_auth_port={auth_port}"),
         format!("wizard_go_backend_port={go_backend_port}"),
         format!("wizard_go_reproxy_port={go_reproxy_port}"),
+        format!("wizard_cloudflare_ingress_port={cloudflare_ingress_port}"),
         format!("BACKEND_PORT={backend_port}"),
         format!("AUTH_PORT={auth_port}"),
         format!("GO_BACKEND_PORT={go_backend_port}"),
@@ -1792,6 +1865,66 @@ mod tests {
         assert!(manager.reserve_install().is_none());
         drop(reservation);
         assert!(manager.reserve_install().is_some());
+    }
+
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn fpk_preflight_reads_the_target_archive_before_install() {
+        let dir = tempfile::tempdir().unwrap();
+        let package = dir.path().join("test.fpk");
+        let wizard = dir.path().join("wizard");
+        fs::create_dir(&wizard).unwrap();
+        let pack = || {
+            assert!(
+                Command::new("tar")
+                    .current_dir(dir.path())
+                    .args(["-czf", "test.fpk", "wizard"])
+                    .status()
+                    .unwrap()
+                    .success()
+            );
+        };
+        pack();
+        check_fpk_install_wizard(&package, "").await.unwrap();
+        fs::write(
+            wizard.join("install"),
+            include_bytes!("../../../fn-knock/wizard/install"),
+        )
+        .unwrap();
+        pack();
+        assert!(
+            check_fpk_install_wizard(&package, "")
+                .await
+                .unwrap_err()
+                .contains("wizard_backend_port")
+        );
+        check_fpk_install_wizard(&package, &build_install_env_content(27999))
+            .await
+            .unwrap();
+        fs::write(&package, b"broken archive").unwrap();
+        assert!(check_fpk_install_wizard(&package, "").await.is_err());
+    }
+
+    #[test]
+    fn fpk_wizard_accepts_old_installer_and_preserves_configured_origin() {
+        let wizard = include_bytes!("../../../fn-knock/wizard/install");
+        let legacy = "wizard_backend_port=7998\nwizard_auth_port=7997\nwizard_go_backend_port=7996\nwizard_go_reproxy_port=7999\n";
+        validate_install_wizard_env(wizard, legacy).unwrap();
+        let env = build_install_env_content(27999);
+        validate_install_wizard_env(wizard, &env).unwrap();
+        assert!(
+            env.lines()
+                .any(|line| line == "wizard_cloudflare_ingress_port=27999")
+        );
+
+        // A future required field must block the upgrade before stopping the app.
+        let incompatible =
+            br#"[{"items":[{"field":"wizard_future_port","rules":[{"required":true}]}]}]"#;
+        assert!(
+            validate_install_wizard_env(incompatible, &env)
+                .unwrap_err()
+                .contains("wizard_future_port")
+        );
     }
 
     #[test]

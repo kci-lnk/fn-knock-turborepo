@@ -1288,7 +1288,32 @@ start() {
     return 0
 }
 
+# The 2.5.10 updater stages this new main before it calls stop, then
+# uninstalls the old package (which deletes runtime-ports.env). Its install.env
+# omits the configured origin. Carry it over while both files still exist.
+preserve_legacy_update_origin() {
+    [ "${TRIM_APPVER:-}" = 2.5.10 ] || return 0
+    local env_file="${PKG_VAR_DIR}/updates/install.env"
+    local ports_file="${PKG_VAR_DIR}/runtime-ports.env"
+    [ -f "${env_file}" ] && [ -f "${ports_file}" ] || return 0
+    if grep -q '^wizard_cloudflare_ingress_port=' "${env_file}"; then return 0; fi
+    local port
+    port="$(sed -n 's/^FN_KNOCK_CLOUDFLARE_INGRESS_PORT=//p' "${ports_file}")"
+    [ -n "${port}" ] || return 0
+    validate_port FN_KNOCK_CLOUDFLARE_INGRESS_PORT "${port}" || return 1
+    local next
+    next="$(mktemp "${env_file}.XXXXXX")" || return 1
+    if cat "${env_file}" > "${next}" &&
+        printf 'wizard_cloudflare_ingress_port=%s\n' "${port}" >> "${next}" &&
+        mv -f "${next}" "${env_file}"; then
+        return 0
+    fi
+    rm -f "${next}"
+    return 1
+}
+
 stop() {
+    preserve_legacy_update_origin || { write_temp_log "无法为内置升级保留 Cloudflare 回源端口"; return 1; }
     if ! validate_lifecycle_timeouts; then
         return 1
     fi

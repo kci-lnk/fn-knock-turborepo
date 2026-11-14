@@ -22,6 +22,17 @@ for package in fn-knock fn-knock-lite; do
         load_runtime_ports
         validate_runtime_ports
         [[ "$(printenv FN_KNOCK_CLOUDFLARE_INGRESS_PORT)" == 27999 ]]
+        if [[ "$package" == fn-knock ]]; then
+            mkdir -p "$work/updates"
+            printf 'wizard_backend_port=7998\n' > "$work/updates/install.env"
+            printf 'FN_KNOCK_CLOUDFLARE_INGRESS_PORT=27999\n' > "$work/runtime-ports.env"
+            TRIM_APPVER=2.5.9 preserve_legacy_update_origin
+            ! grep -q 'wizard_cloudflare_ingress_port=' "$work/updates/install.env" || exit 1
+            TRIM_APPVER=2.5.10 preserve_legacy_update_origin
+            TRIM_APPVER=2.5.10 preserve_legacy_update_origin
+            [[ "$(grep -c '^wizard_cloudflare_ingress_port=27999$' "$work/updates/install.env")" == 1 ]]
+            [[ "$(wc -l < "$work/updates/install.env")" -eq 2 ]]
+        fi
         for key in ADMIN_VIEW_PORT BACKEND_PORT AUTH_PORT GO_BACKEND_PORT GO_REPROXY_PORT; do
             FN_KNOCK_CLOUDFLARE_INGRESS_PORT="${!key}"
             if validate_runtime_ports; then exit 1; fi

@@ -98,6 +98,8 @@ docker pull kcilnk/fn-knock:latest
 
 For production deployments, follow the [Docker Compose guide](../../deploy/docker/README.md) to configure ports, persistent volumes, an IPv6 subnet, and trusted proxies.
 
+When Docker uses host networking alongside an FPK, assign separate admin, auth, backend and proxy ports. If Docker already uses `17999`, open the FPK settings in fnOS App Center, set the Cloudflare Tunnel origin port to a free port such as `27999`, then start the FPK. The existing Docker tunnel can keep its origin. To change Docker instead, set `FN_KNOCK_CLOUDFLARE_INGRESS_PORT=27999` in `.env`. For older Compose files, add the matching entry under `environment` as shown in the deployment guide. Run `docker compose up -d` to recreate the container.
+
 ### Linux
 
 Both systemd and Alpine Linux's OpenRC are supported. Run the official one-line installer:

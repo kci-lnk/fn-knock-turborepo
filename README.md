@@ -114,6 +114,8 @@ docker pull kcilnk/fn-knock:latest
 
 生产环境请按 [Docker Compose 部署说明](./deploy/docker/README.md) 配置端口、数据卷、IPv6 子网和可信代理。
 
+Docker 使用 HOST 网络与 FPK 同机时，先错开管理、认证、后端和代理端口。如果 Docker 已使用 `17999`，可在 fnOS 应用中心打开 FPK 设置，将「Cloudflare Tunnel 本地回源端口」设为空闲的 `27999` 后启动。已有 Docker 隧道可继续使用原地址。如果调整 Docker 实例，在 `.env` 设置 `FN_KNOCK_CLOUDFLARE_INGRESS_PORT=27999`，并确认旧 Compose 文件的 `environment` 包含部署说明中的同名配置。运行 `docker compose up -d` 重建容器。
+
 ### Linux
 
 支持 systemd 和 Alpine Linux 使用的 OpenRC。官方一键安装命令：

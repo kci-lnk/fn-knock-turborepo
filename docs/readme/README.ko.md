@@ -98,6 +98,8 @@ docker pull kcilnk/fn-knock:latest
 
 프로덕션 환경에서는 [Docker Compose 배포 안내](../../deploy/docker/README.md)에 따라 포트, 영구 볼륨, IPv6 서브넷, 신뢰할 수 있는 프록시를 설정하세요.
 
+Docker에서 호스트 네트워크를 사용하며 FPK와 같은 장비에서 실행한다면 관리, 인증, 백엔드 및 프록시 포트를 각각 다르게 설정하세요. Docker가 이미 `17999`를 사용하면 fnOS 앱 센터의 FPK 설정에서 Cloudflare Tunnel 원본 포트를 비어 있는 `27999` 등으로 바꾼 뒤 FPK를 시작하세요. 기존 Docker 터널은 원래 주소를 계속 사용할 수 있습니다. Docker 쪽을 변경하려면 `.env`에 `FN_KNOCK_CLOUDFLARE_INGRESS_PORT=27999`를 설정하세요. 기존 Compose 파일의 `environment`에도 예제와 같이 같은 변수를 추가한 뒤 `docker compose up -d`로 컨테이너를 다시 만드세요.
+
 ### Linux
 
 systemd와 Alpine Linux에서 사용하는 OpenRC를 모두 지원합니다. 공식 원라인 설치 명령어는 다음과 같습니다.

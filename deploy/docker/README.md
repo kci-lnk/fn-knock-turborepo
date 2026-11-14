@@ -170,6 +170,7 @@ DOCKER_DISCOVER_LAN_IP=
 | `FN_KNOCK_AUTH_BRIDGE_MAX_IN_FLIGHT` | 留空（自动）                           | 按平台和可用 CPU 在 32–256 间调整；可显式覆盖至 32–256    |
 | `ADMIN_VIEW_PORT`                  | `7991`                                  | 管理面板的宿主机端口                                      |
 | `GO_REPROXY_PORT`                  | `7999`                                  | 网关入口的宿主机端口                                      |
+| `FN_KNOCK_CLOUDFLARE_INGRESS_PORT` | `17999` | Cloudflare Tunnel 本地回源端口 |
 | `DOCKER_ADMIN_TRUSTED_PROXY_CIDRS` | 留空                                    | 仅当 `7991` 位于可信反向代理后时，填写代理出口 IP 或 CIDR |
 | `DOCKER_DISCOVER_LAN_IP`           | 留空                                    | 仅在第三方反代无法自动识别宿主机局域网地址时填写          |
 
@@ -220,7 +221,9 @@ volumes:
   fn_knock_gateway:
 ```
 
-同机运行 FPK 和 Docker host 实例时，各实例的监听端口必须错开，包括 Cloudflare Tunnel 的本地回源端口。例如保留 Docker 的 17999，在 FPK 设置中选择空闲的 27999。调整 Docker 实例时可在 .env 设置 `FN_KNOCK_CLOUDFLARE_INGRESS_PORT` 并重建容器。修改回源端口后，手工隧道需更新 Cloudflare 的 Service URL，托管隧道需重新预览并应用。专用入口仅监听回环地址。
+Docker 使用 HOST 网络与 FPK 同机时，先错开管理、认证、后端和代理端口。如果 Docker 已使用 `17999`，可在 fnOS 应用中心打开 FPK 设置，将「Cloudflare Tunnel 本地回源端口」设为空闲的 `27999` 后启动。已有 Docker 隧道可继续使用原地址。
+
+如果调整 Docker 实例，在 `.env` 设置 `FN_KNOCK_CLOUDFLARE_INGRESS_PORT=27999`，并确认旧 Compose 文件的 `environment` 包含上方示例的同名配置。运行 `docker compose up -d` 重建容器。修改端口后，手工隧道需将 Cloudflare 的 HTTP Service URL 改为穿透页面显示的地址，例如 `http://127.0.0.1:27999`。托管隧道请重新预览并应用配置。
 
 HOST 网络下不需要声明 `ports` 或自定义 bridge，容器直接监听宿主机端口。
 
@@ -334,6 +337,7 @@ networks:
 | `7998` | Rust 后端       | 宿主机回环或容器内部    | 通常保持默认值                     |
 | `7997` | 认证前端        | 宿主机回环或容器内部    | 通常保持默认值                     |
 | `7996` | Go 网关管理     | 宿主机回环或容器内部    | 通常保持默认值                     |
+| `17999` | Cloudflare Tunnel 本地回源端口 | `127.0.0.1` | 仅监听 127.0.0.1，供同一网络命名空间中的 cloudflared 使用。 |
 
 当前镜像使用内置 SQLite 存储，只需运行一个 `fn-knock` 容器，不需要 Redis。
 

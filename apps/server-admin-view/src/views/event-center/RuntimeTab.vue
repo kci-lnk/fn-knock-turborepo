@@ -29,6 +29,7 @@ import {
   formatRuntimeLogLine as formatLogLine,
   getRuntimeEventComponent as eventComponent,
 } from "./runtimePresentation";
+import { systemEventLabelKey } from "./systemEventDescription";
 import { useRuntimeHealth } from "./useRuntimeHealth";
 
 const props = withDefaults(defineProps<{ active?: boolean }>(), {
@@ -219,9 +220,7 @@ const {
           :key="event.id"
           class="flex flex-wrap items-center gap-2 px-4 py-3 text-sm"
         >
-          <Badge variant="outline">{{
-            t(`admin.eventCenter.eventTypes.${event.type}`)
-          }}</Badge>
+          <Badge variant="outline">{{ t(systemEventLabelKey(event)) }}</Badge>
           <span class="font-medium">{{
             t(`admin.eventCenter.runtime.components.${eventComponent(event)}`)
           }}</span>

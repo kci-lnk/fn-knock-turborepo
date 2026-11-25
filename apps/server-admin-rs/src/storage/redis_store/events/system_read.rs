@@ -150,6 +150,10 @@ impl Store {
                     self.remove_stale_system_event_ids(&stale_ids).await?;
                     continue;
                 }
+                let events: Vec<_> = events
+                    .into_iter()
+                    .map(normalize_legacy_runtime_exit)
+                    .collect();
                 return Ok(json!({ "events": events, "total": total }));
             }
         }
@@ -176,7 +180,7 @@ impl Store {
 
             let (batch_events, stale_ids) = self.system_events_by_ids(&ids).await?;
             all_stale_ids.extend(stale_ids);
-            for event in batch_events {
+            for event in batch_events.into_iter().map(normalize_legacy_runtime_exit) {
                 if !system_event_matches_filters(&event, search, event_type, level, source) {
                     continue;
                 }

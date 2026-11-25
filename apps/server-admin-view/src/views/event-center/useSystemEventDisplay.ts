@@ -6,12 +6,12 @@ import type {
   SystemEventLevel,
   SystemEventRecord,
   SystemEventSource,
-  SystemEventType,
 } from "../../types";
 import { detailFieldDefinitions } from "./systemEventDetailFields";
 import {
   describeSystemEvent,
   resolveSystemEventOrigins,
+  systemEventLabelKey,
   systemEventLevelBadgeClass,
   systemEventTypeTextClass,
   type EventOriginDisplay,
@@ -30,8 +30,8 @@ export const useSystemEventDisplay = ({
   activeEvent: Ref<SystemEventRecord | null>;
   translate: SystemEventTranslate;
 }) => {
-  const formatSystemEventTypeLabel = (type: SystemEventType) =>
-    translate(`admin.eventCenter.eventTypes.${type}`);
+  const formatSystemEventTypeLabel = (event: SystemEventRecord) =>
+    translate(systemEventLabelKey(event));
   const formatSystemEventLevelLabel = (level: SystemEventLevel) =>
     translate(`admin.eventCenter.levels.${level}`);
   const formatSystemEventSourceLabel = (source: SystemEventSource) =>
@@ -89,8 +89,7 @@ export const useSystemEventDisplay = ({
       localizedDetailFieldDefinitions.value,
       {
         format: (key, value) => {
-          if (key === "type")
-            return formatSystemEventTypeLabel(value as SystemEventType);
+          if (key === "type") return formatSystemEventTypeLabel(event);
           if (key === "level")
             return formatSystemEventLevelLabel(value as SystemEventLevel);
           if (key === "source")

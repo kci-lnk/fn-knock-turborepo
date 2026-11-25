@@ -804,7 +804,7 @@ mod tests {
             .await
             .unwrap();
         }
-        runtime.import_supervisor_hints(&state).await;
+        runtime.import_supervisor_hints(&state, None).await;
         let events = state
             .storage
             .store
@@ -933,8 +933,8 @@ mod tests {
             .await;
         runtime.publish_snapshot(&time_utils::now_iso()).await;
         assert!(runtime.component_ready("gateway_process").await);
-        runtime.import_supervisor_hints(&state).await;
-        runtime.import_supervisor_hints(&state).await;
+        runtime.import_supervisor_hints(&state, None).await;
+        runtime.import_supervisor_hints(&state, None).await;
         let events = state
             .storage
             .store

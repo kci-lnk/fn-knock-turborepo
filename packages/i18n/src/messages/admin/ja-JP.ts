@@ -7323,6 +7323,7 @@ export const jaJPAdmin = {
       memoryAlert: "{hostname} メモリ使用量 {usage}%",
       memoryRecovered: "{hostname} のメモリ使用率が {usage}% まで低下しました",
       tunnelStatusDescription: "{tunnel} {status}{message}",
+      previousExitUnconfirmed: "終了理由不明",
       runtimeStatusDescription: "{component}: {event}（{reason}）",
       messageSuffix: ": {message}",
       detailFields: {

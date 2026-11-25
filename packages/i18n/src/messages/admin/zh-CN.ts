@@ -6829,6 +6829,7 @@ export const zhCNAdmin = {
       memoryAlert: "{hostname} 内存使用率 {usage}%",
       memoryRecovered: "{hostname} 内存已恢复到 {usage}%",
       tunnelStatusDescription: "{tunnel} {status}{message}",
+      previousExitUnconfirmed: "退出原因未知",
       runtimeStatusDescription: "{component}：{event}（{reason}）",
       messageSuffix: "：{message}",
       detailFields: {

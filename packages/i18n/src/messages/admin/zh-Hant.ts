@@ -6736,6 +6736,7 @@ export const zhHantAdmin = {
       cpuRecovered: "{hostname} CPU 已恢復到 {usage}%",
       memoryAlert: "{hostname} 記憶體使用率 {usage}%",
       memoryRecovered: "{hostname} 記憶體已恢復到 {usage}%",
+      previousExitUnconfirmed: "結束原因不明",
       runtimeStatusDescription: "{component}：{event}（{reason}）",
       detailFields: {
         ...zhCNAdmin.eventCenter.events.detailFields,

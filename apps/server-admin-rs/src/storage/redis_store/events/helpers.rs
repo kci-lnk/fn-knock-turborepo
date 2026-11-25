@@ -1,5 +1,19 @@
 use super::*;
 
+pub(super) fn normalize_legacy_runtime_exit(mut event: Value) -> Value {
+    if event["source"] == "RUNTIME_MONITOR"
+        && event["type"] == "FN_EVENT_RUNTIME_ABNORMAL_EXIT"
+        && event
+            .pointer("/payload/reason_code")
+            .and_then(Value::as_str)
+            == Some("stale_running_session")
+    {
+        event["type"] = json!("FN_EVENT_RUNTIME_RESTARTED");
+        event["level"] = json!("INFO");
+    }
+    event
+}
+
 pub(super) fn system_event_page(
     events: impl IntoIterator<Item = Value>,
     page: i64,
@@ -14,7 +28,7 @@ pub(super) fn system_event_page(
     let page_start = (safe_page - 1) * safe_limit;
     let mut total = 0_i64;
     let mut page_events = Vec::new();
-    for event in events {
+    for event in events.into_iter().map(normalize_legacy_runtime_exit) {
         if !system_event_matches_filters(&event, search, event_type, level, source) {
             continue;
         }

@@ -1,11 +1,33 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { describe, it } from "node:test";
+import { systemEventLabelKey } from "../src/views/event-center/systemEventDescription";
 
 const readSource = (path: string) =>
   readFileSync(new URL(path, import.meta.url), "utf8");
 
 describe("runtime health view", () => {
+  it("shows missing stop records as unconfirmed for both new and historical events", () => {
+    const unconfirmed = "admin.eventCenter.events.previousExitUnconfirmed";
+    const payload = { reason_code: "stale_running_session" };
+
+    assert.equal(
+      systemEventLabelKey({ type: "FN_EVENT_RUNTIME_RESTARTED", payload }),
+      unconfirmed,
+    );
+    assert.equal(
+      systemEventLabelKey({ type: "FN_EVENT_RUNTIME_ABNORMAL_EXIT", payload }),
+      unconfirmed,
+    );
+    assert.equal(
+      systemEventLabelKey({
+        type: "FN_EVENT_RUNTIME_ABNORMAL_EXIT",
+        payload: { reason_code: "unexpected_exit" },
+      }),
+      "admin.eventCenter.eventTypes.FN_EVENT_RUNTIME_ABNORMAL_EXIT",
+    );
+  });
+
   it("keeps virtual components compact and process details conditional", () => {
     const viewSource = readSource("../src/views/event-center/RuntimeTab.vue");
     const cardSource = readSource(

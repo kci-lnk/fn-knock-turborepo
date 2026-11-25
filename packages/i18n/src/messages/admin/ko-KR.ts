@@ -7279,6 +7279,7 @@ export const koKRAdmin = {
       memoryAlert: "{hostname} 메모리 사용량 {usage}%",
       memoryRecovered: "{hostname} 메모리가 {usage}%로 복구되었습니다.",
       tunnelStatusDescription: "{tunnel} {status}{message}",
+      previousExitUnconfirmed: "종료 원인 불명",
       runtimeStatusDescription: "{component}: {event} ({reason})",
       messageSuffix: ": {message}",
       detailFields: {

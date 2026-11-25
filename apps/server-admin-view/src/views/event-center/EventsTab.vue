@@ -260,7 +260,7 @@ const {
                       class="min-w-0 text-sm font-semibold leading-6"
                       :class="eventTypeTextClass(event)"
                     >
-                      {{ formatSystemEventTypeLabel(event.type) }}
+                      {{ formatSystemEventTypeLabel(event) }}
                     </div>
                   </div>
                 </div>

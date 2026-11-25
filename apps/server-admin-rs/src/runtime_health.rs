@@ -254,7 +254,6 @@ struct RuntimeHealthInner {
     supervisor_events_dir: PathBuf,
     monitor_done: Notify,
     monitor_stopped: AtomicBool,
-    management_abnormal_reported: AtomicBool,
     session_phase: AtomicU8,
     session_write: Mutex<()>,
     recovery_until_ms: AtomicI64,
@@ -405,7 +404,6 @@ impl RuntimeHealth {
                 supervisor_events_dir: data_dir.join("runtime/supervisor-events"),
                 monitor_done: Notify::new(),
                 monitor_stopped: AtomicBool::new(false),
-                management_abnormal_reported: AtomicBool::new(false),
                 session_phase: AtomicU8::new(SESSION_PHASE_STARTING),
                 session_write: Mutex::new(()),
                 recovery_until_ms: AtomicI64::new(0),
@@ -513,27 +511,6 @@ impl RuntimeHealth {
         let clean_shutdown = previous.as_ref().is_some_and(|previous| {
             previous.get("state").and_then(Value::as_str) == Some("stopped")
         });
-        if let Some(previous) = &previous
-            && previous.get("state").and_then(Value::as_str) == Some("running")
-        {
-            self.inner
-                .management_abnormal_reported
-                .store(true, Ordering::Release);
-            let input = RuntimeEventInput {
-                happened_at: time_utils::now_iso(),
-                event_type: "FN_EVENT_RUNTIME_ABNORMAL_EXIT",
-                level: "ERROR",
-                component: "management".to_string(),
-                payload: json!({
-                    "component": "management",
-                    "incident_id": uuid::Uuid::new_v4().simple().to_string(),
-                    "instance_id": previous.get("instance_id").cloned().unwrap_or(Value::Null),
-                    "reason_code": "stale_running_session",
-                    "last_heartbeat_at": previous.get("heartbeat_at").cloned().unwrap_or(Value::Null),
-                }),
-            };
-            self.publish_or_buffer(state, input).await;
-        }
         // Clear the durable baseline before replacing the clean-stop marker.
         // Otherwise an interrupted startup can resurrect a pre-update instance
         // on retry and report a normal application restart as a gateway crash.
@@ -547,6 +524,41 @@ impl RuntimeHealth {
             .get_string_value(GATEWAY_INSTANCE_KEY)
             .await?;
         *self.inner.seen_gateway_instance.lock().await = previous_gateway;
+        if let Some(previous) = &previous
+            && previous.get("state").and_then(Value::as_str) == Some("running")
+        {
+            let last_heartbeat = previous.get("heartbeat_at").and_then(Value::as_str);
+            // Shell supervisors timestamp hints to whole seconds.
+            let previous_exit_window = last_heartbeat
+                .and_then(time_utils::parse_iso_ms)
+                .zip(time_utils::parse_iso_ms(&self.inner.process_started_at))
+                .map(|(heartbeat, started)| (heartbeat.div_euclid(1000) * 1000)..=started);
+            if !self
+                .import_supervisor_hints(state, previous_exit_window)
+                .await
+            {
+                // A missing stop marker supplies no exit status.
+                let previous_instance = previous.get("instance_id").and_then(Value::as_str);
+                let incident_id = previous_instance
+                    .map(str::to_owned)
+                    .unwrap_or_else(|| uuid::Uuid::new_v4().simple().to_string());
+                let input = RuntimeEventInput {
+                    happened_at: time_utils::now_iso(),
+                    event_type: "FN_EVENT_RUNTIME_RESTARTED",
+                    level: "INFO",
+                    component: "management".to_string(),
+                    payload: json!({
+                        "component": "management",
+                        "incident_id": incident_id,
+                        "instance_id": self.inner.management_instance_id,
+                        "previous_instance_id": previous_instance,
+                        "reason_code": "stale_running_session",
+                        "last_heartbeat_at": last_heartbeat,
+                    }),
+                };
+                self.publish_or_buffer(state, input).await;
+            }
+        }
         Ok(())
     }
 
@@ -835,7 +847,7 @@ impl RuntimeHealth {
     }
 
     async fn run_probe(&self, state: &AppState) {
-        self.import_supervisor_hints(state).await;
+        self.import_supervisor_hints(state, None).await;
         let sampled_generation = self.inner.planned_stop.lock().generation();
         let checked_at = time_utils::now_iso();
         let (runtime_info, process_health, dataplane_health, auth_health, storage) = tokio::join!(
@@ -1082,11 +1094,16 @@ impl RuntimeHealth {
         self.flush_pending(state).await;
     }
 
-    async fn import_supervisor_hints(&self, state: &AppState) {
+    async fn import_supervisor_hints(
+        &self,
+        state: &AppState,
+        previous_exit_window: Option<std::ops::RangeInclusive<i64>>,
+    ) -> bool {
         let directory = &self.inner.supervisor_events_dir;
         let Ok(mut reader) = tokio::fs::read_dir(directory).await else {
-            return;
+            return false;
         };
+        let mut previous_exit_observed = false;
         let mut paths = Vec::new();
         let mut temporary_paths = Vec::new();
         while let Ok(Some(entry)) = reader.next_entry().await {
@@ -1137,17 +1154,8 @@ impl RuntimeHealth {
                 .and_then(Value::as_str)
                 .filter(|component| matches!(*component, "management" | "gateway_process"));
             let event = hint.get("event").and_then(Value::as_str);
-            if let (Some(component), Some("exited" | "stop_failed")) = (component, event) {
-                if event == Some("exited")
-                    && component == "management"
-                    && self
-                        .inner
-                        .management_abnormal_reported
-                        .swap(true, Ordering::AcqRel)
-                {
-                    let _ = tokio::fs::remove_file(path).await;
-                    continue;
-                }
+            if let (Some(component), Some(event @ ("exited" | "stop_failed"))) = (component, event)
+            {
                 let reason_code = hint
                     .get("reason_code")
                     .and_then(Value::as_str)
@@ -1157,11 +1165,23 @@ impl RuntimeHealth {
                             .all(|char| char.is_ascii_alphanumeric() || matches!(char, '_' | '-'))
                     })
                     .unwrap_or("supervisor_exit");
+                if component == "management"
+                    && event == "exited"
+                    && reason_code == "unexpected_exit"
+                    && let Some(window) = &previous_exit_window
+                    && let Some(hint_at) = hint
+                        .get("time")
+                        .and_then(Value::as_str)
+                        .and_then(time_utils::parse_iso_ms)
+                    && window.contains(&hint_at)
+                {
+                    previous_exit_observed = true;
+                }
                 self.publish_or_buffer(
                     state,
                     RuntimeEventInput {
                         happened_at: time_utils::now_iso(),
-                        event_type: if event == Some("stop_failed") { "FN_EVENT_RUNTIME_STOP_FAILED" } else { "FN_EVENT_RUNTIME_ABNORMAL_EXIT" },
+                        event_type: if event == "stop_failed" { "FN_EVENT_RUNTIME_STOP_FAILED" } else { "FN_EVENT_RUNTIME_ABNORMAL_EXIT" },
                         level: "ERROR",
                         component: component.to_string(),
                         payload: json!({
@@ -1179,6 +1199,7 @@ impl RuntimeHealth {
             }
             let _ = tokio::fs::remove_file(path).await;
         }
+        previous_exit_observed
     }
 
     async fn apply_probe(&self, state: &AppState, id: &str, probe: ProbeResult, checked_at: &str) {
@@ -2949,7 +2970,129 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn stale_running_session_emits_abnormal_exit_but_stopped_session_does_not() {
+    async fn only_a_matching_management_exit_replaces_the_unconfirmed_event() {
+        for (hint_time, reason, expected_restarts) in [
+            ("2000-01-01T00:00:01Z", "unexpected_exit", 0),
+            ("2000-01-01T00:00:00Z", "unexpected_exit", 1),
+            ("2000-01-01T00:00:01Z", "startup_exit", 1),
+        ] {
+            let (_directory, state) = runtime_test_state().await;
+            let runtime = &state.runtime_health;
+            state
+                .storage
+                .store
+                .set_string_value_with_optional_ttl(
+                    SESSION_KEY,
+                    &json!({
+                        "instance_id": "previous",
+                        "state": "running",
+                        "heartbeat_at": "2000-01-01T00:00:01.900Z",
+                    })
+                    .to_string(),
+                    None,
+                )
+                .await
+                .unwrap();
+            let hints = &runtime.inner.supervisor_events_dir;
+            tokio::fs::create_dir_all(hints).await.unwrap();
+            tokio::fs::write(
+                hints.join("management-exit.json"),
+                json!({
+                    "time": hint_time,
+                    "component": "management",
+                    "event": "exited",
+                    "reason_code": reason,
+                    "fields": { "exit_code": 101 },
+                })
+                .to_string(),
+            )
+            .await
+            .unwrap();
+
+            runtime.initialize_session(&state).await.unwrap();
+            let events = state
+                .storage
+                .store
+                .list_system_events(1, 10, "", None, None, Some("RUNTIME_MONITOR"))
+                .await
+                .unwrap();
+            let events = events["events"].as_array().unwrap();
+            assert_eq!(events.len(), 1 + expected_restarts);
+            assert_eq!(
+                events
+                    .iter()
+                    .filter(|event| event["level"] == "INFO")
+                    .count(),
+                expected_restarts
+            );
+            assert!(
+                events
+                    .iter()
+                    .any(|event| event["type"] == "FN_EVENT_RUNTIME_ABNORMAL_EXIT"
+                        && event["payload"]["exit_code"] == 101)
+            );
+        }
+    }
+
+    #[tokio::test]
+    async fn legacy_stale_exit_is_normalized_before_event_filters() {
+        let (_directory, state) = runtime_test_state().await;
+        for (instance, reason) in [
+            ("stale", "stale_running_session"),
+            ("observed", "unexpected_exit"),
+        ] {
+            assert!(
+                publish_runtime_event(
+                    &state,
+                    RuntimeEventInput {
+                        happened_at: time_utils::now_iso(),
+                        event_type: "FN_EVENT_RUNTIME_ABNORMAL_EXIT",
+                        level: "ERROR",
+                        component: "management".to_string(),
+                        payload: json!({ "incident_id": instance, "reason_code": reason }),
+                    },
+                )
+                .await
+                .unwrap()
+            );
+        }
+        let store = &state.storage.store;
+        let all = store
+            .list_system_events(1, 10, "", None, None, None)
+            .await
+            .unwrap();
+        assert_eq!(all["total"], 2);
+        assert!(all["events"].as_array().unwrap().iter().any(|event| {
+            event["payload"]["reason_code"] == "stale_running_session"
+                && event["type"] == "FN_EVENT_RUNTIME_RESTARTED"
+                && event["level"] == "INFO"
+        }));
+        for (event_type, level, reason) in [
+            ("FN_EVENT_RUNTIME_ABNORMAL_EXIT", "ERROR", "unexpected_exit"),
+            (
+                "FN_EVENT_RUNTIME_RESTARTED",
+                "INFO",
+                "stale_running_session",
+            ),
+        ] {
+            let page = store
+                .list_system_events(
+                    1,
+                    10,
+                    "",
+                    Some(event_type),
+                    Some(level),
+                    Some("RUNTIME_MONITOR"),
+                )
+                .await
+                .unwrap();
+            assert_eq!(page["total"], 1);
+            assert_eq!(page["events"][0]["payload"]["reason_code"], reason);
+        }
+    }
+
+    #[tokio::test]
+    async fn stale_running_session_reports_restart_and_preserves_confirmed_exit() {
         let (_directory, state) = runtime_test_state().await;
         state
             .storage
@@ -2995,8 +3138,51 @@ mod tests {
         assert_eq!(events.get("total").and_then(Value::as_i64), Some(1));
         assert_eq!(
             events.pointer("/events/0/type").and_then(Value::as_str),
-            Some("FN_EVENT_RUNTIME_ABNORMAL_EXIT")
+            Some("FN_EVENT_RUNTIME_RESTARTED")
         );
+        assert_eq!(events["events"][0]["level"], "INFO");
+        assert_eq!(
+            events["events"][0]["payload"]["reason_code"],
+            "stale_running_session"
+        );
+        assert_eq!(
+            events["events"][0]["payload"]["last_heartbeat_at"],
+            "2026-01-01T00:00:00.000Z"
+        );
+
+        let hints = &state.runtime_health.inner.supervisor_events_dir;
+        tokio::fs::create_dir_all(hints).await.unwrap();
+        tokio::fs::write(
+            hints.join("management-exit.json"),
+            br#"{"component":"management","event":"exited","reason_code":"unexpected_exit","fields":{"exit_code":101}}"#,
+        )
+        .await
+        .unwrap();
+        state
+            .runtime_health
+            .import_supervisor_hints(&state, None)
+            .await;
+        state
+            .runtime_health
+            .import_supervisor_hints(&state, None)
+            .await;
+
+        let events = state
+            .storage
+            .store
+            .list_system_events(
+                1,
+                10,
+                "",
+                Some("FN_EVENT_RUNTIME_ABNORMAL_EXIT"),
+                None,
+                Some("RUNTIME_MONITOR"),
+            )
+            .await
+            .unwrap();
+        assert_eq!(events["total"], 1);
+        assert_eq!(events["events"][0]["level"], "ERROR");
+        assert_eq!(events["events"][0]["payload"]["exit_code"], 101);
 
         state
             .runtime_health
@@ -3147,7 +3333,10 @@ mod tests {
         .await
         .unwrap();
 
-        state.runtime_health.import_supervisor_hints(&state).await;
+        state
+            .runtime_health
+            .import_supervisor_hints(&state, None)
+            .await;
         assert!(!tokio::fs::try_exists(&hint).await.unwrap());
         let events = state
             .storage
@@ -3182,7 +3371,10 @@ mod tests {
             .unwrap();
         }
 
-        state.runtime_health.import_supervisor_hints(&state).await;
+        state
+            .runtime_health
+            .import_supervisor_hints(&state, None)
+            .await;
         let mut reader = tokio::fs::read_dir(&hints).await.unwrap();
         let mut temporary_count = 0;
         while let Some(entry) = reader.next_entry().await.unwrap() {

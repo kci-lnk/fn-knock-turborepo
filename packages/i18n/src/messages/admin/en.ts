@@ -7333,6 +7333,7 @@ export const enAdmin = {
       memoryAlert: "{hostname} memory usage {usage}%",
       memoryRecovered: "{hostname} memory recovered to {usage}%",
       tunnelStatusDescription: "{tunnel} {status}{message}",
+      previousExitUnconfirmed: "Exit cause unknown",
       runtimeStatusDescription: "{component}: {event} ({reason})",
       messageSuffix: ": {message}",
       detailFields: {

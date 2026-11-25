@@ -11,6 +11,15 @@ export type EventOriginDisplay = {
   location?: string;
 };
 
+export const systemEventLabelKey = (
+  event: Pick<SystemEventRecord, "type" | "payload">,
+) =>
+  (event.type === "FN_EVENT_RUNTIME_ABNORMAL_EXIT" ||
+    event.type === "FN_EVENT_RUNTIME_RESTARTED") &&
+  event.payload?.reason_code === "stale_running_session"
+    ? "admin.eventCenter.events.previousExitUnconfirmed"
+    : `admin.eventCenter.eventTypes.${event.type}`;
+
 export const systemEventTypeTextClass = (event: SystemEventRecord) =>
   event.level === "INFO" ? "text-black" : "text-red-700";
 
@@ -312,7 +321,7 @@ export const describeSystemEvent = (
     case "FN_EVENT_RUNTIME_ABNORMAL_EXIT":
       return translate("admin.eventCenter.events.runtimeStatusDescription", {
         component: String(payload.component || event.subject?.id || "-"),
-        event: translate(`admin.eventCenter.eventTypes.${event.type}`),
+        event: translate(systemEventLabelKey(event)),
         reason: String(payload.reason_code || "-"),
       });
     default:

@@ -6534,6 +6534,9 @@
       },
       "DashboardDisplayData": {
         "properties": {
+          "allow_iframe_embedding": {
+            "type": "boolean"
+          },
           "date_time_display_mode": {
             "enum": [
               "human_friendly",
@@ -6573,6 +6576,7 @@
           }
         },
         "required": [
+          "allow_iframe_embedding",
           "sidebar_collapsed",
           "show_entry_status_module",
           "show_console_app_list",
@@ -6583,6 +6587,12 @@
       },
       "DashboardDisplayUpdateData": {
         "properties": {
+          "allow_iframe_embedding": {
+            "type": [
+              "boolean",
+              "null"
+            ]
+          },
           "date_time_display_mode": {
             "enum": [
               "human_friendly",

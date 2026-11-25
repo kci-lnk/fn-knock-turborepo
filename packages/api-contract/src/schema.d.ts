@@ -9182,6 +9182,7 @@ export interface components {
             trigger: "axis";
         };
         DashboardDisplayData: {
+            allow_iframe_embedding: boolean;
             /** @enum {string} */
             date_time_display_mode: "human_friendly" | "full";
             show_console_app_list: boolean;
@@ -9190,6 +9191,7 @@ export interface components {
             sidebar_menu_order: ("dashboard" | "route_mapping" | "tunnel" | "sessions" | "ssl_certificate" | "ddns" | "wol" | "auth" | "ssh_security" | "events" | "gateway_request_logs" | "web_terminal" | "system_settings")[];
         };
         DashboardDisplayUpdateData: {
+            allow_iframe_embedding?: boolean | null;
             /** @enum {string|null} */
             date_time_display_mode?: "human_friendly" | "full" | null;
             show_console_app_list?: boolean | null;

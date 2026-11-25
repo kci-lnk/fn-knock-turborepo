@@ -7,13 +7,14 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
-import { ChevronRight } from "lucide-vue-next";
 import DateTimeDisplaySettingRow from "./DateTimeDisplaySettingRow.vue";
+import IframeEmbeddingSettingRow from "./IframeEmbeddingSettingRow.vue";
 import FeatureSwitchRow from "./FeatureSwitchRow.vue";
 import FeaturePageSettingRow from "./FeaturePageSettingRow.vue";
 import { useFeaturesSettings } from "./useFeaturesSettings";
 
 const {
+  allowIframeEmbedding,
   autoHttpsEnabled,
   autoHttpsRuntimeError,
   dateTimeDisplayMode,
@@ -31,6 +32,7 @@ const {
   protocolMappingEnabled,
   saveAutoHttpsEnabled,
   saveDateTimeDisplayMode,
+  saveAllowIframeEmbedding,
   savePasskeyBindPromptEnabled,
   saveProtocolMappingEnabled,
   saveShowConsoleAppList,
@@ -95,6 +97,11 @@ const {
         :disabled="isDashboardDisplaySwitchDisabled"
         @change="saveDateTimeDisplayMode"
       />
+      <IframeEmbeddingSettingRow
+        :model-value="allowIframeEmbedding"
+        :disabled="isDashboardDisplaySwitchDisabled"
+        @change="saveAllowIframeEmbedding"
+      />
       <FeatureSwitchRow
         :title="t('admin.featuresSettings.passkeyBindPrompt')"
         :description="t('admin.featuresSettings.passkeyBindPromptHint')"
@@ -142,21 +149,13 @@ const {
         @change="saveProtocolMappingEnabled"
       />
 
-      <button
-        type="button"
-        class="flex w-full items-center justify-between bg-muted/5 p-6 text-left transition-colors hover:bg-muted/15"
-        @click="openSidebarMenuOrder"
-      >
-        <div class="min-w-0 space-y-1 pr-6">
-          <div class="text-base font-medium">
-            {{ t("admin.featuresSettings.sidebarMenuOrder") }}
-          </div>
-          <div class="text-sm text-muted-foreground">
-            {{ t("admin.featuresSettings.sidebarMenuOrderHint") }}
-          </div>
-        </div>
-        <ChevronRight class="h-5 w-5 shrink-0 text-muted-foreground" />
-      </button>
+      <FeaturePageSettingRow
+        :title="t('admin.featuresSettings.sidebarMenuOrder')"
+        :description="t('admin.featuresSettings.sidebarMenuOrderHint')"
+        :available="true"
+        disabled-reason=""
+        @open="openSidebarMenuOrder"
+      />
 
       <FeaturePageSettingRow
         :title="t('admin.nav.webTerminal')"

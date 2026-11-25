@@ -250,3 +250,46 @@ describe("FPK console application list setting", () => {
     wrapper.unmount();
   });
 });
+
+describe("admin iframe embedding setting", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    api.getAuthCredentialSettings.mockResolvedValue({
+      passkey_bind_prompt_enabled: true,
+    });
+    api.getProtocolMappingFeatureConfig.mockResolvedValue({ enabled: false });
+    api.getWOLFeature.mockResolvedValue({ enabled: false });
+  });
+
+  it("defaults missing settings to blocked and restores the prior selection if saving fails", async () => {
+    const wrapper = mountFeatureView(fpkConfig());
+    await flushPromises();
+    const group = wrapper.get(
+      '[aria-label="admin.featuresSettings.iframeEmbedding"]',
+    );
+    const block = group.get("button:first-child");
+    const allow = group.get("button:last-child");
+    expect(block.attributes("aria-pressed")).toBe("true");
+    expect(allow.attributes("aria-pressed")).toBe("false");
+
+    let rejectSave!: (error: Error) => void;
+    api.updateDashboardDisplayConfig.mockReturnValueOnce(
+      new Promise((_resolve, reject) => {
+        rejectSave = reject;
+      }),
+    );
+    await allow.trigger("click");
+    expect(api.updateDashboardDisplayConfig).toHaveBeenCalledWith({
+      allow_iframe_embedding: true,
+    });
+    expect(allow.attributes("aria-pressed")).toBe("true");
+    expect(block.attributes("disabled")).toBeDefined();
+    expect(allow.attributes("disabled")).toBeDefined();
+
+    rejectSave(new Error("save failed"));
+    await flushPromises();
+    expect(block.attributes("aria-pressed")).toBe("true");
+    expect(allow.attributes("disabled")).toBeUndefined();
+    wrapper.unmount();
+  });
+});

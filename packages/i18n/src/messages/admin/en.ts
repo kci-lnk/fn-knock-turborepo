@@ -1376,6 +1376,11 @@ export const enAdmin = {
       "Choose how dates and times are displayed throughout the system.",
     dateTimeDisplayHumanFriendly: "Human-friendly",
     dateTimeDisplayFull: "Full time",
+    iframeEmbedding: "Iframe embedding",
+    iframeEmbeddingHint:
+      "Control whether other pages can embed the direct Knock admin URL in an iframe.",
+    iframeEmbeddingDenied: "Block embedding",
+    iframeEmbeddingAllowed: "Allow embedding",
     showEntryStatusModule: "Show entry status module on Dashboard",
     showEntryStatusModuleHint:
       "When disabled, the Dashboard entry status card is hidden",

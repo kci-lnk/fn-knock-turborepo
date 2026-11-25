@@ -1257,6 +1257,11 @@ export const zhCNAdmin = {
     dateTimeDisplayModeHint: "选择系统中日期时间的统一展示方式。",
     dateTimeDisplayHumanFriendly: "人类友好",
     dateTimeDisplayFull: "完整时间",
+    iframeEmbedding: "是否可被 iframe 嵌入",
+    iframeEmbeddingHint:
+      "控制其他网页能否通过 iframe 嵌入 Knock 管理后台的直连地址。",
+    iframeEmbeddingDenied: "不可被嵌入",
+    iframeEmbeddingAllowed: "可被嵌入",
     showEntryStatusModule: "在首页显示入口状态模块",
     showEntryStatusModuleHint: "关闭后，首页的“入口状态”卡片将隐藏",
     showConsoleAppList: "在控制台顶部显示应用列表",

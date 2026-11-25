@@ -903,6 +903,13 @@ fn normalize_date_time_display_mode(value: Option<&Value>) -> &'static str {
     }
 }
 
+pub(crate) fn allow_iframe_embedding(display: Option<&Value>) -> bool {
+    display
+        .and_then(|value| value.get("allow_iframe_embedding"))
+        .and_then(Value::as_bool)
+        .unwrap_or(false)
+}
+
 fn normalize_dashboard_display(value: Option<&Value>) -> Value {
     json!({
         "sidebar_collapsed": value
@@ -920,6 +927,7 @@ fn normalize_dashboard_display(value: Option<&Value>) -> Value {
         "date_time_display_mode": normalize_date_time_display_mode(
             value.and_then(|value| value.get("date_time_display_mode"))
         ),
+        "allow_iframe_embedding": allow_iframe_embedding(value),
         "sidebar_menu_order": normalize_sidebar_menu_order(
             value.and_then(|value| value.get("sidebar_menu_order"))
         )
@@ -939,6 +947,9 @@ fn dashboard_display_update_fields(body: &Value) -> Map<String, Value> {
     }
     if let Some(show) = body.get("show_console_app_list").and_then(Value::as_bool) {
         fields.insert("show_console_app_list".to_string(), Value::Bool(show));
+    }
+    if let Some(allow) = body.get("allow_iframe_embedding").and_then(Value::as_bool) {
+        fields.insert("allow_iframe_embedding".to_string(), Value::Bool(allow));
     }
     if body.get("sidebar_menu_order").is_some_and(Value::is_array) {
         fields.insert(
@@ -1225,6 +1236,7 @@ mod tests {
                 "show_entry_status_module": false,
                 "show_console_app_list": false,
                 "date_time_display_mode": "human_friendly",
+                "allow_iframe_embedding": false,
                 "sidebar_menu_order": DEFAULT_SIDEBAR_MENU_ORDER
             })
         );

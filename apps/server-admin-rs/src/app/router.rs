@@ -304,12 +304,19 @@ fn response_compression_layer() -> CompressionLayer {
 
 async fn browser_security_headers_middleware(req: Request<Body>, next: Next) -> AxumResponse {
     let mut response = next.run(req).await;
+    let allow_iframe_embedding = response
+        .extensions_mut()
+        .remove::<static_files::AdminIframeEmbeddingAllowed>()
+        .is_some();
     let headers = response.headers_mut();
-    headers.insert(
-        header::CONTENT_SECURITY_POLICY,
-        HeaderValue::from_static("frame-ancestors 'none'"),
-    );
-    headers.insert(header::X_FRAME_OPTIONS, HeaderValue::from_static("DENY"));
+    if !allow_iframe_embedding {
+        // Enforce the frame restriction alongside any policy set by the handler.
+        headers.append(
+            header::CONTENT_SECURITY_POLICY,
+            HeaderValue::from_static("frame-ancestors 'none'"),
+        );
+        headers.insert(header::X_FRAME_OPTIONS, HeaderValue::from_static("DENY"));
+    }
     headers.insert(
         header::X_CONTENT_TYPE_OPTIONS,
         HeaderValue::from_static("nosniff"),
@@ -477,10 +484,23 @@ mod tests {
     async fn auth_router_test_state(hmac_secret: &str) -> (tempfile::TempDir, AppState) {
         let directory = tempfile::tempdir().expect("temporary auth router database");
         let mut settings = crate::settings::Settings::from_env();
+        settings.admin_view_port = None;
         settings.data_dir = directory.path().join("data");
         settings.gateway_config_dir = directory.path().join("gateway");
         settings.sqlite_path = directory.path().join("fn-knock.sqlite3");
         settings.auth_static_path = directory.path().join("auth-static");
+        settings.admin_static_path = directory.path().join("admin-static");
+        std::fs::create_dir_all(&settings.admin_static_path).unwrap();
+        std::fs::write(
+            settings.admin_static_path.join("index.html"),
+            "<!doctype html><title>Knock admin</title>",
+        )
+        .unwrap();
+        std::fs::write(
+            settings.admin_static_path.join("app.js"),
+            "console.log('admin');",
+        )
+        .unwrap();
         std::fs::create_dir_all(&settings.auth_static_path).unwrap();
         let assets = settings.auth_static_path.join("assets");
         std::fs::create_dir_all(&assets).unwrap();
@@ -498,6 +518,164 @@ mod tests {
             .await
             .expect("auth router test state");
         (directory, state)
+    }
+
+    #[tokio::test]
+    async fn admin_iframe_setting_updates_document_headers_and_survives_restart() {
+        let (_directory, state) = auth_router_test_state("").await;
+        let settings = state.settings.clone();
+        let app = backend_router(state.clone(), false);
+        let admin_view = backend_router(state.clone(), true);
+        let auth = auth_router(state.clone());
+
+        assert_admin_iframe_policy(&admin_view, false).await;
+        let updated = update_dashboard_display_config(
+            &app,
+            r#"{"allow_iframe_embedding":true,"date_time_display_mode":"full"}"#,
+        )
+        .await;
+        assert_eq!(updated["allow_iframe_embedding"], true);
+        assert_admin_iframe_policy(&admin_view, true).await;
+        assert_admin_iframe_policy(&app, true).await;
+
+        let unauthorized = admin_view
+            .clone()
+            .oneshot(
+                Request::post("/api/admin/config/dashboard_display")
+                    .extension(axum::extract::ConnectInfo(
+                        "127.0.0.1:12345".parse::<std::net::SocketAddr>().unwrap(),
+                    ))
+                    .header(header::CONTENT_TYPE, "application/json")
+                    .body(Body::from(r#"{"allow_iframe_embedding":false}"#))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(unauthorized.status(), StatusCode::UNAUTHORIZED);
+
+        let denied = admin_view
+            .clone()
+            .oneshot(Request::get("/docs").body(Body::empty()).unwrap())
+            .await
+            .unwrap();
+        assert_eq!(denied.status(), StatusCode::FORBIDDEN);
+        let policies = denied.headers().get_all(header::CONTENT_SECURITY_POLICY);
+        assert!(policies.iter().any(|policy| policy
+            .to_str()
+            .unwrap()
+            .contains("default-src 'none'; style-src 'unsafe-inline'; img-src 'none'; form-action 'none'")));
+        assert!(
+            policies
+                .iter()
+                .any(|policy| policy == "frame-ancestors 'none'")
+        );
+        assert_eq!(denied.headers()[header::X_FRAME_OPTIONS], "DENY");
+
+        let updated = update_dashboard_display_config(
+            &app,
+            r#"{"allow_iframe_embedding":"false","sidebar_collapsed":true}"#,
+        )
+        .await;
+        assert_eq!(updated["allow_iframe_embedding"], true);
+        assert_eq!(updated["date_time_display_mode"], "full");
+        assert_eq!(updated["sidebar_collapsed"], true);
+        for (router, path) in [
+            (&auth, "/"),
+            (&app, "/app.js"),
+            (&app, "/api/admin/config/dashboard_display"),
+        ] {
+            let response = router
+                .clone()
+                .oneshot(Request::get(path).body(Body::empty()).unwrap())
+                .await
+                .unwrap();
+            assert_eq!(response.status(), StatusCode::OK, "{path}");
+            assert_eq!(
+                response.headers()[header::X_FRAME_OPTIONS],
+                "DENY",
+                "{path}"
+            );
+            assert_eq!(
+                response.headers()[header::CONTENT_SECURITY_POLICY],
+                "frame-ancestors 'none'",
+                "{path}"
+            );
+        }
+
+        drop((app, admin_view, auth, state));
+        let state = AppState::new(settings).await.unwrap();
+        let app = backend_router(state, false);
+        assert_admin_iframe_policy(&app, true).await;
+        let updated =
+            update_dashboard_display_config(&app, r#"{"allow_iframe_embedding":false}"#).await;
+        assert_eq!(updated["allow_iframe_embedding"], false);
+        assert_admin_iframe_policy(&app, false).await;
+    }
+
+    async fn assert_admin_iframe_policy(router: &Router, allow: bool) {
+        for path in ["/", "/index.html", "/./index.html", "/system"] {
+            for method in [Method::GET, Method::HEAD] {
+                let response = router
+                    .clone()
+                    .oneshot(
+                        Request::builder()
+                            .method(method.clone())
+                            .uri(path)
+                            .header(header::IF_NONE_MATCH, "*")
+                            .body(Body::empty())
+                            .unwrap(),
+                    )
+                    .await
+                    .unwrap();
+                assert_eq!(response.status(), StatusCode::OK, "{method} {path}");
+                let headers = response.headers();
+                assert_eq!(headers[header::X_CONTENT_TYPE_OPTIONS], "nosniff");
+                assert_eq!(headers[header::REFERRER_POLICY], "no-referrer");
+                assert!(
+                    headers[header::CACHE_CONTROL]
+                        .to_str()
+                        .unwrap()
+                        .contains("no-store")
+                );
+                assert!(!headers.contains_key(header::ETAG));
+                assert!(!headers.contains_key(header::LAST_MODIFIED));
+                assert_eq!(
+                    headers
+                        .get(header::X_FRAME_OPTIONS)
+                        .map(|v| v.to_str().unwrap()),
+                    (!allow).then_some("DENY"),
+                    "{method} {path}"
+                );
+                assert_eq!(
+                    headers
+                        .get(header::CONTENT_SECURITY_POLICY)
+                        .map(|v| v.to_str().unwrap()),
+                    (!allow).then_some("frame-ancestors 'none'"),
+                    "{method} {path}"
+                );
+            }
+        }
+    }
+
+    async fn update_dashboard_display_config(
+        router: &Router,
+        body: &'static str,
+    ) -> serde_json::Value {
+        let response = router
+            .clone()
+            .oneshot(
+                Request::post("/api/admin/config/dashboard_display")
+                    .header(header::CONTENT_TYPE, "application/json")
+                    .body(Body::from(body))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(response.status(), StatusCode::OK);
+        let body = axum::body::to_bytes(response.into_body(), usize::MAX)
+            .await
+            .unwrap();
+        serde_json::from_slice::<serde_json::Value>(&body).unwrap()["data"].take()
     }
 
     #[tokio::test]

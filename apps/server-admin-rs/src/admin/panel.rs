@@ -23,6 +23,7 @@ use crate::{
     runtime_profile::{self, RuntimeProfile},
     state::AppState,
     store::{DockerAdminPasswordRecord, DockerAdminSessionRecord},
+    system::dashboard::allow_iframe_embedding,
     system_events, time_utils,
 };
 
@@ -367,8 +368,18 @@ pub(crate) fn build_safe_app_config(
     if !config.is_object() {
         config = crate::store::default_config();
     }
+    let iframe_embedding_allowed = allow_iframe_embedding(config.get("dashboard_display"));
     if let Some(object) = config.as_object_mut() {
         object.remove("terminal_feature");
+        if let Some(display) = object
+            .get_mut("dashboard_display")
+            .and_then(Value::as_object_mut)
+        {
+            display.insert(
+                "allow_iframe_embedding".to_string(),
+                Value::Bool(iframe_embedding_allowed),
+            );
+        }
         if !object
             .get("host_mapping_groups")
             .is_some_and(Value::is_array)

@@ -40,6 +40,7 @@ export function useFeaturesSettings() {
   const showEntryStatusModule = ref(true);
   const showConsoleAppList = ref(false);
   const dateTimeDisplayMode = ref<DateTimeDisplayMode>("human_friendly");
+  const allowIframeEmbedding = ref(false);
   const autoHttpsDetails = ref<AutoHttpsDetails | null>(null);
   const sshSecurityEnabled = ref(false);
   const sshSecurityUnavailableReason = ref("");
@@ -170,10 +171,12 @@ export function useFeaturesSettings() {
       | "show_entry_status_module"
       | "show_console_app_list"
       | "date_time_display_mode"
+      | "allow_iframe_embedding"
     >,
   ) => {
     showEntryStatusModule.value = data.show_entry_status_module;
     showConsoleAppList.value = data.show_console_app_list;
+    allowIframeEmbedding.value = data.allow_iframe_embedding === true;
     dateTimeDisplayMode.value = normalizeDateTimeDisplayMode(
       data.date_time_display_mode,
     );
@@ -187,6 +190,8 @@ export function useFeaturesSettings() {
         false,
       show_console_app_list:
         configStore.config.dashboard_display?.show_console_app_list === true,
+      allow_iframe_embedding:
+        configStore.config.dashboard_display?.allow_iframe_embedding === true,
       date_time_display_mode: normalizeDateTimeDisplayMode(
         configStore.config.dashboard_display?.date_time_display_mode,
       ),
@@ -334,6 +339,28 @@ export function useFeaturesSettings() {
     }
   };
 
+  const saveAllowIframeEmbedding = async (nextValue: boolean) => {
+    if (isDashboardDisplaySwitchDisabled.value || !configStore.config) return;
+    const previousValue = allowIframeEmbedding.value;
+    allowIframeEmbedding.value = nextValue;
+    const result = await runSaveSettings(
+      () =>
+        configStore.saveDashboardDisplayConfig({
+          allow_iframe_embedding: nextValue,
+        }),
+      {
+        onSuccess: (data) => {
+          applyDashboardDisplaySettings(data);
+          toast.success(t("admin.featuresSettings.updated"));
+        },
+      },
+    );
+    if (!result) {
+      if (configStore.config) syncDashboardDisplayFromConfig();
+      else allowIframeEmbedding.value = previousValue;
+    }
+  };
+
   const savePasskeyBindPromptEnabled = async (nextValue: boolean) => {
     if (isSaving.value) return;
     const previousValue = passkeyBindPromptEnabled.value;
@@ -447,6 +474,7 @@ export function useFeaturesSettings() {
   );
 
   return {
+    allowIframeEmbedding,
     autoHttpsEnabled,
     autoHttpsRuntimeError,
     dateTimeDisplayMode,
@@ -464,6 +492,7 @@ export function useFeaturesSettings() {
     protocolMappingEnabled,
     saveAutoHttpsEnabled,
     saveDateTimeDisplayMode,
+    saveAllowIframeEmbedding,
     savePasskeyBindPromptEnabled,
     saveProtocolMappingEnabled,
     saveShowConsoleAppList,

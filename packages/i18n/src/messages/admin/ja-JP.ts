@@ -1377,6 +1377,11 @@ export const jaJPAdmin = {
     dateTimeDisplayModeHint: "システム全体での日時の表示形式を選択します。",
     dateTimeDisplayHumanFriendly: "わかりやすい表示",
     dateTimeDisplayFull: "完全な日時",
+    iframeEmbedding: "iframe への埋め込み",
+    iframeEmbeddingHint:
+      "他のページから Knock 管理画面の直接アクセス用 URL を iframe に埋め込めるかを設定します。",
+    iframeEmbeddingDenied: "許可しない",
+    iframeEmbeddingAllowed: "許可する",
     showEntryStatusModule: "ダッシュボードにアクセス経路の状態を表示",
     showEntryStatusModuleHint:
       "無効にすると、ダッシュボードの「アクセス経路の状態」カードが非表示になります",

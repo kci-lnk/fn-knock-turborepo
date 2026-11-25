@@ -13,6 +13,7 @@ import { useConfigStore } from "../src/store/config";
 import { useDateTimeDisplayState } from "@admin-shared/composables/useDateTimeDisplayState";
 
 const display = (): DashboardDisplayConfig => ({
+  allow_iframe_embedding: false,
   sidebar_collapsed: false,
   show_entry_status_module: true,
   show_console_app_list: false,
@@ -46,7 +47,7 @@ beforeEach(() => {
 });
 
 describe("dashboard display save concurrency", () => {
-  it("serializes partial saves so older responses cannot replace newer preferences", async () => {
+  it("serializes partial iframe and sidebar saves so older responses cannot replace newer preferences", async () => {
     const first = deferred<DashboardDisplayConfig>();
     const store = useConfigStore();
     api.updateDashboardDisplayConfig
@@ -54,24 +55,24 @@ describe("dashboard display save concurrency", () => {
       .mockResolvedValueOnce({
         ...display(),
         sidebar_collapsed: true,
-        date_time_display_mode: "full",
+        allow_iframe_embedding: true,
       });
     const collapse = store.saveDashboardDisplayConfig({
       sidebar_collapsed: true,
     });
-    const dateMode = store.saveDashboardDisplayConfig({
-      date_time_display_mode: "full",
+    const iframeEmbedding = store.saveDashboardDisplayConfig({
+      allow_iframe_embedding: true,
     });
     await flushPromises();
     expect(api.updateDashboardDisplayConfig).toHaveBeenCalledTimes(1);
     first.resolve({ ...display(), sidebar_collapsed: true });
-    await Promise.all([collapse, dateMode]);
+    await Promise.all([collapse, iframeEmbedding]);
     expect(api.updateDashboardDisplayConfig).toHaveBeenNthCalledWith(2, {
-      date_time_display_mode: "full",
+      allow_iframe_embedding: true,
     });
     expect(store.config!.dashboard_display).toMatchObject({
       sidebar_collapsed: true,
-      date_time_display_mode: "full",
+      allow_iframe_embedding: true,
     });
   });
 

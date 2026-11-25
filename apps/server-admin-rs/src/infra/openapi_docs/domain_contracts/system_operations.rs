@@ -712,6 +712,7 @@ pub(super) struct FnosCertificateSyncResponseData {
 
 #[derive(Serialize, ToSchema)]
 pub(super) struct DashboardDisplayData {
+    allow_iframe_embedding: bool,
     sidebar_collapsed: bool,
     show_entry_status_module: bool,
     show_console_app_list: bool,
@@ -721,6 +722,7 @@ pub(super) struct DashboardDisplayData {
 
 #[derive(Serialize, ToSchema)]
 pub(super) struct DashboardDisplayUpdateData {
+    allow_iframe_embedding: Option<bool>,
     sidebar_collapsed: Option<bool>,
     show_entry_status_module: Option<bool>,
     show_console_app_list: Option<bool>,

@@ -1,4 +1,6 @@
 import assert from "node:assert/strict";
+import { once } from "node:events";
+import { createServer } from "node:http";
 import { chromium } from "playwright";
 import { startRuntime } from "./runtime-test-harness.mjs";
 
@@ -106,6 +108,89 @@ const loginWithFreshSession = async (context, page) => {
   await submitGatePassword(page, "current-password");
 };
 
+const verifyAdminIframeEmbedding = async (runtime, context, page) => {
+  const settingsUrl = `${runtime.adminUrl}/#/system?tab=features`;
+  const iframeSettingName = /^(是否可被 iframe 嵌入|Iframe embedding)$/u;
+  const allowLabel = /^(可被嵌入|Allow embedding)$/u;
+  const blockLabel = /^(不可被嵌入|Block embedding)$/u;
+  await page.goto(settingsUrl);
+  const setting = page.getByRole("group", { name: iframeSettingName });
+  const allow = setting.getByRole("button", { name: allowLabel });
+  const block = setting.getByRole("button", { name: blockLabel });
+  assert.equal(await block.getAttribute("aria-pressed"), "true");
+
+  const parent = await context.newPage();
+  const parentServer = createServer((_request, response) => {
+    response.writeHead(200, {
+      "content-type": "text/html; charset=utf-8",
+      "cache-control": "no-store",
+    });
+    response.end(
+      `<!doctype html><iframe width="960" height="600" src="${settingsUrl}"></iframe>`,
+    );
+  });
+  try {
+    const listening = once(parentServer, "listening");
+    parentServer.listen(0, "127.0.0.1");
+    await listening;
+    const parentUrl = `http://127.0.0.1:${parentServer.address().port}/`;
+    const assertFrameBlocked = async () => {
+      const [failure] = await Promise.all([
+        parent.waitForEvent(
+          "requestfailed",
+          (request) =>
+            request.isNavigationRequest() &&
+            new URL(request.url()).origin === runtime.adminUrl,
+        ),
+        parent.goto(parentUrl),
+      ]);
+      assert.match(
+        failure.failure()?.errorText ?? "",
+        /ERR_BLOCKED_BY_RESPONSE/u,
+      );
+    };
+    const saveOption = async (option, enabled) => {
+      const [response] = await Promise.all([
+        page.waitForResponse(
+          (response) =>
+            response.url().endsWith("/api/admin/config/dashboard_display") &&
+            response.request().method() === "POST",
+        ),
+        option.click(),
+      ]);
+      assert.equal(response.status(), 200);
+      assert.equal(
+        (await response.json()).data.allow_iframe_embedding,
+        enabled,
+      );
+    };
+
+    await assertFrameBlocked();
+    await saveOption(allow, true);
+    await parent.goto(parentUrl);
+    const embeddedAllow = parent
+      .frameLocator("iframe")
+      .getByRole("group", { name: iframeSettingName })
+      .getByRole("button", { name: allowLabel });
+    assert.equal(await embeddedAllow.getAttribute("aria-pressed"), "true");
+
+    const auth = await context.request.head(runtime.authUrl);
+    assert.equal(auth.headers()["x-frame-options"], "DENY");
+    assert.equal(
+      auth.headers()["content-security-policy"],
+      "frame-ancestors 'none'",
+    );
+
+    await saveOption(block, false);
+    await assertFrameBlocked();
+  } finally {
+    await parent.close();
+    if (parentServer.listening) {
+      await new Promise((resolve) => parentServer.close(resolve));
+    }
+  }
+};
+
 let runtime;
 let browser;
 try {
@@ -123,6 +208,8 @@ try {
   await page.goto(runtime.adminUrl, { waitUntil: "domcontentloaded" });
   await submitGatePassword(page, "new-password");
   await loginWithFreshSession(context, page);
+  await verifyAdminIframeEmbedding(runtime, context, page);
+  await page.goto(runtime.adminUrl, { waitUntil: "domcontentloaded" });
 
   const originalAppearance = (await apiRequest(page, "/config/appearance")).body
     .data;
@@ -198,7 +285,7 @@ try {
   await context.close();
   console.log(
     "[runtime-e2e] passed: protected setup/login, component-driven config save, " +
-      "Host mapping update, and backup restore",
+      "iframe embedding, Host mapping update, and backup restore",
   );
 } finally {
   await browser?.close();

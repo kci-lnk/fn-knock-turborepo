@@ -16,6 +16,7 @@ import LayoutDesktopSidebar from "../src/views/layout/LayoutDesktopSidebar.vue";
 import { DEFAULT_SIDEBAR_MENU_ORDER } from "../src/views/layout/sidebarNavigation";
 
 const displayConfig = (collapsed = false): DashboardDisplayConfig => ({
+  allow_iframe_embedding: false,
   sidebar_collapsed: collapsed,
   show_entry_status_module: false,
   show_console_app_list: true,

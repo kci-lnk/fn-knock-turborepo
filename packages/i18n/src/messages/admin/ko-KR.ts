@@ -1361,6 +1361,11 @@ export const koKRAdmin = {
       "시스템 전체에서 날짜와 시간을 표시할 방식을 선택합니다.",
     dateTimeDisplayHumanFriendly: "읽기 쉬운 형식",
     dateTimeDisplayFull: "전체 시간",
+    iframeEmbedding: "iframe 삽입",
+    iframeEmbeddingHint:
+      "다른 웹 페이지에서 Knock 관리자 페이지의 직접 접속 주소를 iframe에 삽입할 수 있는지 설정합니다.",
+    iframeEmbeddingDenied: "삽입 차단",
+    iframeEmbeddingAllowed: "삽입 허용",
     showEntryStatusModule: "대시보드에 접속 상태 표시",
     showEntryStatusModuleHint:
       "비활성화되면 대시보드 항목 상태 카드가 숨겨집니다.",

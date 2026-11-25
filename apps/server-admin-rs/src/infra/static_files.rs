@@ -5,7 +5,9 @@ use std::{
     time::{Duration, SystemTime},
 };
 
-use crate::{i18n::Translator, response, state::AppState};
+use crate::{
+    i18n::Translator, response, state::AppState, system::dashboard::allow_iframe_embedding,
+};
 use axum::{
     Router,
     body::Body,
@@ -22,6 +24,9 @@ const INDEX_CACHE_CONTROL: &str = "private, no-store, no-cache, max-age=0, must-
 const FINGERPRINTED_ASSET_CACHE_CONTROL: &str = "public, max-age=31536000, immutable";
 const STATIC_ASSET_CACHE_CONTROL: &str = "public, max-age=300";
 const HTTP_DATE_MAX_OFFSET: Duration = Duration::from_secs(253_402_300_800);
+
+#[derive(Clone)]
+pub(crate) struct AdminIframeEmbeddingAllowed;
 
 #[derive(Clone)]
 struct StaticFileVariant {
@@ -182,14 +187,7 @@ pub fn auth_static_routes() -> Router<AppState> {
 }
 
 async fn admin_index(State(state): State<AppState>, request: Request<Body>) -> Response {
-    serve_index(
-        &state,
-        &state.settings.admin_static_path,
-        &state.static_files.admin,
-        request.headers(),
-        request.method(),
-    )
-    .await
+    serve_admin_index(&state, request.headers(), request.method()).await
 }
 
 async fn auth_index(State(state): State<AppState>, request: Request<Body>) -> Response {
@@ -358,6 +356,12 @@ pub async fn admin_fallback(
     ) else {
         return not_found();
     };
+    if asset_path
+        .strip_prefix(&state.settings.admin_static_path)
+        .is_ok_and(|path| path == Path::new("index.html"))
+    {
+        return serve_admin_index(&state, req.headers(), req.method()).await;
+    }
     if let Some(entry) = state.static_files.admin.get(&asset_path) {
         serve_catalog_file(
             &asset_path,
@@ -374,31 +378,35 @@ pub async fn admin_fallback(
             static_asset_not_found()
         }
     } else {
-        serve_index(
-            &state,
-            &state.settings.admin_static_path,
-            &state.static_files.admin,
-            req.headers(),
-            req.method(),
-        )
-        .await
+        serve_admin_index(&state, req.headers(), req.method()).await
     }
 }
 
-async fn serve_index(
+async fn serve_admin_index(
     state: &AppState,
-    root: &Path,
-    catalog: &StaticFileCatalog,
     request_headers: &HeaderMap,
     method: &Method,
 ) -> Response {
-    let path = root.join("index.html");
-    let mut response = match catalog.get(&path) {
+    let path = state.settings.admin_static_path.join("index.html");
+    let mut response = match state.static_files.admin.get(&path) {
         Some(entry) => {
             serve_catalog_file(&path, entry, request_headers, method, StaticFileKind::Index).await
         }
         None => not_found(),
     };
+    if response.status() == StatusCode::OK
+        && allow_iframe_embedding(
+            state
+                .storage
+                .store
+                .config_snapshot()
+                .get("dashboard_display"),
+        )
+    {
+        response
+            .extensions_mut()
+            .insert(AdminIframeEmbeddingAllowed);
+    }
     if let Some(cookie) = locale_cookie(state).await {
         response.headers_mut().append(header::SET_COOKIE, cookie);
     }
@@ -455,7 +463,8 @@ async fn serve_catalog_file(
         return method_not_allowed();
     }
     let (variant, content_encoding) = select_precompressed_variant(entry, request_headers);
-    if if_none_match_matches(request_headers, &variant.etag) {
+    // The admin document's frame policy can change independently of its bytes.
+    if kind == StaticFileKind::Asset && if_none_match_matches(request_headers, &variant.etag) {
         let mut response = StatusCode::NOT_MODIFIED.into_response();
         apply_static_headers(
             &mut response,
@@ -535,14 +544,6 @@ fn apply_static_headers(
             .headers_mut()
             .insert("cdn-cache-control", HeaderValue::from_static("no-store"));
     }
-    response
-        .headers_mut()
-        .insert(header::ETAG, variant.etag.clone());
-    if let Some(value) = &entry.last_modified {
-        response
-            .headers_mut()
-            .insert(header::LAST_MODIFIED, value.clone());
-    }
     if include_length && let Ok(value) = HeaderValue::from_str(&variant.content_length.to_string())
     {
         response.headers_mut().insert(header::CONTENT_LENGTH, value);
@@ -559,7 +560,12 @@ fn apply_static_headers(
         );
     }
     if kind == StaticFileKind::Asset {
-        response.headers_mut().insert(
+        let headers = response.headers_mut();
+        headers.insert(header::ETAG, variant.etag.clone());
+        if let Some(value) = &entry.last_modified {
+            headers.insert(header::LAST_MODIFIED, value.clone());
+        }
+        headers.insert(
             header::X_CONTENT_TYPE_OPTIONS,
             HeaderValue::from_static("nosniff"),
         );

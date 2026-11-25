@@ -120,6 +120,7 @@ pub fn default_config() -> Value {
         "show_entry_status_module": true,
         "show_console_app_list": false,
         "date_time_display_mode": "human_friendly",
+        "allow_iframe_embedding": false,
         "sidebar_menu_order": [
             "dashboard",
             "route_mapping",

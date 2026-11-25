@@ -1174,6 +1174,11 @@ export const zhHantAdmin = {
     dateTimeDisplayModeHint: "選擇系統中日期時間的統一展示方式。",
     dateTimeDisplayHumanFriendly: "人類友好",
     dateTimeDisplayFull: "完整時間",
+    iframeEmbedding: "是否可被 iframe 嵌入",
+    iframeEmbeddingHint:
+      "控制其他網頁能否透過 iframe 嵌入 Knock 管理後台的直連網址。",
+    iframeEmbeddingDenied: "不可被嵌入",
+    iframeEmbeddingAllowed: "可被嵌入",
     runTypes: {
       direct: "直連模式",
       reverse: "内网穿透",

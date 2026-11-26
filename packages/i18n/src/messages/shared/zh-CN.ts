@@ -109,6 +109,7 @@ export const zhCNShared = {
       cloudflare: "Cloudflare",
       alidns: "阿里云 DNS",
       dnspod: "DNSPod",
+      dnshe: "DNSHE",
       tencentcloud: "腾讯云 DNS",
       edgeone: "腾讯云 EdgeOne",
       edgeoneCname: "腾讯云 EdgeOne（CNAME 接入）",

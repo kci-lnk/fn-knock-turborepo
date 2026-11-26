@@ -53,6 +53,10 @@ export const dnsCredentialBridgeDefinitions = [
     { acme: "DP_Id", ddns: "token_id" },
     { acme: "DP_Key", ddns: "token_key" },
   ]),
+  bridge("dnshe", "dns_dnshe", [
+    { acme: "DNSHE_API_KEY", ddns: "api_key" },
+    { acme: "DNSHE_API_SECRET", ddns: "api_secret" },
+  ]),
   bridge("tencentcloud", "dns_tencent", tencentFields),
   bridge("edgeone", "dns_tencent", tencentFields),
   bridge("edgeone_cname", "dns_tencent", tencentFields, "edgeoneCname"),

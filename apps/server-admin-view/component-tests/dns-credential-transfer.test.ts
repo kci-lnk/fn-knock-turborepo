@@ -518,37 +518,71 @@ describe("credential fill entry points", () => {
     await flushPromises();
     expect(AcmeAPI.getApplications).toHaveBeenCalledTimes(2);
   });
-  it("fills ACME fields from an extra EdgeOne target without submitting", async () => {
-    mockTargets([target("extra", "edgeone")]);
-    const create = vi.spyOn(AcmeAPI, "createApplication");
-    const update = vi.spyOn(AcmeAPI, "updateApplication");
-    const wrapper = mount(AcmeApplicationDialog, {
-      props: {
-        open: true,
-        mode: "edit",
-        initialValue: application("edit", {
-          Tencent_SecretId: "",
-          Tencent_SecretKey: "",
-        }),
-        dnsProviders: [acmeProvider],
+  it.each([
+    {
+      name: "EdgeOne",
+      providerId: "edgeone",
+      acme: acmeProvider,
+      sourceConfig: { secret_id: "account", secret_key: "secret" },
+    },
+    {
+      name: "DNSHE",
+      providerId: "dnshe",
+      acme: {
+        ...acmeProvider,
+        dnsType: "dns_dnshe",
+        label: "DNSHE",
+        credentialSchemes: [
+          {
+            id: "default",
+            label: "Default",
+            fields: ["DNSHE_API_KEY", "DNSHE_API_SECRET"].map((key) => ({
+              key,
+              required: true,
+            })),
+          },
+        ],
       },
-      global: {
-        plugins: [i18n()],
-        stubs: { ...dialogStubs, AcmeFileOutputSettings: true },
+      sourceConfig: {
+        api_key: "account",
+        api_secret: "secret",
+        root_domain: "managed.example.test",
       },
-    });
-    wrappers.push(wrapper);
-    await flushPromises();
-    await fillButton(wrapper).trigger("click");
-    const values = wrapper
-      .findAll('[data-acme-dialog="credentials"] input')
-      .map((input) => (input.element as HTMLInputElement).value);
-    expect(values).toContain("account");
-    expect(values).toContain("secret");
-    expect(wrapper.emitted("submit")).toBeUndefined();
-    expect(create).not.toHaveBeenCalled();
-    expect(update).not.toHaveBeenCalled();
-  });
+    },
+  ])(
+    "fills ACME fields from an extra $name target without submitting",
+    async ({ providerId, acme, sourceConfig }) => {
+      mockTargets([{ ...target("extra", providerId), config: sourceConfig }]);
+      const create = vi.spyOn(AcmeAPI, "createApplication");
+      const update = vi.spyOn(AcmeAPI, "updateApplication");
+      const wrapper = mount(AcmeApplicationDialog, {
+        props: {
+          open: true,
+          mode: "edit",
+          initialValue: {
+            ...application("edit"),
+            dnsType: acme.dnsType,
+            credentials: {},
+          },
+          dnsProviders: [acme],
+        },
+        global: {
+          plugins: [i18n()],
+          stubs: { ...dialogStubs, AcmeFileOutputSettings: true },
+        },
+      });
+      wrappers.push(wrapper);
+      await flushPromises();
+      await fillButton(wrapper).trigger("click");
+      const values = wrapper
+        .findAll('[data-acme-dialog="credentials"] input')
+        .map((input) => (input.element as HTMLInputElement).value);
+      expect(values).toEqual(["account", "secret"]);
+      expect(wrapper.emitted("submit")).toBeUndefined();
+      expect(create).not.toHaveBeenCalled();
+      expect(update).not.toHaveBeenCalled();
+    },
+  );
   it("requires choosing a source in the shared UI and blocks conflicting fills", async () => {
     vi.mocked(AcmeAPI.getApplications).mockResolvedValue([
       application("first"),

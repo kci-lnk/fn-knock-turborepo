@@ -8,6 +8,10 @@ pub(super) async fn apply_acme_dns_provider_patches(
     job_id: &str,
     t: &Translator,
 ) -> anyhow::Result<()> {
+    if dns_type == "dns_dnshe" {
+        let home = acme_home_dir(state);
+        return tokio::task::spawn_blocking(move || install_dnshe_hook(&home)).await?;
+    }
     if dns_type != "dns_duckdns" {
         return legacy_hooks::restore_if_patched(acme_home_dir(state), dns_type).await;
     }
@@ -41,6 +45,31 @@ pub(super) async fn apply_acme_dns_provider_patches(
         .ok();
     }
     Ok(())
+}
+
+pub(super) fn install_dnshe_hook(home: &Path) -> anyhow::Result<()> {
+    let directory = home.join("dnsapi");
+    let target = directory.join("dns_dnshe.sh");
+    if target.is_file() {
+        return Ok(());
+    }
+
+    let bundle = resolve_bundled_acme_zip_path()
+        .ok_or_else(|| anyhow::anyhow!("missing bundled acme.sh for the DNSHE hook"))?;
+    let mut archive = ZipArchive::new(File::open(bundle)?)?;
+    let mut hook = archive.by_name("acmesh/dnsapi/dns_dnshe.sh")?;
+    std::fs::create_dir_all(&directory)?;
+    let mut temporary = tempfile::NamedTempFile::new_in(&directory)?;
+    std::io::copy(&mut hook, &mut temporary)?;
+    match temporary.persist_noclobber(&target) {
+        Ok(_) => Ok(()),
+        Err(error)
+            if error.error.kind() == std::io::ErrorKind::AlreadyExists && target.is_file() =>
+        {
+            Ok(())
+        }
+        Err(error) => Err(error.into()),
+    }
 }
 
 pub(super) async fn read_replayable_json_body(

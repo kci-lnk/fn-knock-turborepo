@@ -1906,6 +1906,72 @@ fn provider_catalog_contains_node_dns_types() {
 }
 
 #[test]
+fn dnshe_requests_use_the_same_credentials_in_both_platform_catalogs() {
+    let t = Translator::new("en");
+    for providers in [acme_dns_providers(&t), windows_acme_dns_providers(&t)] {
+        let provider = providers
+            .iter()
+            .find(|provider| provider["dnsType"] == "dns_dnshe")
+            .unwrap();
+        assert_eq!(provider["label"], "DNSHE");
+        assert_eq!(
+            provider["credentialSchemes"][0]["fields"],
+            json!([
+                { "key": "DNSHE_API_KEY", "required": true },
+                { "key": "DNSHE_API_SECRET", "required": true },
+            ])
+        );
+    }
+
+    let mut request = json!({
+        "domains": ["example.net", "*.example.net"],
+        "dnsType": "dns_dnshe",
+        "credentials": {
+            "DNSHE_API_KEY": "fixture-key",
+            "DNSHE_API_SECRET": "fixture-secret",
+            "root_domain": "not-a-credential.example.net",
+        },
+    });
+    let normalized = validate_acme_request(&request, &t).unwrap();
+    assert_eq!(
+        normalize_acme_env_vars(&normalized.dns_type, Some(&normalized.credentials)),
+        json!({"DNSHE_API_KEY":"fixture-key", "DNSHE_API_SECRET":"fixture-secret"})
+            .as_object()
+            .unwrap()
+            .clone()
+    );
+    request["credentials"]["DNSHE_API_SECRET"] = Value::Null;
+    assert!(validate_acme_request(&request, &t).is_err());
+}
+
+#[test]
+fn bundled_dnshe_hook_is_available_for_fresh_and_existing_installs() {
+    let bundle = resolve_bundled_acme_zip_path().unwrap();
+    let fresh = tempfile::tempdir().unwrap();
+    extract_zip_file(&bundle, fresh.path()).unwrap();
+    let expected = std::fs::read(fresh.path().join("acmesh/dnsapi/dns_dnshe.sh")).unwrap();
+    assert!(expected.starts_with(b"#!/usr/bin/env sh"));
+
+    let existing = tempfile::tempdir().unwrap();
+    let account = existing.path().join("account.conf");
+    let certificate = existing.path().join("example.net.cer");
+    std::fs::write(&account, b"existing account").unwrap();
+    std::fs::write(&certificate, b"existing certificate").unwrap();
+    std::thread::scope(|scope| {
+        let other = scope.spawn(|| install_dnshe_hook(existing.path()).unwrap());
+        install_dnshe_hook(existing.path()).unwrap();
+        other.join().unwrap();
+    });
+    let hook = existing.path().join("dnsapi/dns_dnshe.sh");
+    assert_eq!(std::fs::read(&hook).unwrap(), expected);
+    assert_eq!(std::fs::read(account).unwrap(), b"existing account");
+    assert_eq!(std::fs::read(certificate).unwrap(), b"existing certificate");
+    std::fs::write(&hook, b"local hook").unwrap();
+    install_dnshe_hook(existing.path()).unwrap();
+    assert_eq!(std::fs::read(hook).unwrap(), b"local hook");
+}
+
+#[test]
 fn validates_acme_request_with_alias_and_filters_credentials() {
     let t = Translator::new("en");
     let normalized = validate_acme_request(

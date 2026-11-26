@@ -16,6 +16,7 @@ pub(super) fn windows_acme_provider_ids() -> &'static [&'static str] {
         "dns_ali",
         "dns_baiducloud",
         "dns_cf",
+        "dns_dnshe",
         "dns_dp",
         "dns_tencent",
         "dns_duckdns",
@@ -122,8 +123,9 @@ mod tests {
 
     #[test]
     fn windows_provider_list_matches_native_client() {
-        assert_eq!(windows_acme_provider_ids().len(), 12);
+        assert_eq!(windows_acme_provider_ids().len(), 13);
         assert!(windows_acme_provider_ids().contains(&"dns_cf"));
+        assert!(windows_acme_provider_ids().contains(&"dns_dnshe"));
         assert!(windows_acme_provider_ids().contains(&"dns_huaweicloud"));
         assert!(windows_acme_provider_ids().contains(&"dns_west_cn"));
         assert!(!windows_acme_provider_ids().contains(&"dns_dgon"));

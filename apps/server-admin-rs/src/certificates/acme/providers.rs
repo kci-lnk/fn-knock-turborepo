@@ -50,6 +50,7 @@ pub(super) fn windows_acme_dns_providers(t: &Translator) -> Vec<Value> {
             &[],
         ),
         simple_provider("dns_duckdns", "DuckDNS", common, &["DuckDNS_Token"], &[]),
+        dnshe_provider(common),
         simple_provider(
             "dns_dynu",
             "Dynu",
@@ -138,6 +139,7 @@ pub(super) fn acme_dns_providers(t: &Translator) -> Vec<Value> {
             &[],
         ),
         simple_provider("dns_duckdns", "DuckDNS", common, &["DuckDNS_Token"], &[]),
+        dnshe_provider(common),
         simple_provider("dns_gd", "GoDaddy", common, &["GD_Key", "GD_Secret"], &[]),
         simple_provider("dns_dgon", "DigitalOcean", common, &["DO_API_KEY"], &[]),
         simple_provider(
@@ -508,6 +510,16 @@ pub(super) fn localize_default_credential_labels(providers: &mut [Value], label:
             }
         }
     }
+}
+
+fn dnshe_provider(group: &str) -> Value {
+    simple_provider(
+        "dns_dnshe",
+        "DNSHE",
+        group,
+        &["DNSHE_API_KEY", "DNSHE_API_SECRET"],
+        &[],
+    )
 }
 
 pub(super) fn simple_provider(

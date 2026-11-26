@@ -117,6 +117,7 @@ export const koKRShared = {
       cloudflare: "Cloudflare",
       alidns: "Alibaba Cloud DNS",
       dnspod: "DNSPod",
+      dnshe: "DNSHE",
       tencentcloud: "Tencent Cloud DNS",
       edgeone: "Tencent Cloud EdgeOne",
       edgeoneCname: "Tencent Cloud EdgeOne(CNAME 연결)",

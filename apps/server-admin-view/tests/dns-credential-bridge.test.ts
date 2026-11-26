@@ -44,6 +44,12 @@ const cases: [
     ],
   ),
   [
+    "dnshe",
+    "dns_dnshe",
+    { api_key: "id", api_secret: "secret" },
+    { DNSHE_API_KEY: "id", DNSHE_API_SECRET: "secret" },
+  ],
+  [
     "godaddy",
     "dns_gd",
     { api_key: "id", api_secret: "secret" },

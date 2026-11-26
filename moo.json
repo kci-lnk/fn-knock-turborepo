@@ -5,7 +5,7 @@
     "author": "kci-lnk",
     "homepage": "https://github.com/kci-lnk/fn-knock-turborepo",
     "description": "fn-knock 官方 fnOS 原生 FPK 应用源。",
-    "updated_at": "2026-11-14T16:47:51Z"
+    "updated_at": "2026-11-26T07:58:22Z"
   },
   "apps": {
     "fn-knock": {
@@ -28,10 +28,26 @@
       "license": "MIT",
       "install_type": "root",
       "service_port": 7999,
-      "icon_url": "https://raw.githubusercontent.com/kci-lnk/fn-knock-turborepo/v2.5.11/apps/fn-knock/ICON_256.PNG",
-      "readme_url": "https://raw.githubusercontent.com/kci-lnk/fn-knock-turborepo/v2.5.11/README.md",
-      "updated_at": "2026-11-14T16:47:51Z",
+      "icon_url": "https://raw.githubusercontent.com/kci-lnk/fn-knock-turborepo/v2.5.12/apps/fn-knock/ICON_256.PNG",
+      "readme_url": "https://raw.githubusercontent.com/kci-lnk/fn-knock-turborepo/v2.5.12/README.md",
+      "updated_at": "2026-11-26T07:58:22Z",
       "releases": {
+        "2.5.12": {
+          "changelog": "# fn-knock 2.5.12\n\n- 新增 DNSHE 以支持 ACME DNS 验证并签发证书\n- 管理面板新增 iframe 嵌入开关，默认禁止嵌入，可在功能设置中启用。\n- 系统设置会显示 Cloudflared 和 FRP 的已安装版本及目标版本\n- 运行状态和事件中心会区分尚未确认退出的进程与已确认的运行故障，减少误报。\n- 修复网关在 Windows 上识别端口占用错误的问题，并升级 WebSocket 依赖以修复安全漏洞。",
+          "updated_at": "2026-11-26T07:58:22Z",
+          "packages": {
+            "x86": {
+              "download_url": "https://github.com/kci-lnk/fn-knock-turborepo/releases/download/v2.5.12/fn-knock-2.5.12-fnos-amd64.fpk",
+              "sha256": "86c4f716fa01d6c57b339adb6e559635b38c9bfd301f1a5bbc1f103c3c580ec8",
+              "size": 30713214
+            },
+            "arm": {
+              "download_url": "https://github.com/kci-lnk/fn-knock-turborepo/releases/download/v2.5.12/fn-knock-2.5.12-fnos-arm64.fpk",
+              "sha256": "2abdce72d1dcda079ac904f461399c07a7787419047dde75cce1dd8bad717e32",
+              "size": 29630418
+            }
+          }
+        },
         "2.5.11": {
           "changelog": "# fn-knock 2.5.11\n\n- 支持在飞牛应用设置中配置 Cloudflare Tunnel 专用回源端口，并完善端口冲突诊断，方便同机部署多个实例。Docker 部署也可通过环境变量配置独立回源端口。\n- 协议映射支持单条及批量启用、停用，方便集中管理转发规则。\n- 企业微信通知支持按需开启 Markdown 格式，并修复并发修改通知配置时可能覆盖其他改动的问题。\n- 修复内置 QQ 登录的客户端凭据校验，确保使用内置公共客户端配置。\n- 修复 FPK 无法自动升级的问题。\n\n升级提示：修改 Cloudflare 专用回源端口后，请同步更新手工隧道的 Service URL；托管隧道需重新预览并应用配置。\n",
           "updated_at": "2026-11-14T16:47:51Z",
@@ -45,22 +61,6 @@
               "download_url": "https://github.com/kci-lnk/fn-knock-turborepo/releases/download/v2.5.11/fn-knock-2.5.11-fnos-arm64.fpk",
               "sha256": "fd02cc67610d5d687caefd94748e8b948152a4a8679adead9736d104bed52a63",
               "size": 29602929
-            }
-          }
-        },
-        "2.5.9": {
-          "changelog": "# fn-knock 2.5.9\n\n- 修复证书申请遇到的冲突问题\n- WAF Log 修复单条记录含有无效 UTF-8 字节时会阻塞整批审计日志写入的问题。\n",
-          "updated_at": "2026-11-12T10:00:05Z",
-          "packages": {
-            "x86": {
-              "download_url": "https://github.com/kci-lnk/fn-knock-turborepo/releases/download/v2.5.9/fn-knock-2.5.9-fnos-amd64.fpk",
-              "sha256": "d69cdb43bf71d3a8b046748bc6249c9f381b76d007dc090648f6b814ad97043c",
-              "size": 30640055
-            },
-            "arm": {
-              "download_url": "https://github.com/kci-lnk/fn-knock-turborepo/releases/download/v2.5.9/fn-knock-2.5.9-fnos-arm64.fpk",
-              "sha256": "f08dde623dceb92a241a3c522e098c4cf6057a4c392175ffefa568af40c1c402",
-              "size": 29569215
             }
           }
         }

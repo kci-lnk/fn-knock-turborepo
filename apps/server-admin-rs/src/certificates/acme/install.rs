@@ -1,5 +1,7 @@
+use std::io::{BufRead, Read};
+
 use super::*;
-use crate::fs_utils::chmod_executable;
+use crate::{fs_utils::chmod_executable, shared::version_utils::is_release_version};
 
 pub(super) async fn current_acme_install_state(state: &AppState, t: &Translator) -> Value {
     if let Some(raw) = state.acme_install_state.read().await.clone()
@@ -411,6 +413,52 @@ pub(super) fn resolve_bundled_acme_zip_path() -> Option<PathBuf> {
             .to_string();
         seen.insert(normalized) && path.is_file()
     })
+}
+
+pub(super) fn acme_sh_versions(
+    installed_script: Option<&Path>,
+    bundled_archive: Option<&Path>,
+) -> (Option<String>, Option<String>) {
+    let installed = installed_script
+        .and_then(|path| File::open(path).ok())
+        .and_then(read_acme_sh_version);
+    let bundled = bundled_archive.and_then(bundled_acme_sh_version);
+    (installed, bundled)
+}
+
+fn read_acme_sh_version(script: impl Read) -> Option<String> {
+    // The version is declared in the script header. Reading it avoids
+    // executing the installed script just to report status.
+    let header = std::io::BufReader::new(script.take(16 * 1024));
+    for line in header.lines() {
+        let line = line.ok()?;
+        let Some(value) = line.trim().strip_prefix("VER=") else {
+            continue;
+        };
+        let value = value.trim();
+        let version = match value.as_bytes() {
+            [b'"', .., b'"'] | [b'\'', .., b'\''] => &value[1..value.len() - 1],
+            _ => value,
+        };
+        return is_release_version(version).then(|| version.to_owned());
+    }
+    None
+}
+
+fn bundled_acme_sh_version(path: &Path) -> Option<String> {
+    let mut archive = ZipArchive::new(File::open(path).ok()?).ok()?;
+    // Check the same archive layouts as the installer without extracting any files.
+    let index = ["acmesh/acme.sh", ".acme.sh/acme.sh", "acme.sh"]
+        .into_iter()
+        .find_map(|name| archive.index_for_name(name))
+        .or_else(|| {
+            let name = archive.file_names().filter_map(Result::ok).find(|name| {
+                name.split_once('/')
+                    .is_some_and(|(directory, file)| directory != "__MACOSX" && file == "acme.sh")
+            })?;
+            archive.index_for_name(&name)
+        })?;
+    read_acme_sh_version(archive.by_index(index).ok()?)
 }
 
 pub(super) fn extract_zip_file(zip_path: &Path, output_dir: &Path) -> anyhow::Result<()> {

@@ -1555,6 +1555,13 @@
               }
             ]
           },
+          "bundledVersion": {
+            "description": "acme.sh release included in the installation bundle, if recognized.",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
           "certificateAuthority": {
             "enum": [
               "zerossl",
@@ -1568,6 +1575,13 @@
           },
           "executablePath": {
             "type": "string"
+          },
+          "installedVersion": {
+            "description": "Installed acme.sh release, or null when missing or unrecognized.",
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "message": {
             "type": "string"
@@ -1609,6 +1623,8 @@
           "message",
           "messageKey",
           "executablePath",
+          "installedVersion",
+          "bundledVersion",
           "acmeCert",
           "certificateAuthority",
           "certificateAuthorityUpdatedAt"
@@ -5500,6 +5516,13 @@
             ],
             "type": "string"
           },
+          "installed_version": {
+            "description": "Installed release, or null when missing or unrecognized.",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
           "platform": {
             "enum": [
               "darwin-amd64",
@@ -5530,6 +5553,7 @@
           "platform",
           "downloaded",
           "installation_status",
+          "installed_version",
           "target_version",
           "progress"
         ],
@@ -10982,6 +11006,13 @@
             ],
             "type": "string"
           },
+          "installed_version": {
+            "description": "Installed release, or null when missing or unrecognized.",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
           "platform": {
             "enum": [
               "darwin-amd64",
@@ -11008,6 +11039,7 @@
           "platform",
           "downloaded",
           "installation_status",
+          "installed_version",
           "target_version",
           "progress"
         ],

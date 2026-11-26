@@ -260,6 +260,9 @@ pub(super) struct CloudflaredAssetStatusData {
     platform: String,
     downloaded: bool,
     installation_status: String,
+    /// Installed release, or null when missing or unrecognized.
+    #[schema(required = true)]
+    installed_version: Option<String>,
     target_version: String,
     progress: SystemAssetDownloadProgressData,
 }
@@ -270,6 +273,9 @@ pub(super) struct FrpAssetStatusData {
     platform: String,
     downloaded: bool,
     installation_status: String,
+    /// Installed release, or null when missing or unrecognized.
+    #[schema(required = true)]
+    installed_version: Option<String>,
     target_version: String,
     progress: SystemAssetDownloadProgressData,
 }

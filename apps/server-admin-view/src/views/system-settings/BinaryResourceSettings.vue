@@ -48,6 +48,7 @@ const supported = ref(false);
 const platform = ref("unsupported");
 const downloaded = ref(false);
 const installationStatus = ref<CloudflaredInstallationStatus>("missing");
+const installedVersion = ref<string | null>(null);
 const targetVersion = ref("");
 const status = ref<ResourceDownloadStatus>("idle");
 const percent = ref(0);
@@ -86,6 +87,9 @@ const { isInitializing, refresh: refreshStatus } = usePollingResourceStatus({
     downloaded.value = res.data.downloaded;
     installationStatus.value = res.data.installation_status;
     targetVersion.value = res.data.target_version;
+    installedVersion.value =
+      res.data.installed_version ??
+      (res.data.installation_status === "current" ? targetVersion.value : null);
     status.value = res.data.progress?.status || "idle";
     percent.value = res.data.progress?.percent || 0;
     error.value = res.data.progress?.error || "";
@@ -141,6 +145,8 @@ const cancelResourceDownload = async () => {
     :platform="platform"
     :downloaded="downloaded"
     :installation-status="installationStatus"
+    :installed-version="installedVersion"
+    :target-version="props.versionAware ? targetVersion : undefined"
     :status="status"
     :percent="percent"
     :error="error"

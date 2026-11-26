@@ -75,9 +75,25 @@ pub(super) async fn status(State(state): State<AppState>) -> Response {
             Value::Null
         }
     };
+    let (installed_version, bundled_version) =
+        if crate::runtime_profile::deployment_target(&state) == "windows" {
+            (None, None)
+        } else {
+            let installed_script = (acme_state.get("status").and_then(Value::as_str)
+                == Some("installed"))
+            .then(|| acme_executable_path(&state));
+            tokio::task::spawn_blocking(move || {
+                let bundle = resolve_bundled_acme_zip_path();
+                acme_sh_versions(installed_script.as_deref(), bundle.as_deref())
+            })
+            .await
+            .unwrap_or_default()
+        };
     let mut data = acme_state;
     if let Some(object) = data.as_object_mut() {
         object.insert("acmeCert".to_string(), acme_cert);
+        object.insert("installedVersion".to_string(), json!(installed_version));
+        object.insert("bundledVersion".to_string(), json!(bundled_version));
         object.insert(
             "certificateAuthority".to_string(),
             client_settings

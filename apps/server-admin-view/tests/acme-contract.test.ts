@@ -98,6 +98,10 @@ describe("ACME API contract", () => {
       "error",
     ]);
     assert.ok(status.required?.includes("acmeCert"));
+    for (const field of ["installedVersion", "bundledVersion"]) {
+      assert.ok(status.required?.includes(field));
+      assert.deepEqual(status.properties?.[field]?.type, ["string", "null"]);
+    }
     assert.deepEqual(job.properties?.status?.enum, [
       "queued",
       "running",

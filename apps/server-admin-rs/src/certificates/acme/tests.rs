@@ -1974,6 +1974,41 @@ fn legacy_acme_migration_preserves_existing_client_state() {
 }
 
 #[test]
+fn reads_acme_sh_versions_without_changing_existing_files() {
+    let directory = tempfile::tempdir().unwrap();
+    let installed = directory.path().join("acme.sh");
+    let script = b"#!/bin/sh\r\nVER='3.1.5'\r\nexit 1\r\n";
+    std::fs::write(&installed, script).unwrap();
+
+    let account = directory.path().join("account.conf");
+    let certificate = directory.path().join("example.net.cer");
+    std::fs::write(&account, b"existing account").unwrap();
+    std::fs::write(&certificate, b"existing certificate").unwrap();
+
+    let bundle = directory.path().join("acmesh.zip");
+    let mut zip = ZipWriter::new(File::create(&bundle).unwrap());
+    zip.start_file("acmesh/acme.sh", SimpleFileOptions::default())
+        .unwrap();
+    zip.write_all(b"#!/bin/sh\nVER=3.1.6\n").unwrap();
+    zip.finish().unwrap();
+
+    assert_eq!(
+        acme_sh_versions(Some(&installed), Some(&bundle)),
+        (Some("3.1.5".into()), Some("3.1.6".into())),
+    );
+    assert_eq!(
+        acme_sh_versions(None, Some(&bundle)),
+        (None, Some("3.1.6".into())),
+    );
+    assert_eq!(std::fs::read(&installed).unwrap(), script);
+    assert_eq!(std::fs::read(account).unwrap(), b"existing account");
+    assert_eq!(std::fs::read(certificate).unwrap(), b"existing certificate");
+
+    std::fs::write(&installed, b"#!/bin/sh\nVER=unknown\n").unwrap();
+    assert_eq!(acme_sh_versions(Some(&installed), None), (None, None));
+}
+
+#[test]
 fn bundled_dnshe_hook_is_available_for_fresh_and_existing_installs() {
     let bundle = resolve_bundled_acme_zip_path().unwrap();
     let fresh = tempfile::tempdir().unwrap();

@@ -6,7 +6,7 @@ use std::{
 use serde_json::Value;
 use sha2::{Digest, Sha256};
 
-use crate::fs_utils::replace_file;
+use crate::{fs_utils::replace_file, shared::version_utils::is_release_version};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) struct CloudflaredAssetSpec {
@@ -162,29 +162,24 @@ pub(crate) fn cloudflared_install_is_current(data_dir: &Path, platform: &str) ->
     cloudflared_install_is_current_for_asset(data_dir, &binary, asset)
 }
 
-pub(crate) fn cloudflared_installation_status(
+pub(crate) fn cloudflared_installation_info(
     data_dir: &Path,
     platform: &str,
-) -> CloudflaredInstallationStatus {
-    let Some(binary) = cloudflared_binary_path(data_dir, platform) else {
-        return CloudflaredInstallationStatus::Missing;
+) -> (CloudflaredInstallationStatus, Option<String>) {
+    let Some(asset) = cloudflared_asset_spec(platform) else {
+        return (CloudflaredInstallationStatus::Missing, None);
     };
-    let binary_exists = binary.is_file();
-    classify_cloudflared_installation_status(
-        binary_exists,
-        binary_exists && cloudflared_install_is_current(data_dir, platform),
-    )
-}
-
-fn classify_cloudflared_installation_status(
-    binary_exists: bool,
-    is_current: bool,
-) -> CloudflaredInstallationStatus {
-    match (binary_exists, is_current) {
-        (false, _) => CloudflaredInstallationStatus::Missing,
-        (true, true) => CloudflaredInstallationStatus::Current,
-        (true, false) => CloudflaredInstallationStatus::Outdated,
-    }
+    let Some(binary) = cloudflared_binary_path(data_dir, platform).filter(|path| path.is_file())
+    else {
+        return (CloudflaredInstallationStatus::Missing, None);
+    };
+    let version = verified_cloudflared_version(data_dir, &binary, asset);
+    let status = if version.as_deref() == Some(asset.version) {
+        CloudflaredInstallationStatus::Current
+    } else {
+        CloudflaredInstallationStatus::Outdated
+    };
+    (status, version)
 }
 
 fn cloudflared_install_is_current_for_asset(
@@ -192,23 +187,31 @@ fn cloudflared_install_is_current_for_asset(
     binary: &Path,
     asset: CloudflaredAssetSpec,
 ) -> bool {
-    if !binary.is_file() || !file_checksum_matches(binary, asset.sha256) {
-        return false;
-    }
+    verified_cloudflared_version(data_dir, binary, asset).as_deref() == Some(asset.version)
+}
+
+fn verified_cloudflared_version(
+    data_dir: &Path,
+    binary: &Path,
+    asset: CloudflaredAssetSpec,
+) -> Option<String> {
     let metadata_path = cloudflared_install_metadata_path(data_dir);
     match std::fs::read_to_string(&metadata_path) {
         Ok(raw) => {
-            return serde_json::from_str::<Value>(&raw)
-                .ok()
-                .is_some_and(|metadata| {
-                    metadata.get("version").and_then(Value::as_str) == Some(asset.version)
-                        && metadata.get("platform").and_then(Value::as_str) == Some(asset.platform)
-                        && metadata.get("asset").and_then(Value::as_str) == Some(asset.file_name)
-                        && metadata.get("sha256").and_then(Value::as_str) == Some(asset.sha256)
-                });
+            let metadata = serde_json::from_str::<Value>(&raw).ok()?;
+            let version = metadata.get("version")?.as_str()?;
+            let sha256 = metadata.get("sha256")?.as_str()?;
+            return (is_release_version(version)
+                && metadata.get("platform").and_then(Value::as_str) == Some(asset.platform)
+                && metadata.get("asset").and_then(Value::as_str) == Some(asset.file_name)
+                && (version == asset.version) == (sha256 == asset.sha256)
+                && file_checksum_matches(binary, sha256))
+            .then(|| version.to_owned());
         }
-        Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
-        Err(_) => return false,
+        Err(error)
+            if error.kind() == std::io::ErrorKind::NotFound
+                && file_checksum_matches(binary, asset.sha256) => {}
+        Err(_) => return None,
     }
     let metadata = serde_json::json!({
         "version": asset.version,
@@ -224,7 +227,7 @@ fn cloudflared_install_is_current_for_asset(
     // A checksum-verified binary without metadata is the one repairable legacy
     // state. If the repair cannot be persisted yet, do not misclassify the
     // known binary as outdated; a later status check will retry the repair.
-    true
+    Some(asset.version.to_owned())
 }
 
 fn repair_cloudflared_install_metadata(data_dir: &Path, content: &[u8]) {
@@ -348,18 +351,46 @@ mod tests {
     }
 
     #[test]
-    fn classifies_missing_outdated_and_current_installations() {
+    fn reports_an_outdated_version_only_when_the_binary_matches_its_metadata() {
+        let directory = tempfile::tempdir().unwrap();
+        let data_dir = directory.path();
+        let platform = "linux-amd64";
+        let asset = cloudflared_asset_spec(platform).unwrap();
+        let binary = cloudflared_binary_path(data_dir, platform).unwrap();
+        let metadata = cloudflared_install_metadata_path(data_dir);
+
         assert_eq!(
-            classify_cloudflared_installation_status(false, false),
-            CloudflaredInstallationStatus::Missing
+            cloudflared_installation_info(data_dir, platform),
+            (CloudflaredInstallationStatus::Missing, None),
         );
+        std::fs::create_dir_all(binary.parent().unwrap()).unwrap();
+        std::fs::write(&binary, b"previous").unwrap();
         assert_eq!(
-            classify_cloudflared_installation_status(true, false),
-            CloudflaredInstallationStatus::Outdated
+            cloudflared_installation_info(data_dir, platform),
+            (CloudflaredInstallationStatus::Outdated, None),
         );
+        std::fs::write(
+            metadata,
+            serde_json::to_vec(&serde_json::json!({
+                "version": "2026.9.1",
+                "platform": platform,
+                "asset": asset.file_name,
+                "sha256": hex::encode(Sha256::digest(b"previous")),
+            }))
+            .unwrap(),
+        )
+        .unwrap();
         assert_eq!(
-            classify_cloudflared_installation_status(true, true),
-            CloudflaredInstallationStatus::Current
+            cloudflared_installation_info(data_dir, platform),
+            (
+                CloudflaredInstallationStatus::Outdated,
+                Some("2026.9.1".into())
+            ),
+        );
+        std::fs::write(binary, b"damaged").unwrap();
+        assert_eq!(
+            cloudflared_installation_info(data_dir, platform),
+            (CloudflaredInstallationStatus::Outdated, None),
         );
     }
 

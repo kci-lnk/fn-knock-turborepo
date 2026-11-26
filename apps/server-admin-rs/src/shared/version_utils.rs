@@ -1,3 +1,9 @@
+pub(crate) fn is_release_version(value: &str) -> bool {
+    let mut parts = value.splitn(4, '.');
+    parts.clone().count() == 3
+        && parts.all(|part| !part.is_empty() && part.bytes().all(|byte| byte.is_ascii_digit()))
+}
+
 pub(crate) fn compare_version(left: &str, right: &str) -> i32 {
     let left_parts = version_parts(left);
     let right_parts = version_parts(right);

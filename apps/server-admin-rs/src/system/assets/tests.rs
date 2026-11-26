@@ -133,7 +133,7 @@ fn rejects_unsafe_frp_archive_entries() {
 #[test]
 fn builds_frp_binary_path_for_supported_platforms() {
     let path = frp_binary_path(Path::new("/tmp/data"), "linux-amd64", "frpc").unwrap();
-    assert!(path.ends_with("frp/frp_0.71.0_linux_amd64/frpc"));
+    assert!(path.ends_with("frp/frp_0.72.0_linux_amd64/frpc"));
     assert!(frp_binary_path(Path::new("/tmp/data"), "unsupported", "frpc").is_none());
 }
 
@@ -153,7 +153,7 @@ fn rejects_frp_archives_with_an_unexpected_checksum() {
     let error = downloads::validate_frp_checksum(
         &archive,
         "linux-amd64",
-        "84f27e39f11169f7adcef8e8b70c9329de17747b1f14dad9fb95eef5682ea716",
+        "daf719b32ca2778770bb92955e231a07414d754378b9af328aa2642862479804",
     )
     .unwrap_err();
     assert!(error.contains("FRP checksum mismatch"));

@@ -15,7 +15,7 @@ use crate::{
     cloudflared,
     cloudflared_utils::{
         CloudflaredAssetSpec, cloudflared_asset_spec, cloudflared_binary_path,
-        cloudflared_install_metadata_path, cloudflared_installation_status,
+        cloudflared_install_metadata_path, cloudflared_installation_info,
     },
     frp_utils,
     fs_utils::{chmod_executable, replace_file},
@@ -29,7 +29,7 @@ pub(super) use crate::cloudflared_utils::detect_cloudflared_platform;
 pub(super) use crate::frp_utils::frp_binary_path;
 pub(super) use crate::frp_utils::{
     detect_frp_platform, frp_archive_name, frp_archive_sha256, frp_extracted_dir,
-    frp_installation_status,
+    frp_installation_status, frp_installed_version,
 };
 
 use super::{
@@ -43,12 +43,13 @@ use super::{
 
 pub(super) fn build_cloudflared_status(data_dir: &Path, translator: &Translator) -> Value {
     let platform = detect_cloudflared_platform();
-    let installation_status = cloudflared_installation_status(data_dir, platform);
+    let (installation_status, installed_version) = cloudflared_installation_info(data_dir, platform);
     json!({
         "supported": platform != "unsupported",
         "platform": platform,
         "downloaded": installation_status.as_str() == "current",
         "installation_status": installation_status.as_str(),
+        "installed_version": installed_version,
         "target_version": crate::cloudflared_utils::CLOUDFLARED_VERSION,
         "progress": progress_json("cloudflared", translator)
     })
@@ -62,6 +63,7 @@ pub(super) fn build_frp_status(data_dir: &Path, translator: &Translator) -> Valu
         "platform": platform,
         "downloaded": installation_status.as_str() == "current",
         "installation_status": installation_status.as_str(),
+        "installed_version": frp_installed_version(data_dir, platform, installation_status),
         "target_version": crate::frp_utils::FRP_VERSION,
         "progress": progress_json("frp", translator)
     })

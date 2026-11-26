@@ -34,8 +34,11 @@
             <Skeleton class="h-4 w-16" />
             <Skeleton class="h-5 w-12" />
           </div>
-          <div class="mt-4">
-            <Skeleton class="h-3 w-full" />
+          <div class="mt-3 grid gap-3 rounded-md p-3 sm:grid-cols-2">
+            <div v-for="number in 2" :key="number" class="space-y-2">
+              <Skeleton class="h-4 w-24" />
+              <Skeleton class="h-5 w-20" />
+            </div>
           </div>
         </div>
       </div>
@@ -80,9 +83,18 @@
               <span v-else>{{ t("admin.acmeSsl.downloading") }}</span>
             </div>
           </div>
-          <div class="mt-4">
-            <Progress v-if="progress < 100" :model-value="progress" />
-          </div>
+          <ResourceVersionSummary
+            class="mt-3"
+            :installed-version="state?.installedVersion"
+            :available-version="state?.bundledVersion"
+            :available-version-label="t('shared.binaryDownload.bundledVersion')"
+            :missing="state?.status === 'uninstalled' || isInstalling"
+          />
+          <Progress
+            v-if="progress < 100"
+            class="mt-4"
+            :model-value="progress"
+          />
           <div
             v-if="state?.status === 'error'"
             class="text-sm bg-destructive/10 text-destructive p-3 rounded-md border border-destructive/20 mt-3 break-all"
@@ -319,6 +331,7 @@ import { toast } from "@admin-shared/utils/toast";
 import { AcmeAPI } from "@/lib/api/acme";
 import { usePollingResourceStatus } from "@admin-shared/composables/usePollingResourceStatus";
 import ConfirmDangerPopover from "@admin-shared/components/common/ConfirmDangerPopover.vue";
+import ResourceVersionSummary from "@admin-shared/components/system/ResourceVersionSummary.vue";
 import {
   extractErrorMessage,
   useAsyncAction,
@@ -326,13 +339,7 @@ import {
 import { useDelayedLoading } from "@admin-shared/composables/useDelayedLoading";
 
 type AcmeCertificateAuthority = "zerossl" | "letsencrypt";
-type AcmeState = {
-  status: "uninstalled" | "installing" | "installed" | "error";
-  progress: number;
-  message: string;
-  certificateAuthority: AcmeCertificateAuthority;
-  certificateAuthorityUpdatedAt?: string;
-};
+type AcmeState = Awaited<ReturnType<typeof AcmeAPI.status>>;
 
 const { t } = useI18n();
 

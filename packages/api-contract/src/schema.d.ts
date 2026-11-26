@@ -7998,11 +7998,15 @@ export interface components {
         };
         AcmeStatusData: {
             acmeCert: null | components["schemas"]["AcmeCertificateSummaryData"];
+            /** @description acme.sh release included in the installation bundle, if recognized. */
+            bundledVersion: string | null;
             /** @enum {string} */
             certificateAuthority: "zerossl" | "letsencrypt";
             /** Format: date-time */
             certificateAuthorityUpdatedAt: string;
             executablePath: string;
+            /** @description Installed acme.sh release, or null when missing or unrecognized. */
+            installedVersion: string | null;
             message: string;
             messageKey: string;
             messageParams?: {
@@ -8949,6 +8953,8 @@ export interface components {
             downloaded: boolean;
             /** @enum {string} */
             installation_status: "missing" | "outdated" | "current";
+            /** @description Installed release, or null when missing or unrecognized. */
+            installed_version: string | null;
             /** @enum {string} */
             platform: "darwin-amd64" | "darwin-arm64" | "linux-amd64" | "linux-386" | "linux-arm64" | "linux-armhf" | "linux-arm" | "windows-amd64" | "windows-386" | "unsupported";
             progress: components["schemas"]["SystemAssetDownloadProgressData"];
@@ -10296,6 +10302,8 @@ export interface components {
             downloaded: boolean;
             /** @enum {string} */
             installation_status: "missing" | "outdated" | "current";
+            /** @description Installed release, or null when missing or unrecognized. */
+            installed_version: string | null;
             /** @enum {string} */
             platform: "darwin-amd64" | "darwin-arm64" | "linux-amd64" | "linux-arm64" | "linux-arm" | "unsupported";
             progress: components["schemas"]["SystemAssetDownloadProgressData"];

@@ -30,7 +30,10 @@ const button = defineComponent({
   },
 });
 
-const mountCard = (installationStatus: "missing" | "outdated" | "current") =>
+const mountCard = (
+  installationStatus: "missing" | "outdated" | "current",
+  installedVersion: string | null = null,
+) =>
   mount(BinaryDownloadCard, {
     props: {
       title: "Cloudflared",
@@ -40,6 +43,8 @@ const mountCard = (installationStatus: "missing" | "outdated" | "current") =>
       platform: "linux-amd64",
       downloaded: installationStatus === "current",
       installationStatus,
+      installedVersion,
+      targetVersion: "2026.11.2",
       status: "idle",
       percent: 0,
       readyLabel: "Ready",
@@ -47,7 +52,7 @@ const mountCard = (installationStatus: "missing" | "outdated" | "current") =>
       downloadButtonText: "Download",
       outdatedLabel: "Outdated",
       outdatedTitle: "Old Cloudflared",
-      outdatedDescription: "Update to 2026.7.3",
+      outdatedDescription: "The tunnel reconnects during the update.",
       updateButtonText: "Update now",
       updateConfirmTitle: "Update Cloudflared?",
       updateConfirmDescription: "The tunnel reconnects briefly.",
@@ -57,7 +62,24 @@ const mountCard = (installationStatus: "missing" | "outdated" | "current") =>
       deleteConfirmDescription: "Download it again later.",
     },
     global: {
-      plugins: [createI18n({ legacy: false, locale: "en", messages: {} })],
+      plugins: [
+        createI18n({
+          legacy: false,
+          locale: "en",
+          messages: {
+            en: {
+              shared: {
+                binaryDownload: {
+                  installedVersion: "Installed version",
+                  availableVersion: "Latest available version",
+                  versionNotInstalled: "Not installed",
+                  versionUnknown: "Unknown",
+                },
+              },
+            },
+          },
+        }),
+      ],
       stubs: {
         Button: button,
         Popover: popover,
@@ -74,6 +96,10 @@ describe("BinaryDownloadCard Cloudflared version states", () => {
   it("renders the regular download action for a missing installation", async () => {
     const wrapper = mountCard("missing");
 
+    expect(wrapper.findAll("dl dd").map((value) => value.text())).toEqual([
+      "Not installed",
+      "2026.11.2",
+    ]);
     expect(
       wrapper.find('[data-testid="binary-outdated-warning"]').exists(),
     ).toBe(false);
@@ -86,11 +112,19 @@ describe("BinaryDownloadCard Cloudflared version states", () => {
   });
 
   it("shows an outdated warning and confirms the update action", async () => {
-    const wrapper = mountCard("outdated");
+    const wrapper = mountCard("outdated", "2026.9.1");
 
+    expect(wrapper.findAll("dl dt").map((label) => label.text())).toEqual([
+      "Installed version",
+      "Latest available version",
+    ]);
+    expect(wrapper.findAll("dl dd").map((value) => value.text())).toEqual([
+      "2026.9.1",
+      "2026.11.2",
+    ]);
     expect(
       wrapper.get('[data-testid="binary-outdated-warning"]').text(),
-    ).toContain("Update to 2026.7.3");
+    ).toContain("The tunnel reconnects during the update.");
     expect(wrapper.text()).toContain("The tunnel reconnects briefly.");
     const updateActions = wrapper
       .findAll("button")
@@ -100,9 +134,19 @@ describe("BinaryDownloadCard Cloudflared version states", () => {
     expect(wrapper.emitted("update")).toHaveLength(1);
   });
 
-  it("keeps current installations on the ready and maintenance actions", () => {
-    const wrapper = mountCard("current");
+  it("updates the installed version when installation completes", async () => {
+    const wrapper = mountCard("outdated");
+    expect(wrapper.get("dl dd").text()).toBe("Unknown");
+    await wrapper.setProps({
+      installedVersion: "2026.11.2",
+      installationStatus: "current",
+      downloaded: true,
+    });
 
+    expect(wrapper.findAll("dl dd").map((value) => value.text())).toEqual([
+      "2026.11.2",
+      "2026.11.2",
+    ]);
     expect(wrapper.text()).toContain("Ready");
     expect(
       wrapper.find('[data-testid="binary-outdated-warning"]').exists(),

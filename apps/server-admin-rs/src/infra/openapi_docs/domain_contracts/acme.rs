@@ -41,6 +41,12 @@ pub(super) struct AcmeStatusData {
     message_key: String,
     message_params: Option<HashMap<String, String>>,
     executable_path: String,
+    /// Installed acme.sh release, or null when missing or unrecognized.
+    #[schema(required = true)]
+    installed_version: Option<String>,
+    /// acme.sh release included in the installation bundle, if recognized.
+    #[schema(required = true)]
+    bundled_version: Option<String>,
     #[schema(required = true)]
     acme_cert: Option<AcmeCertificateSummaryData>,
     certificate_authority: String,

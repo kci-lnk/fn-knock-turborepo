@@ -9,6 +9,7 @@ import {
 import { Progress } from "@/components/ui/progress";
 import { Skeleton } from "@/components/ui/skeleton";
 import ResourceStatusCard from "@admin-shared/components/system/ResourceStatusCard.vue";
+import ResourceVersionSummary from "@admin-shared/components/system/ResourceVersionSummary.vue";
 
 const { t } = useI18n();
 
@@ -21,6 +22,8 @@ const props = withDefaults(
     platform: string;
     downloaded: boolean;
     installationStatus?: "missing" | "outdated" | "current";
+    installedVersion?: string | null;
+    targetVersion?: string;
     status: "idle" | "downloading" | "completed" | "error";
     percent: number;
     error?: string;
@@ -76,8 +79,11 @@ const emit = defineEmits<{
             <Skeleton class="h-4 w-24" />
             <Skeleton class="h-5 w-16" />
           </div>
-          <div class="mt-4">
-            <Skeleton class="h-3 w-full" />
+          <div class="mt-3 grid gap-3 rounded-md p-3 sm:grid-cols-2">
+            <div v-for="number in 2" :key="number" class="space-y-2">
+              <Skeleton class="h-4 w-24" />
+              <Skeleton class="h-5 w-20" />
+            </div>
           </div>
         </div>
       </div>
@@ -125,6 +131,13 @@ const emit = defineEmits<{
             }}
           </div>
         </div>
+        <ResourceVersionSummary
+          v-if="props.supported && props.targetVersion"
+          class="mt-3"
+          :installed-version="props.installedVersion"
+          :available-version="props.targetVersion"
+          :missing="props.installationStatus === 'missing'"
+        />
         <div
           v-if="props.installationStatus === 'outdated'"
           class="mt-3 rounded-md border border-amber-200 bg-amber-50 p-3 text-amber-950 dark:border-amber-800 dark:bg-amber-950/30 dark:text-amber-100"

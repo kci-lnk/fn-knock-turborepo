@@ -180,12 +180,15 @@ async fn update_proxy_cancelled_curl_removes_credentials_and_stops_request() {
         !directory.exists(),
         "credentials survived request cancellation"
     );
-    assert_eq!(
-        tokio_time::timeout(Duration::from_secs(5), socket.read_u8())
-            .await
-            .unwrap()
-            .unwrap_err()
-            .kind(),
-        std::io::ErrorKind::UnexpectedEof
+    let closed = tokio_time::timeout(Duration::from_secs(5), socket.read_u8())
+        .await
+        .unwrap()
+        .unwrap_err();
+    assert!(
+        matches!(
+            closed.kind(),
+            std::io::ErrorKind::UnexpectedEof | std::io::ErrorKind::ConnectionReset
+        ),
+        "unexpected socket error after request cancellation: {closed}"
     );
 }

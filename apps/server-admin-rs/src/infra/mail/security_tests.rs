@@ -1,6 +1,9 @@
 use super::*;
 use std::sync::Arc;
-use tokio::{io::AsyncWriteExt, net::TcpListener};
+use tokio::{
+    io::{AsyncBufReadExt, AsyncWriteExt, BufReader},
+    net::TcpListener,
+};
 use tokio_rustls::TlsAcceptor;
 
 async fn tls_fixture() -> (TcpListener, TlsAcceptor, reqwest::Certificate) {
@@ -32,7 +35,21 @@ async fn security_tls_https_requires_a_trusted_certificate() {
             let (stream, _) = listener.accept().await.unwrap();
             let handshake = acceptor.accept(stream).await;
             assert_eq!(handshake.is_ok(), trusted);
-            if let Ok(mut tls) = handshake {
+            if let Ok(tls) = handshake {
+                let mut reader = BufReader::new(tls);
+                let mut line = String::new();
+                reader.read_line(&mut line).await.unwrap();
+                assert_eq!(line, "GET / HTTP/1.1\r\n");
+                // Read the whole request before replying so a Windows TCP close
+                // with unread request bytes cannot reset the trusted response.
+                loop {
+                    line.clear();
+                    assert_ne!(reader.read_line(&mut line).await.unwrap(), 0);
+                    if line == "\r\n" {
+                        break;
+                    }
+                }
+                let mut tls = reader.into_inner();
                 tls.write_all(
                     b"HTTP/1.1 200 OK\r\nContent-Length: 2\r\nConnection: close\r\n\r\nok",
                 )

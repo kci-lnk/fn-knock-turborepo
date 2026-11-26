@@ -1945,6 +1945,35 @@ fn dnshe_requests_use_the_same_credentials_in_both_platform_catalogs() {
 }
 
 #[test]
+fn legacy_acme_migration_preserves_existing_client_state() {
+    let directory = tempfile::tempdir().unwrap();
+    let legacy = directory.path().join("legacy");
+    let current = directory.path().join("data/.acme.sh");
+    std::fs::create_dir(&legacy).unwrap();
+    std::fs::write(legacy.join("acme.sh"), b"legacy client").unwrap();
+    std::fs::write(legacy.join("account.conf"), b"legacy account").unwrap();
+
+    migrate_legacy_acme_home(&legacy, &current).unwrap();
+    assert_eq!(
+        std::fs::read(current.join("acme.sh")).unwrap(),
+        b"legacy client"
+    );
+    std::fs::write(current.join("account.conf"), b"current account").unwrap();
+    migrate_legacy_acme_home(&legacy, &current).unwrap();
+    assert_eq!(
+        std::fs::read(current.join("account.conf")).unwrap(),
+        b"current account"
+    );
+
+    std::fs::remove_file(current.join("acme.sh")).unwrap();
+    migrate_legacy_acme_home(&legacy, &current).unwrap();
+    assert_eq!(
+        std::fs::read(current.join("account.conf")).unwrap(),
+        b"current account"
+    );
+}
+
+#[test]
 fn bundled_dnshe_hook_is_available_for_fresh_and_existing_installs() {
     let bundle = resolve_bundled_acme_zip_path().unwrap();
     let fresh = tempfile::tempdir().unwrap();
@@ -1955,19 +1984,24 @@ fn bundled_dnshe_hook_is_available_for_fresh_and_existing_installs() {
     let existing = tempfile::tempdir().unwrap();
     let account = existing.path().join("account.conf");
     let certificate = existing.path().join("example.net.cer");
+    let previous = b"previous bundled DNSHE hook";
+    let previous_sha256 = hex::encode(Sha256::digest(previous));
     std::fs::write(&account, b"existing account").unwrap();
     std::fs::write(&certificate, b"existing certificate").unwrap();
     std::thread::scope(|scope| {
-        let other = scope.spawn(|| install_dnshe_hook(existing.path()).unwrap());
-        install_dnshe_hook(existing.path()).unwrap();
+        let other = scope.spawn(|| install_dnshe_hook(existing.path(), &previous_sha256).unwrap());
+        install_dnshe_hook(existing.path(), &previous_sha256).unwrap();
         other.join().unwrap();
     });
     let hook = existing.path().join("dnsapi/dns_dnshe.sh");
     assert_eq!(std::fs::read(&hook).unwrap(), expected);
+    std::fs::write(&hook, previous).unwrap();
+    install_dnshe_hook(existing.path(), &previous_sha256).unwrap();
+    assert_eq!(std::fs::read(&hook).unwrap(), expected);
     assert_eq!(std::fs::read(account).unwrap(), b"existing account");
     assert_eq!(std::fs::read(certificate).unwrap(), b"existing certificate");
     std::fs::write(&hook, b"local hook").unwrap();
-    install_dnshe_hook(existing.path()).unwrap();
+    install_dnshe_hook(existing.path(), &previous_sha256).unwrap();
     assert_eq!(std::fs::read(hook).unwrap(), b"local hook");
 }
 

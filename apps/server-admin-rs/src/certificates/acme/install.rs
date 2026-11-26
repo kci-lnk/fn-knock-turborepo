@@ -207,20 +207,38 @@ pub(super) async fn migrate_legacy_acme_install_if_needed(state: &AppState) -> a
     }
     let acme_home = acme_home_dir(state);
     let legacy_home = legacy_acme_home_dir();
+    tokio::task::spawn_blocking(move || migrate_legacy_acme_home(&legacy_home, &acme_home)).await?
+}
+
+pub(super) fn migrate_legacy_acme_home(legacy_home: &Path, acme_home: &Path) -> anyhow::Result<()> {
     if acme_home == legacy_home || !legacy_home.join("acme.sh").is_file() {
         return Ok(());
     }
-    let acme_home_clone = acme_home.clone();
-    tokio::task::spawn_blocking(move || {
-        if acme_home_clone.exists() {
-            std::fs::remove_dir_all(&acme_home_clone)?;
+    match std::fs::symlink_metadata(acme_home) {
+        Ok(_) => return Ok(()),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
+        Err(error) => return Err(error.into()),
+    }
+    let parent = acme_home
+        .parent()
+        .filter(|path| !path.as_os_str().is_empty())
+        .unwrap_or_else(|| Path::new("."));
+    std::fs::create_dir_all(parent)?;
+    let staged = tempfile::tempdir_in(parent)?;
+    copy_dir_recursive(legacy_home, staged.path())?;
+    chmod_executable(&staged.path().join("acme.sh"));
+    match std::fs::rename(staged.path(), acme_home) {
+        Ok(()) => Ok(()),
+        Err(error)
+            if matches!(
+                error.kind(),
+                std::io::ErrorKind::AlreadyExists | std::io::ErrorKind::DirectoryNotEmpty
+            ) =>
+        {
+            Ok(())
         }
-        std::fs::create_dir_all(&acme_home_clone)?;
-        copy_dir_recursive(&legacy_home, &acme_home_clone)?;
-        chmod_executable(&acme_home_clone.join("acme.sh"));
-        Ok::<(), anyhow::Error>(())
-    })
-    .await?
+        Err(error) => Err(error.into()),
+    }
 }
 
 pub(super) async fn start_acme_install(state: AppState, certificate_authority: String) {

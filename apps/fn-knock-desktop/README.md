@@ -42,7 +42,7 @@ npm ci
 
 ## 西部数码证书申请
 
-Windows 内置客户端为 [rust-acmesh v0.1.3](https://github.com/kci-lnk/acmesh-rs/releases/tag/v0.1.3) 的 x86_64 MSVC 版本。在证书申请中选择国内分组的“西部数码”（`dns_west_cn`），填写两项必需凭据：
+Windows 内置客户端为 [rust-acmesh v0.1.4](https://github.com/kci-lnk/acmesh-rs/releases/tag/v0.1.4) 的 x86_64 MSVC 版本。在证书申请中选择国内分组的“西部数码”（`dns_west_cn`），填写两项必需凭据：
 
 - `WEST_Username`：西部数码账号用户名。
 - `WEST_Key`：在西部数码 [API 接口设置](https://www.west.cn/manager/API/APIconfig.asp) 中配置的 API 明文密钥的 MD5 值。请在本地计算后填写，客户端直接使用该值，不会再次计算 MD5。

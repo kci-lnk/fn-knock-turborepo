@@ -2,6 +2,9 @@ use super::*;
 
 mod legacy_hooks;
 
+const PREVIOUS_DNSHE_HOOK_SHA256: &str =
+    "9b280280a0a5fce0cd4805d626dabb69e48c2dbcea0a2ec6ed188609dd854d96";
+
 pub(super) async fn apply_acme_dns_provider_patches(
     state: &AppState,
     dns_type: &str,
@@ -10,7 +13,10 @@ pub(super) async fn apply_acme_dns_provider_patches(
 ) -> anyhow::Result<()> {
     if dns_type == "dns_dnshe" {
         let home = acme_home_dir(state);
-        return tokio::task::spawn_blocking(move || install_dnshe_hook(&home)).await?;
+        return tokio::task::spawn_blocking(move || {
+            install_dnshe_hook(&home, PREVIOUS_DNSHE_HOOK_SHA256)
+        })
+        .await?;
     }
     if dns_type != "dns_duckdns" {
         return legacy_hooks::restore_if_patched(acme_home_dir(state), dns_type).await;
@@ -47,12 +53,21 @@ pub(super) async fn apply_acme_dns_provider_patches(
     Ok(())
 }
 
-pub(super) fn install_dnshe_hook(home: &Path) -> anyhow::Result<()> {
+pub(super) fn install_dnshe_hook(home: &Path, previous_sha256: &str) -> anyhow::Result<()> {
     let directory = home.join("dnsapi");
     let target = directory.join("dns_dnshe.sh");
-    if target.is_file() {
-        return Ok(());
-    }
+    let previous_permissions = match std::fs::symlink_metadata(&target) {
+        Ok(metadata) if metadata.is_file() => {
+            if hex::encode(Sha256::digest(std::fs::read(&target)?)) != previous_sha256 {
+                return Ok(());
+            }
+            Some(metadata.permissions())
+        }
+        Ok(_) if target.is_file() => return Ok(()),
+        Ok(_) => anyhow::bail!("DNSHE hook path is not a regular file"),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => None,
+        Err(error) => return Err(error.into()),
+    };
 
     let bundle = resolve_bundled_acme_zip_path()
         .ok_or_else(|| anyhow::anyhow!("missing bundled acme.sh for the DNSHE hook"))?;
@@ -61,6 +76,11 @@ pub(super) fn install_dnshe_hook(home: &Path) -> anyhow::Result<()> {
     std::fs::create_dir_all(&directory)?;
     let mut temporary = tempfile::NamedTempFile::new_in(&directory)?;
     std::io::copy(&mut hook, &mut temporary)?;
+    if let Some(permissions) = previous_permissions {
+        temporary.as_file().set_permissions(permissions)?;
+        temporary.persist(&target)?;
+        return Ok(());
+    }
     match temporary.persist_noclobber(&target) {
         Ok(_) => Ok(()),
         Err(error)

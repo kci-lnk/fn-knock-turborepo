@@ -33,7 +33,7 @@ impl CloudflaredInstallationStatus {
     }
 }
 
-pub(crate) const CLOUDFLARED_VERSION: &str = "2026.9.1";
+pub(crate) const CLOUDFLARED_VERSION: &str = "2026.11.2";
 pub(crate) const CLOUDFLARED_INSTALL_METADATA_FILE: &str = "install.json";
 
 pub(crate) fn detect_cloudflared_platform() -> &'static str {
@@ -81,39 +81,39 @@ pub(crate) fn cloudflared_asset_spec(platform: &str) -> Option<CloudflaredAssetS
     let (file_name, sha256) = match platform {
         "darwin-amd64" => (
             "cloudflared-darwin-amd64",
-            "1ea07ae775b03236bd6be18ca1848d6bdc4af2f4f3bce398823b5a36e5761b75",
+            "870dc2094f98befdd993c455234562be4eee51f8fca6e2e356df4579fa7e6766",
         ),
         "darwin-arm64" => (
             "cloudflared-darwin-arm64",
-            "9a0b19f67dc7a3011bc6b972c7ce06a5fcea8784ac6bd599ffa382ea4aeb5a6e",
+            "8654fbdc9057f3e13e95f7892f417f8643113bee1b91ee2388fd0acb05210d55",
         ),
         "linux-386" => (
             "cloudflared-linux-386",
-            "5d66134cf7646cb98f33aeee7bcc8b97d8feacd76db279f5903f9585226e0922",
+            "6bfb8ee3731194223d9a07f4a70f52c203525db5cccccbd55647a0d3c01641b1",
         ),
         "linux-amd64" => (
             "cloudflared-linux-amd64",
-            "03f1f25d1cc93b9ad6c60569d44060bc4f17ed97075760ed8cfca4b12dcd68cc",
+            "56f13335143ec0e22772963290683a84a04114a35ec64cbc794a4d39ff9bb8cf",
         ),
         "linux-arm" => (
             "cloudflared-linux-arm",
-            "093ffa3638ab2b636de63c43a8c68f96a69cf71f9699dd8277a91b160b0f4fc0",
+            "d219494581180764c6d2454409691bb06879d01b43cdeae12476070a7e4e4762",
         ),
         "linux-armhf" => (
             "cloudflared-linux-armhf",
-            "95420507a720fb543122a5d69372fbde8f5c919790e95ddd4374a449e0a6f4dd",
+            "ab8dda127892266ef25d9787ea43be2314832204e2e32272901ae36010454684",
         ),
         "linux-arm64" => (
             "cloudflared-linux-arm64",
-            "3d97437c71848bd8df68041e12436b484a661d95073ea1937f01a845ce88faa3",
+            "04a7b7f08bce85d56b26ffe1fdbfbb21a074495a363d16f0783c40e25b5c5281",
         ),
         "windows-386" => (
             "cloudflared-windows-386.exe",
-            "11b6e4b2d306950bd87e7caa4deee8e80a32d71ffee555a96237a76651eeae4c",
+            "272154d4b8a83a2a9bd55502ab27e721838c42772396751eb5a5fc4739c9f23a",
         ),
         "windows-amd64" => (
             "cloudflared-windows-amd64.exe",
-            "2837888cc0f5d58f15b6dc478376de90b4d3ba5241c7947455d1e0a0df429712",
+            "555b46c85582461d189cac30d14ad05480d612613801be9f110b8ce08c5b2113",
         ),
         _ => return None,
     };

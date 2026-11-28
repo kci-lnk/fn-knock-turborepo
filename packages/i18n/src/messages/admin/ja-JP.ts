@@ -3873,6 +3873,16 @@ export const jaJPAdmin = {
     protocolTab: "プロトコル",
   },
   streamMappings: {
+    visibilityDescription:
+      "ゲートウェイの許可範囲を継承するか、このルール固有の範囲を指定するか、このルールの可視性チェックを無効にします。変更は新しい TCP 接続と UDP セッションに適用されます。",
+    visibilityRegionsDescription:
+      "このルールへのアクセスを許可する地域を選択します。カスタム範囲にもローカルアドレスなどに対するゲートウェイの例外が適用されます。",
+    visibilityCidrsDescription:
+      "1 行に 1 つの CIDR を入力します。このルールに適用されます。",
+    visibilityGatewayOff:
+      "ゲートウェイの可視性は無効です。保存した設定は、ゲートウェイの可視性を有効にすると適用されます。",
+    visibilityMultiProtocol:
+      "今回保存する TCP と UDP のルールには同じ可視性設定が適用されます。保存後は個別に編集できます。",
     gatewayRuleDisabled: "ゲートウェイで転送を停止中",
     revisionConflict: "プロトコルルールが変更されました。最新のルールを確認してから再試行してください。",
     ruleEnabled: "有効",

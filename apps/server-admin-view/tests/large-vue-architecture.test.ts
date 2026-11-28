@@ -542,20 +542,27 @@ describe("large Vue architecture", () => {
     assert.doesNotMatch(subdomainSource, /DEFAULT_AUTH_SUBDOMAIN/u);
   });
 
-  it("keeps subdomain visibility editing in its focused subform", () => {
+  it("shares the mapping visibility fields between the subdomain and stream editors", () => {
     const dialogSource = readSource(
       "../src/views/subdomain-proxy/SubdomainMappingDialog.vue",
     );
     const visibilitySource = readSource(
       "../src/views/subdomain-proxy/SubdomainMappingVisibilityPanel.vue",
     );
+    const streamEditorSource = readSource(
+      "../src/views/stream-mappings/StreamMappingEditorDialog.vue",
+    );
+    const sharedFieldsSource = readSource(
+      "../src/components/MappingVisibilityFields.vue",
+    );
     assert.match(dialogSource, /SubdomainMappingVisibilityPanel/u);
     assert.match(dialogSource, /SubdomainMappingBasicForm/u);
     assert.doesNotMatch(dialogSource, /CidrRegionSelector/u);
     assert.doesNotMatch(dialogSource, /mapping-protocol-mode/u);
     assert.doesNotMatch(dialogSource, /visibilityCustomCidrsModel/u);
-    assert.match(visibilitySource, /CidrRegionSelector/u);
-    assert.match(visibilitySource, /visibilityCustomCidrsModel/u);
+    assert.match(visibilitySource, /<MappingVisibilityFields/u);
+    assert.match(streamEditorSource, /<MappingVisibilityFields/u);
+    assert.match(sharedFieldsSource, /<CidrRegionSelector/u);
   });
 
   it("keeps notification and subdomain editor roots composition-focused", () => {

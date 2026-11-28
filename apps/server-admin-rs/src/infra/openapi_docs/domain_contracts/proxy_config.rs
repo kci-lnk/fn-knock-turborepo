@@ -71,6 +71,22 @@ pub(super) struct StreamBypassPolicyData {
 }
 
 #[derive(Serialize, ToSchema)]
+pub(super) struct StreamMappingVisibilityData {
+    mode: String,
+    selections: Vec<GatewayVisibilitySelectionData>,
+    custom_cidrs: Vec<String>,
+}
+
+#[derive(Serialize, ToSchema)]
+pub(super) struct StreamMappingVisibilityInputData {
+    mode: String,
+    #[schema(nullable = false)]
+    selections: Option<Vec<GatewayVisibilitySelectionInputData>>,
+    #[schema(nullable = false)]
+    custom_cidrs: Option<Vec<String>>,
+}
+
+#[derive(Serialize, ToSchema)]
 pub(super) struct StreamMappingData {
     protocol: String,
     listen_port: i64,
@@ -90,6 +106,8 @@ pub(super) struct StreamMappingData {
     bypass_policy: Option<StreamBypassPolicyData>,
     #[schema(nullable = false)]
     probe_status: Option<String>,
+    #[schema(nullable = false)]
+    visibility: Option<StreamMappingVisibilityData>,
 }
 
 #[derive(Serialize, ToSchema)]
@@ -104,6 +122,8 @@ pub(super) struct StreamMappingInputData {
     manually_disabled: Option<bool>,
     #[schema(nullable = false)]
     comment: Option<String>,
+    #[schema(nullable = false)]
+    visibility: Option<StreamMappingVisibilityInputData>,
 }
 
 #[derive(Serialize, ToSchema)]

@@ -92,20 +92,7 @@ pub(crate) async fn sync_gateway_settings_on_boot(state: AppState) {
         tracing::warn!(%error, "failed to refresh gateway memory runtime during boot sync");
     }
 
-    let visibility_runtime = match state
-        .storage
-        .store
-        .get_json_value(GATEWAY_VISIBILITY_RUNTIME_KEY)
-        .await
-    {
-        Ok(Some(value)) => value,
-        Ok(None) => default_gateway_visibility_runtime(),
-        Err(error) => {
-            tracing::warn!(%error, "failed to load gateway visibility runtime for boot sync");
-            default_gateway_visibility_runtime()
-        }
-    };
-    if let Err(error) = sync_gateway_visibility_runtime(&state, &visibility_runtime).await {
+    if let Err(error) = sync_gateway_visibility_runtime_from_store(&state).await {
         tracing::warn!(%error, "failed to sync gateway visibility runtime on boot");
     }
 

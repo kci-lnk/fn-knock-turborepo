@@ -23164,6 +23164,9 @@
           },
           "validation_mode": {
             "type": "string"
+          },
+          "visibility": {
+            "$ref": "#/components/schemas/StreamMappingVisibilityData"
           }
         },
         "required": [
@@ -23200,11 +23203,72 @@
           },
           "use_auth": {
             "type": "boolean"
+          },
+          "visibility": {
+            "$ref": "#/components/schemas/StreamMappingVisibilityInputData"
           }
         },
         "required": [
           "listen_port",
           "target"
+        ],
+        "type": "object"
+      },
+      "StreamMappingVisibilityData": {
+        "properties": {
+          "custom_cidrs": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "mode": {
+            "enum": [
+              "inherit",
+              "custom",
+              "disabled"
+            ],
+            "type": "string"
+          },
+          "selections": {
+            "items": {
+              "$ref": "#/components/schemas/GatewayVisibilitySelectionData"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "mode",
+          "selections",
+          "custom_cidrs"
+        ],
+        "type": "object"
+      },
+      "StreamMappingVisibilityInputData": {
+        "properties": {
+          "custom_cidrs": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "mode": {
+            "enum": [
+              "inherit",
+              "custom",
+              "disabled"
+            ],
+            "type": "string"
+          },
+          "selections": {
+            "items": {
+              "$ref": "#/components/schemas/GatewayVisibilitySelectionInputData"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "mode"
         ],
         "type": "object"
       },

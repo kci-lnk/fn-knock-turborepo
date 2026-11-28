@@ -484,7 +484,7 @@ impl GoBackendClient {
         let mut client = self.control.clone();
         let result = match client
             .set_stream_rules(self.request(StreamRules {
-                items: parse_stream_rules(rules.get("items").unwrap_or(rules)),
+                items: parse_stream_rules(rules.get("items").unwrap_or(rules))?,
                 availability: parse_stream_availability(rules.get("availability")),
                 access_policies: parse_compiled_ip_sets(rules.get("access_policies"))?,
             }))
@@ -1425,32 +1425,50 @@ fn static_serve_to_json(value: Option<StaticServeConfig>) -> Value {
     })
 }
 
-fn parse_stream_rules(value: &Value) -> Vec<StreamRule> {
+fn parse_stream_rules(value: &Value) -> anyhow::Result<Vec<StreamRule>> {
     value
         .as_array()
-        .map(|items| {
-            items
-                .iter()
-                .map(|item| StreamRule {
-                    protocol: string_field(item, "protocol"),
-                    listen_port: i32_field(item, "listen_port", 0),
-                    target: string_field(item, "target"),
-                    use_auth: bool_field(item, "use_auth", true),
-                    disabled: bool_field(item, "disabled", false),
-                    validation_mode: string_field(item, "validation_mode"),
-                    service_profile: item
-                        .get("service_profile")
-                        .filter(|value| value.is_object())
-                        .map(parse_stream_service_profile),
-                    bypass_policy: item
-                        .get("bypass_policy")
-                        .filter(|value| value.is_object())
-                        .map(parse_stream_bypass_policy),
-                    probe_status: string_field(item, "probe_status"),
-                })
-                .collect()
+        .into_iter()
+        .flatten()
+        .map(|item| {
+            let listen_port = i32_field(item, "listen_port", 0);
+            let visibility = match item.get("visibility") {
+                None => None,
+                Some(config) => {
+                    match config.get("mode").and_then(Value::as_str) {
+                        Some("inherit" | "disabled") => {}
+                        Some("custom")
+                            if config
+                                .get("policy_id")
+                                .and_then(Value::as_str)
+                                .is_some_and(|id| !id.trim().is_empty()) => {}
+                        _ => anyhow::bail!(
+                            "invalid stream visibility configuration on port {listen_port}"
+                        ),
+                    }
+                    parse_host_rule_visibility(Some(config))
+                }
+            };
+            Ok(StreamRule {
+                protocol: string_field(item, "protocol"),
+                listen_port,
+                target: string_field(item, "target"),
+                use_auth: bool_field(item, "use_auth", true),
+                disabled: bool_field(item, "disabled", false),
+                validation_mode: string_field(item, "validation_mode"),
+                service_profile: item
+                    .get("service_profile")
+                    .filter(|value| value.is_object())
+                    .map(parse_stream_service_profile),
+                bypass_policy: item
+                    .get("bypass_policy")
+                    .filter(|value| value.is_object())
+                    .map(parse_stream_bypass_policy),
+                probe_status: string_field(item, "probe_status"),
+                visibility,
+            })
         })
-        .unwrap_or_default()
+        .collect()
 }
 
 fn parse_stream_service_profile(value: &Value) -> StreamServiceProfile {
@@ -1872,7 +1890,7 @@ fn stream_rules_to_json(rules: StreamRules) -> Value {
             .items
             .into_iter()
             .map(|item| {
-                json!({
+                let mut rule = json!({
                     "protocol": item.protocol,
                     "listen_port": item.listen_port,
                     "target": item.target,
@@ -1882,7 +1900,16 @@ fn stream_rules_to_json(rules: StreamRules) -> Value {
                     "service_profile": item.service_profile.map(stream_service_profile_to_json),
                     "bypass_policy": item.bypass_policy.map(stream_bypass_policy_to_json),
                     "probe_status": item.probe_status,
-                })
+                });
+                if let Some(visibility) = item.visibility
+                    && !matches!(visibility.mode.as_str(), "" | "inherit")
+                {
+                    rule["visibility"] = json!({
+                        "mode": visibility.mode,
+                        "policy_id": visibility.policy_id,
+                    });
+                }
+                rule
             })
             .collect(),
     );
@@ -2846,6 +2873,36 @@ mod tests {
     }
 
     #[test]
+    fn stream_visibility_grpc_conversion_rejects_invalid_persisted_policy() {
+        for policy in [
+            Value::Null,
+            json!({}),
+            json!({"mode": "custm"}),
+            json!({"mode": "custom"}),
+        ] {
+            assert!(
+                parse_stream_rules(&json!([{ "listen_port": 8053, "visibility": policy }]))
+                    .is_err()
+            );
+        }
+        let rules = parse_stream_rules(&json!([
+            {"listen_port": 8053},
+            {"listen_port": 8054, "visibility": {"mode": "custom", "policy_id": "compiled"}},
+            {"listen_port": 8055, "visibility": {"mode": "inherit"}}
+        ]))
+        .unwrap();
+        assert!(rules[0].visibility.is_none());
+        assert_eq!(rules[1].visibility.as_ref().unwrap().policy_id, "compiled");
+        let echoed = stream_rules_to_json(StreamRules {
+            items: rules,
+            ..StreamRules::default()
+        });
+        assert!(echoed["items"][0].get("visibility").is_none());
+        assert_eq!(echoed["items"][1]["visibility"]["policy_id"], "compiled");
+        assert!(echoed["items"][2].get("visibility").is_none());
+    }
+
+    #[test]
     fn stream_rules_grpc_conversion_preserves_global_availability() {
         let payload = json!({
             "items": [{
@@ -2863,7 +2920,7 @@ mod tests {
             }
         });
         let rules = StreamRules {
-            items: parse_stream_rules(&payload["items"]),
+            items: parse_stream_rules(&payload["items"]).unwrap(),
             availability: parse_stream_availability(payload.get("availability")),
             access_policies: Vec::new(),
         };

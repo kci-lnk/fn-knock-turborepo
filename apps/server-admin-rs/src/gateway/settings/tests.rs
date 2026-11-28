@@ -85,6 +85,32 @@ async fn gateway_settings_test_state() -> (tempfile::TempDir, AppState) {
 }
 
 #[tokio::test]
+async fn gateway_visibility_replay_and_updates_share_a_transaction_lock() {
+    use std::time::Duration;
+
+    let (_directory, state) = gateway_settings_test_state().await;
+    let guard = state.gateway.gateway_visibility_update_lock.lock().await;
+    let replay = sync_gateway_visibility_runtime_from_store(&state);
+    let update = handlers::update_gateway_visibility(
+        axum::extract::State(state.clone()),
+        axum::Json(json!({"enabled": true})),
+    );
+    tokio::pin!(replay, update);
+    assert!(
+        tokio::time::timeout(Duration::from_millis(20), &mut replay)
+            .await
+            .is_err()
+    );
+    assert!(
+        tokio::time::timeout(Duration::from_millis(20), &mut update)
+            .await
+            .is_err()
+    );
+    drop(guard);
+    assert!(replay.await.is_err()); // The fixture has no gateway.
+}
+
+#[tokio::test]
 async fn gateway_visibility_allows_enabled_empty_global_rules() {
     let (_directory, state) = gateway_settings_test_state().await;
     let input = json!({

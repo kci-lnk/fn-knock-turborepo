@@ -3992,6 +3992,142 @@ async fn stale_stream_rule_action_preserves_concurrent_rules() {
 }
 
 #[tokio::test]
+async fn stream_visibility_survives_legacy_edits_moves_conflicts_and_rollback() {
+    let (_directory, state) = proxy_config_test_state("127.0.0.1:1".to_string()).await;
+    let old = json!({
+        "protocol": "tcp", "listen_port": 8053, "target": "127.0.0.1:53",
+        "use_auth": true, "comment": ""
+    });
+    let mut config = state.storage.store.get_config().await.unwrap();
+    config["stream_mappings"] = json!([old.clone()]);
+    state.storage.store.save_config(&config).await.unwrap();
+    state
+        .storage
+        .store
+        .set_json_value(
+            "fn_knock:protocol-mapping:feature",
+            &json!({"enabled": true}),
+        )
+        .await
+        .unwrap();
+
+    let mut custom = old.clone();
+    custom["visibility"] = json!({
+        "mode": "custom",
+        "custom_cidrs": ["198.51.100.0/24", "2001:db8::/32"],
+        "policy_id": "client-supplied"
+    });
+    let mut inherited = old.clone();
+    inherited["visibility"] = json!({"mode": "inherit"});
+    let response = update_stream_mappings_with_runtime_sync(
+        state.clone(),
+        StreamMappingsBody {
+            mappings: vec![custom.clone()],
+            expected_mappings: Some(vec![inherited.clone()]),
+        },
+        |_, config| async move {
+            let policy_id = &config["stream_mappings"][0]["visibility"]["policy_id"];
+            assert_ne!(policy_id, "client-supplied");
+            assert_eq!(policy_id, &config["stream_access_policies"][0]["id"]);
+            Ok(())
+        },
+    )
+    .await;
+    assert_eq!(response.status(), StatusCode::OK);
+    let config = state.storage.store.get_config().await.unwrap();
+    let stored = config["stream_mappings"][0].clone();
+    let policies = &config["stream_access_policies"];
+    assert_eq!(stored["visibility"]["mode"], "custom");
+    assert_eq!(
+        stored["visibility"]["custom_cidrs"]
+            .as_array()
+            .unwrap()
+            .len(),
+        2
+    );
+
+    let stale = update_stream_mappings_with_runtime_sync(
+        state.clone(),
+        StreamMappingsBody {
+            mappings: vec![inherited.clone()],
+            expected_mappings: Some(vec![inherited]),
+        },
+        |_, _| async { panic!("a stale visibility edit must not reach the gateway") },
+    )
+    .await;
+    assert_eq!(stale.status(), StatusCode::CONFLICT);
+
+    let mut legacy_edit = old.clone();
+    legacy_edit["comment"] = json!("legacy edit");
+    let legacy = update_stream_mappings_with_runtime_sync(
+        state.clone(),
+        StreamMappingsBody {
+            mappings: vec![legacy_edit],
+            expected_mappings: Some(vec![old]),
+        },
+        |_, _| async { Ok(()) },
+    )
+    .await;
+    assert_eq!(legacy.status(), StatusCode::OK);
+    let config = state.storage.store.get_config().await.unwrap();
+    let saved = config["stream_mappings"][0].clone();
+    assert_eq!(saved["visibility"], stored["visibility"]);
+
+    custom["listen_port"] = json!(8054);
+    let moved = update_stream_mappings_with_runtime_sync(
+        state.clone(),
+        StreamMappingsBody {
+            mappings: vec![custom],
+            expected_mappings: Some(vec![saved]),
+        },
+        |_, _| async { Ok(()) },
+    )
+    .await;
+    assert_eq!(moved.status(), StatusCode::OK);
+    let config = state.storage.store.get_config().await.unwrap();
+    let moved = config["stream_mappings"][0].clone();
+    assert_eq!(moved["listen_port"], 8054);
+    assert_eq!(moved["visibility"], stored["visibility"]);
+    assert_eq!(config["stream_access_policies"], *policies);
+
+    let mut invalid = moved.clone();
+    invalid["visibility"] = json!({"mode": "custom", "custom_cidrs": []});
+    let rejected = update_stream_mappings_with_runtime_sync(
+        state.clone(),
+        StreamMappingsBody {
+            mappings: vec![invalid],
+            expected_mappings: None,
+        },
+        |_, _| async { panic!("invalid visibility must not reach the gateway") },
+    )
+    .await;
+    assert_eq!(rejected.status(), StatusCode::BAD_REQUEST);
+
+    let mut reset = moved.clone();
+    reset["visibility"] = json!({"mode": "inherit"});
+    let failed = update_stream_mappings_with_runtime_sync(
+        state.clone(),
+        StreamMappingsBody {
+            mappings: vec![reset],
+            expected_mappings: Some(vec![moved]),
+        },
+        |_, config| async move {
+            assert!(config["stream_mappings"][0].get("visibility").is_none());
+            assert_eq!(config["stream_access_policies"], json!([]));
+            Err("simulated gateway failure".into())
+        },
+    )
+    .await;
+    assert_eq!(failed.status(), StatusCode::BAD_GATEWAY);
+    let rolled_back = state.storage.store.get_config().await.unwrap();
+    assert_eq!(rolled_back["stream_mappings"], config["stream_mappings"]);
+    assert_eq!(
+        rolled_back["stream_access_policies"],
+        config["stream_access_policies"]
+    );
+}
+
+#[tokio::test]
 async fn stream_rule_enable_rolls_back_when_gateway_sync_fails() {
     let (_directory, state) = proxy_config_test_state("127.0.0.1:1".to_string()).await;
     let paused = json!({"protocol": "tcp", "listen_port": 8053, "target": "127.0.0.1:53", "manually_disabled": true});

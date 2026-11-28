@@ -10,7 +10,7 @@ import "google/protobuf/empty.proto";
 // Generated clients and packaging tools consume this stable enum member.
 enum ControlApiVersion {
   CONTROL_API_VERSION_UNSPECIFIED = 0;
-  CONTROL_API_VERSION_CURRENT = 27;
+  CONTROL_API_VERSION_CURRENT = 28;
 }
 
 message RpcStatus {
@@ -223,6 +223,8 @@ message StreamRule {
   StreamServiceProfile service_profile = 7;
   StreamBypassPolicy bypass_policy = 8;
   string probe_status = 9;
+  // Uses the same modes as host visibility, with the policy in StreamRules.access_policies.
+  HostRuleVisibility visibility = 10;
 }
 
 // A normalized application-service observation. The gateway only emits

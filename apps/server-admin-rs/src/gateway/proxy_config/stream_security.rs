@@ -10,7 +10,7 @@ const MAX_STREAM_BYPASS_VALUES: usize = 256;
 const MAX_STREAM_BYPASS_TOTAL_VALUES: usize = 4_096;
 const MAX_STREAM_BYPASS_RESOLVED_CIDRS: usize = 100_000;
 
-fn mapping_key(value: &Value) -> Option<(String, u16)> {
+pub(super) fn mapping_key(value: &Value) -> Option<(String, u16)> {
     let protocol = value.get("protocol")?.as_str()?.trim().to_ascii_lowercase();
     let port = value.get("listen_port")?.as_u64()?.try_into().ok()?;
     Some((protocol, port))
@@ -114,11 +114,13 @@ pub(super) fn enable_unvalidated_stream_mappings(config: &mut Value) -> usize {
 }
 
 pub(super) fn prune_stream_access_policies(config: &mut Value) {
-    let referenced = config
+    let mappings = config
         .get("stream_mappings")
         .and_then(Value::as_array)
         .into_iter()
-        .flatten()
+        .flatten();
+    let referenced = mappings
+        .clone()
         .flat_map(|mapping| {
             mapping
                 .get("bypass_policy")
@@ -135,6 +137,11 @@ pub(super) fn prune_stream_access_policies(config: &mut Value) {
                 .flatten()
         })
         .filter_map(|condition| condition.get("policy_id").and_then(Value::as_str))
+        .chain(mappings.filter_map(|mapping| {
+            mapping
+                .pointer("/visibility/policy_id")
+                .and_then(Value::as_str)
+        }))
         .map(str::trim)
         .filter(|id| !id.is_empty())
         .map(ToString::to_string)

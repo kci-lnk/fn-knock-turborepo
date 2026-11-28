@@ -208,6 +208,7 @@ pub(super) async fn update_gateway_visibility(
     Json(body): Json<Value>,
 ) -> Response {
     let translator = Translator::from_state(&state).await;
+    let _guard = state.gateway.gateway_visibility_update_lock.lock().await;
     let previous_config = match state.storage.store.get_config().await {
         Ok(config) => config,
         Err(error) => {

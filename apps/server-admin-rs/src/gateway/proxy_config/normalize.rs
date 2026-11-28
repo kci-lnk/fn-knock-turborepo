@@ -1072,6 +1072,9 @@ pub(super) fn normalize_stream_mappings(mappings: Vec<Value>) -> Result<Vec<Valu
                 .ok_or("Stream mapping manually_disabled must be a boolean")?;
             normalized_mapping["manually_disabled"] = Value::Bool(disabled);
         }
+        if let Some(value) = object.get("visibility") {
+            normalized_mapping["visibility"] = value.clone();
+        }
         normalized.push(normalized_mapping);
     }
     Ok(normalized)

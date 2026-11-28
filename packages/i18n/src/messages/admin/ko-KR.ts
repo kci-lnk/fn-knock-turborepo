@@ -3857,6 +3857,16 @@ export const koKRAdmin = {
     protocolTab: "프로토콜",
   },
   streamMappings: {
+    visibilityDescription:
+      "게이트웨이의 허용 범위를 상속하거나, 이 규칙만의 범위를 지정하거나, 이 규칙의 가시성 검사를 끕니다. 변경 사항은 새 TCP 연결과 UDP 세션에 적용됩니다.",
+    visibilityRegionsDescription:
+      "이 규칙에 접근할 수 있는 지역을 선택합니다. 로컬 주소 등에 대한 게이트웨이의 예외는 사용자 지정 범위에도 적용됩니다.",
+    visibilityCidrsDescription:
+      "한 줄에 CIDR을 하나씩 입력하세요. 이 규칙에 적용됩니다.",
+    visibilityGatewayOff:
+      "게이트웨이 가시성이 꺼져 있습니다. 저장된 설정은 게이트웨이 가시성을 켜면 적용됩니다.",
+    visibilityMultiProtocol:
+      "이번에 저장하는 TCP 및 UDP 규칙에는 같은 가시성 설정이 적용됩니다. 저장 후 각 규칙을 따로 편집할 수 있습니다.",
     gatewayRuleDisabled: "게이트웨이에서 전달 중지됨",
     revisionConflict: "프로토콜 규칙이 변경되었습니다. 최신 규칙을 확인한 후 다시 시도하세요.",
     ruleEnabled: "활성화됨",

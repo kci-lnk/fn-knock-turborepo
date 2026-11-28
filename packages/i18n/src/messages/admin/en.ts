@@ -3885,6 +3885,16 @@ export const enAdmin = {
     protocolTab: "Protocols",
   },
   streamMappings: {
+    visibilityDescription:
+      "Inherit the gateway's allowed sources, set a custom range, or turn off visibility checks for this rule. Changes apply to new TCP connections and UDP sessions.",
+    visibilityRegionsDescription:
+      "Choose the regions allowed to access this rule. The gateway's exemptions for local addresses also apply to custom ranges.",
+    visibilityCidrsDescription:
+      "Enter one CIDR per line. These ranges apply to this rule.",
+    visibilityGatewayOff:
+      "Gateway visibility is off. Saved settings take effect when gateway visibility is enabled.",
+    visibilityMultiProtocol:
+      "The TCP and UDP rules will start with these same visibility settings. You can edit each rule separately after saving.",
     gatewayRuleDisabled: "Forwarding disabled by gateway",
     revisionConflict: "Protocol rules have changed. Review the current rules and try again.",
     ruleEnabled: "Enabled",

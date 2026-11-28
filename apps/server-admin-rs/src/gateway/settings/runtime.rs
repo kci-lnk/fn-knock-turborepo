@@ -17,6 +17,7 @@ pub(super) async fn sync_gateway_visibility_runtime(
 pub(crate) async fn sync_gateway_visibility_runtime_from_store(
     state: &AppState,
 ) -> Result<(), String> {
+    let _guard = state.gateway.gateway_visibility_update_lock.lock().await;
     let runtime = state
         .storage
         .store

@@ -114,6 +114,8 @@ pub struct GatewayState {
     /// Serializes protocol-mapping config, its standalone feature switch,
     /// gateway listeners, firewall rules, and rollback as one transaction.
     pub protocol_mapping_update_lock: Mutex<()>,
+    /// Serializes gateway visibility changes with runtime replays.
+    pub gateway_visibility_update_lock: Mutex<()>,
     /// Serializes the persisted Go GC policy with runtime application and
     /// rollback. The guard is also shared by boot and backup-import syncs so a
     /// late background sync cannot overwrite a newer admin update.
@@ -179,6 +181,7 @@ impl GatewayState {
             ssl_deployment_lock: Mutex::new(()),
             host_mappings_update_lock: Mutex::new(()),
             protocol_mapping_update_lock: Mutex::new(()),
+            gateway_visibility_update_lock: Mutex::new(()),
             memory_update_lock: Mutex::new(()),
             config_synced: AtomicBool::new(false),
             config_reconcile_notify: Notify::new(),

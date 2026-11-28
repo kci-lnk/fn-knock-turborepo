@@ -13274,6 +13274,7 @@ export interface components {
             target: string;
             use_auth: boolean;
             validation_mode?: string;
+            visibility?: components["schemas"]["StreamMappingVisibilityData"];
         };
         StreamMappingInputData: {
             comment?: string;
@@ -13284,6 +13285,19 @@ export interface components {
             protocol?: "tcp" | "udp";
             target: string;
             use_auth?: boolean;
+            visibility?: components["schemas"]["StreamMappingVisibilityInputData"];
+        };
+        StreamMappingVisibilityData: {
+            custom_cidrs: string[];
+            /** @enum {string} */
+            mode: "inherit" | "custom" | "disabled";
+            selections: components["schemas"]["GatewayVisibilitySelectionData"][];
+        };
+        StreamMappingVisibilityInputData: {
+            custom_cidrs?: string[];
+            /** @enum {string} */
+            mode: "inherit" | "custom" | "disabled";
+            selections?: components["schemas"]["GatewayVisibilitySelectionInputData"][];
         };
         StreamMappingsUpdateData: {
             /** @description Original list in read order. If supplied, changed editable fields or list membership return HTTP 409. */

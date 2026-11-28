@@ -3611,6 +3611,15 @@ export const zhCNAdmin = {
     protocolTab: "协议",
   },
   streamMappings: {
+    visibilityDescription:
+      "继承网关允许的范围、指定本条规则的范围，或关闭本条规则的可见性限制。设置从新的 TCP 连接和 UDP 会话起生效。",
+    visibilityRegionsDescription:
+      "选择允许访问本条规则的省市。自定义范围沿用网关对内网等地址的豁免。",
+    visibilityCidrsDescription: "每行一条，仅用于本条规则。",
+    visibilityGatewayOff:
+      "网关可见性已关闭。已保存的设置会在网关可见性开启后生效。",
+    visibilityMultiProtocol:
+      "本次保存的 TCP 和 UDP 规则使用相同的可见性设置，保存后可分别编辑。",
     gatewayRuleDisabled: "网关已停用转发",
     revisionConflict: "协议规则已更改，请核对最新规则后重试。",
     ruleEnabled: "已启用",

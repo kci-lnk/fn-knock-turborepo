@@ -1,5 +1,6 @@
 import type { components as ApiContractComponents } from "@fn-knock/api-contract";
 import type { StreamMapping } from "../../types";
+import { streamVisibilityInput } from "../stream-mappings";
 import { apiClient } from "./client";
 
 type StreamMappingsUpdate =
@@ -56,8 +57,16 @@ export const configStreamApi = {
     expected: readonly StreamMapping[],
   ): Promise<void> {
     const payload = {
-      mappings: mappings.map(writableFields),
-      expected_mappings: expected.map(writableFields),
+      mappings: mappings.map((mapping) => ({
+        ...writableFields(mapping),
+        ...(mapping.visibility && {
+          visibility: streamVisibilityInput(mapping.visibility),
+        }),
+      })),
+      expected_mappings: expected.map((mapping) => ({
+        ...writableFields(mapping),
+        visibility: streamVisibilityInput(mapping.visibility),
+      })),
     } satisfies StreamMappingsUpdate;
     await apiClient.post("/config/stream_mappings", payload);
   },

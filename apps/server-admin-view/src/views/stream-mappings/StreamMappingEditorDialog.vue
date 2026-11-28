@@ -1,7 +1,13 @@
 <script setup lang="ts">
 import { computed, reactive, ref, watch } from "vue";
 import { useI18n } from "vue-i18n";
+import { ChevronDown, ShieldCheck } from "lucide-vue-next";
 import { Button } from "@/components/ui/button";
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@/components/ui/collapsible";
 import {
   Dialog,
   DialogContent,
@@ -13,9 +19,19 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
+import MappingVisibilityFields from "@/components/MappingVisibilityFields.vue";
 import StreamProtocolMultiSelect from "@/components/StreamProtocolMultiSelect.vue";
+import { useGatewayVisibilityStatus } from "@/composables/useGatewayVisibilityStatus";
+import { getMappingVisibilityValidationIssue } from "@/lib/mapping-visibility";
+import { CIDR_OPERATORS } from "@/types/cidr";
+import { parseCidrTextarea } from "@admin-shared/utils/cidr";
 import { isValidHostPort } from "@admin-shared/utils/parseHostPort";
-import type { StreamMapping, StreamMappingProtocol } from "@/types";
+import type {
+  GatewayVisibilitySelection,
+  HostVisibilityMode,
+  StreamMapping,
+  StreamMappingProtocol,
+} from "@/types";
 import {
   createMappingKey,
   DEFAULT_STREAM_PROTOCOL,
@@ -43,6 +59,19 @@ const { t, locale } = useI18n();
 const hasAttemptedSubmit = ref(false);
 const hasPortBlurred = ref(false);
 const hasTargetBlurred = ref(false);
+const visibilityOpen = ref(false);
+const visibilityMode = ref<HostVisibilityMode>("inherit");
+const visibilitySelections = ref<GatewayVisibilitySelection[]>([]);
+const visibilityCidrsText = ref("");
+const {
+  globalVisibilityEnabled,
+  isGlobalVisibilityLoading,
+  globalVisibilityLoadError,
+  loadGlobalVisibilityStatus,
+  resetGlobalVisibilityStatus,
+} = useGatewayVisibilityStatus(() =>
+  t("admin.subdomainProxy.visibilityLoadFailed"),
+);
 const form = reactive<{
   protocols: StreamMappingProtocol[];
   listenPort: string;
@@ -78,6 +107,31 @@ const duplicateProtocols = computed(() => {
         getMappingKey(mapping) !== editingKey.value,
     ),
   );
+});
+
+const visibilityModeLabel = computed(() => {
+  const labels = {
+    inherit: "visibilityInherit",
+    custom: "visibilityCustom",
+    disabled: "visibilityDisabled",
+  } as const;
+  return t(`admin.subdomainProxy.${labels[visibilityMode.value]}`);
+});
+const visibilityValidationMessage = computed(() => {
+  const issue = getMappingVisibilityValidationIssue({
+    available: globalVisibilityEnabled.value,
+    mode: visibilityMode.value,
+    selectionsCount: visibilitySelections.value.length,
+    customCidrsText: visibilityCidrsText.value,
+  });
+  if (issue?.kind === "invalid_cidrs") {
+    return t("admin.subdomainProxy.visibilityInvalidCidrs", {
+      items: issue.invalid.join("、"),
+    });
+  }
+  return issue?.kind === "empty"
+    ? t("admin.subdomainProxy.visibilityRuleRequired")
+    : "";
 });
 
 const formatProtocolList = (protocols: StreamMappingProtocol[]) => {
@@ -151,6 +205,19 @@ const resetForm = () => {
   form.comment = mapping?.comment ?? "";
   form.target = mapping?.target ?? "";
   form.useAuth = mapping?.use_auth ?? true;
+  visibilityOpen.value = false;
+  visibilityMode.value = mapping?.visibility?.mode ?? "inherit";
+  visibilitySelections.value = (mapping?.visibility?.selections ?? []).map(
+    (selection) => ({
+      ...selection,
+      operator: CIDR_OPERATORS.find(
+        (operator) => operator === selection.operator,
+      ),
+    }),
+  );
+  visibilityCidrsText.value = (mapping?.visibility?.custom_cidrs ?? []).join(
+    "\n",
+  );
   hasAttemptedSubmit.value = false;
   hasPortBlurred.value = false;
   hasTargetBlurred.value = false;
@@ -159,7 +226,26 @@ const resetForm = () => {
 const submit = () => {
   hasAttemptedSubmit.value = true;
   const port = parsedListenPort.value;
+  if (visibilityValidationMessage.value) {
+    visibilityOpen.value = true;
+    return;
+  }
   if (submitValidationMessage.value || port === null) return;
+  const custom = visibilityMode.value === "custom";
+  const visibility: StreamMapping["visibility"] = globalVisibilityEnabled.value
+    ? {
+        mode: visibilityMode.value,
+        selections: custom
+          ? visibilitySelections.value.map((selection) => ({
+              ...selection,
+              operator: selection.operator ?? null,
+            }))
+          : [],
+        custom_cidrs: custom
+          ? parseCidrTextarea(visibilityCidrsText.value).cidrs
+          : [],
+      }
+    : props.mapping?.visibility;
 
   emit("save", {
     editingKey: editingKey.value,
@@ -169,6 +255,7 @@ const submit = () => {
       comment: form.comment.trim(),
       target: form.target.trim(),
       use_auth: form.useAuth,
+      ...(visibility && { visibility }),
     })),
   });
 };
@@ -176,7 +263,12 @@ const submit = () => {
 watch(
   () => [props.open, props.mapping] as const,
   ([open]) => {
-    if (open) resetForm();
+    if (open) {
+      resetForm();
+      void loadGlobalVisibilityStatus();
+    } else {
+      resetGlobalVisibilityStatus();
+    }
   },
   { immediate: true },
 );
@@ -184,8 +276,10 @@ watch(
 
 <template>
   <Dialog :open="open" @update:open="emit('update:open', $event)">
-    <DialogContent class="sm:max-w-[520px]">
-      <DialogHeader>
+    <DialogContent
+      class="flex max-h-[85dvh] flex-col overflow-hidden sm:max-w-[520px]"
+    >
+      <DialogHeader class="shrink-0">
         <DialogTitle>
           {{
             isEditing
@@ -198,7 +292,10 @@ watch(
         </DialogDescription>
       </DialogHeader>
 
-      <div class="grid gap-4 py-4">
+      <div
+        data-dialog-input-scroll
+        class="grid min-h-0 gap-4 overflow-y-auto overscroll-contain py-2 pr-1"
+      >
         <div class="space-y-2">
           <Label for="stream-protocol">
             {{ t("admin.streamMappings.transportProtocol") }}
@@ -275,6 +372,81 @@ watch(
           <Switch id="stream-auth" v-model="form.useAuth" />
         </div>
 
+        <Collapsible v-model:open="visibilityOpen" class="space-y-3">
+          <CollapsibleTrigger as-child>
+            <Button
+              type="button"
+              variant="outline"
+              class="group h-auto w-full justify-between gap-3 px-4 py-3 text-left"
+            >
+              <span class="flex min-w-0 items-start gap-3">
+                <ShieldCheck
+                  class="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground"
+                />
+                <span class="min-w-0 space-y-1 whitespace-normal">
+                  <span class="block">{{
+                    t("admin.subdomainProxy.visibilityTitle")
+                  }}</span>
+                  <span class="block text-xs font-normal text-muted-foreground">
+                    {{ visibilityModeLabel }}
+                  </span>
+                </span>
+              </span>
+              <ChevronDown
+                class="h-4 w-4 shrink-0 text-muted-foreground group-aria-expanded:rotate-180"
+              />
+            </Button>
+          </CollapsibleTrigger>
+          <CollapsibleContent class="space-y-3">
+            <p
+              v-if="isGlobalVisibilityLoading"
+              role="status"
+              class="text-sm text-muted-foreground"
+            >
+              {{ t("admin.gatewayVisibilitySettings.loadingConfig") }}
+            </p>
+            <div v-else-if="globalVisibilityLoadError" class="space-y-2">
+              <p role="alert" class="break-words text-sm text-destructive">
+                {{ globalVisibilityLoadError }}
+              </p>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                @click="loadGlobalVisibilityStatus"
+              >
+                {{ t("admin.subdomainProxy.retry") }}
+              </Button>
+            </div>
+            <template v-else-if="globalVisibilityEnabled">
+              <p
+                v-if="selectedProtocols.length > 1"
+                class="text-sm text-muted-foreground"
+              >
+                {{ t("admin.streamMappings.visibilityMultiProtocol") }}
+              </p>
+              <MappingVisibilityFields
+                v-model:mode="visibilityMode"
+                v-model:selections="visibilitySelections"
+                v-model:custom-cidrs-text="visibilityCidrsText"
+                :behavior-description="
+                  t('admin.streamMappings.visibilityDescription')
+                "
+                :regions-description="
+                  t('admin.streamMappings.visibilityRegionsDescription')
+                "
+                :cidrs-description="
+                  t('admin.streamMappings.visibilityCidrsDescription')
+                "
+                :validation-message="visibilityValidationMessage"
+              />
+            </template>
+            <p v-else class="text-sm text-muted-foreground">
+              {{ t("admin.streamMappings.visibilityGatewayOff") }}
+            </p>
+          </CollapsibleContent>
+        </Collapsible>
+
         <div
           v-if="validationMessage"
           class="rounded-lg border border-destructive/30 bg-destructive/5 px-4 py-3 text-sm text-destructive"
@@ -283,7 +455,7 @@ watch(
         </div>
       </div>
 
-      <DialogFooter>
+      <DialogFooter class="shrink-0">
         <Button variant="outline" @click="emit('update:open', false)">
           {{ t("common.cancel") }}
         </Button>

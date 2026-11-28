@@ -3554,6 +3554,15 @@ export const zhHantAdmin = {
     protocolTab: "協議",
   },
   streamMappings: {
+    visibilityDescription:
+      "繼承閘道允許的範圍、指定此規則的範圍，或關閉此規則的可見性限制。設定從新的 TCP 連線和 UDP 工作階段開始生效。",
+    visibilityRegionsDescription:
+      "選擇允許存取此規則的省市。自訂範圍沿用閘道對內網等位址的豁免。",
+    visibilityCidrsDescription: "每行一條，僅用於此規則。",
+    visibilityGatewayOff:
+      "閘道可見性已關閉。已儲存的設定會在閘道可見性開啟後生效。",
+    visibilityMultiProtocol:
+      "此次儲存的 TCP 和 UDP 規則會使用相同的可見性設定，儲存後可分別編輯。",
     gatewayRuleDisabled: "閘道已停用轉送",
     revisionConflict: "協議規則已變更，請核對最新規則後重試。",
     ruleEnabled: "已啟用",

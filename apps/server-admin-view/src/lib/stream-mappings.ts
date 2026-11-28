@@ -15,25 +15,49 @@ export const createMappingKey = (
 export const getMappingKey = (mapping: StreamMapping): string =>
   createMappingKey(normalizeProtocol(mapping.protocol), mapping.listen_port);
 
-// Ordinary edits omit the manual flag so a concurrent pause survives a full-list save.
+export function streamVisibilityInput(visibility: StreamMapping["visibility"]) {
+  if (visibility?.mode !== "custom") {
+    return { mode: visibility?.mode ?? "inherit" };
+  }
+  return {
+    mode: visibility.mode,
+    selections: visibility.selections.map(
+      ({ province, query_city, operator }) => ({
+        province,
+        query_city,
+        operator: operator ?? null,
+      }),
+    ),
+    custom_cidrs: visibility.custom_cidrs,
+  };
+}
+
+const sameStreamVisibility = (
+  current: StreamMapping,
+  expected: StreamMapping,
+) =>
+  JSON.stringify(streamVisibilityInput(current.visibility)) ===
+  JSON.stringify(streamVisibilityInput(expected.visibility));
+
+// Full-list writes send manual state and visibility only when they change for a listener.
 export function streamMappingWritePayload(
   current: readonly StreamMapping[],
   next: readonly StreamMapping[],
 ): StreamMapping[] {
-  const previousState = new Map(
-    current.map((mapping) => [
-      getMappingKey(mapping),
-      mapping.manually_disabled === true,
-    ]),
+  const previousByKey = new Map(
+    current.map((mapping) => [getMappingKey(mapping), mapping]),
   );
   return next.map((mapping) => {
-    if (
-      mapping.manually_disabled === undefined ||
-      mapping.manually_disabled !== previousState.get(getMappingKey(mapping))
-    ) {
-      return mapping;
+    const previous = previousByKey.get(getMappingKey(mapping));
+    const payload = { ...mapping };
+    if (previous) {
+      if (payload.manually_disabled === (previous.manually_disabled === true)) {
+        delete payload.manually_disabled;
+      }
+      if (sameStreamVisibility(payload, previous)) {
+        delete payload.visibility;
+      }
     }
-    const { manually_disabled: _unchanged, ...payload } = mapping;
     return payload;
   });
 }
@@ -48,6 +72,7 @@ export function sameStreamRule(
     (current.use_auth ?? true) === (expected.use_auth ?? true) &&
     (current.comment ?? "").trim() === (expected.comment ?? "").trim() &&
     (current.manually_disabled === true) ===
-      (expected.manually_disabled === true)
+      (expected.manually_disabled === true) &&
+    sameStreamVisibility(current, expected)
   );
 }

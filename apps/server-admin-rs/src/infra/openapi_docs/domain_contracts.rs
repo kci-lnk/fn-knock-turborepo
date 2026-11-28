@@ -898,6 +898,8 @@ struct BackupImportResultData {
     ProxyMappingsUpdateData,
     StreamMappingData,
     StreamMappingInputData,
+    StreamMappingVisibilityData,
+    StreamMappingVisibilityInputData,
     StreamMappingsUpdateData,
     SubdomainModeData,
     SubdomainModeUpdateData,
@@ -3836,6 +3838,17 @@ pub(super) fn components() -> Map<String, Value> {
         set_property_enum(&mut schemas, schema, "protocol", &["tcp", "udp"]);
         set_property_metadata(&mut schemas, schema, "listen_port", "minimum", json!(1));
         set_property_metadata(&mut schemas, schema, "listen_port", "maximum", json!(65535));
+    }
+    for schema in [
+        "StreamMappingVisibilityData",
+        "StreamMappingVisibilityInputData",
+    ] {
+        set_property_enum(
+            &mut schemas,
+            schema,
+            "mode",
+            &["inherit", "custom", "disabled"],
+        );
     }
     for schema in [
         "SubdomainModeData",

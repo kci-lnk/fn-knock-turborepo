@@ -1,16 +1,15 @@
 import { computed, ref, watch, type ComputedRef, type Ref } from "vue";
-import { extractErrorMessage } from "@admin-shared/composables/useAsyncAction";
 import { parseCidrTextarea } from "@admin-shared/utils/cidr";
-import { ConfigAPI } from "@/lib/api/config";
+import { useGatewayVisibilityStatus } from "@/composables/useGatewayVisibilityStatus";
+import { getMappingVisibilityValidationIssue } from "@/lib/mapping-visibility";
 import type { GatewayVisibilitySelection, HostMapping } from "@/types";
 import type { TranslationParams } from "./model";
+
+export { getMappingVisibilityValidationIssue } from "@/lib/mapping-visibility";
 
 export type MappingDialogView =
   "basic" | "icon" | "path-browser" | "visibility";
 export type MappingDialogMotionDirection = "forward" | "back";
-
-export type MappingVisibilityValidationIssue =
-  { kind: "invalid_cidrs"; invalid: string[] } | { kind: "empty" } | null;
 
 export const shouldBlockMappingSaveForVisibility = ({
   isAuthService,
@@ -30,28 +29,6 @@ export const shouldReturnToVisibilityAfterSaveError = (
   mode: HostMapping["visibility"]["mode"],
 ): boolean => mode !== "inherit";
 
-export const getMappingVisibilityValidationIssue = ({
-  available,
-  mode,
-  selectionsCount,
-  customCidrsText,
-}: {
-  available: boolean;
-  mode: HostMapping["visibility"]["mode"];
-  selectionsCount: number;
-  customCidrsText: string;
-}): MappingVisibilityValidationIssue => {
-  if (!available || mode !== "custom") return null;
-  const parsed = parseCidrTextarea(customCidrsText);
-  if (parsed.invalid.length > 0) {
-    return { kind: "invalid_cidrs", invalid: parsed.invalid };
-  }
-  if (selectionsCount === 0 && parsed.cidrs.length === 0) {
-    return { kind: "empty" };
-  }
-  return null;
-};
-
 export const useMappingVisibility = ({
   isDialogOpen,
   isMappingAuthService,
@@ -65,11 +42,16 @@ export const useMappingVisibility = ({
 }) => {
   const mappingDialogView = ref<MappingDialogView>("basic");
   const motionDirection = ref<MappingDialogMotionDirection>("forward");
-  const globalVisibilityEnabled = ref(false);
-  const isGlobalVisibilityLoading = ref(false);
-  const globalVisibilityLoadError = ref("");
+  const {
+    globalVisibilityEnabled,
+    isGlobalVisibilityLoading,
+    globalVisibilityLoadError,
+    loadGlobalVisibilityStatus: loadGlobalVisibility,
+    resetGlobalVisibilityStatus,
+  } = useGatewayVisibilityStatus(() =>
+    translate("admin.subdomainProxy.visibilityLoadFailed"),
+  );
   const customCidrsText = ref("");
-  let globalRequestId = 0;
 
   const visibilityMode = computed({
     get: () => {
@@ -92,10 +74,6 @@ export const useMappingVisibility = ({
   const visibilityAvailable = computed(
     () => globalVisibilityEnabled.value && !isMappingAuthService.value,
   );
-  const customVisibilityEnabled = computed(
-    () => visibilityMode.value === "custom",
-  );
-  const regionInputsDisabled = computed(() => !customVisibilityEnabled.value);
   const visibilityValidationMessage = computed(() => {
     const issue = getMappingVisibilityValidationIssue({
       available: visibilityAvailable.value,
@@ -136,34 +114,10 @@ export const useMappingVisibility = ({
   const resetVisibilityEditor = () => {
     mappingDialogView.value = "basic";
     motionDirection.value = "forward";
-    globalVisibilityEnabled.value = false;
+    resetGlobalVisibilityStatus();
     customCidrsText.value = (mappingForm.visibility?.custom_cidrs ?? []).join(
       "\n",
     );
-    globalVisibilityLoadError.value = "";
-  };
-
-  const loadGlobalVisibility = async () => {
-    const requestId = ++globalRequestId;
-    globalVisibilityEnabled.value = false;
-    isGlobalVisibilityLoading.value = true;
-    globalVisibilityLoadError.value = "";
-    try {
-      const details = await ConfigAPI.getGatewayVisibility();
-      if (requestId !== globalRequestId) return;
-      globalVisibilityEnabled.value = details.config.enabled;
-    } catch (error) {
-      if (requestId !== globalRequestId) return;
-      globalVisibilityEnabled.value = false;
-      globalVisibilityLoadError.value = extractErrorMessage(
-        error,
-        translate("admin.subdomainProxy.visibilityLoadFailed"),
-      );
-    } finally {
-      if (requestId === globalRequestId) {
-        isGlobalVisibilityLoading.value = false;
-      }
-    }
   };
 
   const openVisibilityView = () => {
@@ -194,10 +148,7 @@ export const useMappingVisibility = ({
     }
   });
   watch(isDialogOpen, (open) => {
-    if (!open) {
-      globalRequestId += 1;
-      isGlobalVisibilityLoading.value = false;
-    }
+    if (!open) resetGlobalVisibilityStatus();
   });
 
   const transitionEnterFromClass = computed(() =>
@@ -212,7 +163,6 @@ export const useMappingVisibility = ({
   );
 
   return {
-    customCidrsState,
     customCidrsText,
     globalVisibilityLoadError,
     isGlobalVisibilityLoading,
@@ -221,7 +171,6 @@ export const useMappingVisibility = ({
     openIconView,
     openPathBrowserView,
     openVisibilityView,
-    regionInputsDisabled,
     resetVisibilityEditor,
     returnBasicView,
     transitionEnterFromClass,

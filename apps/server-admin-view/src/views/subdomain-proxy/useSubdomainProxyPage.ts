@@ -34,7 +34,7 @@ import { useSubdomainMappingDialogController } from "./useSubdomainMappingDialog
 import { useSubdomainMappingListActions } from "./useSubdomainMappingListActions";
 import { useSubdomainModeConfig } from "./useSubdomainModeConfig";
 import { useSubdomainDestructiveActions } from "./useSubdomainDestructiveActions";
-import { useGatewayVisibilityStatus } from "./useGatewayVisibilityStatus";
+import { useGatewayVisibilityStatus } from "@/composables/useGatewayVisibilityStatus";
 import { useSubdomainMappingGroups } from "./useSubdomainMappingGroups";
 import { useActiveDeepMonitors } from "./useActiveDeepMonitors";
 import { useSubdomainNavigation } from "./useSubdomainNavigation";

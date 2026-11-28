@@ -11,6 +11,7 @@ pub(crate) async fn migrate_visibility_policies_on_boot(state: &AppState) -> Res
 /// Mapping transaction lock and lease. Backup import uses this variant so the
 /// restored data cannot become visible between replacement and migration.
 pub(crate) async fn migrate_visibility_policies_locked(state: &AppState) -> Result<(), String> {
+    let _guard = state.gateway.gateway_visibility_update_lock.lock().await;
     let previous = state
         .storage
         .store

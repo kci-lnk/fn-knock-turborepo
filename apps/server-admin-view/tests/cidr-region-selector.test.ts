@@ -23,7 +23,7 @@ const selectorStatePath = "components/cidr-region-selector-state.ts";
 const selectorConsumers = [
   "views/ip-whitelist/WhitelistAddDialog.vue",
   "views/ssh-security/SSHSecurityFormFields.vue",
-  "views/subdomain-proxy/SubdomainMappingVisibilityPanel.vue",
+  "components/MappingVisibilityFields.vue",
   "views/system-settings/GatewayVisibilitySettings.vue",
   "views/system-settings/scanner-firewall/ScannerFirewallExemptions.vue",
 ];
@@ -283,7 +283,7 @@ describe("CIDR region selector", () => {
     state.dispose();
   });
 
-  it("keeps all five business entry points on the shared component", async () => {
+  it("keeps the selector consumers on the shared component", async () => {
     await Promise.all(
       selectorConsumers.map(async (path) => {
         const source = await readFile(join(srcRoot, path), "utf8");

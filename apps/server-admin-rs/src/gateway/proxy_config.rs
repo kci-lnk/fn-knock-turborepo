@@ -37,6 +37,7 @@ mod normalize;
 mod runtime;
 mod static_serve;
 mod stream_security;
+mod stream_visibility;
 mod subdomain;
 
 use advanced_auth::*;
@@ -62,6 +63,7 @@ pub(crate) use runtime::{
 };
 use static_serve::*;
 use stream_security::*;
+use stream_visibility::{prepare_stream_mapping_visibility, stream_mapping_precondition_matches};
 use subdomain::*;
 
 #[cfg(test)]
@@ -2345,10 +2347,13 @@ where
         .map(Vec::as_slice)
         .unwrap_or_default();
     if let Some(expected) = &body.expected_mappings
-        && !expected
-            .iter()
-            .map(stream_mapping_inputs)
-            .eq(previous_mappings.iter().map(stream_mapping_inputs))
+        && (expected.len() != previous_mappings.len()
+            || !expected
+                .iter()
+                .zip(previous_mappings)
+                .all(|(expected, previous)| {
+                    stream_mapping_precondition_matches(expected, previous)
+                }))
     {
         return response::error_with_code(
             StatusCode::CONFLICT,
@@ -2390,6 +2395,19 @@ where
         );
     }
     let mut updated_config = previous_config.clone();
+    if let Err(message) = prepare_stream_mapping_visibility(
+        &state,
+        previous_mappings,
+        &mut normalized,
+        &mut updated_config,
+    )
+    .await
+    {
+        return response::error(
+            StatusCode::BAD_REQUEST,
+            localize_proxy_config_error(&translator, &message),
+        );
+    }
     ensure_object(&mut updated_config).insert(
         "stream_mappings".to_string(),
         Value::Array(normalized.clone()),
